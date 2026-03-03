@@ -90,13 +90,19 @@ if (companyCount.count === 0) {
   const defaultThresholds = JSON.stringify({ liquidity_drop: 20, der_rise: 15, margin_drop_months: 3 });
   const defaultIdeals = JSON.stringify({ current_ratio: 1.5, quick_ratio: 1, der: 2, npm: 10 });
 
-  insertCompany.run("ASI", "PT Asia Servis Indonesia", "#0f172a", "Industrial", defaultThresholds, defaultIdeals);
+  insertCompany.run("ASI", "PT Asia Serv Indonesia", "#0f172a", "Industrial", defaultThresholds, defaultIdeals);
   insertCompany.run("TSI", "PT Titian Servis Indonesia", "#334155", "Services", defaultThresholds, defaultIdeals);
+  insertCompany.run("SUB3", "PT Subsidiary Three", "#7c3aed", "Technology", defaultThresholds, defaultIdeals);
+  insertCompany.run("SUB4", "PT Subsidiary Four", "#059669", "Manufacturing", defaultThresholds, defaultIdeals);
+  insertCompany.run("SUB5", "PT Subsidiary Five", "#dc2626", "Retail", defaultThresholds, defaultIdeals);
 
-  // Grant admin access to both companies
+  // Grant admin access to all companies
   const adminId = (db.prepare("SELECT id FROM users WHERE username = 'admin'").get() as any).id;
   db.prepare("INSERT OR IGNORE INTO user_company_access (user_id, company_id) VALUES (?, ?)").run(adminId, "ASI");
   db.prepare("INSERT OR IGNORE INTO user_company_access (user_id, company_id) VALUES (?, ?)").run(adminId, "TSI");
+  db.prepare("INSERT OR IGNORE INTO user_company_access (user_id, company_id) VALUES (?, ?)").run(adminId, "SUB3");
+  db.prepare("INSERT OR IGNORE INTO user_company_access (user_id, company_id) VALUES (?, ?)").run(adminId, "SUB4");
+  db.prepare("INSERT OR IGNORE INTO user_company_access (user_id, company_id) VALUES (?, ?)").run(adminId, "SUB5");
 }
 
 const statementCount = db.prepare("SELECT COUNT(*) as count FROM financial_statements").get() as { count: number };
@@ -107,22 +113,119 @@ if (statementCount.count === 0) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const periods = ["2023-12", "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06", "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12"];
+  // Generate data for 3 years (2024-01 to 2026-12)
+  const startDate = new Date('2024-01-01');
+  const endDate = new Date('2026-12-31');
+  const periods: string[] = [];
+  
+  let currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    periods.push(`${year}-${month}`);
+    currentDate.setMonth(currentDate.getMonth() + 1);
+  }
+  
+  console.log(`Generating dummy data for ${periods.length} periods across 5 companies...`);
   
   periods.forEach((period, idx) => {
-    // ASI Data (Growth Simulation)
-    const baseRevASI = 1000000 + (idx * 50000);
-    insertStatement.run("ASI", period, baseRevASI, baseRevASI * 0.15, 5000000, 3000000, 2000000, 1500000, 800000, 1200000, 500000, baseRevASI * 0.1, 100000, 50000, 200000, 800000);
+    // ASI Data (Steady Growth)
+    const baseRevASI = 1000000 + (idx * 50000) + (Math.random() * 100000);
+    const profitMarginASI = 0.15 + (Math.random() * 0.05);
+    insertStatement.run(
+      "ASI", period, 
+      baseRevASI, 
+      baseRevASI * profitMarginASI, 
+      5000000 + (idx * 100000), 
+      3000000 + (idx * 60000), 
+      2000000 + (idx * 40000), 
+      1500000 + (idx * 30000), 
+      800000 + (idx * 15000), 
+      1200000 + (idx * 25000), 
+      500000 + (idx * 10000), 
+      baseRevASI * 0.1, 
+      100000, 50000, 200000, 800000
+    );
     
-    // TSI Data (Growth Simulation)
-    const baseRevTSI = 800000 + (idx * 60000);
-    insertStatement.run("TSI", period, baseRevTSI, baseRevTSI * 0.12, 4500000, 2500000, 2000000, 1200000, 900000, 900000, 400000, baseRevTSI * 0.08, 150000, 60000, 300000, 700000);
+    // TSI Data (Moderate Growth)
+    const baseRevTSI = 800000 + (idx * 60000) + (Math.random() * 80000);
+    const profitMarginTSI = 0.12 + (Math.random() * 0.04);
+    insertStatement.run(
+      "TSI", period, 
+      baseRevTSI, 
+      baseRevTSI * profitMarginTSI, 
+      4500000 + (idx * 90000), 
+      2500000 + (idx * 50000), 
+      2000000 + (idx * 40000), 
+      1200000 + (idx * 25000), 
+      900000 + (idx * 18000), 
+      900000 + (idx * 20000), 
+      400000 + (idx * 8000), 
+      baseRevTSI * 0.08, 
+      150000, 60000, 300000, 700000
+    );
+    
+    // SUB3 Data (High Growth - Technology)
+    const baseRevSUB3 = 600000 + (idx * 80000) + (Math.random() * 120000);
+    const profitMarginSUB3 = 0.18 + (Math.random() * 0.06);
+    insertStatement.run(
+      "SUB3", period, 
+      baseRevSUB3, 
+      baseRevSUB3 * profitMarginSUB3, 
+      3500000 + (idx * 120000), 
+      2200000 + (idx * 70000), 
+      1300000 + (idx * 50000), 
+      1000000 + (idx * 35000), 
+      600000 + (idx * 12000), 
+      800000 + (idx * 28000), 
+      350000 + (idx * 12000), 
+      baseRevSUB3 * 0.12, 
+      80000, 40000, 150000, 500000
+    );
+    
+    // SUB4 Data (Stable - Manufacturing)
+    const baseRevSUB4 = 1200000 + (idx * 40000) + (Math.random() * 60000);
+    const profitMarginSUB4 = 0.10 + (Math.random() * 0.03);
+    insertStatement.run(
+      "SUB4", period, 
+      baseRevSUB4, 
+      baseRevSUB4 * profitMarginSUB4, 
+      6000000 + (idx * 80000), 
+      3500000 + (idx * 45000), 
+      2500000 + (idx * 35000), 
+      1800000 + (idx * 20000), 
+      1000000 + (idx * 15000), 
+      1400000 + (idx * 18000), 
+      600000 + (idx * 8000), 
+      baseRevSUB4 * 0.09, 
+      120000, 55000, 250000, 900000
+    );
+    
+    // SUB5 Data (Volatile - Retail)
+    const baseRevSUB5 = 900000 + (idx * 55000) + (Math.random() * 150000);
+    const profitMarginSUB5 = 0.08 + (Math.random() * 0.05);
+    insertStatement.run(
+      "SUB5", period, 
+      baseRevSUB5, 
+      baseRevSUB5 * profitMarginSUB5, 
+      4000000 + (idx * 70000), 
+      2300000 + (idx * 40000), 
+      1700000 + (idx * 30000), 
+      1300000 + (idx * 22000), 
+      850000 + (idx * 16000), 
+      1000000 + (idx * 18000), 
+      450000 + (idx * 9000), 
+      baseRevSUB5 * 0.07, 
+      110000, 48000, 220000, 650000
+    );
   });
+  
+  console.log(`✓ Generated ${periods.length * 5} financial records`);
 }
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = 5000;
 
   app.use(express.json());
 
@@ -317,7 +420,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "127.0.0.1", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

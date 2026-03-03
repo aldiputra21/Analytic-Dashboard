@@ -33,7 +33,10 @@ import {
   Lock,
   X,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  FileText,
+  Scale,
+  DollarSign
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -62,16 +65,26 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { format } from 'date-fns';
 
-import { Company, FinancialRatio, PeriodType, User, Role } from './types';
-import { HEALTH_THRESHOLDS } from './constants';
+import { Company, FinancialRatio, PeriodType, User, Role, AuditLog, TimeRange } from './types';
+import { HEALTH_THRESHOLDS, TIME_RANGES } from './constants';
+import { METRIC_DESCRIPTIONS, PERMISSION_DESCRIPTIONS, STATUS_DESCRIPTIONS } from './tooltips';
+import { InfoTooltip, LabelWithTooltip } from './components/Tooltip';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Helper function to format currency in Rupiah
+function formatRupiah(value: number, showMillion: boolean = true): string {
+  if (showMillion) {
+    return `Rp ${(value / 1000000).toFixed(1)}M`;
+  }
+  return `Rp ${value.toLocaleString('id-ID')}`;
+}
+
 // --- Components ---
 
-const Card = ({ children, className, title, subtitle, icon: Icon }: any) => (
+const Card = ({ children, className, title, subtitle, icon: Icon, tooltip }: any) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -80,7 +93,12 @@ const Card = ({ children, className, title, subtitle, icon: Icon }: any) => (
     {(title || Icon) && (
       <div className="px-6 py-4 border-bottom border-slate-100 flex items-center justify-between">
         <div>
-          {title && <h3 className="text-sm font-semibold text-slate-900">{title}</h3>}
+          {title && (
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+              {tooltip && <InfoTooltip title={tooltip.title} description={tooltip.description} />}
+            </div>
+          )}
           {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
         </div>
         {Icon && <Icon className="w-4 h-4 text-slate-400" />}
@@ -131,16 +149,25 @@ const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }
             
             <div className="grid grid-cols-3 gap-8 mb-6">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Assets</p>
-                <p className="text-lg font-bold text-slate-900">${(latest.total_assets / 1000000).toFixed(1)}M</p>
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Assets</p>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.total_assets.title} description={METRIC_DESCRIPTIONS.total_assets.description} />
+                </div>
+                <p className="text-lg font-bold text-slate-900">{formatRupiah(latest.total_assets)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Equity</p>
-                <p className="text-lg font-bold text-slate-900">${(latest.total_equity / 1000000).toFixed(1)}M</p>
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Equity</p>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.total_equity.title} description={METRIC_DESCRIPTIONS.total_equity.description} />
+                </div>
+                <p className="text-lg font-bold text-slate-900">{formatRupiah(latest.total_equity)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Liabilities</p>
-                <p className="text-lg font-bold text-slate-900">${(latest.total_liabilities / 1000000).toFixed(1)}M</p>
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Liabilities</p>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.total_liabilities.title} description={METRIC_DESCRIPTIONS.total_liabilities.description} />
+                </div>
+                <p className="text-lg font-bold text-slate-900">{formatRupiah(latest.total_liabilities)}</p>
               </div>
             </div>
 
@@ -168,7 +195,10 @@ const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }
       <Card className="bg-slate-900 text-white border-none shadow-xl">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold opacity-70">Annual Growth</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold opacity-70">Annual Growth</h3>
+              <InfoTooltip title={METRIC_DESCRIPTIONS.annual_growth.title} description={METRIC_DESCRIPTIONS.annual_growth.description} />
+            </div>
             <TrendingUp className="w-4 h-4 opacity-50" />
           </div>
           <div className="space-y-4">
@@ -177,7 +207,10 @@ const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                   <Zap className="w-4 h-4 text-amber-400" />
                 </div>
-                <span className="text-sm font-medium">Revenue Growth</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium">Revenue Growth</span>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.revenue_growth.title} description={METRIC_DESCRIPTIONS.revenue_growth.description} />
+                </div>
               </div>
               <div className="flex items-center gap-1 text-emerald-400 font-bold">
                 <ArrowUpRight className="w-4 h-4" />
@@ -189,7 +222,10 @@ const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                   <Activity className="w-4 h-4 text-blue-400" />
                 </div>
-                <span className="text-sm font-medium">Profit Growth</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium">Profit Growth</span>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.profit_growth.title} description={METRIC_DESCRIPTIONS.profit_growth.description} />
+                </div>
               </div>
               <div className="flex items-center gap-1 text-emerald-400 font-bold">
                 <ArrowUpRight className="w-4 h-4" />
@@ -218,7 +254,12 @@ const HealthScoreGauge = ({ score }: any) => {
   const COLORS = ['#6366f1', '#f8fafc']; // Indigo for score
 
   return (
-    <Card title="Strategic Performance Index" subtitle="Aggregate corporate health metric" icon={ShieldCheck}>
+    <Card 
+      title="Strategic Performance Index" 
+      subtitle="Aggregate corporate health metric" 
+      icon={ShieldCheck}
+      tooltip={METRIC_DESCRIPTIONS.strategic_performance_index}
+    >
       <div className="flex flex-col items-center">
         <div className="h-[200px] w-full relative">
           <ResponsiveContainer width="100%" height="100%">
@@ -248,14 +289,20 @@ const HealthScoreGauge = ({ score }: any) => {
         
         <div className="w-full mt-8 grid grid-cols-2 gap-4">
           {[
-            { label: 'Profitability', val: 85, color: 'bg-indigo-500' },
-            { label: 'Liquidity', val: 70, color: 'bg-emerald-500' },
-            { label: 'Solvency', val: 90, color: 'bg-blue-500' },
-            { label: 'Efficiency', val: 75, color: 'bg-violet-500' },
+            { label: 'Profitability', val: 85, color: 'bg-indigo-500', key: 'profitability' },
+            { label: 'Liquidity', val: 70, color: 'bg-emerald-500', key: 'liquidity' },
+            { label: 'Solvency', val: 90, color: 'bg-blue-500', key: 'solvency' },
+            { label: 'Efficiency', val: 75, color: 'bg-violet-500', key: 'efficiency' },
           ].map((dim) => (
             <div key={dim.label} className="space-y-1.5">
               <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                <span>{dim.label}</span>
+                <div className="flex items-center gap-1">
+                  <span>{dim.label}</span>
+                  <InfoTooltip 
+                    title={METRIC_DESCRIPTIONS[dim.key].title} 
+                    description={METRIC_DESCRIPTIONS[dim.key].description}
+                  />
+                </div>
                 <span>{dim.val}%</span>
               </div>
               <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -273,9 +320,10 @@ const HealthScoreGauge = ({ score }: any) => {
   );
 };
 
-const KPICard = ({ label, value, unit = "%", trend, yoy, delta, status, companyName, companyColor }: any) => {
+const KPICard = ({ label, value, unit = "%", trend, yoy, delta, status, companyName, companyColor, metricKey }: any) => {
   const isHealthy = status === 'Healthy';
   const isRisky = status === 'Risky';
+  const tooltip = METRIC_DESCRIPTIONS[metricKey] || { title: label, description: '' };
 
   return (
     <div className="flex flex-col gap-2">
@@ -285,7 +333,10 @@ const KPICard = ({ label, value, unit = "%", trend, yoy, delta, status, companyN
       </div>
       <div className="flex justify-between items-end">
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-1">{label}</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <p className="text-xs font-medium text-slate-500">{label}</p>
+            <InfoTooltip title={tooltip.title} description={tooltip.description} />
+          </div>
           <h4 className="text-2xl font-bold tracking-tight text-slate-900">
             {typeof value === 'number' ? value.toFixed(2) : value}{unit}
           </h4>
@@ -305,10 +356,12 @@ const KPICard = ({ label, value, unit = "%", trend, yoy, delta, status, companyN
           <span className={cn("text-xs font-medium", trend === 'up' ? "text-emerald-600" : "text-rose-600")}>
             {yoy}% YoY
           </span>
+          <InfoTooltip title={METRIC_DESCRIPTIONS.yoy.title} description={METRIC_DESCRIPTIONS.yoy.description} />
         </div>
         {delta !== undefined && (
-          <div className="text-[10px] text-slate-400 font-medium">
+          <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
             Δ vs Other: <span className={cn(delta >= 0 ? "text-emerald-600" : "text-rose-600")}>{delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>
+            <InfoTooltip title={METRIC_DESCRIPTIONS.benchmarking.title} description={METRIC_DESCRIPTIONS.benchmarking.description} />
           </div>
         )}
       </div>
@@ -322,7 +375,12 @@ const GrowthTrends = ({ data, companyId }: any) => {
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-      <Card title="Revenue & Profitability Dynamics" subtitle="Strategic growth trajectories" icon={TrendingUp}>
+      <Card 
+        title="Revenue & Profitability Dynamics" 
+        subtitle="Strategic growth trajectories" 
+        icon={TrendingUp}
+        tooltip={METRIC_DESCRIPTIONS.revenue_profitability_dynamics}
+      >
         <div className="h-[300px] w-full flex items-center justify-center">
           {data.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -339,7 +397,7 @@ const GrowthTrends = ({ data, companyId }: any) => {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v/1000000).toFixed(1)}M`} />
+                <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
@@ -354,7 +412,12 @@ const GrowthTrends = ({ data, companyId }: any) => {
         </div>
       </Card>
       
-      <Card title="Operational Efficiency Ratios" subtitle="NPM & ROE performance" icon={Activity}>
+      <Card 
+        title="Operational Efficiency Ratios" 
+        subtitle="NPM & ROE performance" 
+        icon={Activity}
+        tooltip={METRIC_DESCRIPTIONS.operational_efficiency_ratios}
+      >
         <div className="h-[300px] w-full flex items-center justify-center">
           {data.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -389,17 +452,22 @@ const WaterfallChart = ({ latest }: any) => {
   ] : [];
 
   return (
-    <Card title="Value Creation Waterfall" subtitle="Revenue to Net Income bridge" icon={BarChart3}>
+    <Card 
+      title="Value Creation Waterfall" 
+      subtitle="Revenue to Net Income bridge" 
+      icon={BarChart3}
+      tooltip={METRIC_DESCRIPTIONS.value_creation_waterfall}
+    >
       <div className="h-[300px] w-full flex items-center justify-center">
         {latest ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v/1000000).toFixed(1)}M`} />
+              <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                formatter={(v: any) => `$${Math.abs(v).toLocaleString()}`} 
+                formatter={(v: any) => formatRupiah(Math.abs(v), false)} 
               />
               <Bar dataKey="start" stackId="a" fill="transparent" />
               <Bar dataKey="value" stackId="a" radius={[4, 4, 4, 4]}>
@@ -432,7 +500,12 @@ const FinancialBreakdown = ({ latest }: any) => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-      <Card title="Asset Composition" subtitle="Current vs Non-current assets" icon={PieChartIcon}>
+      <Card 
+        title="Asset Composition" 
+        subtitle="Current vs Non-current assets" 
+        icon={PieChartIcon}
+        tooltip={METRIC_DESCRIPTIONS.asset_composition}
+      >
         <div className="h-[250px] w-full flex items-center justify-center">
           {latest ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -450,7 +523,7 @@ const FinancialBreakdown = ({ latest }: any) => {
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: any) => `$${v.toLocaleString()}`} />
+                <Tooltip formatter={(v: any) => formatRupiah(v, false)} />
                 <Legend verticalAlign="bottom" height={36}/>
               </PieChart>
             </ResponsiveContainer>
@@ -460,7 +533,12 @@ const FinancialBreakdown = ({ latest }: any) => {
         </div>
       </Card>
       
-      <Card title="Capital Structure" subtitle="Equity vs Debt ratio" icon={Wallet}>
+      <Card 
+        title="Capital Structure" 
+        subtitle="Equity vs Debt ratio" 
+        icon={Wallet}
+        tooltip={METRIC_DESCRIPTIONS.capital_structure}
+      >
         <div className="h-[250px] w-full flex items-center justify-center">
           {latest ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -478,7 +556,7 @@ const FinancialBreakdown = ({ latest }: any) => {
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: any) => `$${v.toLocaleString()}`} />
+                <Tooltip formatter={(v: any) => formatRupiah(v, false)} />
                 <Legend verticalAlign="bottom" height={36}/>
               </PieChart>
             </ResponsiveContainer>
@@ -613,7 +691,12 @@ const PerformanceRanking = ({ asi, tsi }: any) => {
   });
 
   return (
-    <Card title="Performance Leaderboard" subtitle="Comparative entity ranking by core metrics" icon={TrendingUp}>
+    <Card 
+      title="Performance Leaderboard" 
+      subtitle="Comparative entity ranking by core metrics" 
+      icon={TrendingUp}
+      tooltip={METRIC_DESCRIPTIONS.performance_leaderboard}
+    >
       <div className="space-y-6">
         {rankings.map((rank, i) => (
           <div key={i} className="space-y-3">
@@ -676,13 +759,18 @@ const CashFlowPanel = ({ data, companyId }: any) => {
   }));
 
   return (
-    <Card title="Liquidity & Cash Sustainability" subtitle="Operational cash flow dynamics" icon={Wallet}>
+    <Card 
+      title="Liquidity & Cash Sustainability" 
+      subtitle="Operational cash flow dynamics" 
+      icon={Wallet}
+      tooltip={METRIC_DESCRIPTIONS.liquidity_cash_sustainability}
+    >
       <div className="h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={cfData}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
-            <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v/1000000).toFixed(1)}M`} />
+            <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
             <Tooltip 
               contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
             />
@@ -702,7 +790,12 @@ const RiskAlertWidget = ({ score }: any) => {
   const riskLevel = score > 80 ? 'Low' : score > 60 ? 'Medium' : 'High';
   
   return (
-    <Card title="Governance Risk Matrix" subtitle="Strategic risk exposure assessment" icon={ShieldCheck}>
+    <Card 
+      title="Governance Risk Matrix" 
+      subtitle="Strategic risk exposure assessment" 
+      icon={ShieldCheck}
+      tooltip={METRIC_DESCRIPTIONS.governance_risk_matrix}
+    >
       <div className="space-y-6">
         <div className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100">
           <div>
@@ -755,13 +848,18 @@ const TrendAnalytics = ({ data, companyId }: any) => {
   });
 
   return (
-    <Card title="Strategic Trend Forecasting" subtitle="Revenue trajectory analysis" icon={TrendingUp}>
+    <Card 
+      title="Strategic Trend Forecasting" 
+      subtitle="Revenue trajectory analysis" 
+      icon={TrendingUp}
+      tooltip={METRIC_DESCRIPTIONS.strategic_trend_forecasting}
+    >
       <div className="h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={trendData}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
-            <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v/1000000).toFixed(1)}M`} />
+            <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
             <Tooltip 
               contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
             />
@@ -1070,6 +1168,1051 @@ const DataUpload = ({ companies }: any) => {
         </div>
       </form>
     </Card>
+  );
+};
+
+const ConsolidatedReport = ({ companies, ratios }: any) => {
+  const activeCompanies = companies.filter((c: Company) => c.status === 'Active');
+  const latestPeriod = ratios.length > 0 ? ratios[0].period : '';
+  
+  const consolidated = activeCompanies.reduce((acc: any, company: Company) => {
+    const companyRatio = ratios.find((r: FinancialRatio) => r.company_id === company.id && r.period === latestPeriod);
+    if (companyRatio) {
+      acc.revenue += companyRatio.revenue;
+      acc.net_profit += companyRatio.net_profit;
+      acc.total_assets += companyRatio.revenue * 4;
+      acc.total_equity += companyRatio.revenue * 2.5;
+      acc.total_liabilities += companyRatio.revenue * 1.5;
+      acc.operating_cash_flow += companyRatio.operating_cash_flow;
+    }
+    return acc;
+  }, { revenue: 0, net_profit: 0, total_assets: 0, total_equity: 0, total_liabilities: 0, operating_cash_flow: 0 });
+
+  const consolidatedRatios = {
+    roa: consolidated.total_assets > 0 ? (consolidated.net_profit / consolidated.total_assets) * 100 : 0,
+    roe: consolidated.total_equity > 0 ? (consolidated.net_profit / consolidated.total_equity) * 100 : 0,
+    npm: consolidated.revenue > 0 ? (consolidated.net_profit / consolidated.revenue) * 100 : 0,
+    der: consolidated.total_equity > 0 ? consolidated.total_liabilities / consolidated.total_equity : 0,
+  };
+
+  return (
+    <div className="space-y-8">
+      <Card title="Consolidated Financial Overview" subtitle="Aggregated performance across all subsidiaries" icon={Layers}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="p-6 bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-100">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Total Revenue</p>
+              <Wallet className="w-5 h-5 text-indigo-400" />
+            </div>
+            <h3 className="text-3xl font-black text-slate-900">{formatRupiah(consolidated.revenue)}</h3>
+            <p className="text-xs text-slate-500 mt-2">Across {activeCompanies.length} entities</p>
+          </div>
+          
+          <div className="p-6 bg-gradient-to-br from-emerald-50 to-white rounded-2xl border border-emerald-100">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Net Profit</p>
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+            </div>
+            <h3 className="text-3xl font-black text-slate-900">{formatRupiah(consolidated.net_profit)}</h3>
+            <p className="text-xs text-slate-500 mt-2">Group profitability</p>
+          </div>
+          
+          <div className="p-6 bg-gradient-to-br from-blue-50 to-white rounded-2xl border border-blue-100">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Total Assets</p>
+              <Briefcase className="w-5 h-5 text-blue-400" />
+            </div>
+            <h3 className="text-3xl font-black text-slate-900">{formatRupiah(consolidated.total_assets)}</h3>
+            <p className="text-xs text-slate-500 mt-2">Consolidated balance</p>
+          </div>
+          
+          <div className="p-6 bg-gradient-to-br from-violet-50 to-white rounded-2xl border border-violet-100">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-violet-600 uppercase tracking-wider">Group ROE</p>
+              <Activity className="w-5 h-5 text-violet-400" />
+            </div>
+            <h3 className="text-3xl font-black text-slate-900">{consolidatedRatios.roe.toFixed(1)}%</h3>
+            <p className="text-xs text-slate-500 mt-2">Return on equity</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="p-6 bg-slate-50 rounded-2xl">
+            <h4 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Subsidiary Contribution</h4>
+            <div className="space-y-3">
+              {activeCompanies.map((company: Company) => {
+                const companyRatio = ratios.find((r: FinancialRatio) => r.company_id === company.id && r.period === latestPeriod);
+                const contribution = companyRatio ? (companyRatio.revenue / consolidated.revenue) * 100 : 0;
+                return (
+                  <div key={company.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: company.color }} />
+                        <span className="text-sm font-bold text-slate-700">{company.name}</span>
+                      </div>
+                      <span className="text-sm font-black text-slate-900">{contribution.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${contribution}%` }}
+                        transition={{ duration: 0.5 }}
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: company.color }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-6 bg-slate-50 rounded-2xl">
+            <h4 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Consolidated Ratios</h4>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'ROA', value: consolidatedRatios.roa, unit: '%', color: 'indigo' },
+                { label: 'ROE', value: consolidatedRatios.roe, unit: '%', color: 'emerald' },
+                { label: 'NPM', value: consolidatedRatios.npm, unit: '%', color: 'blue' },
+                { label: 'DER', value: consolidatedRatios.der, unit: 'x', color: 'violet' },
+              ].map((ratio) => (
+                <div key={ratio.label} className="p-4 bg-white rounded-xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{ratio.label}</p>
+                  <p className="text-2xl font-black text-slate-900">{ratio.value.toFixed(2)}{ratio.unit}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const ThresholdConfiguration = ({ companies, onSave }: any) => {
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [thresholds, setThresholds] = useState<any>({});
+
+  useEffect(() => {
+    if (selectedCompany) {
+      setThresholds(selectedCompany.ideal_ratios || {
+        current_ratio: 1.5,
+        quick_ratio: 1,
+        der: 2,
+        npm: 10,
+        roa: 5,
+        roe: 15,
+      });
+    }
+  }, [selectedCompany]);
+
+  const handleSave = async () => {
+    if (!selectedCompany) return;
+    await onSave({ ...selectedCompany, ideal_ratios: thresholds });
+    alert('Thresholds updated successfully!');
+  };
+
+  return (
+    <div className="space-y-8">
+      <Card title="Threshold Configuration" subtitle="Customize financial ratio targets per subsidiary" icon={Settings}>
+        <div className="space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Company</label>
+            <select
+              value={selectedCompany?.id || ''}
+              onChange={(e) => setSelectedCompany(companies.find((c: Company) => c.id === e.target.value) || null)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="">Choose a company...</option>
+              {companies.map((c: Company) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {selectedCompany && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="p-6 bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedCompany.color }} />
+                  <h3 className="text-lg font-bold text-slate-900">{selectedCompany.name}</h3>
+                </div>
+                <p className="text-sm text-slate-600">Industry: {selectedCompany.industry || 'N/A'}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[
+                  { key: 'current_ratio', label: 'Current Ratio', unit: 'x', description: 'Minimum liquidity target' },
+                  { key: 'quick_ratio', label: 'Quick Ratio', unit: 'x', description: 'Acid test threshold' },
+                  { key: 'der', label: 'Max DER', unit: 'x', description: 'Maximum debt-to-equity' },
+                  { key: 'npm', label: 'Min NPM', unit: '%', description: 'Minimum profit margin' },
+                  { key: 'roa', label: 'Min ROA', unit: '%', description: 'Minimum asset return' },
+                  { key: 'roe', label: 'Min ROE', unit: '%', description: 'Minimum equity return' },
+                ].map((field) => (
+                  <div key={field.key} className="p-5 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 transition-all">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{field.label}</label>
+                    <p className="text-[10px] text-slate-400 mb-3">{field.description}</p>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={thresholds[field.key] || 0}
+                        onChange={(e) => setThresholds({ ...thresholds, [field.key]: parseFloat(e.target.value) })}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-lg font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{field.unit}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setThresholds(selectedCompany.ideal_ratios || {})}
+                  className="px-6 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all"
+                >
+                  Reset to Default
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                >
+                  Save Configuration
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const AuditTrailViewer = () => {
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterCompany, setFilterCompany] = useState<string>('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAuditLogs = async () => {
+      try {
+        const res = await fetch('/api/audit-logs');
+        if (res.ok) {
+          setAuditLogs(await res.json());
+        }
+      } catch (e) {
+        console.error('Failed to fetch audit logs', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAuditLogs();
+  }, []);
+
+  const filteredLogs = auditLogs.filter((log) => {
+    if (filterType !== 'all' && log.entity_type !== filterType) return false;
+    if (filterCompany !== 'all' && log.company_id !== filterCompany) return false;
+    return true;
+  });
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'INSERT': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+      case 'UPDATE': return 'bg-blue-50 text-blue-700 border-blue-100';
+      case 'DELETE': return 'bg-rose-50 text-rose-700 border-rose-100';
+      default: return 'bg-slate-50 text-slate-700 border-slate-100';
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <Card title="Audit Trail" subtitle="Complete history of system changes and data modifications" icon={Activity}>
+        <div className="space-y-6">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Type</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+              >
+                <option value="all">All Types</option>
+                <option value="financial_data">Financial Data</option>
+                <option value="company">Company</option>
+                <option value="user">User</option>
+                <option value="threshold">Threshold</option>
+              </select>
+            </div>
+            
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter by Company</label>
+              <select
+                value={filterCompany}
+                onChange={(e) => setFilterCompany(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+              >
+                <option value="all">All Companies</option>
+                <option value="ASI">ASI</option>
+                <option value="TSI">TSI</option>
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <button className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Activity className="w-6 h-6 animate-spin text-indigo-600" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="pb-4 font-semibold text-slate-500">Timestamp</th>
+                    <th className="pb-4 font-semibold text-slate-500">User</th>
+                    <th className="pb-4 font-semibold text-slate-500">Action</th>
+                    <th className="pb-4 font-semibold text-slate-500">Entity Type</th>
+                    <th className="pb-4 font-semibold text-slate-500">Company</th>
+                    <th className="pb-4 font-semibold text-slate-500">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                        No audit logs found
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-4 font-mono text-xs text-slate-600">
+                          {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm:ss')}
+                        </td>
+                        <td className="py-4 font-medium text-slate-900">{log.username}</td>
+                        <td className="py-4">
+                          <span className={cn("px-2 py-1 rounded-lg text-[10px] font-bold uppercase border", getActionColor(log.action))}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="py-4 text-slate-600">{log.entity_type.replace('_', ' ')}</td>
+                        <td className="py-4 text-slate-600">{log.company_id || '-'}</td>
+                        <td className="py-4">
+                          <button className="text-indigo-600 hover:text-indigo-700 font-medium text-xs">
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+            <p className="text-xs text-slate-400">Showing {filteredLogs.length} of {auditLogs.length} records</p>
+            <div className="flex gap-2">
+              <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all">
+                Previous
+              </button>
+              <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all">
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const QuickDatePresets = ({ onSelect }: { onSelect: (start: string, end: string) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const presets = [
+    { label: 'Last 3 Months', months: 3 },
+    { label: 'Last 6 Months', months: 6 },
+    { label: 'Last 1 Year', months: 12 },
+    { label: 'Last 2 Years', months: 24 },
+    { label: 'Last 3 Years', months: 36 },
+    { label: 'Year to Date', ytd: true },
+  ];
+
+  const handlePresetClick = (preset: any) => {
+    const end = new Date();
+    let start = new Date();
+    
+    if (preset.ytd) {
+      start = new Date(end.getFullYear(), 0, 1);
+    } else {
+      start.setMonth(start.getMonth() - preset.months);
+    }
+    
+    onSelect(
+      start.toISOString().split('T')[0],
+      end.toISOString().split('T')[0]
+    );
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all"
+      >
+        <Calendar className="w-3.5 h-3.5" />
+        Quick Select
+        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", isOpen && "rotate-180")} />
+      </button>
+      
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute top-full mt-2 right-0 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 min-w-[180px]"
+          >
+            {presets.map((preset, idx) => (
+              <button
+                key={idx}
+                onClick={() => handlePresetClick(preset)}
+                className="w-full px-4 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const EmptyState = ({ onReset }: { onReset: () => void }) => (
+  <Card className="p-12 text-center">
+    <div className="max-w-md mx-auto">
+      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <AlertCircle className="w-8 h-8 text-slate-400" />
+      </div>
+      <h3 className="text-lg font-bold text-slate-900 mb-2">No Data Found</h3>
+      <p className="text-sm text-slate-500 mb-6">
+        No financial data available for the selected date range and filters. Try adjusting your filters or selecting a different time period.
+      </p>
+      <button
+        onClick={onReset}
+        className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+      >
+        Reset Filters
+      </button>
+    </div>
+  </Card>
+);
+
+const ManualDataInput = ({ companies }: any) => {
+  const [activeTab, setActiveTab] = useState<'income' | 'balance' | 'cashflow'>('income');
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+
+  const [incomeData, setIncomeData] = useState({
+    revenue: 0,
+    cogs: 0,
+    gross_profit: 0,
+    operating_expenses: 0,
+    ebit: 0,
+    interest_expense: 0,
+    tax: 0,
+    net_profit: 0
+  });
+
+  const [balanceData, setBalanceData] = useState({
+    // Aset Lancar
+    kas: 0,
+    deposito: 0,
+    piutang_usaha: 0,
+    piutang_lainnya: 0,
+    uang_muka: 0,
+    pekerjaan_dalam_proses: 0,
+    pajak_dibayar_dimuka: 0,
+    beban_dibayar_dimuka: 0,
+    aset_lancar: 0,
+    // Aset Tidak Lancar
+    aset_tetap: 0,
+    aset_tak_berwujud: 0,
+    aset_lain: 0,
+    aset_tak_lancar: 0,
+    // Total Aset
+    total_aset: 0,
+    // Kewajiban Jangka Pendek
+    utang_usaha: 0,
+    utang_pajak: 0,
+    utang_pembiayaan_pendek: 0,
+    beban_ymhd_pendek: 0,
+    utang_bank_pendek: 0,
+    jumlah_kewajiban_pendek: 0,
+    // Kewajiban Jangka Panjang
+    utang_pemg_saham: 0,
+    beban_ymhd_panjang: 0,
+    utang_bank_panjang: 0,
+    utang_pembiayaan_panjang: 0,
+    utang_lainnya: 0,
+    jumlah_kewajiban_panjang: 0,
+    // Total Kewajiban
+    jumlah_kewajiban: 0,
+    // Ekuitas
+    modal_saham: 0,
+    laba_ditahan_ditentukan: 0,
+    laba_ditahan_belum_ditentukan: 0,
+    lr_tahun_berjalan: 0,
+    jumlah_ekuitas: 0,
+    // Total Kewajiban & Ekuitas
+    jumlah_kewajiban_ekuitas: 0
+  });
+
+  const [cashflowData, setCashflowData] = useState({
+    operating_cash_flow: 0,
+    investing_cash_flow: 0,
+    financing_cash_flow: 0,
+    net_cash_flow: 0
+  });
+
+  const handleSubmit = async () => {
+    if (!selectedCompany) {
+      alert('Pilih perusahaan terlebih dahulu');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const period = `${year}-${String(month).padStart(2, '0')}`;
+      
+      // Combine all data
+      const payload = {
+        company_id: selectedCompany,
+        period,
+        revenue: incomeData.revenue,
+        net_profit: incomeData.net_profit,
+        total_assets: balanceData.total_aset,
+        total_equity: balanceData.jumlah_ekuitas,
+        total_liabilities: balanceData.jumlah_kewajiban,
+        current_assets: balanceData.aset_lancar,
+        current_liabilities: balanceData.jumlah_kewajiban_pendek,
+        quick_assets: balanceData.aset_lancar - balanceData.pekerjaan_dalam_proses,
+        cash: balanceData.kas,
+        operating_cash_flow: cashflowData.operating_cash_flow,
+        ar_aging_90_plus: 0,
+        interest_expense: incomeData.interest_expense,
+        short_term_debt: balanceData.utang_bank_pendek,
+        long_term_debt: balanceData.utang_bank_panjang
+      };
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        alert('Data berhasil disimpan!');
+        // Reset form
+        setIncomeData({ revenue: 0, cogs: 0, gross_profit: 0, operating_expenses: 0, ebit: 0, interest_expense: 0, tax: 0, net_profit: 0 });
+        setBalanceData({ 
+          kas: 0, deposito: 0, piutang_usaha: 0, piutang_lainnya: 0, uang_muka: 0, 
+          pekerjaan_dalam_proses: 0, pajak_dibayar_dimuka: 0, beban_dibayar_dimuka: 0, aset_lancar: 0,
+          aset_tetap: 0, aset_tak_berwujud: 0, aset_lain: 0, aset_tak_lancar: 0, total_aset: 0,
+          utang_usaha: 0, utang_pajak: 0, utang_pembiayaan_pendek: 0, beban_ymhd_pendek: 0, 
+          utang_bank_pendek: 0, jumlah_kewajiban_pendek: 0, utang_pemg_saham: 0, beban_ymhd_panjang: 0,
+          utang_bank_panjang: 0, utang_pembiayaan_panjang: 0, utang_lainnya: 0, jumlah_kewajiban_panjang: 0,
+          jumlah_kewajiban: 0, modal_saham: 0, laba_ditahan_ditentukan: 0, laba_ditahan_belum_ditentukan: 0,
+          lr_tahun_berjalan: 0, jumlah_ekuitas: 0, jumlah_kewajiban_ekuitas: 0
+        });
+        setCashflowData({ operating_cash_flow: 0, investing_cash_flow: 0, financing_cash_flow: 0, net_cash_flow: 0 });
+        window.location.reload();
+      } else {
+        alert('Gagal menyimpan data');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Terjadi kesalahan');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadFile(file);
+      // TODO: Implement file parsing logic
+      alert('Fitur upload file akan segera tersedia');
+    }
+  };
+
+  const tabs = [
+    { id: 'income', label: 'Laba/Rugi', icon: TrendingUp },
+    { id: 'balance', label: 'Neraca', icon: Scale },
+    { id: 'cashflow', label: 'Arus Kas', icon: DollarSign }
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Card title="Input Data Manual" subtitle="Masukkan data laporan keuangan secara manual" icon={FileText}>
+        {/* Company & Period Selection */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Perusahaan</label>
+            <select
+              value={selectedCompany}
+              onChange={(e) => setSelectedCompany(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              <option value="">Pilih Perusahaan</option>
+              {companies.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Tahun</label>
+            <input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value))}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              min="2020"
+              max="2030"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Bulan</label>
+            <select
+              value={month}
+              onChange={(e) => setMonth(parseInt(e.target.value))}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                <option key={m} value={m}>
+                  {new Date(2000, m - 1).toLocaleString('id-ID', { month: 'long' })}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 border-b border-slate-200">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 font-medium transition-all border-b-2",
+                  activeTab === tab.id
+                    ? "border-indigo-600 text-indigo-600"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Income Statement Form */}
+        {activeTab === 'income' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Pendapatan (Revenue)</label>
+                <input
+                  type="number"
+                  value={incomeData.revenue}
+                  onChange={(e) => setIncomeData({ ...incomeData, revenue: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Harga Pokok Penjualan (COGS)</label>
+                <input
+                  type="number"
+                  value={incomeData.cogs}
+                  onChange={(e) => setIncomeData({ ...incomeData, cogs: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Laba Kotor (Gross Profit)</label>
+                <input
+                  type="number"
+                  value={incomeData.gross_profit}
+                  onChange={(e) => setIncomeData({ ...incomeData, gross_profit: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Biaya Operasional</label>
+                <input
+                  type="number"
+                  value={incomeData.operating_expenses}
+                  onChange={(e) => setIncomeData({ ...incomeData, operating_expenses: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">EBIT</label>
+                <input
+                  type="number"
+                  value={incomeData.ebit}
+                  onChange={(e) => setIncomeData({ ...incomeData, ebit: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Beban Bunga</label>
+                <input
+                  type="number"
+                  value={incomeData.interest_expense}
+                  onChange={(e) => setIncomeData({ ...incomeData, interest_expense: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Pajak</label>
+                <input
+                  type="number"
+                  value={incomeData.tax}
+                  onChange={(e) => setIncomeData({ ...incomeData, tax: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Laba Bersih (Net Profit)</label>
+                <input
+                  type="number"
+                  value={incomeData.net_profit}
+                  onChange={(e) => setIncomeData({ ...incomeData, net_profit: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Balance Sheet Form */}
+        {activeTab === 'balance' && (
+          <div className="space-y-6">
+            {/* ASET LANCAR */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-indigo-600" />
+                ASET LANCAR
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kas</label>
+                  <input type="number" value={balanceData.kas} onChange={(e) => setBalanceData({ ...balanceData, kas: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Deposito</label>
+                  <input type="number" value={balanceData.deposito} onChange={(e) => setBalanceData({ ...balanceData, deposito: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Piutang Usaha</label>
+                  <input type="number" value={balanceData.piutang_usaha} onChange={(e) => setBalanceData({ ...balanceData, piutang_usaha: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Piutang Lainnya</label>
+                  <input type="number" value={balanceData.piutang_lainnya} onChange={(e) => setBalanceData({ ...balanceData, piutang_lainnya: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Uang Muka</label>
+                  <input type="number" value={balanceData.uang_muka} onChange={(e) => setBalanceData({ ...balanceData, uang_muka: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Pekerjaan dlm Proses</label>
+                  <input type="number" value={balanceData.pekerjaan_dalam_proses} onChange={(e) => setBalanceData({ ...balanceData, pekerjaan_dalam_proses: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Pjk Dibyr Dimuka</label>
+                  <input type="number" value={balanceData.pajak_dibayar_dimuka} onChange={(e) => setBalanceData({ ...balanceData, pajak_dibayar_dimuka: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Beban Dibyr Dimuka</label>
+                  <input type="number" value={balanceData.beban_dibayar_dimuka} onChange={(e) => setBalanceData({ ...balanceData, beban_dibayar_dimuka: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Aset Lancar</label>
+                <input type="number" value={balanceData.aset_lancar} onChange={(e) => setBalanceData({ ...balanceData, aset_lancar: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+              </div>
+            </div>
+
+            {/* ASET TIDAK LANCAR */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-indigo-600" />
+                ASET TIDAK LANCAR
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Aset Tetap</label>
+                  <input type="number" value={balanceData.aset_tetap} onChange={(e) => setBalanceData({ ...balanceData, aset_tetap: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Aset Tak Berwujud</label>
+                  <input type="number" value={balanceData.aset_tak_berwujud} onChange={(e) => setBalanceData({ ...balanceData, aset_tak_berwujud: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Aset Lain</label>
+                  <input type="number" value={balanceData.aset_lain} onChange={(e) => setBalanceData({ ...balanceData, aset_lain: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Aset Tak Lancar</label>
+                <input type="number" value={balanceData.aset_tak_lancar} onChange={(e) => setBalanceData({ ...balanceData, aset_tak_lancar: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+              </div>
+            </div>
+
+            {/* TOTAL ASET */}
+            <div className="border-2 border-indigo-500 rounded-lg p-4 bg-indigo-50">
+              <label className="block text-base font-bold text-indigo-900 mb-2">TOTAL ASET</label>
+              <input type="number" value={balanceData.total_aset} onChange={(e) => setBalanceData({ ...balanceData, total_aset: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-3 border-2 border-indigo-400 rounded-lg focus:ring-2 focus:ring-indigo-600 text-base font-bold bg-white" placeholder="0" />
+            </div>
+
+            {/* KEWAJIBAN JANGKA PENDEK */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-orange-600" />
+                KEWAJIBAN JANGKA PENDEK
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Usaha</label>
+                  <input type="number" value={balanceData.utang_usaha} onChange={(e) => setBalanceData({ ...balanceData, utang_usaha: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Pajak</label>
+                  <input type="number" value={balanceData.utang_pajak} onChange={(e) => setBalanceData({ ...balanceData, utang_pajak: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Pembiayaan</label>
+                  <input type="number" value={balanceData.utang_pembiayaan_pendek} onChange={(e) => setBalanceData({ ...balanceData, utang_pembiayaan_pendek: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Beban YMHD</label>
+                  <input type="number" value={balanceData.beban_ymhd_pendek} onChange={(e) => setBalanceData({ ...balanceData, beban_ymhd_pendek: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Bank (&lt; 1thn)</label>
+                  <input type="number" value={balanceData.utang_bank_pendek} onChange={(e) => setBalanceData({ ...balanceData, utang_bank_pendek: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Jumlah Kwjbn J.Pendek</label>
+                <input type="number" value={balanceData.jumlah_kewajiban_pendek} onChange={(e) => setBalanceData({ ...balanceData, jumlah_kewajiban_pendek: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-orange-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+              </div>
+            </div>
+
+            {/* KEWAJIBAN JANGKA PANJANG */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+                KEWAJIBAN JANGKA PANJANG
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Pmg Saham</label>
+                  <input type="number" value={balanceData.utang_pemg_saham} onChange={(e) => setBalanceData({ ...balanceData, utang_pemg_saham: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Beban YMHD</label>
+                  <input type="number" value={balanceData.beban_ymhd_panjang} onChange={(e) => setBalanceData({ ...balanceData, beban_ymhd_panjang: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Bank J.Pnjang</label>
+                  <input type="number" value={balanceData.utang_bank_panjang} onChange={(e) => setBalanceData({ ...balanceData, utang_bank_panjang: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Pembiayaan</label>
+                  <input type="number" value={balanceData.utang_pembiayaan_panjang} onChange={(e) => setBalanceData({ ...balanceData, utang_pembiayaan_panjang: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Utang Lainnya</label>
+                  <input type="number" value={balanceData.utang_lainnya} onChange={(e) => setBalanceData({ ...balanceData, utang_lainnya: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Jumlah Kwjbn J. Panjang</label>
+                <input type="number" value={balanceData.jumlah_kewajiban_panjang} onChange={(e) => setBalanceData({ ...balanceData, jumlah_kewajiban_panjang: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+              </div>
+            </div>
+
+            {/* TOTAL KEWAJIBAN */}
+            <div className="border-2 border-red-500 rounded-lg p-4 bg-red-50">
+              <label className="block text-base font-bold text-red-900 mb-2">JUMLAH KEWAJIBAN</label>
+              <input type="number" value={balanceData.jumlah_kewajiban} onChange={(e) => setBalanceData({ ...balanceData, jumlah_kewajiban: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-3 border-2 border-red-400 rounded-lg focus:ring-2 focus:ring-red-600 text-base font-bold bg-white" placeholder="0" />
+            </div>
+
+            {/* EKUITAS */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-green-600" />
+                EKUITAS
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Modal Saham</label>
+                  <input type="number" value={balanceData.modal_saham} onChange={(e) => setBalanceData({ ...balanceData, modal_saham: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Laba Ditahan Ditentukan</label>
+                  <input type="number" value={balanceData.laba_ditahan_ditentukan} onChange={(e) => setBalanceData({ ...balanceData, laba_ditahan_ditentukan: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Laba Ditahan Blm Ditentukan</label>
+                  <input type="number" value={balanceData.laba_ditahan_belum_ditentukan} onChange={(e) => setBalanceData({ ...balanceData, laba_ditahan_belum_ditentukan: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">L/R Tahun Berjalan</label>
+                  <input type="number" value={balanceData.lr_tahun_berjalan} onChange={(e) => setBalanceData({ ...balanceData, lr_tahun_berjalan: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Jumlah Ekuitas</label>
+                <input type="number" value={balanceData.jumlah_ekuitas} onChange={(e) => setBalanceData({ ...balanceData, jumlah_ekuitas: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+              </div>
+            </div>
+
+            {/* TOTAL KEWAJIBAN & EKUITAS */}
+            <div className="border-2 border-purple-500 rounded-lg p-4 bg-purple-50">
+              <label className="block text-base font-bold text-purple-900 mb-2">JUMLAH KEWAJIBAN & EKUITAS</label>
+              <input type="number" value={balanceData.jumlah_kewajiban_ekuitas} onChange={(e) => setBalanceData({ ...balanceData, jumlah_kewajiban_ekuitas: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-3 border-2 border-purple-400 rounded-lg focus:ring-2 focus:ring-purple-600 text-base font-bold bg-white" placeholder="0" />
+            </div>
+
+            {/* Balance Check */}
+            {balanceData.total_aset > 0 && (
+              <div className={cn("p-4 rounded-lg border-2", Math.abs(balanceData.total_aset - balanceData.jumlah_kewajiban_ekuitas) < 0.01 ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500")}>
+                <p className="text-sm font-bold flex items-center gap-2">
+                  {Math.abs(balanceData.total_aset - balanceData.jumlah_kewajiban_ekuitas) < 0.01 ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <span className="text-green-900">Neraca seimbang! Total Aset = Jumlah Kewajiban & Ekuitas</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-5 h-5 text-red-600" />
+                      <span className="text-red-900">Neraca tidak seimbang! Total Aset harus sama dengan Jumlah Kewajiban & Ekuitas</span>
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cash Flow Form */}
+        {activeTab === 'cashflow' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Operasi</label>
+                <input
+                  type="number"
+                  value={cashflowData.operating_cash_flow}
+                  onChange={(e) => setCashflowData({ ...cashflowData, operating_cash_flow: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Investasi</label>
+                <input
+                  type="number"
+                  value={cashflowData.investing_cash_flow}
+                  onChange={(e) => setCashflowData({ ...cashflowData, investing_cash_flow: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Pendanaan</label>
+                <input
+                  type="number"
+                  value={cashflowData.financing_cash_flow}
+                  onChange={(e) => setCashflowData({ ...cashflowData, financing_cash_flow: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Bersih</label>
+                <input
+                  type="number"
+                  value={cashflowData.net_cash_flow}
+                  onChange={(e) => setCashflowData({ ...cashflowData, net_cash_flow: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload File Option */}
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <label className="block text-sm font-medium text-slate-700 mb-2">Atau Upload File Excel/CSV</label>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleFileUpload}
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+
+        {/* Submit Button */}
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !selectedCompany}
+            className={cn(
+              "px-6 py-3 rounded-xl font-bold transition-all shadow-lg",
+              isSubmitting || !selectedCompany
+                ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200"
+            )}
+          >
+            {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
+          </button>
+        </div>
+      </Card>
+    </div>
   );
 };
 
@@ -1409,7 +2552,7 @@ const UserModal = ({ isOpen, onClose, onSave, user, roles, companies }: any) => 
 // --- Main App ---
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'parameters' | 'companies' | 'users' | 'upload'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'consolidated' | 'thresholds' | 'audit' | 'input' | 'parameters' | 'companies' | 'users' | 'upload'>('dashboard');
   const [showWarnings, setShowWarnings] = useState(true);
   const [parameters, setParameters] = useState<{key: string, value: string}[]>([]);
   const [newParam, setNewParam] = useState({ key: '', value: '' });
@@ -1418,8 +2561,14 @@ export default function App() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('both');
   const [periodType, setPeriodType] = useState<PeriodType>('monthly');
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
+    start: '2025-01-01', // Start from 2025
+    end: '2026-02-28'    // Current month
+  });
   const [ratios, setRatios] = useState<FinancialRatio[]>([]);
+  const [allRatios, setAllRatios] = useState<FinancialRatio[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filtering, setFiltering] = useState(false);
 
   // Management State
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
@@ -1527,6 +2676,7 @@ export default function App() {
         const ratioData = await ratioRes.json();
         console.log("Fetched ratios:", ratioData);
         setCompanies(compData);
+        setAllRatios(ratioData);
         setRatios(ratioData);
       } catch (error) {
         console.error("Failed to fetch data", error);
@@ -1536,6 +2686,29 @@ export default function App() {
     };
     fetchData();
   }, [selectedCompany]);
+
+  // Filter ratios based on date range and period type
+  useEffect(() => {
+    if (allRatios.length === 0) return;
+
+    setFiltering(true);
+    
+    // Simulate filtering delay for better UX
+    const timer = setTimeout(() => {
+      const filtered = allRatios.filter((ratio) => {
+        const ratioPeriod = new Date(ratio.period + '-01');
+        const startDate = new Date(dateRange.start);
+        const endDate = new Date(dateRange.end);
+        
+        return ratioPeriod >= startDate && ratioPeriod <= endDate;
+      });
+
+      setRatios(filtered);
+      setFiltering(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [dateRange, allRatios]);
 
   const getHealthStatus = (key: string, value: number) => {
     const t = HEALTH_THRESHOLDS[key as keyof typeof HEALTH_THRESHOLDS];
@@ -1558,11 +2731,17 @@ export default function App() {
 
   const getYoYGrowth = (companyId: string, key: string): string => {
     const companyRatios = ratios.filter(r => r.company_id === companyId);
-    if (companyRatios.length < 13) return "0"; // Need at least 13 months for YoY
+    if (companyRatios.length < 13) return "0";
     const current = companyRatios[0][key as keyof FinancialRatio] as number;
     const lastYear = companyRatios[12][key as keyof FinancialRatio] as number;
     if (!lastYear) return "0";
     return (((current - lastYear) / lastYear) * 100).toFixed(1);
+  };
+
+  // Get company color dynamically
+  const getCompanyColor = (companyId: string) => {
+    const company = companies.find(c => c.id === companyId);
+    return company?.color || '#6366f1';
   };
 
   const asiLatest = getLatestRatios('ASI');
@@ -1601,7 +2780,25 @@ export default function App() {
     { subject: 'Growth', ASI: 80, TSI: 90, fullMark: 100 },
   ];
 
-  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="text-center">
+        <Activity className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-4" />
+        <p className="text-sm font-medium text-slate-600">Loading financial data...</p>
+      </div>
+    </div>
+  );
+
+  const hasFilteredData = ratios.length > 0;
+
+  const handleResetFilters = () => {
+    setDateRange({
+      start: '2025-01-01',
+      end: '2026-02-28'
+    });
+    setSelectedCompany('both');
+    setPeriodType('monthly');
+  };
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -1617,6 +2814,10 @@ export default function App() {
         <nav className="flex-1 p-4 space-y-1">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'consolidated', label: 'Consolidated Report', icon: Layers },
+            { id: 'thresholds', label: 'Thresholds', icon: Settings },
+            { id: 'audit', label: 'Audit Trail', icon: Shield },
+            { id: 'input', label: 'Input Data', icon: FileText },
             { id: 'companies', label: 'Companies', icon: Building2 },
             { id: 'users', label: 'User Management', icon: Users },
             { id: 'upload', label: 'Data Upload', icon: Upload },
@@ -1638,15 +2839,7 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-100">
-          <div className="bg-slate-900 rounded-xl p-4 text-white">
-            <p className="text-xs font-medium opacity-70 mb-1">Current Plan</p>
-            <p className="text-sm font-bold mb-3">Enterprise Suite</p>
-            <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold transition-colors">
-              View Billing
-            </button>
-          </div>
-        </div>
+        
       </aside>
 
       {/* Main Content */}
@@ -1691,7 +2884,94 @@ export default function App() {
                 onToggle={() => setShowWarnings(!showWarnings)} 
               />
 
-              {/* Section 1: Strategic Overview */}
+              {/* Filter Bar - Moved to top */}
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex bg-slate-100 rounded-xl p-1">
+                    {['ASI', 'TSI', 'SUB3', 'SUB4', 'SUB5', 'both'].map((c) => (
+                      <button 
+                        key={c}
+                        onClick={() => setSelectedCompany(c)}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-lg transition-all uppercase tracking-wider", selectedCompany === c ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900")}
+                      >
+                        {c === 'both' ? 'ALL' : c}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex bg-slate-100 rounded-xl p-1">
+                    {(['monthly', 'quarterly', 'yearly'] as PeriodType[]).map((p) => (
+                      <button 
+                        key={p}
+                        onClick={() => setPeriodType(p)}
+                        className={cn("px-4 py-2 text-xs font-bold rounded-lg capitalize transition-all tracking-wider", periodType === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900")}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-2">
+                    <Calendar className="w-4 h-4 text-slate-500" />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={dateRange.start}
+                        onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                      <span className="text-xs font-bold text-slate-400">to</span>
+                      <input
+                        type="date"
+                        value={dateRange.end}
+                        onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <QuickDatePresets 
+                    onSelect={(start, end) => setDateRange({ start, end })} 
+                  />
+
+                  {(dateRange.start !== '2025-01-01' || dateRange.end !== '2026-02-28') && (
+                    <button
+                      onClick={handleResetFilters}
+                      className="flex items-center gap-1 px-3 py-2 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold hover:bg-rose-100 transition-all border border-rose-100"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Reset
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg">
+                    {filtering ? (
+                      <Activity className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                    ) : (
+                      <Activity className="w-3.5 h-3.5 text-indigo-600" />
+                    )}
+                    <span className="text-xs font-bold text-indigo-700">
+                      {filtering ? 'Filtering...' : `${ratios.length} records`}
+                    </span>
+                  </div>
+                  <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+                    <Filter className="w-3.5 h-3.5" />
+                    Filters
+                  </button>
+                  <button className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 rounded-xl text-xs font-bold text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+                    <Download className="w-3.5 h-3.5" />
+                    Export
+                  </button>
+                </div>
+              </div>
+
+              {!hasFilteredData ? (
+                <EmptyState onReset={handleResetFilters} />
+              ) : (
+                <>
+                  {/* Section 1: Strategic Overview */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2">
                   {selectedCompany !== 'both' ? (
@@ -1714,46 +2994,6 @@ export default function App() {
                 </div>
                 <div className="lg:col-span-1">
                   <HealthScoreGauge score={selectedCompany === 'TSI' ? 72 : 84} />
-                </div>
-              </div>
-
-              {/* Filter Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div className="flex bg-slate-100 rounded-xl p-1">
-                    {['ASI', 'TSI', 'both'].map((c) => (
-                      <button 
-                        key={c}
-                        onClick={() => setSelectedCompany(c)}
-                        className={cn("px-6 py-2 text-xs font-bold rounded-lg transition-all uppercase tracking-wider", selectedCompany === c ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900")}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex bg-slate-100 rounded-xl p-1">
-                    {(['monthly', 'quarterly', 'yearly'] as PeriodType[]).map((p) => (
-                      <button 
-                        key={p}
-                        onClick={() => setPeriodType(p)}
-                        className={cn("px-6 py-2 text-xs font-bold rounded-lg capitalize transition-all tracking-wider", periodType === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900")}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
-                    <Filter className="w-3.5 h-3.5" />
-                    Strategic Filters
-                  </button>
-                  <button className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 rounded-xl text-xs font-bold text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
-                    <Download className="w-3.5 h-3.5" />
-                    Executive Report
-                  </button>
                 </div>
               </div>
 
@@ -1784,33 +3024,25 @@ export default function App() {
                 {['roa', 'roe', 'npm', 'der', 'current_ratio'].map((kpi) => (
                   <Card key={kpi} className="p-0 hover:border-indigo-200 transition-colors">
                     <div className="p-6 space-y-6">
-                      {asiLatest && (selectedCompany === 'ASI' || selectedCompany === 'both') && (
-                        <KPICard 
-                          label={kpi.toUpperCase().replace('_', ' ')}
-                          value={asiLatest[kpi as keyof FinancialRatio]}
-                          unit={kpi === 'der' || kpi === 'current_ratio' ? 'x' : '%'}
-                          trend={parseFloat(getYoYGrowth('ASI', kpi)) >= 0 ? 'up' : 'down'}
-                          yoy={getYoYGrowth('ASI', kpi)}
-                          status={getHealthStatus(kpi, asiLatest[kpi as keyof FinancialRatio] as number)}
-                          companyName="ASI"
-                          companyColor="#6366f1"
-                          delta={selectedCompany === 'both' && tsiLatest ? (asiLatest[kpi as keyof FinancialRatio] as number) - (tsiLatest[kpi as keyof FinancialRatio] as number) : undefined}
-                        />
-                      )}
-                      {(selectedCompany === 'TSI' || selectedCompany === 'both') && tsiLatest && (
-                        <div className={cn("pt-6", selectedCompany === 'both' ? "border-t border-slate-100" : "")}>
-                          <KPICard 
-                            label={kpi.toUpperCase().replace('_', ' ')}
-                            value={tsiLatest[kpi as keyof FinancialRatio]}
-                            unit={kpi === 'der' || kpi === 'current_ratio' ? 'x' : '%'}
-                            trend={parseFloat(getYoYGrowth('TSI', kpi)) >= 0 ? 'up' : 'down'}
-                            yoy={getYoYGrowth('TSI', kpi)}
-                            status={getHealthStatus(kpi, tsiLatest[kpi as keyof FinancialRatio] as number)}
-                            companyName="TSI"
-                            companyColor="#94a3b8"
-                          />
-                        </div>
-                      )}
+                      {companies.filter(c => c.status === 'Active' && (selectedCompany === 'both' || c.id === selectedCompany)).map((company, idx) => {
+                        const latest = getLatestRatios(company.id);
+                        if (!latest) return null;
+                        return (
+                          <div key={company.id} className={cn(idx > 0 && "pt-6 border-t border-slate-100")}>
+                            <KPICard 
+                              label={kpi.toUpperCase().replace('_', ' ')}
+                              value={latest[kpi as keyof FinancialRatio]}
+                              unit={kpi === 'der' || kpi === 'current_ratio' ? 'x' : '%'}
+                              trend={parseFloat(getYoYGrowth(company.id, kpi)) >= 0 ? 'up' : 'down'}
+                              yoy={getYoYGrowth(company.id, kpi)}
+                              status={getHealthStatus(kpi, latest[kpi as keyof FinancialRatio] as number)}
+                              companyName={company.name}
+                              companyColor={company.color}
+                              metricKey={kpi}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   </Card>
                 ))}
@@ -1907,8 +3139,8 @@ export default function App() {
                               <span className="text-xs font-semibold text-slate-600">{row.company_id}</span>
                             </div>
                           </td>
-                          <td className="py-4 text-right font-mono text-xs">${row.revenue.toLocaleString()}</td>
-                          <td className="py-4 text-right font-mono text-xs">${row.net_profit.toLocaleString()}</td>
+                          <td className="py-4 text-right font-mono text-xs">{formatRupiah(row.revenue, false)}</td>
+                          <td className="py-4 text-right font-mono text-xs">{formatRupiah(row.net_profit, false)}</td>
                           <td className="py-4 text-right font-mono text-xs">{row.roe.toFixed(2)}%</td>
                           <td className="py-4 text-right font-mono text-xs">{row.der.toFixed(2)}x</td>
                           <td className="py-4 text-right">
@@ -1929,7 +3161,25 @@ export default function App() {
                   <button className="text-xs font-bold text-slate-900 hover:underline">View All Records</button>
                 </div>
               </Card>
+                </>
+              )}
             </>
+          )}
+
+          {activeTab === 'consolidated' && (
+            <ConsolidatedReport companies={companies} ratios={ratios} />
+          )}
+
+          {activeTab === 'thresholds' && (
+            <ThresholdConfiguration companies={companies} onSave={handleSaveCompany} />
+          )}
+
+          {activeTab === 'audit' && (
+            <AuditTrailViewer />
+          )}
+
+          {activeTab === 'input' && (
+            <ManualDataInput companies={companies} />
           )}
 
           {activeTab === 'companies' && (
@@ -2042,3 +3292,6 @@ export default function App() {
     </div>
   );
 }
+
+
+
