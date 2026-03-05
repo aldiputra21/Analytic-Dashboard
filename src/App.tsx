@@ -1631,14 +1631,17 @@ const ManualDataInput = ({ companies }: any) => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [incomeData, setIncomeData] = useState({
-    revenue: 0,
-    cogs: 0,
-    gross_profit: 0,
-    operating_expenses: 0,
-    ebit: 0,
-    interest_expense: 0,
-    tax: 0,
-    net_profit: 0
+    pendapatan: 0,
+    hpp: 0,
+    laba_kotor: 0,
+    beban_adm: 0,
+    laba_usaha: 0,
+    pendapatan_lain: 0,
+    beban_lain: 0,
+    pendapatan_beban_lain: 0,
+    laba_sebelum_pajak: 0,
+    pajak_penghasilan: 0,
+    laba_setelah_pajak: 0
   });
 
   const [balanceData, setBalanceData] = useState({
@@ -1686,10 +1689,36 @@ const ManualDataInput = ({ companies }: any) => {
   });
 
   const [cashflowData, setCashflowData] = useState({
-    operating_cash_flow: 0,
-    investing_cash_flow: 0,
-    financing_cash_flow: 0,
-    net_cash_flow: 0
+    // Arus Kas Operasi
+    laba_sebelum_pajak: 0,
+    penyusutan_aset_tetap: 0,
+    amortisasi_aset_tak_berwujud: 0,
+    arus_kas_operasi: 0,
+    kenaikan_investasi_pendek: 0,
+    penurunan_piutang_usaha: 0,
+    penurunan_piutang_lainnya: 0,
+    penurunan_uang_muka: 0,
+    kenaikan_pajak_dibayar_dimuka: 0,
+    kenaikan_beban_dibayar_dimuka: 0,
+    kenaikan_aset_lainnya: 0,
+    kenaikan_utang_usaha: 0,
+    kenaikan_utang_pajak: 0,
+    kenaikan_beban_ymhd: 0,
+    kenaikan_utang_pemg_saham: 0,
+    kas_bersih_aktivitas_operasi: 0,
+    // Arus Kas Investasi
+    pembelian_aset_tetap: 0,
+    pembelian_aset_tak_berwujud: 0,
+    kas_bersih_aktivitas_investasi: 0,
+    // Arus Kas Pendanaan
+    kenaikan_utang_lainnya: 0,
+    kenaikan_pinjaman_bank: 0,
+    kenaikan_utang_pembiayaan: 0,
+    kas_bersih_aktivitas_pendanaan: 0,
+    // Summary
+    kenaikan_bersih_kas: 0,
+    kas_awal_tahun: 0,
+    kas_akhir_tahun: 0
   });
 
   const handleSubmit = async () => {
@@ -1706,8 +1735,8 @@ const ManualDataInput = ({ companies }: any) => {
       const payload = {
         company_id: selectedCompany,
         period,
-        revenue: incomeData.revenue,
-        net_profit: incomeData.net_profit,
+        revenue: incomeData.pendapatan,
+        net_profit: incomeData.laba_setelah_pajak,
         total_assets: balanceData.total_aset,
         total_equity: balanceData.jumlah_ekuitas,
         total_liabilities: balanceData.jumlah_kewajiban,
@@ -1715,9 +1744,9 @@ const ManualDataInput = ({ companies }: any) => {
         current_liabilities: balanceData.jumlah_kewajiban_pendek,
         quick_assets: balanceData.aset_lancar - balanceData.pekerjaan_dalam_proses,
         cash: balanceData.kas,
-        operating_cash_flow: cashflowData.operating_cash_flow,
+        operating_cash_flow: cashflowData.kas_bersih_aktivitas_operasi,
         ar_aging_90_plus: 0,
-        interest_expense: incomeData.interest_expense,
+        interest_expense: incomeData.beban_lain,
         short_term_debt: balanceData.utang_bank_pendek,
         long_term_debt: balanceData.utang_bank_panjang
       };
@@ -1731,7 +1760,7 @@ const ManualDataInput = ({ companies }: any) => {
       if (response.ok) {
         alert('Data berhasil disimpan!');
         // Reset form
-        setIncomeData({ revenue: 0, cogs: 0, gross_profit: 0, operating_expenses: 0, ebit: 0, interest_expense: 0, tax: 0, net_profit: 0 });
+        setIncomeData({ pendapatan: 0, hpp: 0, laba_kotor: 0, beban_adm: 0, laba_usaha: 0, pendapatan_lain: 0, beban_lain: 0, pendapatan_beban_lain: 0, laba_sebelum_pajak: 0, pajak_penghasilan: 0, laba_setelah_pajak: 0 });
         setBalanceData({ 
           kas: 0, deposito: 0, piutang_usaha: 0, piutang_lainnya: 0, uang_muka: 0, 
           pekerjaan_dalam_proses: 0, pajak_dibayar_dimuka: 0, beban_dibayar_dimuka: 0, aset_lancar: 0,
@@ -1742,7 +1771,16 @@ const ManualDataInput = ({ companies }: any) => {
           jumlah_kewajiban: 0, modal_saham: 0, laba_ditahan_ditentukan: 0, laba_ditahan_belum_ditentukan: 0,
           lr_tahun_berjalan: 0, jumlah_ekuitas: 0, jumlah_kewajiban_ekuitas: 0
         });
-        setCashflowData({ operating_cash_flow: 0, investing_cash_flow: 0, financing_cash_flow: 0, net_cash_flow: 0 });
+        setCashflowData({ 
+          laba_sebelum_pajak: 0, penyusutan_aset_tetap: 0, amortisasi_aset_tak_berwujud: 0, arus_kas_operasi: 0,
+          kenaikan_investasi_pendek: 0, penurunan_piutang_usaha: 0, penurunan_piutang_lainnya: 0, penurunan_uang_muka: 0,
+          kenaikan_pajak_dibayar_dimuka: 0, kenaikan_beban_dibayar_dimuka: 0, kenaikan_aset_lainnya: 0,
+          kenaikan_utang_usaha: 0, kenaikan_utang_pajak: 0, kenaikan_beban_ymhd: 0, kenaikan_utang_pemg_saham: 0,
+          kas_bersih_aktivitas_operasi: 0, pembelian_aset_tetap: 0, pembelian_aset_tak_berwujud: 0,
+          kas_bersih_aktivitas_investasi: 0, kenaikan_utang_lainnya: 0, kenaikan_pinjaman_bank: 0,
+          kenaikan_utang_pembiayaan: 0, kas_bersih_aktivitas_pendanaan: 0, kenaikan_bersih_kas: 0,
+          kas_awal_tahun: 0, kas_akhir_tahun: 0
+        });
         window.location.reload();
       } else {
         alert('Gagal menyimpan data');
@@ -1839,87 +1877,88 @@ const ManualDataInput = ({ companies }: any) => {
 
         {/* Income Statement Form */}
         {activeTab === 'income' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Pendapatan (Revenue)</label>
-                <input
-                  type="number"
-                  value={incomeData.revenue}
-                  onChange={(e) => setIncomeData({ ...incomeData, revenue: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+          <div className="space-y-6">
+            {/* PENDAPATAN & HPP */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-green-600" />
+                PENDAPATAN & HARGA POKOK PENJUALAN
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Pendapatan</label>
+                  <input type="number" value={incomeData.pendapatan} onChange={(e) => setIncomeData({ ...incomeData, pendapatan: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">HPP</label>
+                  <input type="number" value={incomeData.hpp} onChange={(e) => setIncomeData({ ...incomeData, hpp: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Harga Pokok Penjualan (COGS)</label>
-                <input
-                  type="number"
-                  value={incomeData.cogs}
-                  onChange={(e) => setIncomeData({ ...incomeData, cogs: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Laba Kotor</label>
+                <input type="number" value={incomeData.laba_kotor} onChange={(e) => setIncomeData({ ...incomeData, laba_kotor: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Laba Kotor (Gross Profit)</label>
-                <input
-                  type="number"
-                  value={incomeData.gross_profit}
-                  onChange={(e) => setIncomeData({ ...incomeData, gross_profit: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+            </div>
+
+            {/* LABA USAHA */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-blue-600" />
+                BEBAN OPERASIONAL
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Beban Adm</label>
+                  <input type="number" value={incomeData.beban_adm} onChange={(e) => setIncomeData({ ...incomeData, beban_adm: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Biaya Operasional</label>
-                <input
-                  type="number"
-                  value={incomeData.operating_expenses}
-                  onChange={(e) => setIncomeData({ ...incomeData, operating_expenses: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Laba Usaha</label>
+                <input type="number" value={incomeData.laba_usaha} onChange={(e) => setIncomeData({ ...incomeData, laba_usaha: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">EBIT</label>
-                <input
-                  type="number"
-                  value={incomeData.ebit}
-                  onChange={(e) => setIncomeData({ ...incomeData, ebit: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+            </div>
+
+            {/* PENDAPATAN & BEBAN LAIN-LAIN */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-purple-600" />
+                PENDAPATAN & BEBAN LAIN-LAIN
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Pendapatan Lain2</label>
+                  <input type="number" value={incomeData.pendapatan_lain} onChange={(e) => setIncomeData({ ...incomeData, pendapatan_lain: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Beban Lain2</label>
+                  <input type="number" value={incomeData.beban_lain} onChange={(e) => setIncomeData({ ...incomeData, beban_lain: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Beban Bunga</label>
-                <input
-                  type="number"
-                  value={incomeData.interest_expense}
-                  onChange={(e) => setIncomeData({ ...incomeData, interest_expense: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">Pendapatan & Beban Lain2</label>
+                <input type="number" value={incomeData.pendapatan_beban_lain} onChange={(e) => setIncomeData({ ...incomeData, pendapatan_beban_lain: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Pajak</label>
-                <input
-                  type="number"
-                  value={incomeData.tax}
-                  onChange={(e) => setIncomeData({ ...incomeData, tax: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Laba Bersih (Net Profit)</label>
-                <input
-                  type="number"
-                  value={incomeData.net_profit}
-                  onChange={(e) => setIncomeData({ ...incomeData, net_profit: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+            </div>
+
+            {/* LABA SEBELUM & SETELAH PAJAK */}
+            <div className="border-2 border-indigo-500 rounded-lg p-4 bg-indigo-50">
+              <h4 className="text-sm font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-indigo-700" />
+                LABA & PAJAK
+              </h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-bold text-indigo-900 mb-1">Laba Sblm Pajak</label>
+                  <input type="number" value={incomeData.laba_sebelum_pajak} onChange={(e) => setIncomeData({ ...incomeData, laba_sebelum_pajak: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-2 border-2 border-indigo-400 rounded-lg focus:ring-2 focus:ring-indigo-600 text-sm font-bold bg-white" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-indigo-900 mb-1">Pajak Penghasilan</label>
+                  <input type="number" value={incomeData.pajak_penghasilan} onChange={(e) => setIncomeData({ ...incomeData, pajak_penghasilan: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-2 border-2 border-indigo-400 rounded-lg focus:ring-2 focus:ring-indigo-600 text-sm font-bold bg-white" placeholder="0" />
+                </div>
+                <div className="pt-3 border-t-2 border-indigo-600">
+                  <label className="block text-base font-bold text-indigo-900 mb-2">Laba Stlh Pajak</label>
+                  <input type="number" value={incomeData.laba_setelah_pajak} onChange={(e) => setIncomeData({ ...incomeData, laba_setelah_pajak: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-3 border-2 border-indigo-600 rounded-lg focus:ring-2 focus:ring-indigo-700 text-base font-bold bg-white" placeholder="0" />
+                </div>
               </div>
             </div>
           </div>
@@ -2139,47 +2178,148 @@ const ManualDataInput = ({ companies }: any) => {
 
         {/* Cash Flow Form */}
         {activeTab === 'cashflow' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Operasi</label>
-                <input
-                  type="number"
-                  value={cashflowData.operating_cash_flow}
-                  onChange={(e) => setCashflowData({ ...cashflowData, operating_cash_flow: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+          <div className="space-y-6">
+            {/* ARUS KAS OPERASI */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-600" />
+                ARUS KAS OPERASI
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Laba Sblm Pajak</label>
+                  <input type="number" value={cashflowData.laba_sebelum_pajak} onChange={(e) => setCashflowData({ ...cashflowData, laba_sebelum_pajak: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Penyusutan Aset Tetap</label>
+                  <input type="number" value={cashflowData.penyusutan_aset_tetap} onChange={(e) => setCashflowData({ ...cashflowData, penyusutan_aset_tetap: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Amortisasi Aset Tak Berwujud</label>
+                  <input type="number" value={cashflowData.amortisasi_aset_tak_berwujud} onChange={(e) => setCashflowData({ ...cashflowData, amortisasi_aset_tak_berwujud: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Arus Kas Operasi</label>
+                  <input type="number" value={cashflowData.arus_kas_operasi} onChange={(e) => setCashflowData({ ...cashflowData, arus_kas_operasi: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Investasi J. Pendek</label>
+                  <input type="number" value={cashflowData.kenaikan_investasi_pendek} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_investasi_pendek: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Penurunan Piutang Usaha</label>
+                  <input type="number" value={cashflowData.penurunan_piutang_usaha} onChange={(e) => setCashflowData({ ...cashflowData, penurunan_piutang_usaha: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Penurunan Piutang Lainnya</label>
+                  <input type="number" value={cashflowData.penurunan_piutang_lainnya} onChange={(e) => setCashflowData({ ...cashflowData, penurunan_piutang_lainnya: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Penurunan Uang Muka</label>
+                  <input type="number" value={cashflowData.penurunan_uang_muka} onChange={(e) => setCashflowData({ ...cashflowData, penurunan_uang_muka: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Pjk Dibyr Dimuka</label>
+                  <input type="number" value={cashflowData.kenaikan_pajak_dibayar_dimuka} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_pajak_dibayar_dimuka: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Beban Dibyr Dimuka</label>
+                  <input type="number" value={cashflowData.kenaikan_beban_dibayar_dimuka} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_beban_dibayar_dimuka: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Aset Lainnya</label>
+                  <input type="number" value={cashflowData.kenaikan_aset_lainnya} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_aset_lainnya: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Utang Usaha</label>
+                  <input type="number" value={cashflowData.kenaikan_utang_usaha} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_utang_usaha: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Utang Pajak</label>
+                  <input type="number" value={cashflowData.kenaikan_utang_pajak} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_utang_pajak: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Beban YMHD</label>
+                  <input type="number" value={cashflowData.kenaikan_beban_ymhd} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_beban_ymhd: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Utang Pmg Saham</label>
+                  <input type="number" value={cashflowData.kenaikan_utang_pemg_saham} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_utang_pemg_saham: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Investasi</label>
-                <input
-                  type="number"
-                  value={cashflowData.investing_cash_flow}
-                  onChange={(e) => setCashflowData({ ...cashflowData, investing_cash_flow: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">KAS BERSIH AKTIVITAS OPERASI</label>
+                <input type="number" value={cashflowData.kas_bersih_aktivitas_operasi} onChange={(e) => setCashflowData({ ...cashflowData, kas_bersih_aktivitas_operasi: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Pendanaan</label>
-                <input
-                  type="number"
-                  value={cashflowData.financing_cash_flow}
-                  onChange={(e) => setCashflowData({ ...cashflowData, financing_cash_flow: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+            </div>
+
+            {/* ARUS KAS INVESTASI */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-purple-600" />
+                ARUS KAS INVESTASI
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Pembelian Aset Tetap</label>
+                  <input type="number" value={cashflowData.pembelian_aset_tetap} onChange={(e) => setCashflowData({ ...cashflowData, pembelian_aset_tetap: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Pembelian Aset Tak Berwujud</label>
+                  <input type="number" value={cashflowData.pembelian_aset_tak_berwujud} onChange={(e) => setCashflowData({ ...cashflowData, pembelian_aset_tak_berwujud: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Arus Kas Bersih</label>
-                <input
-                  type="number"
-                  value={cashflowData.net_cash_flow}
-                  onChange={(e) => setCashflowData({ ...cashflowData, net_cash_flow: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">KAS BERSIH AKTIVITAS INVESTASI</label>
+                <input type="number" value={cashflowData.kas_bersih_aktivitas_investasi} onChange={(e) => setCashflowData({ ...cashflowData, kas_bersih_aktivitas_investasi: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+              </div>
+            </div>
+
+            {/* ARUS KAS PENDANAAN */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+                ARUS KAS PENDANAAN
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Utang Lainnya</label>
+                  <input type="number" value={cashflowData.kenaikan_utang_lainnya} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_utang_lainnya: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Pinjaman Bank</label>
+                  <input type="number" value={cashflowData.kenaikan_pinjaman_bank} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_pinjaman_bank: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Kenaikan Utang Pembiayaan</label>
+                  <input type="number" value={cashflowData.kenaikan_utang_pembiayaan} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_utang_pembiayaan: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="0" />
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-300">
+                <label className="block text-sm font-bold text-slate-900 mb-1">KAS BERSIH AKTIVITAS PENDANAAN</label>
+                <input type="number" value={cashflowData.kas_bersih_aktivitas_pendanaan} onChange={(e) => setCashflowData({ ...cashflowData, kas_bersih_aktivitas_pendanaan: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border-2 border-emerald-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+              </div>
+            </div>
+
+            {/* SUMMARY */}
+            <div className="border-2 border-slate-400 rounded-lg p-4 bg-slate-100">
+              <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-slate-700" />
+                RINGKASAN KAS
+              </h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-1">KENAIKAN BERSIH KAS</label>
+                  <input type="number" value={cashflowData.kenaikan_bersih_kas} onChange={(e) => setCashflowData({ ...cashflowData, kenaikan_bersih_kas: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-2 border-2 border-slate-400 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-1">KAS AWAL TAHUN</label>
+                  <input type="number" value={cashflowData.kas_awal_tahun} onChange={(e) => setCashflowData({ ...cashflowData, kas_awal_tahun: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-2 border-2 border-slate-400 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-bold bg-white" placeholder="0" />
+                </div>
+                <div className="pt-3 border-t-2 border-slate-500">
+                  <label className="block text-base font-bold text-slate-900 mb-2">KAS AKHIR TAHUN</label>
+                  <input type="number" value={cashflowData.kas_akhir_tahun} onChange={(e) => setCashflowData({ ...cashflowData, kas_akhir_tahun: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-3 border-2 border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-600 text-base font-bold bg-white" placeholder="0" />
+                </div>
               </div>
             </div>
           </div>

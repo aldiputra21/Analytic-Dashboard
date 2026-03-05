@@ -91,14 +91,17 @@ export interface HealthThresholds {
 }
 
 export interface IncomeStatementInput {
-  revenue: number;
-  cogs: number;
-  gross_profit: number;
-  operating_expenses: number;
-  ebit: number;
-  interest_expense: number;
-  tax: number;
-  net_profit: number;
+  pendapatan: number;
+  hpp: number;
+  laba_kotor: number;
+  beban_adm: number;
+  laba_usaha: number;
+  pendapatan_lain: number;
+  beban_lain: number;
+  pendapatan_beban_lain: number;
+  laba_sebelum_pajak: number;
+  pajak_penghasilan: number;
+  laba_setelah_pajak: number;
 }
 
 export interface BalanceSheetInput {
@@ -153,8 +156,37 @@ export interface BalanceSheetInput {
 }
 
 export interface CashFlowInput {
-  operating_cash_flow: number;
-  investing_cash_flow: number;
-  financing_cash_flow: number;
-  net_cash_flow: number;
+  // Arus Kas Operasi
+  laba_sebelum_pajak: number;
+  penyusutan_aset_tetap: number;
+  amortisasi_aset_tak_berwujud: number;
+  arus_kas_operasi: number;
+  kenaikan_investasi_pendek: number;
+  penurunan_piutang_usaha: number;
+  penurunan_piutang_lainnya: number;
+  penurunan_uang_muka: number;
+  kenaikan_pajak_dibayar_dimuka: number;
+  kenaikan_beban_dibayar_dimuka: number;
+  kenaikan_aset_lainnya: number;
+  kenaikan_utang_usaha: number;
+  kenaikan_utang_pajak: number;
+  kenaikan_beban_ymhd: number;
+  kenaikan_utang_pemg_saham: number;
+  kas_bersih_aktivitas_operasi: number;
+  
+  // Arus Kas Investasi
+  pembelian_aset_tetap: number;
+  pembelian_aset_tak_berwujud: number;
+  kas_bersih_aktivitas_investasi: number;
+  
+  // Arus Kas Pendanaan
+  kenaikan_utang_lainnya: number;
+  kenaikan_pinjaman_bank: number;
+  kenaikan_utang_pembiayaan: number;
+  kas_bersih_aktivitas_pendanaan: number;
+  
+  // Summary
+  kenaikan_bersih_kas: number;
+  kas_awal_tahun: number;
+  kas_akhir_tahun: number;
 }

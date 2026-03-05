@@ -81,11 +81,47 @@ Form input dengan grouping detail:
 - Icons untuk setiap section (Wallet, Building2, AlertCircle, AlertTriangle, ShieldCheck)
 
 ### 4. Tab Arus Kas (Cash Flow)
-Form input untuk:
-- Arus Kas Operasi (Operating Cash Flow)
-- Arus Kas Investasi (Investing Cash Flow)
-- Arus Kas Pendanaan (Financing Cash Flow)
-- Arus Kas Bersih (Net Cash Flow)
+Form input dengan grouping detail:
+
+#### ARUS KAS OPERASI
+- Laba Sblm Pajak
+- Penyusutan Aset Tetap
+- Amortisasi Aset Tak Berwujud
+- Arus Kas Operasi
+- Kenaikan Investasi J. Pendek
+- Penurunan Piutang Usaha
+- Penurunan Piutang Lainnya
+- Penurunan Uang Muka
+- Kenaikan Pjk Dibyr Dimuka
+- Kenaikan Beban Dibyr Dimuka
+- Kenaikan Aset Lainnya
+- Kenaikan Utang Usaha
+- Kenaikan Utang Pajak
+- Kenaikan Beban YMHD
+- Kenaikan Utang Pmg Saham
+- **KAS BERSIH AKTIVITAS OPERASI** (subtotal)
+
+#### ARUS KAS INVESTASI
+- Pembelian Aset Tetap
+- Pembelian Aset Tak Berwujud
+- **KAS BERSIH AKTIVITAS INVESTASI** (subtotal)
+
+#### ARUS KAS PENDANAAN
+- Kenaikan Utang Lainnya
+- Kenaikan Pinjaman Bank
+- Kenaikan Utang Pembiayaan
+- **KAS BERSIH AKTIVITAS PENDANAAN** (subtotal)
+
+#### RINGKASAN KAS
+- **KENAIKAN BERSIH KAS**
+- **KAS AWAL TAHUN**
+- **KAS AKHIR TAHUN**
+
+**Visual Grouping**:
+- Setiap section memiliki border dan background color berbeda
+- Subtotal fields memiliki border yang lebih tebal
+- Icons untuk setiap section (Activity untuk Operasi, TrendingUp untuk Investasi, DollarSign untuk Pendanaan, Wallet untuk Ringkasan)
+- Color-coded borders (blue untuk operasi, purple untuk investasi, emerald untuk pendanaan, slate untuk ringkasan)
 
 ### 5. Upload File Option
 - Support untuk Excel (.xlsx, .xls) dan CSV
