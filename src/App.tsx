@@ -36,7 +36,8 @@ import {
   AlertTriangle,
   FileText,
   Scale,
-  DollarSign
+  DollarSign,
+  Target
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -109,211 +110,360 @@ const Card = ({ children, className, title, subtitle, icon: Icon, tooltip }: any
 );
 
 const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }: any) => {
-  if (!latest) return null;
+    if (!latest) return null;
 
-  const compareMetric = (key: string, val: number, otherVal: number | undefined) => {
-    if (otherVal === undefined) return null;
-    const diff = val - otherVal;
-    const isBetter = key === 'der' ? diff < 0 : diff > 0;
+    const compareMetric = (key: string, val: number, otherVal: number | undefined) => {
+      if (otherVal === undefined) return null;
+      const diff = val - otherVal;
+      const isBetter = key === 'der' ? diff < 0 : diff > 0;
+      return (
+        <div className={cn(
+          "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
+          isBetter ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-rose-50 text-rose-600 border border-rose-100"
+        )}>
+          {isBetter ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
+          {Math.abs(diff).toFixed(1)}% vs Peer
+        </div>
+      );
+    };
+
     return (
-      <div className={cn(
-        "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
-        isBetter ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-rose-50 text-rose-600 border border-rose-100"
-      )}>
-        {isBetter ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
-        {Math.abs(diff).toFixed(1)}% vs Peer
-      </div>
+      <Card className="p-0 h-full">
+        <div className="p-5 flex flex-col">
+          {/* Header Section */}
+          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center shrink-0 shadow-lg">
+              <Building2 className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-xl font-black text-slate-900 truncate tracking-tight">{company.name}</h2>
+                <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[8px] font-black rounded-full border border-indigo-200 uppercase tracking-widest shrink-0">
+                  Strategic
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-slate-500 text-[11px] font-medium">Industrial Services • Est. 2010 • Jakarta, ID</p>
+                <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded-full border border-emerald-200 shrink-0">
+                  Active
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Financial Metrics Grid */}
+          <div className="grid grid-cols-3 gap-2.5 mb-4">
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-lg p-3 border border-slate-200 hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-1 mb-1.5">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Total Assets</p>
+                <InfoTooltip title={METRIC_DESCRIPTIONS.total_assets.title} description={METRIC_DESCRIPTIONS.total_assets.description} />
+              </div>
+              <p className="text-lg font-black text-slate-900 mb-2">{formatRupiah(latest.total_assets || 0)}</p>
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Current</p>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.current_assets.title} description={METRIC_DESCRIPTIONS.current_assets.description} />
+                </div>
+                <p className="text-xs font-bold text-slate-600">{formatRupiah(latest.current_assets || 0)}</p>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-lg p-3 border border-slate-200 hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-1 mb-1.5">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Total Equity</p>
+                <InfoTooltip title={METRIC_DESCRIPTIONS.total_equity.title} description={METRIC_DESCRIPTIONS.total_equity.description} />
+              </div>
+              <p className="text-lg font-black text-slate-900 mb-2">{formatRupiah(latest.total_equity || 0)}</p>
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Current</p>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.current_equity?.title || "Current Equity"} description={METRIC_DESCRIPTIONS.current_equity?.description || "Current portion of shareholder equity"} />
+                </div>
+                <p className="text-xs font-bold text-slate-600">{formatRupiah(latest.current_equity || latest.total_equity || 0)}</p>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-lg p-3 border border-slate-200 hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-1 mb-1.5">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Liabilities</p>
+                <InfoTooltip title={METRIC_DESCRIPTIONS.total_liabilities.title} description={METRIC_DESCRIPTIONS.total_liabilities.description} />
+              </div>
+              <p className="text-lg font-black text-slate-900 mb-2">{formatRupiah(latest.total_liabilities || 0)}</p>
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Current</p>
+                  <InfoTooltip title={METRIC_DESCRIPTIONS.current_liabilities.title} description={METRIC_DESCRIPTIONS.current_liabilities.description} />
+                </div>
+                <p className="text-xs font-bold text-slate-600">{formatRupiah(latest.current_liabilities || 0)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Key Ratios */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-around">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Current Ratio</span>
+              <div className="flex items-center gap-1.5">
+                <span className={cn(
+                  "text-base font-black",
+                  latest.current_ratio < 1 ? "text-rose-600" : "text-slate-900"
+                )}>{latest.current_ratio.toFixed(2)}x</span>
+                {compareMetric('current_ratio', latest.current_ratio, otherLatest?.current_ratio)}
+              </div>
+            </div>
+            <div className="w-px h-8 bg-slate-200" />
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">DER</span>
+              <div className="flex items-center gap-1.5">
+                <span className={cn(
+                  "text-base font-black",
+                  latest.der > 2 ? "text-rose-600" : "text-slate-900"
+                )}>{latest.der.toFixed(2)}x</span>
+                {compareMetric('der', latest.der, otherLatest?.der)}
+              </div>
+            </div>
+            <div className="w-px h-8 bg-slate-200" />
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">NPM</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-base font-black text-slate-900">{latest.npm.toFixed(2)}%</span>
+                {compareMetric('npm', latest.npm, otherLatest?.npm)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
     );
   };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-      <Card className="lg:col-span-2 p-0">
-        <div className="p-8 flex items-start gap-6">
-          <div className="w-16 h-16 rounded-2xl bg-slate-900 flex items-center justify-center shrink-0">
-            <Building2 className="w-8 h-8 text-white" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-slate-900">{company.name}</h2>
-                <span className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-full border border-indigo-100 uppercase tracking-wider">
-                  Strategic Entity
-                </span>
-              </div>
-              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-100">
-                Active
-              </span>
-            </div>
-            <p className="text-slate-500 text-sm mb-6">Sector: Industrial Services • Established: 2010 • HQ: Jakarta, Indonesia</p>
-            
-            <div className="grid grid-cols-3 gap-8 mb-6">
-              <div>
-                <div className="flex items-center gap-1 mb-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Assets</p>
-                  <InfoTooltip title={METRIC_DESCRIPTIONS.total_assets.title} description={METRIC_DESCRIPTIONS.total_assets.description} />
-                </div>
-                <p className="text-lg font-bold text-slate-900">{formatRupiah(latest.total_assets)}</p>
-              </div>
-              <div>
-                <div className="flex items-center gap-1 mb-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Equity</p>
-                  <InfoTooltip title={METRIC_DESCRIPTIONS.total_equity.title} description={METRIC_DESCRIPTIONS.total_equity.description} />
-                </div>
-                <p className="text-lg font-bold text-slate-900">{formatRupiah(latest.total_equity)}</p>
-              </div>
-              <div>
-                <div className="flex items-center gap-1 mb-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Liabilities</p>
-                  <InfoTooltip title={METRIC_DESCRIPTIONS.total_liabilities.title} description={METRIC_DESCRIPTIONS.total_liabilities.description} />
-                </div>
-                <p className="text-lg font-bold text-slate-900">{formatRupiah(latest.total_liabilities)}</p>
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-slate-100 flex items-center gap-6">
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ROA Benchmarking</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-slate-900">{latest.roa.toFixed(2)}%</span>
-                  {compareMetric('roa', latest.roa, otherLatest?.roa)}
-                </div>
-              </div>
-              <div className="w-px h-8 bg-slate-100" />
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">NPM Benchmarking</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-slate-900">{latest.npm.toFixed(2)}%</span>
-                  {compareMetric('npm', latest.npm, otherLatest?.npm)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="bg-slate-900 text-white border-none shadow-xl">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold opacity-70">Annual Growth</h3>
-              <InfoTooltip title={METRIC_DESCRIPTIONS.annual_growth.title} description={METRIC_DESCRIPTIONS.annual_growth.description} />
-            </div>
-            <TrendingUp className="w-4 h-4 opacity-50" />
-          </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-medium">Revenue Growth</span>
-                  <InfoTooltip title={METRIC_DESCRIPTIONS.revenue_growth.title} description={METRIC_DESCRIPTIONS.revenue_growth.description} />
-                </div>
-              </div>
-              <div className="flex items-center gap-1 text-emerald-400 font-bold">
-                <ArrowUpRight className="w-4 h-4" />
-                {yoyRevenue}%
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                  <Activity className="w-4 h-4 text-blue-400" />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-medium">Profit Growth</span>
-                  <InfoTooltip title={METRIC_DESCRIPTIONS.profit_growth.title} description={METRIC_DESCRIPTIONS.profit_growth.description} />
-                </div>
-              </div>
-              <div className="flex items-center gap-1 text-emerald-400 font-bold">
-                <ArrowUpRight className="w-4 h-4" />
-                {yoyProfit}%
-              </div>
-            </div>
-          </div>
-          <div className="pt-4 border-t border-white/10">
-            <p className="text-[10px] opacity-50 uppercase font-bold tracking-widest mb-2">Performance Badge</p>
-            <div className="flex gap-2">
-              <span className="px-2 py-1 bg-white/10 rounded text-[10px] font-bold">TOP 10% SECTOR</span>
-              <span className="px-2 py-1 bg-white/10 rounded text-[10px] font-bold">HIGH LIQUIDITY</span>
-            </div>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-};
-
 const HealthScoreGauge = ({ score }: any) => {
-  const data = [
-    { name: 'Score', value: score },
-    { name: 'Remaining', value: 100 - score },
+  const [selectedDept, setSelectedDept] = React.useState<string | null>(null);
+  
+  // Department performance data with more realistic variations
+  const departments = [
+    { label: 'Finance', val: 85, key: 'finance', color: '#22c55e' },
+    { label: 'Operations', val: 72, key: 'operations', color: '#eab308' },
+    { label: 'Sales', val: 68, key: 'sales', color: '#eab308' },
+    { label: 'HR', val: 90, key: 'hr', color: '#22c55e' },
   ];
-  const COLORS = ['#6366f1', '#f8fafc']; // Indigo for score
+
+  // Calculate overall achievement (average of all departments)
+  const overallAchievement = Math.round(departments.reduce((sum, dept) => sum + dept.val, 0) / departments.length);
+  
+  // Use selected department value or overall achievement
+  const displayValue = selectedDept 
+    ? departments.find(d => d.key === selectedDept)?.val || overallAchievement
+    : overallAchievement;
+
+  // Determine color based on achievement
+  const getColor = (value: number) => {
+    if (value < 25) return '#ef4444'; // red
+    if (value < 75) return '#eab308'; // yellow
+    return '#22c55e'; // green
+  };
+
+  const achievementColor = getColor(displayValue);
+
+  // Create speedometer data (semi-circle gauge)
+  // Red: 0-25% (45 degrees), Yellow: 25-75% (90 degrees), Green: 75-100% (45 degrees)
+  const gaugeData = [
+    { name: 'Red', value: 25, fill: '#ef4444' },
+    { name: 'Yellow', value: 50, fill: '#eab308' },
+    { name: 'Green', value: 25, fill: '#22c55e' },
+  ];
+
+  // Calculate needle angle based on achievement
+  // Speedometer: 180° (left/0%) to 0° (right/100%)
+  // Red zone: 180° to 135° (0-25%)
+  // Yellow zone: 135° to 45° (25-75%)
+  // Green zone: 45° to 0° (75-100%)
+  const calculateNeedleAngle = (value: number) => {
+    if (value <= 25) {
+      // Red zone: 180° to 135° (45° range for 0-25%)
+      return 180 - (value / 25) * 45;
+    } else if (value <= 75) {
+      // Yellow zone: 135° to 45° (90° range for 25-75%)
+      return 135 - ((value - 25) / 50) * 90;
+    } else {
+      // Green zone: 45° to 0° (45° range for 75-100%)
+      return 45 - ((value - 75) / 25) * 45;
+    }
+  };
+
+  const needleAngle = calculateNeedleAngle(displayValue);
+
+  // Debug: log the values
+  React.useEffect(() => {
+    console.log('Display Value:', displayValue);
+    console.log('Needle Angle:', needleAngle);
+    console.log('Color:', achievementColor);
+  }, [displayValue, needleAngle, achievementColor]);
 
   return (
     <Card 
-      title="Strategic Performance Index" 
-      subtitle="Aggregate corporate health metric" 
-      icon={ShieldCheck}
-      tooltip={METRIC_DESCRIPTIONS.strategic_performance_index}
+      title="Department Performance Achievement" 
+      subtitle="Overall department achievement metric" 
+      icon={Activity}
+      tooltip={{
+        title: "Department Performance Achievement",
+        description: "Aggregate performance metric across all departments with color-coded thresholds"
+      }}
     >
-      <div className="flex flex-col items-center">
-        <div className="h-[200px] w-full relative">
+      <div className="flex flex-col items-center -mt-2">
+        {/* Speedometer Chart */}
+        <div className="h-[240px] w-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
+              <defs>
+                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+                  <feOffset dx="0" dy="4" result="offsetblur"/>
+                  <feComponentTransfer>
+                    <feFuncA type="linear" slope="0.3"/>
+                  </feComponentTransfer>
+                  <feMerge>
+                    <feMergeNode/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+                <linearGradient id="redGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity="1"/>
+                  <stop offset="100%" stopColor="#dc2626" stopOpacity="1"/>
+                </linearGradient>
+                <linearGradient id="yellowGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#eab308" stopOpacity="1"/>
+                  <stop offset="100%" stopColor="#ca8a04" stopOpacity="1"/>
+                </linearGradient>
+                <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22c55e" stopOpacity="1"/>
+                  <stop offset="100%" stopColor="#16a34a" stopOpacity="1"/>
+                </linearGradient>
+              </defs>
               <Pie
-                data={data}
+                data={gaugeData}
                 cx="50%"
-                cy="100%"
+                cy="75%"
                 startAngle={180}
                 endAngle={0}
-                innerRadius={80}
-                outerRadius={110}
-                paddingAngle={0}
+                innerRadius={85}
+                outerRadius={120}
+                paddingAngle={2}
                 dataKey="value"
+                stroke="none"
+                filter="url(#shadow)"
               >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                ))}
+                {/* Red zone: 180° to 135° (0-25%) */}
+                <Cell key="red" fill="url(#redGradient)" />
+                {/* Yellow zone: 135° to 45° (25-75%) */}
+                <Cell key="yellow" fill="url(#yellowGradient)" />
+                {/* Green zone: 45° to 0° (75-100%) */}
+                <Cell key="green" fill="url(#greenGradient)" />
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
-            <p className="text-5xl font-black text-slate-900 tracking-tighter">{score}</p>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Index Points</p>
+          
+          {/* Needle - Now animated based on displayValue */}
+          <motion.div 
+            className="absolute bottom-[25%] left-1/2"
+            style={{ 
+              width: '5px', 
+              height: '95px',
+              transformOrigin: 'bottom center',
+            }}
+            initial={{ rotate: 180, x: '-50%' }}
+            animate={{ rotate: needleAngle, x: '-50%' }}
+            transition={{ 
+              type: "spring",
+              stiffness: 60,
+              damping: 15,
+              mass: 1
+            }}
+          >
+            <div className="w-full h-full bg-gradient-to-t from-slate-800 to-slate-600 rounded-full shadow-lg" />
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-5 h-5 bg-slate-800 rounded-full border-2 border-white shadow-lg" />
+          </motion.div>
+
+          {/* Center Display - Animated */}
+          <div className="absolute bottom-[18%] left-1/2 -translate-x-1/2 text-center">
+            <motion.p 
+              key={displayValue}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="text-6xl font-black tracking-tighter"
+              style={{ color: achievementColor }}
+            >
+              {displayValue}%
+            </motion.p>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              {selectedDept ? departments.find(d => d.key === selectedDept)?.label : 'Overall'}
+            </p>
+            {/* Debug info */}
+            <p className="text-[8px] text-slate-300 mt-1">Angle: {needleAngle.toFixed(1)}°</p>
           </div>
+
+          {/* Scale markers with zone indicators */}
+          <div className="absolute bottom-[25%] left-[8%] text-[11px] font-bold text-red-500">0</div>
+          <div className="absolute bottom-[25%] left-[20%] text-[9px] font-bold text-red-400">25</div>
+          <div className="absolute top-[28%] left-1/2 -translate-x-1/2 text-[11px] font-bold text-yellow-500">50</div>
+          <div className="absolute bottom-[25%] right-[20%] text-[9px] font-bold text-green-400">75</div>
+          <div className="absolute bottom-[25%] right-[8%] text-[11px] font-bold text-green-500">100</div>
         </div>
         
-        <div className="w-full mt-8 grid grid-cols-2 gap-4">
-          {[
-            { label: 'Profitability', val: 85, color: 'bg-indigo-500', key: 'profitability' },
-            { label: 'Liquidity', val: 70, color: 'bg-emerald-500', key: 'liquidity' },
-            { label: 'Solvency', val: 90, color: 'bg-blue-500', key: 'solvency' },
-            { label: 'Efficiency', val: 75, color: 'bg-violet-500', key: 'efficiency' },
-          ].map((dim) => (
-            <div key={dim.label} className="space-y-1.5">
-              <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                <div className="flex items-center gap-1">
-                  <span>{dim.label}</span>
-                  <InfoTooltip 
-                    title={METRIC_DESCRIPTIONS[dim.key].title} 
-                    description={METRIC_DESCRIPTIONS[dim.key].description}
+        {/* Department Breakdown - Now Interactive */}
+        <div className="w-full mt-2 grid grid-cols-2 gap-3">
+          {departments.map((dept) => {
+            const deptColor = getColor(dept.val);
+            const isSelected = selectedDept === dept.key;
+            return (
+              <motion.div 
+                key={dept.label} 
+                className={cn(
+                  "space-y-1 p-2 rounded-lg cursor-pointer transition-all",
+                  isSelected ? "bg-indigo-50 ring-2 ring-indigo-300" : "hover:bg-slate-50"
+                )}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedDept(isSelected ? null : dept.key)}
+              >
+                <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                  <div className="flex items-center gap-1">
+                    <span className={isSelected ? "text-indigo-700" : ""}>{dept.label}</span>
+                    <InfoTooltip 
+                      title={`${dept.label} Department`}
+                      description={`Performance achievement for ${dept.label} department. Click to view on gauge.`}
+                    />
+                  </div>
+                  <span style={{ color: deptColor }}>{dept.val}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${dept.val}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: deptColor }}
                   />
                 </div>
-                <span>{dim.val}%</span>
-              </div>
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${dim.val}%` }}
-                  className={cn("h-full rounded-full", dim.color)} 
-                />
-              </div>
-            </div>
-          ))}
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="w-full mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+            <span className="text-[9px] font-bold text-slate-500 uppercase">Critical (&lt;25)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+            <span className="text-[9px] font-bold text-slate-500 uppercase">Moderate (25-75)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+            <span className="text-[9px] font-bold text-slate-500 uppercase">Excellent (&gt;75)</span>
+          </div>
         </div>
       </div>
     </Card>
@@ -370,72 +520,397 @@ const KPICard = ({ label, value, unit = "%", trend, yoy, delta, status, companyN
 };
 
 const GrowthTrends = ({ data, companyId }: any) => {
-  const isBoth = companyId === 'both';
-  const primaryId = isBoth ? 'ASI' : companyId;
+  const [revenueFilter, setRevenueFilter] = React.useState('all');
+  const [cashFlowDepartment, setCashFlowDepartment] = React.useState('all');
+  const [cashFlowProject, setCashFlowProject] = React.useState('all');
+  
+  // Project mapping by department
+  const projectsByDepartment: Record<string, { id: string; name: string }[]> = {
+    all: [{ id: 'all', name: 'All Projects' }],
+    finance: [
+      { id: 'all', name: 'All Projects' },
+      { id: 'fin-001', name: 'Budget Planning 2024' },
+      { id: 'fin-002', name: 'Cost Optimization' },
+      { id: 'fin-003', name: 'Financial Audit' }
+    ],
+    operations: [
+      { id: 'all', name: 'All Projects' },
+      { id: 'ops-001', name: 'Process Improvement' },
+      { id: 'ops-002', name: 'Supply Chain Optimization' },
+      { id: 'ops-003', name: 'Quality Management' },
+      { id: 'ops-004', name: 'Warehouse Expansion' }
+    ],
+    sales: [
+      { id: 'all', name: 'All Projects' },
+      { id: 'sal-001', name: 'Market Expansion' },
+      { id: 'sal-002', name: 'Customer Retention' },
+      { id: 'sal-003', name: 'Digital Marketing' }
+    ],
+    hr: [
+      { id: 'all', name: 'All Projects' },
+      { id: 'hr-001', name: 'Talent Acquisition' },
+      { id: 'hr-002', name: 'Training & Development' },
+      { id: 'hr-003', name: 'Employee Engagement' }
+    ]
+  };
+
+  // Get available projects based on selected department
+  const availableProjects = projectsByDepartment[cashFlowDepartment] || projectsByDepartment.all;
+
+  // Reset project filter when department changes
+  React.useEffect(() => {
+    setCashFlowProject('all');
+  }, [cashFlowDepartment]);
+  
+  // Sample data for revenue & operational
+  const revenueData = [
+    { period: '2023-01', revenue: 2100000000, operational: 1800000000 },
+    { period: '2023-02', revenue: 2200000000, operational: 1850000000 },
+    { period: '2023-03', revenue: 2350000000, operational: 1900000000 },
+    { period: '2023-04', revenue: 2400000000, operational: 1950000000 },
+    { period: '2023-05', revenue: 2500000000, operational: 2000000000 },
+    { period: '2023-06', revenue: 2600000000, operational: 2100000000 },
+    { period: '2023-07', revenue: 2700000000, operational: 2150000000 },
+    { period: '2023-08', revenue: 2750000000, operational: 2200000000 },
+    { period: '2023-09', revenue: 2800000000, operational: 2250000000 },
+    { period: '2023-10', revenue: 2900000000, operational: 2300000000 },
+  ];
+
+  // Sample data for cash flow by department and project
+  const cashFlowData: Record<string, Record<string, any[]>> = {
+    all: {
+      all: [
+        { period: '2023-01', cashIn: 2000000000, cashOut: 1500000000 },
+        { period: '2023-02', cashIn: 2100000000, cashOut: 1600000000 },
+        { period: '2023-03', cashIn: 2200000000, cashOut: 1650000000 },
+        { period: '2023-04', cashIn: 2300000000, cashOut: 1700000000 },
+        { period: '2023-05', cashIn: 2400000000, cashOut: 1750000000 },
+        { period: '2023-06', cashIn: 2500000000, cashOut: 1800000000 },
+        { period: '2023-07', cashIn: 2600000000, cashOut: 1850000000 },
+        { period: '2023-08', cashIn: 2650000000, cashOut: 1900000000 },
+        { period: '2023-09', cashIn: 2700000000, cashOut: 1950000000 },
+        { period: '2023-10', cashIn: 2800000000, cashOut: 2000000000 },
+      ]
+    },
+    finance: {
+      all: [
+        { period: '2023-01', cashIn: 500000000, cashOut: 400000000 },
+        { period: '2023-02', cashIn: 520000000, cashOut: 410000000 },
+        { period: '2023-03', cashIn: 540000000, cashOut: 420000000 },
+        { period: '2023-04', cashIn: 560000000, cashOut: 430000000 },
+        { period: '2023-05', cashIn: 580000000, cashOut: 440000000 },
+        { period: '2023-06', cashIn: 600000000, cashOut: 450000000 },
+        { period: '2023-07', cashIn: 620000000, cashOut: 460000000 },
+        { period: '2023-08', cashIn: 640000000, cashOut: 470000000 },
+        { period: '2023-09', cashIn: 660000000, cashOut: 480000000 },
+        { period: '2023-10', cashIn: 680000000, cashOut: 490000000 },
+      ],
+      'fin-001': [
+        { period: '2023-01', cashIn: 200000000, cashOut: 150000000 },
+        { period: '2023-02', cashIn: 210000000, cashOut: 155000000 },
+        { period: '2023-03', cashIn: 220000000, cashOut: 160000000 },
+        { period: '2023-04', cashIn: 230000000, cashOut: 165000000 },
+        { period: '2023-05', cashIn: 240000000, cashOut: 170000000 },
+        { period: '2023-06', cashIn: 250000000, cashOut: 175000000 },
+        { period: '2023-07', cashIn: 260000000, cashOut: 180000000 },
+        { period: '2023-08', cashIn: 270000000, cashOut: 185000000 },
+        { period: '2023-09', cashIn: 280000000, cashOut: 190000000 },
+        { period: '2023-10', cashIn: 290000000, cashOut: 195000000 },
+      ],
+      'fin-002': [
+        { period: '2023-01', cashIn: 180000000, cashOut: 140000000 },
+        { period: '2023-02', cashIn: 185000000, cashOut: 142000000 },
+        { period: '2023-03', cashIn: 190000000, cashOut: 145000000 },
+        { period: '2023-04', cashIn: 195000000, cashOut: 148000000 },
+        { period: '2023-05', cashIn: 200000000, cashOut: 150000000 },
+        { period: '2023-06', cashIn: 205000000, cashOut: 153000000 },
+        { period: '2023-07', cashIn: 210000000, cashOut: 155000000 },
+        { period: '2023-08', cashIn: 215000000, cashOut: 158000000 },
+        { period: '2023-09', cashIn: 220000000, cashOut: 160000000 },
+        { period: '2023-10', cashIn: 225000000, cashOut: 163000000 },
+      ],
+      'fin-003': [
+        { period: '2023-01', cashIn: 120000000, cashOut: 110000000 },
+        { period: '2023-02', cashIn: 125000000, cashOut: 113000000 },
+        { period: '2023-03', cashIn: 130000000, cashOut: 115000000 },
+        { period: '2023-04', cashIn: 135000000, cashOut: 117000000 },
+        { period: '2023-05', cashIn: 140000000, cashOut: 120000000 },
+        { period: '2023-06', cashIn: 145000000, cashOut: 122000000 },
+        { period: '2023-07', cashIn: 150000000, cashOut: 125000000 },
+        { period: '2023-08', cashIn: 155000000, cashOut: 127000000 },
+        { period: '2023-09', cashIn: 160000000, cashOut: 130000000 },
+        { period: '2023-10', cashIn: 165000000, cashOut: 132000000 },
+      ]
+    },
+    operations: {
+      all: [
+        { period: '2023-01', cashIn: 800000000, cashOut: 600000000 },
+        { period: '2023-02', cashIn: 820000000, cashOut: 620000000 },
+        { period: '2023-03', cashIn: 850000000, cashOut: 640000000 },
+        { period: '2023-04', cashIn: 880000000, cashOut: 660000000 },
+        { period: '2023-05', cashIn: 900000000, cashOut: 680000000 },
+        { period: '2023-06', cashIn: 920000000, cashOut: 700000000 },
+        { period: '2023-07', cashIn: 950000000, cashOut: 720000000 },
+        { period: '2023-08', cashIn: 970000000, cashOut: 740000000 },
+        { period: '2023-09', cashIn: 1000000000, cashOut: 760000000 },
+        { period: '2023-10', cashIn: 1020000000, cashOut: 780000000 },
+      ],
+      'ops-001': [
+        { period: '2023-01', cashIn: 250000000, cashOut: 180000000 },
+        { period: '2023-02', cashIn: 260000000, cashOut: 190000000 },
+        { period: '2023-03', cashIn: 270000000, cashOut: 195000000 },
+        { period: '2023-04', cashIn: 280000000, cashOut: 200000000 },
+        { period: '2023-05', cashIn: 290000000, cashOut: 205000000 },
+        { period: '2023-06', cashIn: 300000000, cashOut: 210000000 },
+        { period: '2023-07', cashIn: 310000000, cashOut: 215000000 },
+        { period: '2023-08', cashIn: 320000000, cashOut: 220000000 },
+        { period: '2023-09', cashIn: 330000000, cashOut: 225000000 },
+        { period: '2023-10', cashIn: 340000000, cashOut: 230000000 },
+      ],
+      'ops-002': [
+        { period: '2023-01', cashIn: 300000000, cashOut: 220000000 },
+        { period: '2023-02', cashIn: 310000000, cashOut: 225000000 },
+        { period: '2023-03', cashIn: 320000000, cashOut: 230000000 },
+        { period: '2023-04', cashIn: 330000000, cashOut: 235000000 },
+        { period: '2023-05', cashIn: 340000000, cashOut: 240000000 },
+        { period: '2023-06', cashIn: 350000000, cashOut: 245000000 },
+        { period: '2023-07', cashIn: 360000000, cashOut: 250000000 },
+        { period: '2023-08', cashIn: 370000000, cashOut: 255000000 },
+        { period: '2023-09', cashIn: 380000000, cashOut: 260000000 },
+        { period: '2023-10', cashIn: 390000000, cashOut: 265000000 },
+      ],
+      'ops-003': [
+        { period: '2023-01', cashIn: 150000000, cashOut: 120000000 },
+        { period: '2023-02', cashIn: 155000000, cashOut: 122000000 },
+        { period: '2023-03', cashIn: 160000000, cashOut: 125000000 },
+        { period: '2023-04', cashIn: 165000000, cashOut: 127000000 },
+        { period: '2023-05', cashIn: 170000000, cashOut: 130000000 },
+        { period: '2023-06', cashIn: 175000000, cashOut: 132000000 },
+        { period: '2023-07', cashIn: 180000000, cashOut: 135000000 },
+        { period: '2023-08', cashIn: 185000000, cashOut: 137000000 },
+        { period: '2023-09', cashIn: 190000000, cashOut: 140000000 },
+        { period: '2023-10', cashIn: 195000000, cashOut: 142000000 },
+      ],
+      'ops-004': [
+        { period: '2023-01', cashIn: 100000000, cashOut: 80000000 },
+        { period: '2023-02', cashIn: 95000000, cashOut: 83000000 },
+        { period: '2023-03', cashIn: 100000000, cashOut: 90000000 },
+        { period: '2023-04', cashIn: 105000000, cashOut: 98000000 },
+        { period: '2023-05', cashIn: 100000000, cashOut: 105000000 },
+        { period: '2023-06', cashIn: 95000000, cashOut: 113000000 },
+        { period: '2023-07', cashIn: 100000000, cashOut: 120000000 },
+        { period: '2023-08', cashIn: 95000000, cashOut: 128000000 },
+        { period: '2023-09', cashIn: 100000000, cashOut: 135000000 },
+        { period: '2023-10', cashIn: 95000000, cashOut: 143000000 },
+      ]
+    },
+    sales: {
+      all: [
+        { period: '2023-01', cashIn: 450000000, cashOut: 350000000 },
+        { period: '2023-02', cashIn: 470000000, cashOut: 360000000 },
+        { period: '2023-03', cashIn: 480000000, cashOut: 370000000 },
+        { period: '2023-04', cashIn: 500000000, cashOut: 380000000 },
+        { period: '2023-05', cashIn: 520000000, cashOut: 390000000 },
+        { period: '2023-06', cashIn: 540000000, cashOut: 400000000 },
+        { period: '2023-07', cashIn: 560000000, cashOut: 410000000 },
+        { period: '2023-08', cashIn: 580000000, cashOut: 420000000 },
+        { period: '2023-09', cashIn: 600000000, cashOut: 430000000 },
+        { period: '2023-10', cashIn: 620000000, cashOut: 440000000 },
+      ],
+      'sal-001': [
+        { period: '2023-01', cashIn: 200000000, cashOut: 150000000 },
+        { period: '2023-02', cashIn: 210000000, cashOut: 155000000 },
+        { period: '2023-03', cashIn: 220000000, cashOut: 160000000 },
+        { period: '2023-04', cashIn: 230000000, cashOut: 165000000 },
+        { period: '2023-05', cashIn: 240000000, cashOut: 170000000 },
+        { period: '2023-06', cashIn: 250000000, cashOut: 175000000 },
+        { period: '2023-07', cashIn: 260000000, cashOut: 180000000 },
+        { period: '2023-08', cashIn: 270000000, cashOut: 185000000 },
+        { period: '2023-09', cashIn: 280000000, cashOut: 190000000 },
+        { period: '2023-10', cashIn: 290000000, cashOut: 195000000 },
+      ],
+      'sal-002': [
+        { period: '2023-01', cashIn: 150000000, cashOut: 120000000 },
+        { period: '2023-02', cashIn: 155000000, cashOut: 122000000 },
+        { period: '2023-03', cashIn: 160000000, cashOut: 125000000 },
+        { period: '2023-04', cashIn: 165000000, cashOut: 127000000 },
+        { period: '2023-05', cashIn: 170000000, cashOut: 130000000 },
+        { period: '2023-06', cashIn: 175000000, cashOut: 132000000 },
+        { period: '2023-07', cashIn: 180000000, cashOut: 135000000 },
+        { period: '2023-08', cashIn: 185000000, cashOut: 137000000 },
+        { period: '2023-09', cashIn: 190000000, cashOut: 140000000 },
+        { period: '2023-10', cashIn: 195000000, cashOut: 142000000 },
+      ],
+      'sal-003': [
+        { period: '2023-01', cashIn: 100000000, cashOut: 80000000 },
+        { period: '2023-02', cashIn: 105000000, cashOut: 83000000 },
+        { period: '2023-03', cashIn: 100000000, cashOut: 85000000 },
+        { period: '2023-04', cashIn: 105000000, cashOut: 88000000 },
+        { period: '2023-05', cashIn: 110000000, cashOut: 90000000 },
+        { period: '2023-06', cashIn: 115000000, cashOut: 93000000 },
+        { period: '2023-07', cashIn: 120000000, cashOut: 95000000 },
+        { period: '2023-08', cashIn: 125000000, cashOut: 98000000 },
+        { period: '2023-09', cashIn: 130000000, cashOut: 100000000 },
+        { period: '2023-10', cashIn: 135000000, cashOut: 103000000 },
+      ]
+    },
+    hr: {
+      all: [
+        { period: '2023-01', cashIn: 250000000, cashOut: 150000000 },
+        { period: '2023-02', cashIn: 290000000, cashOut: 210000000 },
+        { period: '2023-03', cashIn: 330000000, cashOut: 220000000 },
+        { period: '2023-04', cashIn: 360000000, cashOut: 230000000 },
+        { period: '2023-05', cashIn: 400000000, cashOut: 240000000 },
+        { period: '2023-06', cashIn: 440000000, cashOut: 250000000 },
+        { period: '2023-07', cashIn: 470000000, cashOut: 260000000 },
+        { period: '2023-08', cashIn: 460000000, cashOut: 270000000 },
+        { period: '2023-09', cashIn: 440000000, cashOut: 280000000 },
+        { period: '2023-10', cashIn: 480000000, cashOut: 290000000 },
+      ],
+      'hr-001': [
+        { period: '2023-01', cashIn: 100000000, cashOut: 60000000 },
+        { period: '2023-02', cashIn: 110000000, cashOut: 80000000 },
+        { period: '2023-03', cashIn: 120000000, cashOut: 85000000 },
+        { period: '2023-04', cashIn: 130000000, cashOut: 90000000 },
+        { period: '2023-05', cashIn: 140000000, cashOut: 95000000 },
+        { period: '2023-06', cashIn: 150000000, cashOut: 100000000 },
+        { period: '2023-07', cashIn: 160000000, cashOut: 105000000 },
+        { period: '2023-08', cashIn: 155000000, cashOut: 108000000 },
+        { period: '2023-09', cashIn: 150000000, cashOut: 110000000 },
+        { period: '2023-10', cashIn: 160000000, cashOut: 115000000 },
+      ],
+      'hr-002': [
+        { period: '2023-01', cashIn: 90000000, cashOut: 55000000 },
+        { period: '2023-02', cashIn: 100000000, cashOut: 75000000 },
+        { period: '2023-03', cashIn: 110000000, cashOut: 78000000 },
+        { period: '2023-04', cashIn: 120000000, cashOut: 80000000 },
+        { period: '2023-05', cashIn: 130000000, cashOut: 83000000 },
+        { period: '2023-06', cashIn: 140000000, cashOut: 85000000 },
+        { period: '2023-07', cashIn: 150000000, cashOut: 88000000 },
+        { period: '2023-08', cashIn: 145000000, cashOut: 90000000 },
+        { period: '2023-09', cashIn: 140000000, cashOut: 92000000 },
+        { period: '2023-10', cashIn: 150000000, cashOut: 95000000 },
+      ],
+      'hr-003': [
+        { period: '2023-01', cashIn: 60000000, cashOut: 35000000 },
+        { period: '2023-02', cashIn: 80000000, cashOut: 55000000 },
+        { period: '2023-03', cashIn: 100000000, cashOut: 57000000 },
+        { period: '2023-04', cashIn: 110000000, cashOut: 60000000 },
+        { period: '2023-05', cashIn: 130000000, cashOut: 62000000 },
+        { period: '2023-06', cashIn: 150000000, cashOut: 65000000 },
+        { period: '2023-07', cashIn: 160000000, cashOut: 67000000 },
+        { period: '2023-08', cashIn: 160000000, cashOut: 72000000 },
+        { period: '2023-09', cashIn: 150000000, cashOut: 78000000 },
+        { period: '2023-10', cashIn: 170000000, cashOut: 80000000 },
+      ]
+    }
+  };
+
+  const selectedCashFlowData = cashFlowData[cashFlowDepartment]?.[cashFlowProject] || cashFlowData.all.all;
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
       <Card 
-        title="Revenue & Profitability Dynamics" 
-        subtitle="Strategic growth trajectories" 
-        icon={TrendingUp}
-        tooltip={METRIC_DESCRIPTIONS.revenue_profitability_dynamics}
+        title="Revenue & Operational Costs" 
+        subtitle="Revenue vs operational expenses trend" 
+        icon={DollarSign}
+        tooltip={{
+          title: "Revenue & Operational Costs",
+          description: "Comparison of revenue generation against operational expenses over time"
+        }}
       >
-        <div className="h-[300px] w-full flex items-center justify-center">
-          {data.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
-                <defs>
-                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Area type="monotone" dataKey={`${primaryId}_revenue`} name="Revenue" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
-                <Area type="monotone" dataKey={`${primaryId}_profit`} name="Net Profit" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" />
-                {isBoth && <Area type="monotone" dataKey="TSI_revenue" name="TSI Revenue" stroke="#94a3b8" strokeWidth={2} fillOpacity={0} />}
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="text-slate-400 text-sm font-medium">No historical data available for this selection</div>
-          )}
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500">Filter:</span>
+          <select 
+            value={revenueFilter}
+            onChange={(e) => setRevenueFilter(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">All Departments</option>
+            <option value="finance">Finance</option>
+            <option value="operations">Operations</option>
+            <option value="sales">Sales</option>
+            <option value="hr">HR</option>
+          </select>
+        </div>
+        <div className="h-[280px] w-full flex items-center justify-center">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={revenueData}>
+              <defs>
+                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorOperational" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                formatter={(v: any) => formatRupiah(v, false)}
+              />
+              <Legend verticalAlign="top" height={36} iconType="circle" />
+              <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+              <Area type="monotone" dataKey="operational" name="Operational Costs" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorOperational)" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </Card>
       
       <Card 
-        title="Operational Efficiency Ratios" 
-        subtitle="NPM & ROE performance" 
+        title="Historical Cash Flow" 
+        subtitle="Cash in & cash out by department/project" 
         icon={Activity}
-        tooltip={METRIC_DESCRIPTIONS.operational_efficiency_ratios}
+        tooltip={{
+          title: "Historical Cash Flow",
+          description: "Track cash inflows and outflows filtered by department or project"
+        }}
       >
-        <div className="h-[300px] w-full flex items-center justify-center">
-          {data.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Legend verticalAlign="top" height={36} iconType="circle" />
-                <Line type="monotone" dataKey={`${primaryId}_roe`} name="Return on Equity" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }} />
-                <Line type="monotone" dataKey={`${primaryId}_npm`} name="Net Profit Margin" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="text-slate-400 text-sm font-medium">No historical data available for this selection</div>
-          )}
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-slate-500">Department:</span>
+          <select 
+            value={cashFlowDepartment}
+            onChange={(e) => setCashFlowDepartment(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">All Departments</option>
+            <option value="finance">Finance</option>
+            <option value="operations">Operations</option>
+            <option value="sales">Sales</option>
+            <option value="hr">HR</option>
+          </select>
+          
+          <span className="text-xs font-semibold text-slate-500 ml-2">Project:</span>
+          <select 
+            value={cashFlowProject}
+            onChange={(e) => setCashFlowProject(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={cashFlowDepartment === 'all'}
+          >
+            {availableProjects.map(project => (
+              <option key={project.id} value={project.id}>{project.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="h-[280px] w-full flex items-center justify-center">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={selectedCashFlowData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                formatter={(v: any) => formatRupiah(v, false)}
+              />
+              <Legend verticalAlign="top" height={36} iconType="circle" />
+              <Bar dataKey="cashIn" name="Cash In" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="cashOut" name="Cash Out" fill="#ef4444" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </Card>
     </div>
@@ -486,86 +961,240 @@ const WaterfallChart = ({ latest }: any) => {
 };
 
 const FinancialBreakdown = ({ latest }: any) => {
-  const assetData = latest ? [
-    { name: 'Current Assets', value: latest.current_assets },
-    { name: 'Fixed Assets', value: latest.total_assets - latest.current_assets },
-  ] : [];
-  
-  const capitalData = latest ? [
-    { name: 'Equity', value: latest.total_equity },
-    { name: 'Liabilities', value: latest.total_liabilities },
-  ] : [];
+  // Use real data if available, otherwise use realistic dummy data
+  const dummyData = {
+    current_assets: 15000000000,      // Rp 15 Miliar
+    total_assets: 45000000000,        // Rp 45 Miliar
+    total_equity: 20000000000,        // Rp 20 Miliar
+    total_liabilities: 25000000000,   // Rp 25 Miliar
+  };
 
-  const PIE_COLORS = ['#0f172a', '#94a3b8'];
+  // Validate and use data
+  const hasValidData = latest && 
+    !isNaN(latest.current_assets) && 
+    !isNaN(latest.total_assets) && 
+    !isNaN(latest.total_equity) && 
+    !isNaN(latest.total_liabilities) &&
+    latest.total_assets > 0;
+
+  const data = hasValidData ? latest : dummyData;
+  
+  // Ensure no NaN values
+  const safeData = {
+    current_assets: data.current_assets || 0,
+    total_assets: data.total_assets || 0,
+    total_equity: data.total_equity || 0,
+    total_liabilities: data.total_liabilities || 0,
+  };
+
+  // Calculate fixed assets safely
+  const fixedAssets = Math.max(0, safeData.total_assets - safeData.current_assets);
+  
+  // Combine asset and equity data into one pie chart
+  const combinedData = [
+    { 
+      name: 'Current Assets', 
+      value: safeData.current_assets, 
+      fill: '#3b82f6', 
+      darkFill: '#2563eb',
+      description: 'Aset Lancar'
+    },
+    { 
+      name: 'Fixed Assets', 
+      value: fixedAssets, 
+      fill: '#8b5cf6', 
+      darkFill: '#7c3aed',
+      description: 'Aset Tetap'
+    },
+    { 
+      name: 'Equity', 
+      value: safeData.total_equity, 
+      fill: '#10b981', 
+      darkFill: '#059669',
+      description: 'Ekuitas'
+    },
+    { 
+      name: 'Liabilities', 
+      value: safeData.total_liabilities, 
+      fill: '#f59e0b', 
+      darkFill: '#d97706',
+      description: 'Kewajiban'
+    },
+  ].filter(item => item.value > 0); // Remove zero values
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-      <Card 
-        title="Asset Composition" 
-        subtitle="Current vs Non-current assets" 
-        icon={PieChartIcon}
-        tooltip={METRIC_DESCRIPTIONS.asset_composition}
-      >
-        <div className="h-[250px] w-full flex items-center justify-center">
-          {latest ? (
-            <ResponsiveContainer width="100%" height="100%">
+    <Card 
+      title="Asset Composition & Equity" 
+      subtitle="Current vs Non-current assets and capital structure" 
+      icon={PieChartIcon}
+      tooltip={{
+        title: "Asset Composition & Equity",
+        description: "Comprehensive view of asset distribution and capital structure including equity and liabilities"
+      }}
+    >
+      <div className="w-full" style={{ minHeight: '400px', height: '400px' }}>
+        <div className="relative w-full h-full">
+          {/* 3D Pie Chart using Recharts with shadow effect */}
+          <div className="absolute inset-0" style={{ transform: 'translateY(8px)', opacity: 0.3, filter: 'blur(8px)' }}>
+            <ResponsiveContainer width="100%" height="100%" minHeight={400}>
               <PieChart>
+                <defs>
+                  {combinedData.map((entry, index) => (
+                    <linearGradient key={`gradient-shadow-${index}`} id={`shadow-${index}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#000000" stopOpacity="0.3"/>
+                      <stop offset="100%" stopColor="#000000" stopOpacity="0.1"/>
+                    </linearGradient>
+                  ))}
+                </defs>
                 <Pie
-                  data={assetData}
+                  data={combinedData}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
+                  cy="45%"
+                  startAngle={90}
+                  endAngle={450}
+                  innerRadius={0}
+                  outerRadius={120}
+                  paddingAngle={2}
                   dataKey="value"
                 >
-                  {assetData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  {combinedData.map((entry, index) => (
+                    <Cell key={`shadow-cell-${index}`} fill={`url(#shadow-${index})`} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: any) => formatRupiah(v, false)} />
-                <Legend verticalAlign="bottom" height={36}/>
               </PieChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="text-slate-400 text-sm font-medium">No asset data available</div>
-          )}
+          </div>
+
+          {/* Main 3D Pie Chart */}
+          <div className="absolute inset-0">
+            <ResponsiveContainer width="100%" height="100%" minHeight={400}>
+              <PieChart>
+                <defs>
+                  {combinedData.map((entry, index) => (
+                    <React.Fragment key={`defs-${index}`}>
+                      <linearGradient id={`gradient3d-${index}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={entry.fill} stopOpacity="1"/>
+                        <stop offset="100%" stopColor={entry.darkFill} stopOpacity="1"/>
+                      </linearGradient>
+                      <filter id={`shadow3d-${index}`}>
+                        <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+                        <feOffset dx="2" dy="4" result="offsetblur"/>
+                        <feComponentTransfer>
+                          <feFuncA type="linear" slope="0.4"/>
+                        </feComponentTransfer>
+                        <feMerge>
+                          <feMergeNode/>
+                          <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                      </filter>
+                    </React.Fragment>
+                  ))}
+                </defs>
+                <Pie
+                  data={combinedData}
+                  cx="50%"
+                  cy="45%"
+                  startAngle={90}
+                  endAngle={450}
+                  innerRadius={0}
+                  outerRadius={120}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, value, percent }) => {
+                    const percentage = (percent * 100).toFixed(1);
+                    return `${percentage}%`;
+                  }}
+                  labelLine={{
+                    stroke: '#94a3b8',
+                    strokeWidth: 2
+                  }}
+                >
+                  {combinedData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={`url(#gradient3d-${index})`}
+                      filter={`url(#shadow3d-${index})`}
+                      style={{
+                        filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))',
+                        cursor: 'pointer'
+                      }}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(v: any) => formatRupiah(v, false)}
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: 'none', 
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    backdropFilter: 'blur(8px)'
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Custom Legend */}
+          <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-6 pb-4">
+            {combinedData.map((entry, index) => (
+              <div key={`legend-${index}`} className="flex items-center gap-2">
+                <div 
+                  className="w-3 h-3 rounded-full shadow-md"
+                  style={{ 
+                    background: `linear-gradient(135deg, ${entry.fill} 0%, ${entry.darkFill} 100%)`,
+                    boxShadow: `0 2px 4px ${entry.darkFill}40`
+                  }}
+                />
+                <span className="text-xs font-semibold text-slate-700">{entry.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </Card>
+      </div>
       
-      <Card 
-        title="Capital Structure" 
-        subtitle="Equity vs Debt ratio" 
-        icon={Wallet}
-        tooltip={METRIC_DESCRIPTIONS.capital_structure}
-      >
-        <div className="h-[250px] w-full flex items-center justify-center">
-          {latest ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={capitalData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {capitalData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: any) => formatRupiah(v, false)} />
-                <Legend verticalAlign="bottom" height={36}/>
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="text-slate-400 text-sm font-medium">No capital data available</div>
-          )}
+      {/* Summary Stats */}
+      <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
+        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Assets</p>
+          <p className="text-xl font-black text-slate-900">{formatRupiah(safeData.total_assets)}</p>
+          <p className="text-[10px] text-slate-400 mt-1">Current: {formatRupiah(safeData.current_assets)}</p>
         </div>
-      </Card>
-    </div>
+        <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl border border-emerald-100">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Equity</p>
+          <p className="text-xl font-black text-emerald-600">{formatRupiah(safeData.total_equity)}</p>
+          <p className="text-[10px] text-slate-400 mt-1">Liabilities: {formatRupiah(safeData.total_liabilities)}</p>
+        </div>
+      </div>
+      
+      {/* Financial Health Indicator */}
+      <div className="mt-4 p-4 bg-slate-50 rounded-xl">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold text-slate-600">Debt to Equity Ratio</span>
+          <span className="text-sm font-black text-slate-900">
+            {safeData.total_equity > 0 ? (safeData.total_liabilities / safeData.total_equity).toFixed(2) : '0.00'}x
+          </span>
+        </div>
+        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-emerald-500 to-blue-500 rounded-full transition-all duration-500"
+            style={{ width: `${safeData.total_assets > 0 ? Math.min((safeData.total_equity / safeData.total_assets) * 100, 100) : 0}%` }}
+          />
+        </div>
+        <p className="text-[10px] text-slate-400 mt-1 text-center">
+          Equity represents {safeData.total_assets > 0 ? ((safeData.total_equity / safeData.total_assets) * 100).toFixed(1) : '0.0'}% of total assets
+        </p>
+      </div>
+      
+      {!hasValidData && (
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
+          <Info className="w-4 h-4 text-amber-600" />
+          <p className="text-xs text-amber-700 font-medium">Displaying sample data. Select a company with financial data to view actual figures.</p>
+        </div>
+      )}
+    </Card>
   );
 };
 
@@ -780,93 +1409,6 @@ const CashFlowPanel = ({ data, companyId }: any) => {
             <Bar dataKey="financing" name="Financing" fill="#cbd5e1" stackId="a" radius={[4, 4, 0, 0]} />
             <Line type="monotone" dataKey="net" name="Net Cash Flow" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} />
           </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </Card>
-  );
-};
-
-const RiskAlertWidget = ({ score }: any) => {
-  const riskLevel = score > 80 ? 'Low' : score > 60 ? 'Medium' : 'High';
-  
-  return (
-    <Card 
-      title="Governance Risk Matrix" 
-      subtitle="Strategic risk exposure assessment" 
-      icon={ShieldCheck}
-      tooltip={METRIC_DESCRIPTIONS.governance_risk_matrix}
-    >
-      <div className="space-y-6">
-        <div className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Composite Risk Profile</p>
-            <h4 className={cn(
-              "text-2xl font-black mt-1 tracking-tight",
-              riskLevel === 'Low' ? "text-emerald-600" : riskLevel === 'Medium' ? "text-amber-600" : "text-rose-600"
-            )}>{riskLevel} RISK</h4>
-          </div>
-          <div className={cn(
-            "w-14 h-14 rounded-full flex items-center justify-center border-4 shadow-inner",
-            riskLevel === 'Low' ? "border-emerald-100 text-emerald-600 bg-emerald-50" : riskLevel === 'Medium' ? "border-amber-100 text-amber-600 bg-amber-50" : "border-rose-100 text-rose-600 bg-rose-50"
-          )}>
-            <ShieldCheck className="w-7 h-7" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3">
-          {[
-            { label: 'Market Volatility', status: 'Stable', color: 'emerald' },
-            { label: 'Credit Exposure', status: 'Moderate', color: 'amber' },
-            { label: 'Operational Integrity', status: 'Optimal', color: 'emerald' },
-          ].map((risk, i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100">
-              <span className="text-xs text-slate-600 font-semibold">{risk.label}</span>
-              <span className={cn(
-                "px-2.5 py-1 rounded-lg font-bold text-[9px] uppercase tracking-wider",
-                risk.color === 'emerald' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
-              )}>{risk.status}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Card>
-  );
-};
-
-const TrendAnalytics = ({ data, companyId }: any) => {
-  const isBoth = companyId === 'both';
-  const primaryId = isBoth ? 'ASI' : companyId;
-
-  const trendData = data.map((d: any, i: number, arr: any[]) => {
-    const window = arr.slice(Math.max(0, i - 2), i + 1);
-    const avg = window.reduce((sum, curr) => sum + curr[`${primaryId}_revenue`], 0) / window.length;
-    return {
-      ...d,
-      revenue: d[`${primaryId}_revenue`],
-      movingAvg: avg
-    };
-  });
-
-  return (
-    <Card 
-      title="Strategic Trend Forecasting" 
-      subtitle="Revenue trajectory analysis" 
-      icon={TrendingUp}
-      tooltip={METRIC_DESCRIPTIONS.strategic_trend_forecasting}
-    >
-      <div className="h-[300px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={trendData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-            <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} />
-            <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatRupiah(v)} />
-            <Tooltip 
-              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-            />
-            <Legend verticalAlign="top" height={36} iconType="circle" />
-            <Line type="monotone" dataKey="revenue" name="Actual Performance" stroke="#0f172a" strokeWidth={3} dot={false} />
-            <Line type="monotone" dataKey="movingAvg" name="3-Month Moving Average" stroke="#6366f1" strokeWidth={3} strokeDasharray="8 5" dot={false} />
-          </LineChart>
         </ResponsiveContainer>
       </div>
     </Card>
@@ -2948,7 +3490,10 @@ export default function App() {
           <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight">FinScope</span>
+          <div className="flex flex-col">
+            <span className="font-black text-lg tracking-tight text-slate-900">MAFINDA</span>
+            <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Management Finance Dashboard</span>
+          </div>
         </div>
         
         <nav className="flex-1 p-4 space-y-1">
@@ -2987,7 +3532,16 @@ export default function App() {
         {/* Top Nav */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-slate-900">Financial Analysis</h1>
+            <div className="flex items-center gap-3 lg:hidden">
+              <div className="w-10 h-10 bg-gradient-to-br from-slate-900 to-slate-700 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-base font-black text-slate-900 tracking-tight">MAFINDA</h1>
+                <p className="text-[8px] font-semibold text-slate-500 uppercase tracking-wider">Management Finance Dashboard</p>
+              </div>
+            </div>
+            <h1 className="text-lg font-bold text-slate-900 hidden lg:block">Financial Analysis</h1>
             <div className="h-4 w-px bg-slate-200" />
             <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
               <Building2 className="w-3.5 h-3.5" />
@@ -3112,8 +3666,13 @@ export default function App() {
               ) : (
                 <>
                   {/* Section 1: Strategic Overview */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
+                  <div className="mb-4">
+                    <h2 className="text-xl font-bold text-slate-900 mb-1">Strategic Overview</h2>
+                    <p className="text-sm text-slate-500">Company overview and department performance</p>
+                  </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Column 1: Company Overview */}
+                <div>
                   {selectedCompany !== 'both' ? (
                     <CompanyOverview 
                       company={companies.find(c => c.id === selectedCompany) || { name: selectedCompany }}
@@ -3132,34 +3691,130 @@ export default function App() {
                     </Card>
                   )}
                 </div>
-                <div className="lg:col-span-1">
+                
+                {/* Column 2: Revenue Projection & Department Performance */}
+                <div>
+                  <Card className="h-full flex flex-col bg-slate-900 text-white border-none">
+                    <div className="p-4 space-y-4">
+                      {/* Revenue Projection Section */}
+                      <div className="pb-4 border-b border-slate-700">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Target className="w-4 h-4 text-indigo-400" />
+                          <h3 className="text-sm font-bold">Revenue Projection Based on Target</h3>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mb-3">
+                          <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700">
+                            <p className="text-[9px] text-slate-400 mb-1 uppercase tracking-wider font-semibold">Current</p>
+                            <p className="text-lg font-bold text-white">Rp 2.5B</p>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700">
+                            <p className="text-[9px] text-slate-400 mb-1 uppercase tracking-wider font-semibold">Target</p>
+                            <p className="text-lg font-bold text-indigo-400">Rp 3.0B</p>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700">
+                            <p className="text-[9px] text-slate-400 mb-1 uppercase tracking-wider font-semibold">Projected</p>
+                            <p className="text-lg font-bold text-emerald-400">Rp 2.85B</p>
+                            <p className="text-[9px] text-emerald-400 mt-0.5">95% of target</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Achievement Progress</span>
+                            <span className="text-white font-bold">83.3%</span>
+                          </div>
+                          <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full" style={{ width: '83.3%' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Department Performance Section */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <TrendingUp className="w-4 h-4 text-indigo-400" />
+                          <h3 className="text-sm font-bold">Department Performance</h3>
+                        </div>
+                        <div className="space-y-2.5">
+                          {/* Best Performing */}
+                          <div className="bg-emerald-900/30 rounded-lg p-3 border border-emerald-700/50">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center">
+                                  <ArrowUpRight className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold">Best Performing</p>
+                                  <p className="text-sm font-bold text-white">HR Department</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-2xl font-black text-emerald-400">90%</p>
+                              </div>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-500 rounded-full" style={{ width: '90%' }} />
+                            </div>
+                          </div>
+
+                          {/* Lowest Performing */}
+                          <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-700/50">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center">
+                                  <ArrowDownRight className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-amber-400 uppercase tracking-wider font-semibold">Needs Improvement</p>
+                                  <p className="text-sm font-bold text-white">Sales Department</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-2xl font-black text-amber-400">68%</p>
+                              </div>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-amber-500 rounded-full" style={{ width: '68%' }} />
+                            </div>
+                          </div>
+
+                          {/* All Departments Summary */}
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700">
+                              <p className="text-[9px] text-slate-400 mb-1 uppercase tracking-wider font-semibold">Finance</p>
+                              <div className="flex items-center justify-between">
+                                <p className="text-base font-bold text-white">85%</p>
+                                <div className="w-10 h-1 bg-slate-700 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500" style={{ width: '85%' }} />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700">
+                              <p className="text-[9px] text-slate-400 mb-1 uppercase tracking-wider font-semibold">Operations</p>
+                              <div className="flex items-center justify-between">
+                                <p className="text-base font-bold text-white">72%</p>
+                                <div className="w-10 h-1 bg-slate-700 rounded-full overflow-hidden">
+                                  <div className="h-full bg-yellow-500" style={{ width: '72%' }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Column 3: Department Performance Achievement Gauge */}
+                <div>
                   <HealthScoreGauge score={selectedCompany === 'TSI' ? 72 : 84} />
                 </div>
               </div>
 
-              {/* Section 2: Risk & Governance */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                  {selectedCompany === 'both' ? (
-                    <PerformanceRanking asi={asiLatest} tsi={tsiLatest} />
-                  ) : (
-                    <RiskAlertWidget score={selectedCompany === 'TSI' ? 72 : 84} />
-                  )}
-                </div>
-                <div className="lg:col-span-1">
-                  {selectedCompany === 'both' ? (
-                    <RiskAlertWidget score={84} />
-                  ) : (
-                    <Card className="h-full flex flex-col justify-center items-center text-center p-8 bg-slate-50 border-dashed border-2 border-slate-200">
-                      <Info className="w-8 h-8 text-slate-300 mb-4" />
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Contextual Risk Data</p>
-                      <p className="text-[10px] text-slate-400 mt-2">Select 'Both' to enable comparative performance ranking.</p>
-                    </Card>
-                  )}
-                </div>
-              </div>
-
               {/* Section 3: KPI Summary Cards */}
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Key Performance Indicators</h2>
+                <p className="text-sm text-slate-500">Critical financial metrics and growth trends</p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {['roa', 'roe', 'npm', 'der', 'current_ratio'].map((kpi) => (
                   <Card key={kpi} className="p-0 hover:border-indigo-200 transition-colors">
@@ -3189,20 +3844,33 @@ export default function App() {
               </div>
 
               {/* Section 4: Growth & Profitability Dynamics */}
+              <div className="mb-4 mt-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Growth & Profitability Dynamics</h2>
+                <p className="text-sm text-slate-500">Revenue trends, operational costs, and historical cash flow</p>
+              </div>
               <GrowthTrends data={chartData} companyId={selectedCompany} />
 
               {/* Section 5: Sustainability & Efficiency */}
+              <div className="mb-4 mt-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Sustainability & Efficiency</h2>
+                <p className="text-sm text-slate-500">Value waterfall analysis and cash flow panel</p>
+              </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <WaterfallChart latest={selectedCompany === 'TSI' ? tsiLatest : asiLatest} />
                 <CashFlowPanel data={chartData} companyId={selectedCompany} />
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <TrendAnalytics data={chartData} companyId={selectedCompany} />
-                <FinancialBreakdown latest={selectedCompany === 'TSI' ? tsiLatest : asiLatest} />
+              <div className="mb-4 mt-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Financial Composition</h2>
+                <p className="text-sm text-slate-500">Asset breakdown and capital structure</p>
               </div>
+              <FinancialBreakdown latest={selectedCompany === 'TSI' ? tsiLatest : selectedCompany === 'ASI' ? asiLatest : null} />
 
               {/* Section 6: Operational Deep-Dive */}
+              <div className="mb-4 mt-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Operational Deep-Dive Analysis</h2>
+                <p className="text-sm text-slate-500">Multi-dimensional efficiency radar and executive ratio audit</p>
+              </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <Card title="Multi-Dimensional Efficiency Radar" subtitle="Strategic performance mapping" className="lg:col-span-1">
                   <div className="h-[300px] w-full">
@@ -3255,6 +3923,10 @@ export default function App() {
               </div>
 
               {/* Historical Financial Table */}
+              <div className="mb-4 mt-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Historical Financial Data</h2>
+                <p className="text-sm text-slate-500">Detailed period-over-period breakdown</p>
+              </div>
               <Card title="Historical Financial Data" subtitle="Detailed period-over-period breakdown">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">

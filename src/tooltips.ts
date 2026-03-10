@@ -59,6 +59,10 @@ export const METRIC_DESCRIPTIONS: Record<string, { title: string; description: s
     title: "Total Equity",
     description: "Residual interest in assets after deducting liabilities (shareholders' equity)"
   },
+  current_equity: {
+    title: "Current Equity",
+    description: "Current portion of shareholder equity available for operations"
+  },
   total_liabilities: {
     title: "Total Liabilities",
     description: "Sum of all financial obligations and debts owed by the company"
