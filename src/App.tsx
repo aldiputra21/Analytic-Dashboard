@@ -159,12 +159,18 @@ const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }
                 <InfoTooltip title={METRIC_DESCRIPTIONS.total_assets.title} description={METRIC_DESCRIPTIONS.total_assets.description} />
               </div>
               <p className="text-lg font-black text-slate-900 mb-2">{formatRupiah(latest.total_assets || 0)}</p>
-              <div className="pt-2 border-t border-slate-200">
+              <div className="pt-2 border-t border-slate-200 mb-2">
                 <div className="flex items-center gap-1 mb-0.5">
                   <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Current</p>
                   <InfoTooltip title={METRIC_DESCRIPTIONS.current_assets.title} description={METRIC_DESCRIPTIONS.current_assets.description} />
                 </div>
                 <p className="text-xs font-bold text-slate-600">{formatRupiah(latest.current_assets || 0)}</p>
+              </div>
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-[8px] text-slate-400 font-medium">
+                  <Calendar className="w-2.5 h-2.5 inline mr-1" />
+                  Updated: {latest.period || '2024-03'}
+                </p>
               </div>
             </div>
 
@@ -174,12 +180,18 @@ const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }
                 <InfoTooltip title={METRIC_DESCRIPTIONS.total_equity.title} description={METRIC_DESCRIPTIONS.total_equity.description} />
               </div>
               <p className="text-lg font-black text-slate-900 mb-2">{formatRupiah(latest.total_equity || 0)}</p>
-              <div className="pt-2 border-t border-slate-200">
+              <div className="pt-2 border-t border-slate-200 mb-2">
                 <div className="flex items-center gap-1 mb-0.5">
                   <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Current</p>
                   <InfoTooltip title={METRIC_DESCRIPTIONS.current_equity?.title || "Current Equity"} description={METRIC_DESCRIPTIONS.current_equity?.description || "Current portion of shareholder equity"} />
                 </div>
                 <p className="text-xs font-bold text-slate-600">{formatRupiah(latest.current_equity || latest.total_equity || 0)}</p>
+              </div>
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-[8px] text-slate-400 font-medium">
+                  <Calendar className="w-2.5 h-2.5 inline mr-1" />
+                  Updated: {latest.period || '2024-03'}
+                </p>
               </div>
             </div>
 
@@ -189,12 +201,18 @@ const CompanyOverview = ({ company, latest, otherLatest, yoyRevenue, yoyProfit }
                 <InfoTooltip title={METRIC_DESCRIPTIONS.total_liabilities.title} description={METRIC_DESCRIPTIONS.total_liabilities.description} />
               </div>
               <p className="text-lg font-black text-slate-900 mb-2">{formatRupiah(latest.total_liabilities || 0)}</p>
-              <div className="pt-2 border-t border-slate-200">
+              <div className="pt-2 border-t border-slate-200 mb-2">
                 <div className="flex items-center gap-1 mb-0.5">
                   <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Current</p>
                   <InfoTooltip title={METRIC_DESCRIPTIONS.current_liabilities.title} description={METRIC_DESCRIPTIONS.current_liabilities.description} />
                 </div>
                 <p className="text-xs font-bold text-slate-600">{formatRupiah(latest.current_liabilities || 0)}</p>
+              </div>
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-[8px] text-slate-400 font-medium">
+                  <Calendar className="w-2.5 h-2.5 inline mr-1" />
+                  Updated: {latest.period || '2024-03'}
+                </p>
               </div>
             </div>
           </div>
@@ -2164,6 +2182,1011 @@ const EmptyState = ({ onReset }: { onReset: () => void }) => (
   </Card>
 );
 
+// Cash Balance Input Component
+const CashBalanceInput = ({ companies }: any) => {
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [cashBalances, setCashBalances] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Weekly cash balance data (W1-W5)
+  const [weeklyData, setWeeklyData] = useState({
+    W1: { balance: 0, date: '' },
+    W2: { balance: 0, date: '' },
+    W3: { balance: 0, date: '' },
+    W4: { balance: 0, date: '' },
+    W5: { balance: 0, date: '' },
+  });
+
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i);
+
+  // Calculate week dates based on selected month/year
+  React.useEffect(() => {
+    if (selectedMonth && selectedYear) {
+      const firstDay = new Date(selectedYear, selectedMonth - 1, 1);
+      const lastDay = new Date(selectedYear, selectedMonth, 0);
+      
+      const weeks: any = {};
+      let weekNum = 1;
+      let currentDate = new Date(firstDay);
+      
+      while (currentDate <= lastDay && weekNum <= 5) {
+        const weekEnd = new Date(currentDate);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        if (weekEnd > lastDay) {
+          weekEnd.setTime(lastDay.getTime());
+        }
+        
+        weeks[`W${weekNum}`] = {
+          balance: weeklyData[`W${weekNum}` as keyof typeof weeklyData]?.balance || 0,
+          date: `${currentDate.getDate()}-${weekEnd.getDate()} ${months[selectedMonth - 1]}`
+        };
+        
+        currentDate.setDate(currentDate.getDate() + 7);
+        weekNum++;
+      }
+      
+      setWeeklyData(weeks);
+    }
+  }, [selectedMonth, selectedYear]);
+
+  const handleWeeklyBalanceChange = (week: string, value: string) => {
+    setWeeklyData(prev => ({
+      ...prev,
+      [week]: {
+        ...(prev[week as keyof typeof prev] || { balance: 0, date: '' }),
+        balance: parseFloat(value) || 0
+      }
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!selectedCompany) {
+      alert('Please select a company');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const payload = {
+        company_id: selectedCompany,
+        year: selectedYear,
+        month: selectedMonth,
+        weekly_balances: weeklyData
+      };
+
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Saving cash balance:', payload);
+      
+      alert('Cash balance saved successfully!');
+      
+      // Reset form
+      setWeeklyData({
+        W1: { balance: 0, date: '' },
+        W2: { balance: 0, date: '' },
+        W3: { balance: 0, date: '' },
+        W4: { balance: 0, date: '' },
+        W5: { balance: 0, date: '' },
+      });
+    } catch (error) {
+      alert('Error saving cash balance');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const totalBalance = Object.values(weeklyData).reduce((sum: number, week: any) => {
+    return sum + (Number(week?.balance) || 0);
+  }, 0) as number;
+  const averageBalance = totalBalance / Object.keys(weeklyData).length;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Weekly Cash Balance</h2>
+              <p className="text-sm text-slate-500 mt-1">Input weekly cash balance (W1-W5) for each month</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Wallet className="w-8 h-8 text-indigo-600" />
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Company</label>
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="">Select Company</option>
+                {companies.map((company: any) => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Month</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                {months.map((month, idx) => (
+                  <option key={idx} value={idx + 1}>{month}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Year</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                {years.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Weekly Input Grid */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Weekly Cash Balance Input</h3>
+              <div className="text-sm text-slate-500">
+                Period: <span className="font-semibold text-slate-900">{months[selectedMonth - 1]} {selectedYear}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {Object.entries(weeklyData).map(([week, data]: [string, any]) => (
+                <div key={week} className="bg-white border-2 border-slate-200 rounded-xl p-4 hover:border-indigo-300 transition-all">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{week}</span>
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mb-3 font-semibold">{data?.date || ''}</p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">Rp</span>
+                    <input
+                      type="number"
+                      value={data?.balance || ''}
+                      onChange={(e) => handleWeeklyBalanceChange(week, e.target.value)}
+                      placeholder="0"
+                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="mt-2 text-[10px] text-slate-400 font-medium">
+                    {formatRupiah(data?.balance || 0)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Summary */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl border border-indigo-200">
+            <div className="text-center">
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Total Balance</p>
+              <p className="text-2xl font-black text-indigo-900">{formatRupiah(Number(totalBalance))}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Average Weekly</p>
+              <p className="text-2xl font-black text-indigo-900">{formatRupiah(Number(averageBalance))}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Weeks Recorded</p>
+              <p className="text-2xl font-black text-indigo-900">{Object.keys(weeklyData).length}</p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-slate-200">
+            <button
+              onClick={() => {
+                setWeeklyData({
+                  W1: { balance: 0, date: '' },
+                  W2: { balance: 0, date: '' },
+                  W3: { balance: 0, date: '' },
+                  W4: { balance: 0, date: '' },
+                  W5: { balance: 0, date: '' },
+                });
+              }}
+              className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all"
+            >
+              Reset
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isLoading || !selectedCompany}
+              className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  Save Cash Balance
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* History Table */}
+      <Card>
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-slate-900 mb-4">Cash Balance History</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Period</th>
+                  <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Company</th>
+                  <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">W1</th>
+                  <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">W2</th>
+                  <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">W3</th>
+                  <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">W4</th>
+                  <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">W5</th>
+                  <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Total</th>
+                  <th className="text-center py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={9} className="text-center py-8 text-slate-400">
+                    No cash balance records yet. Start by adding your first entry above.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// Project Management Component
+const ProjectManagement = ({ companies }: any) => {
+  const [activeView, setActiveView] = useState<'departments' | 'projects' | 'targets'>('departments');
+  const [departments, setDepartments] = useState<any[]>([
+    { id: 1, name: 'Finance', code: 'FIN', description: 'Financial operations and accounting', status: 'Active' },
+    { id: 2, name: 'Operations', code: 'OPS', description: 'Operational management', status: 'Active' },
+    { id: 3, name: 'Sales', code: 'SAL', description: 'Sales and marketing', status: 'Active' },
+    { id: 4, name: 'HR', code: 'HR', description: 'Human resources', status: 'Active' },
+  ]);
+  const [projects, setProjects] = useState<any[]>([
+    { 
+      id: 1, 
+      name: 'Budget Planning 2024', 
+      code: 'FIN-001', 
+      department_id: 1, 
+      department: 'Finance', 
+      status: 'Active', 
+      start_date: '2024-01-01', 
+      end_date: '2024-12-31',
+      shortage: 500000000,
+      shortage_updated: '2024-03-10',
+      proyeksi: 2800000000,
+      proyeksi_updated: '2024-03-09',
+      real_shortage: 200000000,
+      real_shortage_updated: '2024-03-11',
+      periode: '2024-Q1'
+    },
+    { 
+      id: 2, 
+      name: 'Cost Optimization', 
+      code: 'FIN-002', 
+      department_id: 1, 
+      department: 'Finance', 
+      status: 'Active', 
+      start_date: '2024-02-01', 
+      end_date: '2024-06-30',
+      shortage: 300000000,
+      shortage_updated: '2024-03-08',
+      proyeksi: 450000000,
+      proyeksi_updated: '2024-03-07',
+      real_shortage: 50000000,
+      real_shortage_updated: '2024-03-10',
+      periode: '2024-Q2'
+    },
+    { 
+      id: 3, 
+      name: 'Process Improvement', 
+      code: 'OPS-001', 
+      department_id: 2, 
+      department: 'Operations', 
+      status: 'Active', 
+      start_date: '2024-01-15', 
+      end_date: '2024-12-31',
+      shortage: 800000000,
+      shortage_updated: '2024-03-11',
+      proyeksi: 1500000000,
+      proyeksi_updated: '2024-03-10',
+      real_shortage: 300000000,
+      real_shortage_updated: '2024-03-11',
+      periode: '2024-Q1'
+    },
+  ]);
+  const [targets, setTargets] = useState<any[]>([
+    { id: 1, project_id: 1, project: 'Budget Planning 2024', target_type: 'Revenue', target_value: 3000000000, period: '2024-Q1', status: 'In Progress' },
+    { id: 2, project_id: 2, project: 'Cost Optimization', target_type: 'Cost Reduction', target_value: 500000000, period: '2024-Q2', status: 'In Progress' },
+  ]);
+
+  const [showDeptModal, setShowDeptModal] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showTargetModal, setShowTargetModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+
+  const [deptForm, setDeptForm] = useState({ name: '', code: '', description: '', status: 'Active' });
+  const [projectForm, setProjectForm] = useState({ 
+    name: '', 
+    code: '', 
+    department_id: '', 
+    status: 'Active', 
+    start_date: '', 
+    end_date: '',
+    shortage: 0,
+    shortage_updated: new Date().toISOString().split('T')[0],
+    proyeksi: 0,
+    proyeksi_updated: new Date().toISOString().split('T')[0],
+    real_shortage: 0,
+    real_shortage_updated: new Date().toISOString().split('T')[0],
+    periode: ''
+  });
+  const [targetForm, setTargetForm] = useState({ project_id: '', target_type: '', target_value: 0, period: '', status: 'In Progress' });
+
+  const handleAddDepartment = () => {
+    if (!deptForm.name || !deptForm.code) {
+      alert('Please fill all required fields');
+      return;
+    }
+    const newDept = { ...deptForm, id: departments.length + 1 };
+    setDepartments([...departments, newDept]);
+    setDeptForm({ name: '', code: '', description: '', status: 'Active' });
+    setShowDeptModal(false);
+  };
+
+  const handleAddProject = () => {
+    if (!projectForm.name || !projectForm.code || !projectForm.department_id) {
+      alert('Please fill all required fields');
+      return;
+    }
+    const dept = departments.find(d => d.id === parseInt(projectForm.department_id));
+    const newProject = { 
+      ...projectForm, 
+      id: projects.length + 1,
+      department: dept?.name,
+      department_id: parseInt(projectForm.department_id),
+      shortage: parseFloat(projectForm.shortage.toString()) || 0,
+      proyeksi: parseFloat(projectForm.proyeksi.toString()) || 0,
+      real_shortage: parseFloat(projectForm.real_shortage.toString()) || 0
+    };
+    setProjects([...projects, newProject]);
+    setProjectForm({ 
+      name: '', 
+      code: '', 
+      department_id: '', 
+      status: 'Active', 
+      start_date: '', 
+      end_date: '',
+      shortage: 0,
+      shortage_updated: new Date().toISOString().split('T')[0],
+      proyeksi: 0,
+      proyeksi_updated: new Date().toISOString().split('T')[0],
+      real_shortage: 0,
+      real_shortage_updated: new Date().toISOString().split('T')[0],
+      periode: ''
+    });
+    setShowProjectModal(false);
+  };
+
+  const handleAddTarget = () => {
+    if (!targetForm.project_id || !targetForm.target_type || !targetForm.target_value) {
+      alert('Please fill all required fields');
+      return;
+    }
+    const proj = projects.find(p => p.id === parseInt(targetForm.project_id));
+    const newTarget = { 
+      ...targetForm, 
+      id: targets.length + 1,
+      project: proj?.name,
+      project_id: parseInt(targetForm.project_id),
+      target_value: parseFloat(targetForm.target_value.toString())
+    };
+    setTargets([...targets, newTarget]);
+    setTargetForm({ project_id: '', target_type: '', target_value: 0, period: '', status: 'In Progress' });
+    setShowTargetModal(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Projects & Targets Management</h2>
+              <p className="text-sm text-slate-500 mt-1">Manage departments, projects, and targets</p>
+            </div>
+            <Briefcase className="w-8 h-8 text-indigo-600" />
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex gap-2 mt-6 border-b border-slate-200">
+            {[
+              { id: 'departments', label: 'Departments', icon: Users },
+              { id: 'projects', label: 'Projects', icon: Briefcase },
+              { id: 'targets', label: 'Targets', icon: Target },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveView(tab.id as any)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors",
+                  activeView === tab.id
+                    ? "border-indigo-600 text-indigo-600"
+                    : "border-transparent text-slate-500 hover:text-slate-900"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* Departments View */}
+      {activeView === 'departments' && (
+        <Card>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-slate-900">Departments</h3>
+              <button
+                onClick={() => setShowDeptModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Department
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {departments.map((dept) => (
+                <div key={dept.id} className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+                      <Users className="w-5 h-5 text-white" />
+                    </div>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-[9px] font-bold uppercase",
+                      dept.status === 'Active' ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                    )}>
+                      {dept.status}
+                    </span>
+                  </div>
+                  <h4 className="text-base font-black text-slate-900 mb-1">{dept.name}</h4>
+                  <p className="text-xs font-semibold text-indigo-600 mb-2">{dept.code}</p>
+                  <p className="text-xs text-slate-600 mb-4">{dept.description}</p>
+                  <div className="flex gap-2">
+                    <button className="flex-1 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-all">
+                      <Edit2 className="w-3 h-3 inline mr-1" />
+                      Edit
+                    </button>
+                    <button className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-50 transition-all">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Projects View */}
+      {activeView === 'projects' && (
+        <Card>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-slate-900">Projects</h3>
+              <button
+                onClick={() => setShowProjectModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Project
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Project Code</th>
+                    <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Project Name</th>
+                    <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Department</th>
+                    <th className="text-left py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Periode</th>
+                    <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Shortage</th>
+                    <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Proyeksi</th>
+                    <th className="text-right py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Real Shortage</th>
+                    <th className="text-center py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="text-center py-3 px-4 text-xs font-black text-slate-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((project) => (
+                    <tr key={project.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-3 px-4 text-sm font-bold text-indigo-600">{project.code}</td>
+                      <td className="py-3 px-4 text-sm font-semibold text-slate-900">{project.name}</td>
+                      <td className="py-3 px-4 text-sm text-slate-600">{project.department}</td>
+                      <td className="py-3 px-4 text-sm text-slate-600">{project.periode}</td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="text-sm font-semibold text-red-600">{formatRupiah(project.shortage)}</span>
+                          <span className="text-[9px] text-slate-400">Updated: {project.shortage_updated}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="text-sm font-semibold text-blue-600">{formatRupiah(project.proyeksi)}</span>
+                          <span className="text-[9px] text-slate-400">Updated: {project.proyeksi_updated}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="text-sm font-semibold text-orange-600">{formatRupiah(project.real_shortage)}</span>
+                          <span className="text-[9px] text-slate-400">Updated: {project.real_shortage_updated}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={cn(
+                          "px-2 py-1 rounded-full text-[9px] font-bold uppercase",
+                          project.status === 'Active' ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                        )}>
+                          {project.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <button className="p-1.5 text-slate-600 hover:bg-slate-100 rounded">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Targets View */}
+      {activeView === 'targets' && (
+        <Card>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-slate-900">Project Targets</h3>
+              <button
+                onClick={() => setShowTargetModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Target
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {targets.map((target) => (
+                <div key={target.id} className="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 mb-1">{target.project}</h4>
+                      <p className="text-xs font-semibold text-indigo-600">{target.target_type}</p>
+                    </div>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-[9px] font-bold uppercase",
+                      target.status === 'Completed' ? "bg-emerald-100 text-emerald-700" : 
+                      target.status === 'In Progress' ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"
+                    )}>
+                      {target.status}
+                    </span>
+                  </div>
+                  <div className="mb-3">
+                    <p className="text-xs text-slate-600 mb-1">Target Value</p>
+                    <p className="text-2xl font-black text-indigo-900">{formatRupiah(target.target_value)}</p>
+                  </div>
+                  <div className="flex items-center justify-between pt-3 border-t border-indigo-200">
+                    <span className="text-xs font-semibold text-slate-600">Period: {target.period}</span>
+                    <div className="flex gap-2">
+                      <button className="p-1.5 text-slate-600 hover:bg-white rounded">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button className="p-1.5 text-red-600 hover:bg-white rounded">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Department Modal */}
+      {showDeptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black text-slate-900">Add Department</h3>
+              <button onClick={() => setShowDeptModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Department Name *</label>
+                <input
+                  type="text"
+                  value={deptForm.name}
+                  onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="e.g., Finance"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Department Code *</label>
+                <input
+                  type="text"
+                  value={deptForm.code}
+                  onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="e.g., FIN"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Description</label>
+                <textarea
+                  value={deptForm.description}
+                  onChange={(e) => setDeptForm({ ...deptForm, description: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Department description"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowDeptModal(false)}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddDepartment}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700"
+                >
+                  Add Department
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Project Modal */}
+      {showProjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black text-slate-900">Add Project</h3>
+              <button onClick={() => setShowProjectModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Project Name *</label>
+                  <input
+                    type="text"
+                    value={projectForm.name}
+                    onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="e.g., Budget Planning 2024"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Project Code *</label>
+                  <input
+                    type="text"
+                    value={projectForm.code}
+                    onChange={(e) => setProjectForm({ ...projectForm, code: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="e.g., FIN-001"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Department *</label>
+                  <select
+                    value={projectForm.department_id}
+                    onChange={(e) => setProjectForm({ ...projectForm, department_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Periode *</label>
+                  <input
+                    type="text"
+                    value={projectForm.periode}
+                    onChange={(e) => setProjectForm({ ...projectForm, periode: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="e.g., 2024-Q1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Start Date</label>
+                  <input
+                    type="date"
+                    value={projectForm.start_date}
+                    onChange={(e) => setProjectForm({ ...projectForm, start_date: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">End Date</label>
+                  <input
+                    type="date"
+                    value={projectForm.end_date}
+                    onChange={(e) => setProjectForm({ ...projectForm, end_date: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-4 mt-4">
+                <h4 className="text-sm font-bold text-slate-900 mb-3">Financial Information</h4>
+                <div className="space-y-4">
+                  {/* Shortage */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Shortage (Rp)</label>
+                      <input
+                        type="number"
+                        value={projectForm.shortage || ''}
+                        onChange={(e) => setProjectForm({ 
+                          ...projectForm, 
+                          shortage: parseFloat(e.target.value) || 0,
+                          shortage_updated: new Date().toISOString().split('T')[0]
+                        })}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="0"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">{formatRupiah(projectForm.shortage || 0)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Last Updated</label>
+                      <input
+                        type="date"
+                        value={projectForm.shortage_updated}
+                        onChange={(e) => setProjectForm({ ...projectForm, shortage_updated: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent bg-slate-50"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">Date when shortage was last updated</p>
+                    </div>
+                  </div>
+
+                  {/* Proyeksi */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Proyeksi (Rp)</label>
+                      <input
+                        type="number"
+                        value={projectForm.proyeksi || ''}
+                        onChange={(e) => setProjectForm({ 
+                          ...projectForm, 
+                          proyeksi: parseFloat(e.target.value) || 0,
+                          proyeksi_updated: new Date().toISOString().split('T')[0]
+                        })}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="0"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">{formatRupiah(projectForm.proyeksi || 0)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Last Updated</label>
+                      <input
+                        type="date"
+                        value={projectForm.proyeksi_updated}
+                        onChange={(e) => setProjectForm({ ...projectForm, proyeksi_updated: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">Date when proyeksi was last updated</p>
+                    </div>
+                  </div>
+
+                  {/* Real Shortage */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Real Shortage (Rp)</label>
+                      <input
+                        type="number"
+                        value={projectForm.real_shortage || ''}
+                        onChange={(e) => setProjectForm({ 
+                          ...projectForm, 
+                          real_shortage: parseFloat(e.target.value) || 0,
+                          real_shortage_updated: new Date().toISOString().split('T')[0]
+                        })}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="0"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">{formatRupiah(projectForm.real_shortage || 0)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Last Updated</label>
+                      <input
+                        type="date"
+                        value={projectForm.real_shortage_updated}
+                        onChange={(e) => setProjectForm({ ...projectForm, real_shortage_updated: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-slate-50"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">Date when real shortage was last updated</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowProjectModal(false)}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddProject}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700"
+                >
+                  Add Project
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Target Modal */}
+      {showTargetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black text-slate-900">Add Target</h3>
+              <button onClick={() => setShowTargetModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Project *</label>
+                <select
+                  value={targetForm.project_id}
+                  onChange={(e) => setTargetForm({ ...targetForm, project_id: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">Select Project</option>
+                  {projects.map((proj) => (
+                    <option key={proj.id} value={proj.id}>{proj.name} ({proj.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Target Type *</label>
+                <select
+                  value={targetForm.target_type}
+                  onChange={(e) => setTargetForm({ ...targetForm, target_type: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">Select Type</option>
+                  <option value="Revenue">Revenue</option>
+                  <option value="Cost Reduction">Cost Reduction</option>
+                  <option value="Profit">Profit</option>
+                  <option value="Efficiency">Efficiency</option>
+                  <option value="Quality">Quality</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Target Value (Rp) *</label>
+                <input
+                  type="number"
+                  value={targetForm.target_value || ''}
+                  onChange={(e) => setTargetForm({ ...targetForm, target_value: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="e.g., 3000000000"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Period *</label>
+                <input
+                  type="text"
+                  value={targetForm.period}
+                  onChange={(e) => setTargetForm({ ...targetForm, period: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="e.g., 2024-Q1"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowTargetModal(false)}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddTarget}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700"
+                >
+                  Add Target
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ManualDataInput = ({ companies }: any) => {
   const [activeTab, setActiveTab] = useState<'income' | 'balance' | 'cashflow'>('income');
   const [selectedCompany, setSelectedCompany] = useState('');
@@ -3500,6 +4523,8 @@ export default function App() {
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'consolidated', label: 'Consolidated Report', icon: Layers },
+            { id: 'cash-balance', label: 'Cash Balance', icon: Wallet },
+            { id: 'projects', label: 'Projects & Targets', icon: Briefcase },
             { id: 'thresholds', label: 'Thresholds', icon: Settings },
             { id: 'audit', label: 'Audit Trail', icon: Shield },
             { id: 'input', label: 'Input Data', icon: FileText },
@@ -3992,6 +5017,14 @@ export default function App() {
 
           {activeTab === 'input' && (
             <ManualDataInput companies={companies} />
+          )}
+
+          {activeTab === 'cash-balance' && (
+            <CashBalanceInput companies={companies} />
+          )}
+
+          {activeTab === 'projects' && (
+            <ProjectManagement companies={companies} />
           )}
 
           {activeTab === 'companies' && (
