@@ -70,6 +70,10 @@ import { Company, FinancialRatio, PeriodType, User, Role, AuditLog, TimeRange } 
 import { HEALTH_THRESHOLDS, TIME_RANGES } from './constants';
 import { METRIC_DESCRIPTIONS, PERMISSION_DESCRIPTIONS, STATUS_DESCRIPTIONS } from './tooltips';
 import { InfoTooltip, LabelWithTooltip } from './components/Tooltip';
+import { id } from 'date-fns/locale/id';
+import { MAFINDADashboard } from './components/MAFINDA/dashboard/MAFINDADashboard';
+import { ManagementPage } from './components/MAFINDA/management/ManagementPage';
+import { DataEntryPage } from './components/MAFINDA/data-entry/DataEntryPage';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -4257,7 +4261,7 @@ const UserModal = ({ isOpen, onClose, onSave, user, roles, companies }: any) => 
 // --- Main App ---
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'consolidated' | 'thresholds' | 'audit' | 'input' | 'parameters' | 'companies' | 'users' | 'upload'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'consolidated' | 'thresholds' | 'audit' | 'input' | 'parameters' | 'companies' | 'users' | 'upload' | 'mafinda-dashboard' | 'mafinda-management' | 'mafinda-data-entry'>('dashboard');
   const [showWarnings, setShowWarnings] = useState(true);
   const [parameters, setParameters] = useState<{key: string, value: string}[]>([]);
   const [newParam, setNewParam] = useState({ key: '', value: '' });
@@ -4547,6 +4551,30 @@ export default function App() {
               {item.label}
             </button>
           ))}
+
+          {/* MAFINDA Section */}
+          <div className="pt-4 mt-2 border-t border-slate-100">
+            <p className="px-3 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">MAFINDA</p>
+            {[
+              { id: 'mafinda-dashboard', label: 'Dashboard', icon: BarChart3 },
+              { id: 'mafinda-management', label: 'Manajemen', icon: Briefcase },
+              { id: 'mafinda-data-entry', label: 'Input Data', icon: FileText },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as any)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                  activeTab === item.id
+                    ? "text-slate-900 bg-slate-100"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                )}
+              >
+                <item.icon className="w-4 h-4" />
+                {item.label}
+              </button>
+            ))}
+          </div>
         </nav>
 
         
@@ -5118,6 +5146,10 @@ export default function App() {
               </Card>
             </div>
           )}
+
+          {activeTab === 'mafinda-dashboard' && <MAFINDADashboard />}
+          {activeTab === 'mafinda-management' && <ManagementPage />}
+          {activeTab === 'mafinda-data-entry' && <DataEntryPage />}
         </div>
       </main>
       <CompanyModal 

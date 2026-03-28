@@ -1,8 +1,9 @@
-export function formatRupiah(value: number, showMillion: boolean = true): string {
-  if (showMillion && Math.abs(value) >= 1000000) {
-    return `Rp ${(value / 1000000).toFixed(1)}M`;
+export function formatRupiah(value: number | null | undefined, showMillion: boolean = true): string {
+  const v = value ?? 0;
+  if (showMillion && Math.abs(v) >= 1000000) {
+    return `Rp ${(v / 1000000).toFixed(1)}M`;
   }
-  return `Rp ${value.toLocaleString('id-ID')}`;
+  return `Rp ${v.toLocaleString('id-ID')}`;
 }
 
 export function formatNumber(value: number): string {

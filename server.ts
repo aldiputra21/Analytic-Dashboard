@@ -2,8 +2,40 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
+import helmet from "helmet";
+import { initCRMSchema } from "./src/db/initCRM.js";
+import { initFinancialRatioSchema } from "./src/db/initFinancialRatio.js";
+import { initMafindaDashboardSchema } from "./src/db/initMafindaDashboard.js";
+import { loadCRMRoles } from "./src/middleware/crmRbac.js";
+import { createCustomerRouter, createContactRouter, createContactStandaloneRouter } from "./src/routes/crm/customers.js";
+import { createInteractionRouter } from "./src/routes/crm/interactions.js";
+import { createFRSRouter } from "./src/routes/financial/index.js";
+import { getFRSConfig } from "./src/config/frsConfig.js";
+import { createDepartmentRouter } from "./src/routes/management/departments.js";
+import { createProjectRouter } from "./src/routes/management/projects.js";
+import { createTargetRouter } from "./src/routes/management/targets.js";
+import { createFinancialStatementRouter } from "./src/routes/management/financialStatements.js";
+import { createMafindaDashboardRouter } from "./src/routes/dashboard/mafindaDashboard.js";
+
+// Validate FRS configuration on startup (Requirements: 14.3)
+try {
+  getFRSConfig();
+  console.log('[FRS] Configuration validated successfully');
+} catch (err: any) {
+  console.error(err.message);
+  // Don't exit in dev - allow server to start with defaults
+}
 
 const db = new Database("finance.db");
+
+// Initialize CRM schema
+initCRMSchema(db);
+
+// Initialize Financial Ratio Monitoring System schema
+initFinancialRatioSchema(db);
+
+// Initialize MAFINDA Dashboard Enhancement schema
+initMafindaDashboardSchema(db);
 
 // Initialize Database - MAFINDA Schema
 db.exec(`
@@ -448,6 +480,8 @@ async function startServer() {
   const app = express();
   const PORT = 5000;
 
+  // Security headers
+  app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json());
 
   // Request Logger
@@ -455,6 +489,20 @@ async function startServer() {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
     next();
   });
+
+  // Simple auth middleware: reads user from X-User-Id header (dev) or session
+  app.use((req: any, res, next) => {
+    const userId = req.headers['x-user-id'] as string | undefined;
+    if (userId) {
+      req.userId = userId;
+      const user = db.prepare('SELECT role_id FROM users WHERE id = ?').get(userId) as any;
+      if (user) req.userRole = user.role_id;
+    }
+    next();
+  });
+
+  // Load CRM roles for authenticated users
+  app.use(loadCRMRoles(db));
 
   // API Routes
   app.get("/api/companies", (req, res) => {
@@ -1493,6 +1541,41 @@ async function startServer() {
 
   // ===== END MAFINDA API ENDPOINTS =====
 
+  // ===== MAFINDA DASHBOARD ENHANCEMENT API ENDPOINTS =====
+  app.use('/api/departments', createDepartmentRouter(db));
+  app.use('/api/projects', createProjectRouter(db));
+  app.use('/api/targets', createTargetRouter(db));
+  app.use('/api/financial-statements', createFinancialStatementRouter(db));
+  app.use('/api/dashboard', createMafindaDashboardRouter(db));
+  // ===== END MAFINDA DASHBOARD ENHANCEMENT API ENDPOINTS =====
+
+  // ===== CRM API ENDPOINTS =====
+  app.use('/api/crm/customers', createCustomerRouter(db));
+  app.use('/api/crm/customers/:customerId/contacts', createContactRouter(db));
+  app.use('/api/crm/contacts', createContactStandaloneRouter(db));
+  app.use('/api/crm/interactions', createInteractionRouter(db));
+  // ===== END CRM API ENDPOINTS =====
+
+  // ===== FINANCIAL RATIO MONITORING SYSTEM API ENDPOINTS =====
+  app.use('/api/frs', createFRSRouter(db));
+  // ===== END FRS API ENDPOINTS =====
+
+  // Global FRS error handler - consistent error response format (Requirements: 12.1)
+  app.use('/api/frs', (err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const requestId = (req.headers['x-request-id'] as string) ?? '';
+    const status = err.status ?? err.statusCode ?? 500;
+    console.error(`[FRS Error] ${req.method} ${req.url}:`, err.message);
+    res.status(status).json({
+      error: {
+        code: err.code ?? 'FRS_INTERNAL_ERROR',
+        message: status < 500 ? err.message : 'An internal error occurred',
+        details: status < 500 ? err.details : undefined,
+        field: err.field,
+        timestamp: new Date().toISOString(),
+        requestId,
+      },
+    });
+  });
 
   // API 404 Handler
   app.all("/api/*", (req, res) => {
