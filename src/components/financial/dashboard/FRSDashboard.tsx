@@ -267,7 +267,7 @@ export const FRSDashboard: React.FC = () => {
         />
       </div>
 
-      {/* ── MAFINDA Section ── */}
+      {/* ── CFD Section ── */}
       <div className="pt-2">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
@@ -295,7 +295,7 @@ export const FRSDashboard: React.FC = () => {
 
         {mafindaMain.error && (
           <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-xs text-amber-700">
-            Sebagian data MAFINDA gagal dimuat: {mafindaMain.error}
+            Sebagian data CFD gagal dimuat: {mafindaMain.error}
           </div>
         )}
 

@@ -191,7 +191,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, isLoading }) => {
 
             {/* Divider */}
             <div className="mt-8 pt-6" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-center text-white/20 text-xs">Titian Corporate Finance System · v2.0</p>
+              <p className="text-center text-white/20 text-xs">CFD — Corporate Finance Dashboard · v2.0</p>
             </div>
           </div>
         </div>

@@ -674,7 +674,7 @@ function ContractPanel({ data }: { data: ContractData }) {
         </div>
         {data.mafindaProjectId && (
           <div className="flex-1 bg-blue-50 rounded-lg p-2.5 text-center border border-blue-200">
-            <div className="font-semibold text-blue-700">MAFINDA Project</div>
+            <div className="font-semibold text-blue-700">CFD Project</div>
             <div className="text-blue-600 font-medium">{data.mafindaProjectId}</div>
           </div>
         )}

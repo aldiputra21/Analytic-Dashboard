@@ -99,7 +99,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const groups: { key: NavItem['group']; label: string }[] = [
     { key: 'main', label: 'Analitik' },
     { key: 'data', label: 'Input Data' },
-    { key: 'mafinda', label: 'MAFINDA' },
+    { key: 'mafinda', label: 'CFD' },
     { key: 'crm', label: 'CRM' },
     { key: 'admin', label: 'Admin' },
   ];
@@ -129,8 +129,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </div>
         {!collapsed && (
           <div>
-            <p className="text-white font-bold text-sm leading-tight">MAFINDA</p>
-            <p className="text-slate-400 text-[10px]">Financial Dashboard System</p>
+            <p className="text-white font-bold text-sm leading-tight">CFD</p>
+            <p className="text-slate-400 text-[10px]">Corporate Finance Dashboard</p>
           </div>
         )}
       </div>
