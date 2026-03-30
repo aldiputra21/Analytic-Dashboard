@@ -2,7 +2,7 @@
 // Requirements: 9.6, 9.7, 9.8
 
 import { useState, useEffect, useCallback } from 'react';
-import { User } from '../../types/financial/user';
+import { FRSUser as User } from '../../types/financial/user';
 
 const API_BASE = '/api/frs';
 const TOKEN_KEY = 'frs_token';
@@ -20,37 +20,49 @@ interface LoginInput {
   password: string;
 }
 
-export function useAuth() {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    token: null,
-    isLoading: true,
-    error: null,
-  });
+// ── Singleton store so all useAuth() instances share the same state ──────────
+let _state: AuthState = { user: null, token: null, isLoading: true, error: null };
+const _listeners = new Set<(s: AuthState) => void>();
 
-  // Load persisted auth on mount
-  useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const userJson = localStorage.getItem(USER_KEY);
-    if (token && userJson) {
-      try {
-        const user = JSON.parse(userJson) as User;
-        setState({ user, token, isLoading: false, error: null });
-      } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-        setState({ user: null, token: null, isLoading: false, error: null });
-      }
-    } else {
-      setState((s) => ({ ...s, isLoading: false }));
+function setState(next: AuthState | ((prev: AuthState) => AuthState)) {
+  _state = typeof next === 'function' ? next(_state) : next;
+  _listeners.forEach((fn) => fn(_state));
+}
+
+// Initialise from localStorage once at module load
+(function init() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const userJson = localStorage.getItem(USER_KEY);
+  if (token && userJson) {
+    try {
+      const user = JSON.parse(userJson) as User;
+      _state = { user, token, isLoading: false, error: null };
+    } catch {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      _state = { user: null, token: null, isLoading: false, error: null };
     }
+  } else {
+    _state = { ..._state, isLoading: false };
+  }
+})();
 
-    // Listen for unauthorized events from apiFetch
-    const handleUnauthorized = () => {
-      setState({ user: null, token: null, isLoading: false, error: 'Session expired' });
-    };
-    window.addEventListener('frs:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('frs:unauthorized', handleUnauthorized);
+// Listen for 401 events dispatched by apiFetch
+window.addEventListener('frs:unauthorized', () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  setState({ user: null, token: null, isLoading: false, error: 'Session expired' });
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useAuth() {
+  const [state, setLocalState] = useState<AuthState>(_state);
+
+  useEffect(() => {
+    // Sync with singleton on mount (in case it changed before this component mounted)
+    setLocalState(_state);
+    _listeners.add(setLocalState);
+    return () => { _listeners.delete(setLocalState); };
   }, []);
 
   const login = useCallback(async (input: LoginInput) => {
@@ -85,7 +97,7 @@ export function useAuth() {
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch {
-        // ignore
+        // ignore network errors on logout
       }
     }
     localStorage.removeItem(TOKEN_KEY);

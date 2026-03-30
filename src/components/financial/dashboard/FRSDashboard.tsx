@@ -23,6 +23,9 @@ import { AssetCompositionChart } from '../../MAFINDA/dashboard/AssetCompositionC
 import { EquityLiabilityChart } from '../../MAFINDA/dashboard/EquityLiabilityChart';
 import { RevenueTargetChart } from '../../MAFINDA/dashboard/RevenueTargetChart';
 import { HistoricalDataChart } from '../../MAFINDA/dashboard/HistoricalDataChart';
+import { FinancialSummaryCards } from '../../MAFINDA/dashboard/FinancialSummaryCards';
+import { CompositionPie3D } from '../../MAFINDA/dashboard/CompositionPie3D';
+import { DepartmentPerformance } from '../../MAFINDA/dashboard/DepartmentPerformance';
 import { useDashboard, type DashboardFilters } from '../../../hooks/mafinda/useDashboard';
 import { useManagement } from '../../../hooks/mafinda/useManagement';
 
@@ -296,10 +299,29 @@ export const FRSDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* Financial Summary Cards — 6 metric cards */}
+        <div className="mb-4">
+          <FinancialSummaryCards
+            assetData={mafindaMain.assetComposition}
+            equityData={mafindaMain.equityLiabilityComposition}
+            isLoading={mafindaMain.isLoading}
+          />
+        </div>
+
         {/* Revenue Target — full width */}
         <div className="mb-4">
           <RevenueTargetChart
             data={mafindaMain.revenueTargetData?.departments ?? []}
+            period={mafindaPeriod}
+            isLoading={mafindaMain.isLoading}
+          />
+        </div>
+
+        {/* Department Performance Achievement */}
+        <div className="mb-4">
+          <DepartmentPerformance
+            departments={mafindaMain.revenueTargetData?.departments ?? []}
+            allDepartments={departments}
             period={mafindaPeriod}
             isLoading={mafindaMain.isLoading}
           />
@@ -330,7 +352,16 @@ export const FRSDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Asset + Equity — 2 col */}
+        {/* Pie 3D — Asset & Equity Composition */}
+        <div className="mb-4">
+          <CompositionPie3D
+            assetData={mafindaMain.assetComposition}
+            equityData={mafindaMain.equityLiabilityComposition}
+            isLoading={mafindaMain.isLoading}
+          />
+        </div>
+
+        {/* Asset + Equity donut — 2 col */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           <AssetCompositionChart data={mafindaMain.assetComposition} isLoading={mafindaMain.isLoading} />
           <EquityLiabilityChart data={mafindaMain.equityLiabilityComposition} isLoading={mafindaMain.isLoading} />

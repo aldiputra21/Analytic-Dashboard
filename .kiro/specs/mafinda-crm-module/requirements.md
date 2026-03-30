@@ -4,7 +4,9 @@
 
 Modul CRM (Customer Relationship Management) MAFINDA adalah ekstensi dari sistem MAFINDA (Management Finance Dashboard) yang sudah ada. Modul ini dirancang untuk mengelola siklus bisnis secara menyeluruh, mulai dari penangkapan prospek (lead) hingga penandatanganan kontrak, dengan integrasi penuh ke modul proyek MAFINDA yang sudah berjalan.
 
-Modul CRM mencakup delapan sub-modul utama: Lead & Customer Management, Pipeline Management, Qualification & Feasibility Analysis, Tender & Proposal Management, Cost & Resource Planning, Decision Management (Win/Loss), Contract Management, dan Reporting & Analytics Dashboard.
+Modul CRM mencakup sepuluh sub-modul utama: Lead & Customer Management, Pipeline Management, Qualification & Feasibility Analysis, Tender & Proposal Management, Cost & Resource Planning, Decision Management (Win/Loss), Contract Management, Reporting & Analytics Dashboard, Approval Workflow, dan Reimburse Management.
+
+Antarmuka utama CRM diimplementasikan sebagai halaman tunggal (`CRMPage.tsx`) dengan tujuh tab: Dashboard, Opportunities, Customers, Proposals, Contracts, Approvals, dan Reimburse.
 
 ## Glosarium
 
@@ -25,7 +27,11 @@ Modul CRM mencakup delapan sub-modul utama: Lead & Customer Management, Pipeline
 - **Decision_Maker**: Individu di sisi klien yang memiliki otoritas pengambilan keputusan
 - **Feasibility_Score**: Nilai kelayakan opportunity berdasarkan kriteria teknis dan bisnis
 - **Cost_Estimation**: Estimasi biaya proyek yang dibuat selama proses CRM
-- **Approval_Workflow**: Alur persetujuan bertingkat yang sudah ada di MAFINDA
+- **Approval_Workflow**: Alur persetujuan bertingkat untuk proposal, kontrak, anggaran, dan reimburse
+- **Approval_Item**: Satu permintaan persetujuan dalam Approval_Workflow, dapat bertipe proposal, contract, budget, atau reimburse
+- **Reimburse_Request**: Permintaan penggantian biaya operasional yang diajukan oleh karyawan dan terhubung ke proyek/opportunity CRM
+- **Finance_Manager**: Role yang bertanggung jawab menyetujui Reimburse_Request
+- **Receipt**: Bukti pembayaran yang dilampirkan pada Reimburse_Request
 
 ## Persyaratan
 
@@ -186,3 +192,40 @@ Modul CRM mencakup delapan sub-modul utama: Lead & Customer Management, Pipeline
 4. THE CRM_System SHALL menampilkan tautan langsung ke MAFINDA_Project yang terkait dari halaman detail kontrak CRM
 5. IF MAFINDA_Project yang terkait dihapus atau dinonaktifkan, THEN THE CRM_System SHALL memperbarui status referensi di kontrak CRM dan menampilkan notifikasi kepada Sales_Manager
 6. THE CRM_System SHALL memastikan bahwa data yang dikirim ke MAFINDA_Project memenuhi format dan validasi yang diperlukan oleh sistem MAFINDA sebelum melakukan integrasi
+
+### Persyaratan 11: Approval Workflow
+
+**User Story:** Sebagai Sales_Manager atau BD_Manager, saya ingin mengelola semua permintaan persetujuan (proposal, kontrak, anggaran, reimburse) dalam satu antarmuka terpusat, sehingga saya dapat memproses approval dengan cepat dan memiliki visibilitas penuh atas status setiap permintaan.
+
+#### Kriteria Penerimaan
+
+1. THE CRM_System SHALL mendukung empat tipe Approval_Item: proposal, contract, budget, dan reimburse
+2. THE CRM_System SHALL menyimpan setiap Approval_Item dengan field: tipe, judul, deskripsi, jumlah (IDR), pemohon, tanggal permintaan, approver yang ditugaskan, prioritas (high/medium/low), status, dan daftar dokumen pendukung
+3. WHEN sebuah Approval_Item dibuat, THE CRM_System SHALL menetapkan status awal "pending" dan mencatat identitas pemohon serta timestamp pembuatan
+4. WHEN approver menyetujui sebuah Approval_Item, THE CRM_System SHALL mengubah status menjadi "approved", mencatat identitas approver dan timestamp persetujuan
+5. WHEN approver menolak sebuah Approval_Item, THE CRM_System SHALL mengubah status menjadi "rejected", mencatat identitas approver, timestamp penolakan, dan alasan penolakan
+6. IF pengguna mencoba menyetujui atau menolak Approval_Item yang bukan milik rolenya, THEN THE CRM_System SHALL menolak aksi dan menampilkan pesan izin yang diperlukan
+7. THE CRM_System SHALL menampilkan ringkasan statistik: total, pending, approved, dan rejected
+8. THE CRM_System SHALL mendukung filter Approval_Item berdasarkan status (all, pending, approved, rejected)
+9. WHEN Approval_Item bertipe "proposal" disetujui, THE CRM_System SHALL memperbarui status proposal terkait menjadi "Approved"
+10. WHEN Approval_Item bertipe "contract" disetujui, THE CRM_System SHALL memperbarui status kontrak terkait ke tahap berikutnya dalam alur persetujuan kontrak
+11. THE CRM_System SHALL mencatat semua aksi approval dan rejection ke crm_audit_log
+
+### Persyaratan 12: Reimburse Management
+
+**User Story:** Sebagai karyawan (Sales_Executive atau BD_Manager), saya ingin mengajukan dan melacak permintaan penggantian biaya operasional yang terhubung ke proyek atau opportunity CRM, sehingga proses reimbursement menjadi transparan dan terdokumentasi dengan baik.
+
+#### Kriteria Penerimaan
+
+1. THE CRM_System SHALL mendukung lima kategori Reimburse_Request: travel, accommodation, meals, transportation, dan other
+2. THE CRM_System SHALL menyimpan setiap Reimburse_Request dengan field: nomor unik (format RMB-YYYY-NNNN), kategori, deskripsi, jumlah (IDR), pemohon, tanggal pengajuan, proyek/opportunity terkait, jumlah receipt, approver, dan status
+3. WHEN sebuah Reimburse_Request dibuat, THE CRM_System SHALL menetapkan status awal "pending", menghasilkan nomor unik secara otomatis, dan mencatat identitas pemohon serta timestamp
+4. THE CRM_System SHALL mendukung empat status Reimburse_Request: pending, approved, paid, dan rejected
+5. WHEN Finance_Manager menyetujui Reimburse_Request, THE CRM_System SHALL mengubah status menjadi "approved" dan mencatat tanggal persetujuan
+6. WHEN pembayaran dikonfirmasi, THE CRM_System SHALL mengubah status menjadi "paid" dan mencatat tanggal pembayaran
+7. WHEN Finance_Manager menolak Reimburse_Request, THE CRM_System SHALL mengubah status menjadi "rejected" dan mewajibkan pengisian alasan penolakan
+8. THE CRM_System SHALL mendukung unggah Receipt sebagai bukti pembayaran dalam format PDF atau gambar (JPG, PNG) dengan ukuran maksimal 10 MB per file
+9. IF ukuran file Receipt melebihi 10 MB atau format tidak didukung, THEN THE CRM_System SHALL menolak unggahan dan menampilkan pesan kesalahan yang menyebutkan batas yang diizinkan
+10. THE CRM_System SHALL menampilkan ringkasan statistik: total permintaan, pending, approved, paid, total jumlah, dan jumlah pending
+11. THE CRM_System SHALL mendukung filter Reimburse_Request berdasarkan status (all, pending, approved, paid, rejected)
+12. WHEN nomor Reimburse_Request dibuat, THE CRM_System SHALL memastikan nomor tersebut unik dan tidak dapat digunakan ulang

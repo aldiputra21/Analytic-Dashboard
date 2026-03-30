@@ -58,56 +58,143 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, isLoading }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 w-full max-w-sm">
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-slate-900">FRS Monitor</h1>
-          <p className="text-sm text-slate-500 mt-1">Financial Ratio Monitoring System</p>
+    <div className="min-h-screen flex overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f0c29 0%, #1a0a0a 40%, #2d0a0a 70%, #0f0c29 100%)' }}>
+
+      {/* ── Left panel: branding ── */}
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 overflow-hidden">
+
+        {/* Radial glow behind logo */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div style={{ position: 'absolute', bottom: '-10%', left: '-10%', width: '70%', height: '70%', background: 'radial-gradient(circle, rgba(220,38,38,0.35) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+          <div style={{ position: 'absolute', top: '10%', right: '5%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 70%)', filter: 'blur(30px)' }} />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Enter username"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Enter password"
-              required
-            />
+        {/* Decorative grid lines */}
+        <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+              <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+        </svg>
+
+        {/* Diagonal accent line */}
+        <svg className="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
+          <line x1="0" y1="100%" x2="100%" y2="0" stroke="url(#lineGrad)" strokeWidth="1.5" />
+          <defs>
+            <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#dc2626" stopOpacity="0" />
+              <stop offset="50%" stopColor="#dc2626" stopOpacity="1" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        {/* Logo — bottom-left */}
+        <div className="relative z-10 mt-auto">
+          <div className="mb-5">
+            <div className="relative inline-block">
+              {/* Glow ring */}
+              <div className="absolute inset-0 rounded-2xl" style={{ background: 'radial-gradient(circle, rgba(220,38,38,0.5) 0%, transparent 70%)', filter: 'blur(20px)', transform: 'scale(1.4)' }} />
+              <img src="/src/img/logo-titian.png" alt="Titian Logo" className="relative w-60 object-contain drop-shadow-2xl" />
+            </div>
           </div>
 
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {error}
+          {/* Tagline */}
+          <div className="border-l-2 border-red-500 pl-5 mb-8">
+            <p className="text-white/90 text-xl font-light leading-snug italic">
+              "Your Trusted Partner<br />in Energy Solutions"
             </p>
-          )}
+          </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+          {/* Decorative dots */}
+          <div className="flex gap-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? '#dc2626' : i === 1 ? '#f87171' : 'rgba(255,255,255,0.3)' }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom copyright */}
+        <p className="relative z-10 text-white/30 text-xs mt-6">© {new Date().getFullYear()} PT Titian Servis Indonesia. All rights reserved.</p>
+      </div>
+
+      {/* ── Right panel: login form ── */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative">
+
+        {/* Subtle right-side glow */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div style={{ position: 'absolute', top: '20%', right: '-5%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(220,38,38,0.12) 0%, transparent 70%)', filter: 'blur(50px)' }} />
+        </div>
+
+        <div className="relative z-10 w-full max-w-md">
+
+          {/* Mobile logo (shown only on small screens) */}
+          <div className="flex lg:hidden justify-center mb-8">
+            <img src="/src/img/logo-titian.png" alt="Titian Logo" className="w-16 h-16 object-contain drop-shadow-lg" />
+          </div>
+
+          {/* Card */}
+          <div className="rounded-2xl p-8" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', boxShadow: '0 25px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+
+            <div className="mb-8">
+              <h2 className="text-white text-2xl font-bold tracking-tight">Welcome back</h2>
+              <p className="text-white/40 text-sm mt-1">Sign in Corporate Finance Dashboard & CRM</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-white/50 mb-2 tracking-wider uppercase">Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-red-500/60 transition-all"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  placeholder="Enter your username"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-white/50 mb-2 tracking-wider uppercase">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-red-500/60 transition-all"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-xs text-red-300" style={{ background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.3)' }}>
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+                style={{ background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%)', boxShadow: '0 4px 20px rgba(220,38,38,0.4)' }}
+              >
+                <span className="relative z-10">{isLoading ? 'Authenticating...' : 'Sign In'}</span>
+                {/* Shimmer on hover */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%)' }} />
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div className="mt-8 pt-6" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-center text-white/20 text-xs">Titian Corporate Finance System · v2.0</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -230,11 +317,21 @@ const AppContent: React.FC = () => {
           </div>
         );
       case 'mafinda-crm':
-        return (
-          <div className="p-4">
-            <CRMPage />
-          </div>
-        );
+        return <CRMPage activeTab="dashboard" />;
+      case 'crm-dashboard':
+        return <CRMPage activeTab="dashboard" />;
+      case 'crm-opportunities':
+        return <CRMPage activeTab="opportunities" />;
+      case 'crm-customers':
+        return <CRMPage activeTab="customers" />;
+      case 'crm-proposals':
+        return <CRMPage activeTab="proposals" />;
+      case 'crm-contracts':
+        return <CRMPage activeTab="contracts" />;
+      case 'crm-approvals':
+        return <CRMPage activeTab="approvals" />;
+      case 'crm-reimburse':
+        return <CRMPage activeTab="reimburse" />;
       default: return <ComingSoon page={currentPage} />;
     }
   }, [currentPage, thresholdSubsidiaryId, thresholdSubsidiaryName, subsidiaries, handleSubsidiaryChange]);

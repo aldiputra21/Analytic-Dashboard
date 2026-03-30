@@ -10,6 +10,9 @@ import { CashFlowChart } from './CashFlowChart';
 import { AssetCompositionChart } from './AssetCompositionChart';
 import { EquityLiabilityChart } from './EquityLiabilityChart';
 import { HistoricalDataChart } from './HistoricalDataChart';
+import { FinancialSummaryCards } from './FinancialSummaryCards';
+import { CompositionPie3D } from './CompositionPie3D';
+import { DepartmentPerformance } from './DepartmentPerformance';
 
 function currentPeriod(): string {
   const now = new Date();
@@ -100,6 +103,13 @@ export const MAFINDADashboard: React.FC = () => {
 
       {/* Dashboard grid */}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        {/* Row 0: Financial Summary Cards — full width */}
+        <FinancialSummaryCards
+          assetData={main.assetComposition}
+          equityData={main.equityLiabilityComposition}
+          isLoading={main.isLoading}
+        />
+
         {/* Row 1: Revenue Target — full width */}
         <RevenueTargetChart
           data={main.revenueTargetData?.departments ?? []}
@@ -128,7 +138,14 @@ export const MAFINDADashboard: React.FC = () => {
           />
         </div>
 
-        {/* Row 3: Asset Composition + Equity/Liability — 2 col */}
+        {/* Row 3: Pie 3D — Asset & Equity Composition */}
+        <CompositionPie3D
+          assetData={main.assetComposition}
+          equityData={main.equityLiabilityComposition}
+          isLoading={main.isLoading}
+        />
+
+        {/* Row 4: Asset Composition + Equity/Liability donut — 2 col */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AssetCompositionChart
             data={main.assetComposition}
@@ -140,7 +157,15 @@ export const MAFINDADashboard: React.FC = () => {
           />
         </div>
 
-        {/* Row 4: Historical Data — full width */}
+        {/* Row 5: Department Performance Achievement */}
+        <DepartmentPerformance
+          departments={main.revenueTargetData?.departments ?? []}
+          allDepartments={departments}
+          period={period}
+          isLoading={main.isLoading}
+        />
+
+        {/* Row 6: Historical Data — full width */}
         <HistoricalDataChart
           data={main.historicalData}
           selectedMonths={historicalMonths}

@@ -4,6 +4,8 @@
 
 Modul CRM MAFINDA adalah ekstensi dari sistem MAFINDA yang sudah ada, dibangun di atas stack teknologi yang sama (React + TypeScript frontend, Express.js + TypeScript backend, SQLite database). Modul ini mengelola siklus bisnis penuh dari lead hingga kontrak, dengan integrasi otomatis ke MAFINDA_Project ketika deal berhasil ditutup.
 
+Antarmuka utama CRM diimplementasikan sebagai halaman tunggal `CRMPage.tsx` dengan tujuh tab: **Dashboard**, **Opportunities**, **Customers**, **Proposals**, **Contracts**, **Approvals**, dan **Reimburse**. Komponen-komponen terpisah (PipelineKanbanBoard, CustomerList, QualificationForm, dll.) sudah diimplementasikan dan perlu diwiring ke CRMPage.tsx untuk menggantikan data mock yang ada.
+
 ### Tujuan Desain Utama
 
 1. **Integrasi Seamless**: CRM berjalan dalam ekosistem MAFINDA yang sudah ada, berbagi auth, RBAC, dan database
@@ -11,6 +13,8 @@ Modul CRM MAFINDA adalah ekstensi dari sistem MAFINDA yang sudah ada, dibangun d
 3. **Data Integrity**: Setiap transisi stage divalidasi, setiap perubahan dicatat di audit log
 4. **Auto-Integration**: Kontrak yang ditandatangani otomatis membuat MAFINDA_Project
 5. **Role Separation**: Tiga role CRM baru yang dapat dikombinasikan dengan role MAFINDA yang ada
+6. **Approval Centralization**: Semua permintaan persetujuan (proposal, kontrak, anggaran, reimburse) dikelola dalam satu tab Approvals
+7. **Expense Tracking**: Reimburse Management terintegrasi dengan proyek/opportunity CRM untuk pelacakan biaya operasional
 
 ### Technology Stack
 
@@ -384,6 +388,72 @@ GET    /api/crm/targets?userId=&period=           // Get target
 POST   /api/crm/reports/export                    // Export laporan (PDF/XLSX)
 ```
 
+#### Approval Workflow
+
+```typescript
+POST   /api/crm/approvals                         // Buat approval item baru
+GET    /api/crm/approvals                         // List approval items (filter: status, type)
+GET    /api/crm/approvals/:id                     // Detail approval item
+POST   /api/crm/approvals/:id/approve             // Setujui approval item
+POST   /api/crm/approvals/:id/reject              // Tolak approval item (wajib alasan)
+GET    /api/crm/approvals/stats                   // Statistik: total, pending, approved, rejected
+```
+
+#### Reimburse Management
+
+```typescript
+POST   /api/crm/reimburse                         // Buat reimburse request baru (auto-generate nomor)
+GET    /api/crm/reimburse                         // List reimburse requests (filter: status, category)
+GET    /api/crm/reimburse/:id                     // Detail reimburse request
+POST   /api/crm/reimburse/:id/approve             // Finance_Manager setujui
+POST   /api/crm/reimburse/:id/reject              // Finance_Manager tolak (wajib alasan)
+POST   /api/crm/reimburse/:id/pay                 // Konfirmasi pembayaran
+POST   /api/crm/reimburse/:id/receipts            // Upload receipt (PDF/JPG/PNG, max 10 MB)
+GET    /api/crm/reimburse/stats                   // Statistik: total, pending, approved, paid, amounts
+```
+
+#### Frontend Components Tambahan
+
+**ApprovalsTab** (bagian dari CRMPage.tsx)
+```typescript
+interface ApprovalItem {
+  id: string;
+  type: 'proposal' | 'contract' | 'budget' | 'reimburse';
+  title: string;
+  description: string;
+  amount: number;
+  requestedBy: string;
+  requestDate: Date;
+  approver: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'approved' | 'rejected';
+  documents: number;
+  relatedEntityId?: string; // ID proposal/kontrak terkait
+  rejectionReason?: string;
+  approvedAt?: Date;
+}
+```
+
+**ReimburseTab** (bagian dari CRMPage.tsx)
+```typescript
+interface ReimburseRequest {
+  id: string;
+  requestNumber: string; // format: RMB-YYYY-NNNN
+  requestedBy: string;
+  requestDate: Date;
+  category: 'travel' | 'accommodation' | 'meals' | 'transportation' | 'other';
+  description: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'paid' | 'rejected';
+  relatedProject?: string; // nama proyek/opportunity terkait
+  receipts: number;
+  approver: string;
+  approvalDate?: Date;
+  paymentDate?: Date;
+  rejectionReason?: string;
+}
+```
+
 ## Data Models
 
 ### Database Schema
@@ -712,6 +782,80 @@ CREATE TABLE crm_audit_log (
 );
 
 -- ============================================================
+-- APPROVAL WORKFLOW
+-- ============================================================
+
+CREATE TABLE crm_approvals (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL CHECK(type IN ('proposal', 'contract', 'budget', 'reimburse')),
+  title TEXT NOT NULL,
+  description TEXT,
+  amount REAL NOT NULL DEFAULT 0,
+  requested_by TEXT NOT NULL,
+  request_date DATE NOT NULL,
+  approver TEXT NOT NULL,
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('high', 'medium', 'low')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+  related_entity_id TEXT, -- ID proposal/kontrak/reimburse terkait
+  rejection_reason TEXT,
+  approved_by TEXT,
+  approved_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (requested_by) REFERENCES users(id),
+  FOREIGN KEY (approved_by) REFERENCES users(id)
+);
+
+CREATE TABLE crm_approval_documents (
+  id TEXT PRIMARY KEY,
+  approval_id TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  uploaded_by TEXT NOT NULL,
+  uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (approval_id) REFERENCES crm_approvals(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id)
+);
+
+-- ============================================================
+-- REIMBURSE MANAGEMENT
+-- ============================================================
+
+CREATE TABLE crm_reimburse_requests (
+  id TEXT PRIMARY KEY,
+  request_number TEXT UNIQUE NOT NULL, -- format: RMB-YYYY-NNNN
+  requested_by TEXT NOT NULL,
+  request_date DATE NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('travel', 'accommodation', 'meals', 'transportation', 'other')),
+  description TEXT NOT NULL,
+  amount REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'paid', 'rejected')),
+  related_opportunity_id TEXT, -- opsional, terhubung ke opportunity
+  approver TEXT NOT NULL,
+  approval_date DATE,
+  payment_date DATE,
+  rejection_reason TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (requested_by) REFERENCES users(id),
+  FOREIGN KEY (related_opportunity_id) REFERENCES crm_opportunities(id)
+);
+
+CREATE TABLE crm_reimburse_receipts (
+  id TEXT PRIMARY KEY,
+  reimburse_id TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  file_size INTEGER NOT NULL, -- bytes, max 10 MB
+  file_type TEXT NOT NULL CHECK(file_type IN ('pdf', 'jpg', 'jpeg', 'png')),
+  uploaded_by TEXT NOT NULL,
+  uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reimburse_id) REFERENCES crm_reimburse_requests(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id)
+);
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
 
@@ -722,6 +866,10 @@ CREATE INDEX idx_crm_interactions_entity ON crm_interactions(entity_id, entity_t
 CREATE INDEX idx_crm_proposals_opportunity ON crm_proposals(opportunity_id);
 CREATE INDEX idx_crm_contracts_opportunity ON crm_contracts(opportunity_id);
 CREATE INDEX idx_crm_audit_log_entity ON crm_audit_log(entity_type, entity_id);
+CREATE INDEX idx_crm_approvals_status ON crm_approvals(status, type);
+CREATE INDEX idx_crm_approvals_requested_by ON crm_approvals(requested_by);
+CREATE INDEX idx_crm_reimburse_status ON crm_reimburse_requests(status, category);
+CREATE INDEX idx_crm_reimburse_requested_by ON crm_reimburse_requests(requested_by);
 ```
 
 ### TypeScript Type Definitions
@@ -854,6 +1002,51 @@ export interface SalesForecast {
     totalValue: number;
     weightedValue: number;
   }[];
+}
+
+// Approval Workflow Types
+export type ApprovalType = 'proposal' | 'contract' | 'budget' | 'reimburse';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type ApprovalPriority = 'high' | 'medium' | 'low';
+
+export interface ApprovalItem {
+  id: string;
+  type: ApprovalType;
+  title: string;
+  description?: string;
+  amount: number;
+  requestedBy: string;
+  requestDate: Date;
+  approver: string;
+  priority: ApprovalPriority;
+  status: ApprovalStatus;
+  relatedEntityId?: string;
+  rejectionReason?: string;
+  approvedBy?: string;
+  approvedAt?: Date;
+  createdAt: Date;
+}
+
+// Reimburse Management Types
+export type ReimburseCategory = 'travel' | 'accommodation' | 'meals' | 'transportation' | 'other';
+export type ReimburseStatus = 'pending' | 'approved' | 'paid' | 'rejected';
+
+export interface ReimburseRequest {
+  id: string;
+  requestNumber: string; // format: RMB-YYYY-NNNN
+  requestedBy: string;
+  requestDate: Date;
+  category: ReimburseCategory;
+  description: string;
+  amount: number;
+  status: ReimburseStatus;
+  relatedOpportunityId?: string;
+  approver: string;
+  approvalDate?: Date;
+  paymentDate?: Date;
+  rejectionReason?: string;
+  receipts: number; // jumlah receipt yang diunggah
+  createdAt: Date;
 }
 ```
 
@@ -1059,6 +1252,54 @@ export interface SalesForecast {
 
 **Validates: Requirements 8.4**
 
+---
+
+### Property 26: Inisialisasi Status Approval Item
+
+*Untuk setiap* Approval_Item yang baru dibuat, status awal harus selalu "pending", dan field `requested_by` serta `created_at` harus selalu terisi dengan nilai yang valid.
+
+**Validates: Requirements 11.3**
+
+---
+
+### Property 27: Konsistensi Status Approval
+
+*Untuk setiap* Approval_Item, status hanya boleh bertransisi dari "pending" ke "approved" atau "rejected"; tidak boleh ada transisi dari "approved" atau "rejected" kembali ke "pending" tanpa reset eksplisit.
+
+**Validates: Requirements 11.4, 11.5**
+
+---
+
+### Property 28: Kelengkapan Metadata Rejection
+
+*Untuk setiap* Approval_Item atau Reimburse_Request yang berstatus "rejected", field `rejection_reason` harus selalu terisi dengan nilai yang tidak kosong.
+
+**Validates: Requirements 11.5, 12.7**
+
+---
+
+### Property 29: Keunikan Nomor Reimburse
+
+*Untuk setiap* Reimburse_Request yang berhasil dibuat, `request_number` harus unik di seluruh tabel; tidak boleh ada dua request dengan nomor yang sama.
+
+**Validates: Requirements 12.3, 12.12**
+
+---
+
+### Property 30: Validasi Ukuran dan Tipe File Receipt
+
+*Untuk setiap* upaya unggah Receipt, sistem harus menolak file yang ukurannya melebihi 10 MB atau yang tipe filenya bukan PDF, JPG, JPEG, atau PNG; dan hanya menerima file yang memenuhi kedua kriteria tersebut.
+
+**Validates: Requirements 12.8, 12.9**
+
+---
+
+### Property 31: Urutan Transisi Status Reimburse
+
+*Untuk setiap* Reimburse_Request, transisi ke status "paid" hanya boleh terjadi jika status sebelumnya adalah "approved"; tidak boleh ada request dengan status "paid" yang tidak pernah melewati status "approved".
+
+**Validates: Requirements 12.5, 12.6**
+
 ## Error Handling
 
 ### Strategi Error Handling
@@ -1172,6 +1413,8 @@ describe('CostEstimation - Kalkulasi Margin', () => {
 | Contract | Approval flow, integration | Property 19, 20, 21, 22 |
 | RBAC | Role enforcement | Property 23, 24 |
 | Dashboard | Filter accuracy, KPI calc | Property 25 |
+| Approval Workflow | Status transitions, rejection reason | Property 26, 27, 28 |
+| Reimburse Management | Nomor unik, file validation, status flow | Property 29, 30, 31 |
 
 ### Unit Test Focus Areas
 
