@@ -480,7 +480,6 @@ if (statementCount.count === 0) {
 
 async function startServer() {
   const app = express();
-  const PORT = 5000;
 
   // Security headers
   app.use(helmet({ contentSecurityPolicy: false }));
@@ -1592,14 +1591,19 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, "dist")));
+    // ESM-compatible __dirname
+    const __filename = new URL(import.meta.url).pathname;
+    const __dirname = path.dirname(__filename);
+    const distPath = path.resolve(__dirname, "dist");
+    app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.resolve(__dirname, "dist", "index.html"));
+      res.sendFile(path.resolve(distPath, "index.html"));
     });
   }
 
-  app.listen(PORT, "127.0.0.1", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  const PORT = parseInt(process.env.PORT ?? "5000", 10);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 
