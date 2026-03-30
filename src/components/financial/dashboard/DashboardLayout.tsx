@@ -125,7 +125,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       {/* Logo */}
       <div className={cn('flex items-center gap-2.5 px-4 py-5 border-b border-slate-800', collapsed && 'justify-center px-2')}>
         <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shrink-0">
-          <img src="/src/img/logo-titian.png" alt="Titian Logo" className="w-6 h-6 object-contain" />
+          <img src="/logo-titian.png" alt="Titian Logo" className="w-6 h-6 object-contain" />
         </div>
         {!collapsed && (
           <div>

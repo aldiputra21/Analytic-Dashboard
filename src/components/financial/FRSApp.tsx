@@ -97,7 +97,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, isLoading }) => {
             <div className="relative inline-block">
               {/* Glow ring */}
               <div className="absolute inset-0 rounded-2xl" style={{ background: 'radial-gradient(circle, rgba(220,38,38,0.5) 0%, transparent 70%)', filter: 'blur(20px)', transform: 'scale(1.4)' }} />
-              <img src="/src/img/logo-titian.png" alt="Titian Logo" className="relative w-60 object-contain drop-shadow-2xl" />
+              <img src="/logo-titian.png" alt="Titian Logo" className="relative w-60 object-contain drop-shadow-2xl" />
             </div>
           </div>
 
@@ -132,7 +132,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, error, isLoading }) => {
 
           {/* Mobile logo (shown only on small screens) */}
           <div className="flex lg:hidden justify-center mb-8">
-            <img src="/src/img/logo-titian.png" alt="Titian Logo" className="w-16 h-16 object-contain drop-shadow-lg" />
+            <img src="/logo-titian.png" alt="Titian Logo" className="w-16 h-16 object-contain drop-shadow-lg" />
           </div>
 
           {/* Card */}
