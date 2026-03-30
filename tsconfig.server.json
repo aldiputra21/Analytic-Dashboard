@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "outDir": "./dist-server",
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "strict": false,
+    "noEmit": false,
+    "allowJs": true,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "server.ts",
+    "src/routes/**/*.ts",
+    "src/services/**/*.ts",
+    "src/middleware/**/*.ts",
+    "src/db/**/*.ts",
+    "src/config/**/*.ts",
+    "src/helpers/**/*.ts",
+    "src/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/components",
+    "src/hooks",
+    "**/*.test.ts",
+    "**/__tests__/**"
+  ]
+}

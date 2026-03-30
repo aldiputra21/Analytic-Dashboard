@@ -26,7 +26,9 @@ try {
   // Don't exit in dev - allow server to start with defaults
 }
 
-const db = new Database("finance.db");
+const DB_PATH = process.env.DATABASE_URL ?? './finance.db';
+const db = new Database(DB_PATH);
+console.log(`[DB] Using database at: ${DB_PATH}`);
 
 // Initialize CRM schema
 initCRMSchema(db);
