@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Search, Building2 } from 'lucide-react';
 
 interface Props { onClose: () => void; }
 
 const INDUSTRIES = ['Oil & Gas', 'Refinery', 'Petrochemical', 'Mining', 'Power Plant', 'Construction', 'Manufacturing'];
 const CONTACT_ROLES = ['PIC', 'Decision Maker', 'Technical', 'Finance', 'Procurement', 'Other'];
+
+// Dummy customer list for parent selector (in production, fetch from API)
+const EXISTING_CUSTOMERS = [
+  { id: 'CUST-001', name: 'PT Pertamina (Persero)' },
+  { id: 'CUST-002', name: 'Chevron Pacific Indonesia' },
+  { id: 'CUST-003', name: 'TotalEnergies EP Indonesie' },
+  { id: 'CUST-004', name: 'PT Medco Energi' },
+  { id: 'CUST-005', name: 'Pertamina RU IV Cilacap' },
+  { id: 'CUST-006', name: 'PT Pertamina Hulu Energi' },
+];
 
 interface ContactEntry { name: string; title: string; phone: string; email: string; role: string; isPrimary: boolean; }
 
@@ -12,8 +22,10 @@ export function NewCustomerModal({ onClose }: Props) {
   const [form, setForm] = useState({
     companyName: '', industry: 'Oil & Gas', address: '', npwp: '',
     website: '', phone: '', email: '', city: '', province: '',
-    companySize: '', annualRevenue: '', notes: '',
+    companySize: '', annualRevenue: '', notes: '', parentCustomerId: '',
   });
+  const [parentSearch, setParentSearch] = useState('');
+  const [showParentDropdown, setShowParentDropdown] = useState(false);
   const [contacts, setContacts] = useState<ContactEntry[]>([
     { name: '', title: '', phone: '', email: '', role: 'PIC', isPrimary: true },
   ]);
@@ -48,6 +60,51 @@ export function NewCustomerModal({ onClose }: Props) {
                 <input value={form.companyName} onChange={e => set('companyName', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g. PT Pertamina (Persero)" />
+              </div>
+              <div className="col-span-2 relative">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Perusahaan Induk <span className="text-xs font-normal text-gray-400">(opsional)</span>
+                </label>
+                {form.parentCustomerId ? (
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm border border-blue-300 bg-blue-50 rounded-lg">
+                    <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="flex-1 text-blue-800 font-medium">
+                      {EXISTING_CUSTOMERS.find(c => c.id === form.parentCustomerId)?.name ?? form.parentCustomerId}
+                    </span>
+                    <button onClick={() => { set('parentCustomerId', ''); setParentSearch(''); }}
+                      className="text-blue-400 hover:text-blue-600"><X className="w-4 h-4" /></button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      value={parentSearch}
+                      onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
+                      onFocus={() => setShowParentDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowParentDropdown(false), 200)}
+                      className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Cari perusahaan induk..." />
+                    {showParentDropdown && (
+                      <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        {EXISTING_CUSTOMERS
+                          .filter(c => c.name.toLowerCase().includes(parentSearch.toLowerCase()))
+                          .map(c => (
+                            <button key={c.id} type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { set('parentCustomerId', c.id); setParentSearch(c.name); setShowParentDropdown(false); }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2">
+                              <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                              <span>{c.name}</span>
+                            </button>
+                          ))}
+                        {EXISTING_CUSTOMERS.filter(c => c.name.toLowerCase().includes(parentSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-xs text-gray-400">Tidak ada hasil</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-gray-400">Pilih jika customer ini merupakan anak perusahaan</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Industri</label>

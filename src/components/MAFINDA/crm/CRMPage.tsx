@@ -6,7 +6,7 @@ import {
   FileCheck, AlertCircle, Paperclip, MessageSquare, User, X,
   Download, CheckCircle2, Calendar, Target, Briefcase, Phone,
   Mail, MapPin, Star, ChevronRight, Tag, Percent, Hash,
-  Activity, Shield, Handshake, FileSignature, BarChart2, Trash2,
+  Activity, Shield, Handshake, FileSignature, BarChart2, Trash2, ArrowLeft,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -1182,18 +1182,309 @@ function CRMDashboard() {
 }
 
 // ─── Customers ────────────────────────────────────────────────────────────────
-function Customers() {
+interface CustomerData {
+  id: string; name: string; industry: string; contact: string; email: string; phone: string;
+  location: string; activeOpportunities: number; totalValue: string; lastContact: string;
+  parentId?: string | null; parentName?: string | null;
+  children?: { id: string; name: string; industry: string; status: string }[];
+  address?: string; npwp?: string; status: string;
+  contacts?: { name: string; title: string; phone: string; email: string; role: string; isPrimary: boolean }[];
+}
+
+const ALL_CUSTOMERS: CustomerData[] = [
+  { id: 'CUST-001', name: 'PT Pertamina (Persero)', industry: 'Oil & Gas', contact: 'Ir. Bambang Setiawan', email: 'bambang.s@pertamina.com', phone: '+62 21 3815 1234', location: 'Jakarta Selatan', activeOpportunities: 3, totalValue: 'Rp 28.5 M', lastContact: '2 hari lalu', parentId: null, parentName: null, status: 'Active', address: 'Jl. Medan Merdeka Timur No. 1A, Jakarta Pusat', npwp: '01.000.000.0-000.001',
+    children: [
+      { id: 'CUST-005', name: 'Pertamina RU IV Cilacap', industry: 'Refinery', status: 'Active' },
+      { id: 'CUST-006', name: 'PT Pertamina Hulu Energi', industry: 'Oil & Gas', status: 'Active' },
+    ],
+    contacts: [
+      { name: 'Ir. Bambang Setiawan', title: 'VP Operations', phone: '+62 21 3815 1234', email: 'bambang.s@pertamina.com', role: 'PIC', isPrimary: true },
+      { name: 'Siti Rahmadhani', title: 'Procurement Manager', phone: '+62 21 3815 5678', email: 'siti.r@pertamina.com', role: 'Decision Maker', isPrimary: false },
+    ],
+  },
+  { id: 'CUST-002', name: 'Chevron Pacific Indonesia', industry: 'Oil & Gas', contact: 'John Anderson', email: 'john.anderson@chevron.com', phone: '+62 21 2995 5000', location: 'Jakarta Pusat', activeOpportunities: 2, totalValue: 'Rp 15.8 M', lastContact: '1 hari lalu', parentId: null, parentName: null, status: 'Active',
+    contacts: [
+      { name: 'John Anderson', title: 'Project Director', phone: '+62 21 2995 5000', email: 'john.anderson@chevron.com', role: 'PIC', isPrimary: true },
+    ],
+  },
+  { id: 'CUST-003', name: 'TotalEnergies EP Indonesie', industry: 'Oil & Gas', contact: 'Marie Dubois', email: 'marie.dubois@totalenergies.com', phone: '+62 21 2994 5000', location: 'Jakarta Selatan', activeOpportunities: 1, totalValue: 'Rp 15.7 M', lastContact: '3 hari lalu', parentId: null, parentName: null, status: 'Active',
+    contacts: [
+      { name: 'Marie Dubois', title: 'Operations Head', phone: '+62 21 2994 5000', email: 'marie.dubois@totalenergies.com', role: 'PIC', isPrimary: true },
+    ],
+  },
+  { id: 'CUST-004', name: 'PT Medco Energi', industry: 'Oil & Gas', contact: 'Drs. Sutomo', email: 'sutomo@medcoenergi.com', phone: '+62 21 2995 3000', location: 'Jakarta Selatan', activeOpportunities: 1, totalValue: 'Rp 5.2 M', lastContact: '5 hari lalu', parentId: null, parentName: null, status: 'Active',
+    contacts: [
+      { name: 'Drs. Sutomo', title: 'GM Procurement', phone: '+62 21 2995 3000', email: 'sutomo@medcoenergi.com', role: 'PIC', isPrimary: true },
+    ],
+  },
+  { id: 'CUST-005', name: 'Pertamina RU IV Cilacap', industry: 'Refinery', contact: 'Ir. Kusuma Jaya', email: 'kusuma.jaya@pertamina.com', phone: '+62 282 542 211', location: 'Cilacap', activeOpportunities: 2, totalValue: 'Rp 12.3 M', lastContact: 'Hari ini', parentId: 'CUST-001', parentName: 'PT Pertamina (Persero)', status: 'Active', address: 'Jl. MT Haryono 77, Cilacap',
+    contacts: [
+      { name: 'Ir. Kusuma Jaya', title: 'Plant Manager', phone: '+62 282 542 211', email: 'kusuma.jaya@pertamina.com', role: 'PIC', isPrimary: true },
+    ],
+  },
+  { id: 'CUST-006', name: 'PT Pertamina Hulu Energi', industry: 'Oil & Gas', contact: 'Dr. Wulan Sari', email: 'wulan.sari@phe.pertamina.com', phone: '+62 21 3815 7890', location: 'Jakarta Selatan', activeOpportunities: 1, totalValue: 'Rp 18.5 M', lastContact: '1 hari lalu', parentId: 'CUST-001', parentName: 'PT Pertamina (Persero)', status: 'Active',
+    contacts: [
+      { name: 'Dr. Wulan Sari', title: 'VP Exploration', phone: '+62 21 3815 7890', email: 'wulan.sari@phe.pertamina.com', role: 'PIC', isPrimary: true },
+      { name: 'Agus Pratama', title: 'Technical Lead', phone: '+62 21 3815 7891', email: 'agus.p@phe.pertamina.com', role: 'Technical', isPrimary: false },
+    ],
+  },
+];
+
+function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
+  customer: CustomerData;
+  onClose: () => void;
+  onSelectCustomer: (id: string) => void;
+  onBack?: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'children'>('overview');
+  const [prevCustomerId, setPrevCustomerId] = useState(customer.id);
+  if (customer.id !== prevCustomerId) {
+    setPrevCustomerId(customer.id);
+    setActiveTab('overview');
+  }
+
+  const tabs: { key: 'overview' | 'contacts' | 'children'; label: string; count?: number }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'contacts', label: 'Kontak', count: customer.contacts?.length ?? 0 },
+    { key: 'children', label: 'Anak Perusahaan', count: customer.children?.length ?? 0 },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between bg-gradient-to-r from-blue-50 to-white">
+          <div className="flex-1 min-w-0">
+            {onBack && (
+              <button onClick={onBack}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium mb-2 -ml-0.5 group">
+                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                Kembali ke Perusahaan Induk
+              </button>
+            )}
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${customer.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                {customer.status}
+              </span>
+              <span className="text-xs text-gray-400">{customer.id}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-blue-600 shrink-0" />
+              <h2 className="text-base font-bold text-gray-900 truncate">{customer.name}</h2>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{customer.industry}</span>
+              <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{customer.location}</span>
+            </div>
+            {/* Parent Company Link */}
+            {customer.parentId && customer.parentName && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className="text-xs text-gray-400">Induk:</span>
+                <button
+                  onClick={() => onSelectCustomer(customer.parentId!)}
+                  className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-semibold flex items-center gap-1"
+                >
+                  <Building2 className="w-3 h-3" />
+                  {customer.parentName}
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 ml-4 shrink-0"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 px-6">
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === t.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              {t.label}
+              {t.count !== undefined && t.count > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === t.key ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2 space-y-4">
+                {/* Key Metrics */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-blue-50 rounded-lg p-4 text-center">
+                    <div className="text-xs text-blue-500 mb-1">Active Opportunities</div>
+                    <div className="text-2xl font-bold text-blue-800">{customer.activeOpportunities}</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4 text-center">
+                    <div className="text-xs text-green-500 mb-1">Total Value</div>
+                    <div className="text-sm font-bold text-green-700">{customer.totalValue}</div>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-4 text-center">
+                    <div className="text-xs text-purple-500 mb-1">Anak Perusahaan</div>
+                    <div className="text-2xl font-bold text-purple-700">{customer.children?.length ?? 0}</div>
+                  </div>
+                </div>
+                {/* Company Info */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Informasi Perusahaan</h3>
+                  <div className="space-y-2.5 text-xs">
+                    {customer.address && (
+                      <div className="flex items-start gap-2 text-gray-600"><MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" /><span>{customer.address}</span></div>
+                    )}
+                    <div className="flex items-center gap-2 text-gray-600"><Mail className="w-3.5 h-3.5 text-gray-400" />{customer.email}</div>
+                    <div className="flex items-center gap-2 text-gray-600"><Phone className="w-3.5 h-3.5 text-gray-400" />{customer.phone}</div>
+                    {customer.npwp && (
+                      <div className="flex items-center gap-2 text-gray-600"><Hash className="w-3.5 h-3.5 text-gray-400" />NPWP: {customer.npwp}</div>
+                    )}
+                  </div>
+                </div>
+                {/* Primary Contact */}
+                {customer.contacts && customer.contacts.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Primary Contact</h3>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <User className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{customer.contacts[0].name}</div>
+                        <div className="text-xs text-gray-500">{customer.contacts[0].title} — {customer.contacts[0].role}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Sidebar */}
+              <div className="space-y-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Key Information</h3>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500">Industry</span><span className="text-gray-900 font-medium">{customer.industry}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Status</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${customer.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{customer.status}</span>
+                    </div>
+                    <div className="flex justify-between"><span className="text-gray-500">Last Contact</span><span className="text-gray-900">{customer.lastContact}</span></div>
+                    {customer.parentName && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500">Perusahaan Induk</span>
+                        <button onClick={() => onSelectCustomer(customer.parentId!)} className="text-blue-600 hover:underline font-medium">{customer.parentName}</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Quick Children Preview */}
+                {customer.children && customer.children.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Anak Perusahaan</h3>
+                    <div className="space-y-2">
+                      {customer.children.slice(0, 3).map(ch => (
+                        <button key={ch.id} onClick={() => onSelectCustomer(ch.id)}
+                          className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-blue-50 transition-colors text-left">
+                          <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-900 truncate">{ch.name}</div>
+                            <div className="text-[10px] text-gray-400">{ch.industry}</div>
+                          </div>
+                          <ChevronRight className="w-3 h-3 text-gray-300" />
+                        </button>
+                      ))}
+                      {customer.children.length > 3 && (
+                        <button onClick={() => setActiveTab('children')}
+                          className="w-full text-xs text-blue-600 hover:text-blue-700 font-medium py-1">
+                          Lihat semua ({customer.children.length})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Contacts Tab */}
+          {activeTab === 'contacts' && (
+            <div className="space-y-3">
+              {customer.contacts && customer.contacts.length > 0 ? customer.contacts.map((ct, i) => (
+                <div key={i} className={`border rounded-lg p-4 ${ct.isPrimary ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
+                        <User className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{ct.name}</div>
+                        {ct.title && <div className="text-xs text-gray-500">{ct.title}</div>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        ct.role === 'PIC' ? 'bg-blue-100 text-blue-700' :
+                        ct.role === 'Decision Maker' ? 'bg-purple-100 text-purple-700' :
+                        ct.role === 'Technical' ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>{ct.role}</span>
+                      {ct.isPrimary && <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full font-medium">Primary</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-gray-600 ml-11">
+                    {ct.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-gray-400" />{ct.phone}</span>}
+                    {ct.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3 text-gray-400" />{ct.email}</span>}
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-sm text-gray-400">Tidak ada data kontak</div>
+              )}
+            </div>
+          )}
+
+          {/* Children Tab */}
+          {activeTab === 'children' && (
+            <div>
+              {customer.children && customer.children.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-xs text-gray-500 mb-4">
+                    {customer.name} memiliki {customer.children.length} anak perusahaan
+                  </div>
+                  {customer.children.map(ch => (
+                    <button key={ch.id} onClick={() => onSelectCustomer(ch.id)}
+                      className="w-full flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all text-left group">
+                      <div className="w-11 h-11 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                        <Building2 className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{ch.name}</div>
+                        <div className="text-xs text-gray-500">{ch.industry}</div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ch.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{ch.status}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-400 transition-colors" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Building2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <div className="text-sm text-gray-500 mb-1">Tidak ada anak perusahaan</div>
+                  <div className="text-xs text-gray-400">Customer ini belum memiliki anak perusahaan yang terdaftar</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Customers({ onViewDetail }: { onViewDetail: (customer: CustomerData) => void }) {
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
-  const customers = [
-    { id: 'CUST-001', name: 'PT Pertamina (Persero)', industry: 'Oil & Gas', contact: 'Ir. Bambang Setiawan', email: 'bambang.s@pertamina.com', phone: '+62 21 3815 1234', location: 'Jakarta Selatan', activeOpportunities: 3, totalValue: 'Rp 28.5 M', lastContact: '2 hari lalu' },
-    { id: 'CUST-002', name: 'Chevron Pacific Indonesia', industry: 'Oil & Gas', contact: 'John Anderson', email: 'john.anderson@chevron.com', phone: '+62 21 2995 5000', location: 'Jakarta Pusat', activeOpportunities: 2, totalValue: 'Rp 15.8 M', lastContact: '1 hari lalu' },
-    { id: 'CUST-003', name: 'TotalEnergies EP Indonesie', industry: 'Oil & Gas', contact: 'Marie Dubois', email: 'marie.dubois@totalenergies.com', phone: '+62 21 2994 5000', location: 'Jakarta Selatan', activeOpportunities: 1, totalValue: 'Rp 15.7 M', lastContact: '3 hari lalu' },
-    { id: 'CUST-004', name: 'PT Medco Energi', industry: 'Oil & Gas', contact: 'Drs. Sutomo', email: 'sutomo@medcoenergi.com', phone: '+62 21 2995 3000', location: 'Jakarta Selatan', activeOpportunities: 1, totalValue: 'Rp 5.2 M', lastContact: '5 hari lalu' },
-    { id: 'CUST-005', name: 'Pertamina RU IV Cilacap', industry: 'Refinery', contact: 'Ir. Kusuma Jaya', email: 'kusuma.jaya@pertamina.com', phone: '+62 282 542 211', location: 'Cilacap', activeOpportunities: 2, totalValue: 'Rp 12.3 M', lastContact: 'Hari ini' },
-    { id: 'CUST-006', name: 'PT Pertamina Hulu Energi', industry: 'Oil & Gas', contact: 'Dr. Wulan Sari', email: 'wulan.sari@phe.pertamina.com', phone: '+62 21 3815 7890', location: 'Jakarta Selatan', activeOpportunities: 1, totalValue: 'Rp 18.5 M', lastContact: '1 hari lalu' },
-  ];
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.contact.toLowerCase().includes(search.toLowerCase()));
+  const filtered = ALL_CUSTOMERS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.contact.toLowerCase().includes(search.toLowerCase()));
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -1215,7 +1506,13 @@ function Customers() {
                 <span className="text-xs text-gray-500">{c.id}</span>
               </div>
               <h3 className="text-sm font-semibold text-gray-900 mb-1">{c.name}</h3>
-              <div className="text-xs text-gray-500 mb-3">{c.industry}</div>
+              <div className="text-xs text-gray-500 mb-1">{c.industry}</div>
+              {c.parentName && (
+                <div className="flex items-center gap-1 mb-2">
+                  <Building2 className="w-3 h-3 text-blue-400" />
+                  <span className="text-[10px] text-blue-600 font-medium">Anak perusahaan dari {c.parentName}</span>
+                </div>
+              )}
               <div className="space-y-1.5 mb-3 text-xs text-gray-600">
                 <div className="flex items-center gap-2 truncate"><Mail className="w-3 h-3 text-gray-400 shrink-0" /><span className="truncate">{c.email}</span></div>
                 <div className="flex items-center gap-2"><Phone className="w-3 h-3 text-gray-400" /><span>{c.phone}</span></div>
@@ -1226,7 +1523,9 @@ function Customers() {
                 <div className="flex justify-between mb-2"><span className="text-gray-500">Total Value</span><span className="font-medium text-gray-900">{c.totalValue}</span></div>
                 <div className="text-gray-400">Last contact: {c.lastContact}</div>
               </div>
-              <button className="w-full mt-3 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-medium">View Details</button>
+              <button onClick={() => onViewDetail(c)} className="w-full mt-3 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-medium flex items-center justify-center gap-1">
+                <Eye className="w-3.5 h-3.5" />View Details
+              </button>
             </div>
           ))}
         </div>
@@ -1529,12 +1828,37 @@ interface CRMPageProps {
 
 export const CRMPage: React.FC<CRMPageProps> = ({ activeTab = 'dashboard' }) => {
   const [selectedOpp, setSelectedOpp] = useState<Opportunity | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null);
+  const [customerHistory, setCustomerHistory] = useState<CustomerData[]>([]);
+
+  const handleSelectCustomerById = (id: string) => {
+    const found = ALL_CUSTOMERS.find(c => c.id === id);
+    if (found) {
+      if (selectedCustomer) {
+        setCustomerHistory(prev => [...prev, selectedCustomer]);
+      }
+      setSelectedCustomer(found);
+    }
+  };
+
+  const handleCustomerBack = () => {
+    const prev = customerHistory[customerHistory.length - 1];
+    if (prev) {
+      setCustomerHistory(h => h.slice(0, -1));
+      setSelectedCustomer(prev);
+    }
+  };
+
+  const handleCloseCustomer = () => {
+    setSelectedCustomer(null);
+    setCustomerHistory([]);
+  };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <CRMDashboard />;
       case 'opportunities': return <Opportunities onViewDetail={setSelectedOpp} />;
-      case 'customers': return <Customers />;
+      case 'customers': return <Customers onViewDetail={setSelectedCustomer} />;
       case 'proposals': return <Proposals />;
       case 'contracts': return <Contracts />;
       case 'approvals': return <Approvals />;
@@ -1546,6 +1870,14 @@ export const CRMPage: React.FC<CRMPageProps> = ({ activeTab = 'dashboard' }) => 
     <div className="min-h-full">
       {renderContent()}
       {selectedOpp && <OpportunityDetailDrawer opp={selectedOpp} onClose={() => setSelectedOpp(null)} />}
+      {selectedCustomer && (
+        <CustomerDetailDrawer
+          customer={selectedCustomer}
+          onClose={handleCloseCustomer}
+          onSelectCustomer={handleSelectCustomerById}
+          onBack={customerHistory.length > 0 ? handleCustomerBack : undefined}
+        />
+      )}
     </div>
   );
 };

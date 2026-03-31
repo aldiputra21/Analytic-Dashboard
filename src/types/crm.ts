@@ -128,11 +128,22 @@ export interface Customer {
   industry: string;
   address?: string;
   npwp?: string;
+  parentCustomerId?: string | null;
+  parentCompanyName?: string | null;
   status: 'Active' | 'Inactive';
   contacts: Contact[];
+  children?: CustomerSummary[];
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CustomerSummary {
+  id: string;
+  companyName: string;
+  industry: string;
+  status: 'Active' | 'Inactive';
+  picCount: number;
 }
 
 export interface Contact {
@@ -381,6 +392,7 @@ export interface CreateCustomerInput {
   industry: string;
   address?: string;
   npwp?: string;
+  parentCustomerId?: string | null;
   contacts: CreateContactInput[];
 }
 

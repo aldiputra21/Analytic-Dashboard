@@ -74,9 +74,26 @@ export function createCustomerRouter(db: Database.Database): Router {
 
       const customerId = generateId('CUST');
 
+      // Validate parentCustomerId if provided
+      if (body.parentCustomerId) {
+        const parentExists = db
+          .prepare('SELECT id FROM crm_customers WHERE id = ?')
+          .get(body.parentCustomerId);
+        if (!parentExists) {
+          res.status(400).json({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Parent customer tidak ditemukan',
+              details: { parentCustomerId: ['Parent customer ID tidak valid'] },
+            },
+          });
+          return;
+        }
+      }
+
       const insertCustomer = db.prepare(
-        `INSERT INTO crm_customers (id, company_name, industry, address, npwp, created_by)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO crm_customers (id, company_name, industry, address, npwp, parent_customer_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       );
 
       const insertContact = db.prepare(
@@ -91,6 +108,7 @@ export function createCustomerRouter(db: Database.Database): Router {
           body.industry.trim(),
           body.address ?? null,
           body.npwp ?? null,
+          body.parentCustomerId ?? null,
           userId
         );
 
@@ -135,8 +153,10 @@ export function createCustomerRouter(db: Database.Database): Router {
 
       let query = `
         SELECT c.*, 
-          (SELECT COUNT(*) FROM crm_contacts WHERE customer_id = c.id AND role = 'PIC') as pic_count
+          (SELECT COUNT(*) FROM crm_contacts WHERE customer_id = c.id AND role = 'PIC') as pic_count,
+          p.company_name as parent_company_name
         FROM crm_customers c
+        LEFT JOIN crm_customers p ON c.parent_customer_id = p.id
         WHERE 1=1
       `;
       const params: any[] = [];
@@ -169,7 +189,10 @@ export function createCustomerRouter(db: Database.Database): Router {
     requireCRMPermission('crm:read:all', 'crm:read:own'),
     (req: Request, res: Response): void => {
       const customer = db
-        .prepare('SELECT * FROM crm_customers WHERE id = ?')
+        .prepare(`SELECT c.*, p.company_name as parent_company_name
+          FROM crm_customers c
+          LEFT JOIN crm_customers p ON c.parent_customer_id = p.id
+          WHERE c.id = ?`)
         .get(req.params.id) as any;
 
       if (!customer) {
@@ -183,7 +206,25 @@ export function createCustomerRouter(db: Database.Database): Router {
         .prepare('SELECT * FROM crm_contacts WHERE customer_id = ? ORDER BY is_primary DESC')
         .all(req.params.id);
 
-      res.json({ ...mapCustomer(customer), contacts: contacts.map(mapContact) });
+      // Fetch child customers
+      const children = db
+        .prepare(`SELECT c.id, c.company_name, c.industry, c.status,
+          (SELECT COUNT(*) FROM crm_contacts WHERE customer_id = c.id AND role = 'PIC') as pic_count
+          FROM crm_customers c WHERE c.parent_customer_id = ?
+          ORDER BY c.company_name`)
+        .all(req.params.id) as any[];
+
+      res.json({
+        ...mapCustomer(customer),
+        contacts: contacts.map(mapContact),
+        children: children.map((ch: any) => ({
+          id: ch.id,
+          companyName: ch.company_name,
+          industry: ch.industry,
+          status: ch.status,
+          picCount: ch.pic_count,
+        })),
+      });
     }
   );
 
@@ -218,6 +259,52 @@ export function createCustomerRouter(db: Database.Database): Router {
         return;
       }
 
+      // Validate parentCustomerId if provided
+      if (body.parentCustomerId !== undefined && body.parentCustomerId !== null) {
+        if (body.parentCustomerId === req.params.id) {
+          res.status(400).json({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Customer tidak bisa menjadi parent dari dirinya sendiri',
+              details: { parentCustomerId: ['Circular reference tidak diperbolehkan'] },
+            },
+          });
+          return;
+        }
+        const parentExists = db
+          .prepare('SELECT id FROM crm_customers WHERE id = ?')
+          .get(body.parentCustomerId);
+        if (!parentExists) {
+          res.status(400).json({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Parent customer tidak ditemukan',
+              details: { parentCustomerId: ['Parent customer ID tidak valid'] },
+            },
+          });
+          return;
+        }
+        // Prevent circular: check if target parent is a descendant of current customer
+        let checkId: string | null = body.parentCustomerId;
+        while (checkId) {
+          const ancestor = db
+            .prepare('SELECT parent_customer_id FROM crm_customers WHERE id = ?')
+            .get(checkId) as { parent_customer_id: string | null } | undefined;
+          if (!ancestor) break;
+          if (ancestor.parent_customer_id === req.params.id) {
+            res.status(400).json({
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Circular reference: parent yang dipilih adalah anak perusahaan dari customer ini',
+                details: { parentCustomerId: ['Circular reference tidak diperbolehkan'] },
+              },
+            });
+            return;
+          }
+          checkId = ancestor.parent_customer_id;
+        }
+      }
+
       const newName = body.companyName?.trim() ?? customer.company_name;
       const newNpwp = body.npwp !== undefined ? body.npwp : customer.npwp;
 
@@ -246,9 +333,13 @@ export function createCustomerRouter(db: Database.Database): Router {
 
       const oldValues = { ...customer };
 
+      const newParent = body.parentCustomerId !== undefined
+        ? (body.parentCustomerId ?? null)
+        : customer.parent_customer_id;
+
       db.prepare(
         `UPDATE crm_customers 
-         SET company_name = ?, industry = ?, address = ?, npwp = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+         SET company_name = ?, industry = ?, address = ?, npwp = ?, status = ?, parent_customer_id = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`
       ).run(
         newName,
@@ -256,13 +347,17 @@ export function createCustomerRouter(db: Database.Database): Router {
         body.address !== undefined ? body.address : customer.address,
         newNpwp ?? null,
         (body as any).status ?? customer.status,
+        newParent,
         req.params.id
       );
 
       logUpdate(db, userId, 'customer', req.params.id, oldValues, req.body);
 
       const updated = db
-        .prepare('SELECT * FROM crm_customers WHERE id = ?')
+        .prepare(`SELECT c.*, p.company_name as parent_company_name
+          FROM crm_customers c
+          LEFT JOIN crm_customers p ON c.parent_customer_id = p.id
+          WHERE c.id = ?`)
         .get(req.params.id) as any;
       const contacts = db
         .prepare('SELECT * FROM crm_contacts WHERE customer_id = ? ORDER BY is_primary DESC')
@@ -481,6 +576,8 @@ function mapCustomer(row: any) {
     industry: row.industry,
     address: row.address,
     npwp: row.npwp,
+    parentCustomerId: row.parent_customer_id ?? null,
+    parentCompanyName: row.parent_company_name ?? null,
     status: row.status,
     createdBy: row.created_by,
     createdAt: row.created_at,
