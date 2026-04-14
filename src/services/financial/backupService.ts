@@ -5,7 +5,7 @@
 
 import { sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { auditLogs } from '../../db/schema';
+import { auditLogs } from '../../db/schema/index.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
@@ -126,3 +126,4 @@ export async function logBackupOperation(
     console.error('[Backup] Failed to log operation:', err);
   }
 }
+

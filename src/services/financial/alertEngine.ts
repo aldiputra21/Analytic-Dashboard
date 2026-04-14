@@ -3,7 +3,7 @@
 
 import { eq, and, ne, desc, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { alerts } from '../../db/schema';
+import { alerts } from '../../db/schema/index.js';
 import { CalculatedRatios, RatioName } from '../../types/financial/ratio';
 import { Alert, AlertSeverity } from '../../types/financial/alert';
 import { Threshold } from '../../types/financial/threshold';
@@ -408,3 +408,4 @@ export async function getAlertHistory(filters: AlertFilters): Promise<Alert[]> {
 
   return rows.map(mapRowToAlert);
 }
+

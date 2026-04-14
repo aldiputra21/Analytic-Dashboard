@@ -3,7 +3,7 @@
 
 import { eq, and, ne, asc } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { departments, projects } from '../../db/schema';
+import { departments, projects } from '../../db/schema/index.js';
 
 export interface Department {
   id: string;
@@ -172,3 +172,4 @@ export async function deleteDepartment(
 
   return { success: true, affectedProjects };
 }
+

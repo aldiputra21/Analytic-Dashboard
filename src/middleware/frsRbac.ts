@@ -4,7 +4,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db/connection';
-import { userCorporateAccesses } from '../db/schema';
+import { userCorporateAccesses } from '../db/schema/index.js';
 import { UserRole } from '../types/financial/user';
 import { createFRSAuditLog } from '../services/financial/auditLogService';
 
@@ -169,3 +169,4 @@ export function requireSubsidiaryAccess() {
     next();
   };
 }
+

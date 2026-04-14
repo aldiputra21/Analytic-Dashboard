@@ -3,7 +3,7 @@
 
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { thresholds } from '../../db/schema';
+import { thresholds } from '../../db/schema/index.js';
 import { Threshold, CreateThresholdInput } from '../../types/financial/threshold';
 import { RatioName } from '../../types/financial/ratio';
 
@@ -213,3 +213,4 @@ export async function resetThresholdsToDefaults(
   await db.delete(thresholds).where(eq(thresholds.corporateId, corporateId));
   await initDefaultThresholds(corporateId, industrySector, updatedBy);
 }
+

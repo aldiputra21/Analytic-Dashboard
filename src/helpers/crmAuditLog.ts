@@ -1,5 +1,5 @@
 import { db } from '../db/connection';
-import { auditLogs } from '../db/schema';
+import { auditLogs } from '../db/schema/index.js';
 import { AuditAction, CRMAuditLog } from '../types/crm';
 import { eq, and, desc } from 'drizzle-orm';
 
@@ -134,3 +134,4 @@ export async function logReject(
 ): Promise<void> {
   await logCRMAudit({ userId, action: 'reject', entityType, entityId, newValues });
 }
+

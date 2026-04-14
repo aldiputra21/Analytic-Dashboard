@@ -3,7 +3,7 @@
 
 import { eq, and, ne, asc } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { departments, projects } from '../../db/schema';
+import { departments, projects } from '../../db/schema/index.js';
 import { ConflictError, NotFoundError } from './departmentService';
 
 export interface Project {
@@ -208,3 +208,4 @@ export async function deleteProject(id: string): Promise<{ success: boolean }> {
   await db.delete(projects).where(eq(projects.id, id));
   return { success: true };
 }
+

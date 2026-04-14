@@ -3,7 +3,7 @@
 
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { auditLogs } from '../../db/schema';
+import { auditLogs } from '../../db/schema/index.js';
 import { CreateAuditLogInput, AuditLogEntry } from '../../types/financial/user';
 
 type AuditLogRow = typeof auditLogs.$inferSelect;
@@ -87,3 +87,4 @@ export async function getFRSAuditLog(
 
   return rows.map(mapRowToAuditLog);
 }
+

@@ -3,7 +3,7 @@
 
 import { eq, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { corporates, balanceSheets, incomeStatements } from '../../db/schema';
+import { corporates, balanceSheets, incomeStatements } from '../../db/schema/index.js';
 import { Subsidiary, CreateSubsidiaryInput, UpdateSubsidiaryInput } from '../../types/financial/subsidiary';
 
 const MAX_SUBSIDIARIES = 5;
@@ -119,7 +119,7 @@ export async function deleteSubsidiary(
 
   // Check for financial data via departments → balance_sheets / income_statements
   // For now, check if any departments exist under this corporate
-  const { departments } = await import('../../db/schema');
+  const { departments } = await import('../../db/schema/index.js');
   const [dept] = await db.select({ id: departments.id }).from(departments)
     .where(eq(departments.corporateId, id)).limit(1);
 
@@ -130,3 +130,4 @@ export async function deleteSubsidiary(
   await db.delete(corporates).where(eq(corporates.id, id));
   return { success: true };
 }
+

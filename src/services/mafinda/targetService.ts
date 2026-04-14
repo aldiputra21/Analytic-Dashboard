@@ -3,7 +3,7 @@
 
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { targetHeaders, targetDetails } from '../../db/schema';
+import { targetHeaders, targetDetails } from '../../db/schema/index.js';
 import { NotFoundError } from './departmentService';
 
 export interface TargetDetail {

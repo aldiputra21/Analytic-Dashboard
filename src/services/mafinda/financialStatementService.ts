@@ -3,7 +3,7 @@
 
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema';
+import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema/index.js';
 
 // ─── Error Classes ────────────────────────────────────────────────────────────
 
@@ -475,3 +475,4 @@ export async function getCashFlows(
 
   return rows.map(mapCashFlowRow);
 }
+

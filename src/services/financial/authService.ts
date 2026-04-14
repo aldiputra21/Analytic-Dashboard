@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { eq, and, or } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { users } from '../../db/schema';
+import { users } from '../../db/schema/index.js';
 import { JWTPayload, FRSUser, UserRole } from '../../types/financial/user';
 import { sendPasswordResetEmail } from './emailService';
 
@@ -203,3 +203,4 @@ export function mapRowToUser(row: typeof users.$inferSelect): FRSUser {
     createdBy: row.createdBy,
   };
 }
+

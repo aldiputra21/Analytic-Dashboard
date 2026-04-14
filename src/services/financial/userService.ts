@@ -3,7 +3,7 @@
 
 import { eq, asc, or } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { users, userCorporateAccesses, roles, corporates } from '../../db/schema';
+import { users, userCorporateAccesses, roles, corporates } from '../../db/schema/index.js';
 import { FRSUser, CreateUserInput, UpdateUserInput, UserSubsidiaryAccess } from '../../types/financial/user';
 import { hashPassword, validatePasswordStrength, mapRowToUser } from './authService';
 
@@ -169,3 +169,4 @@ export async function getUserSubsidiaryAccess(userId: string): Promise<UserSubsi
     grantedBy: row.grantedBy ?? '',
   }));
 }
+
