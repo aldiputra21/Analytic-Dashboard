@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireCRMPermission, canAccessOpportunity } from '../../middleware/crmRbac';
 import { logCreate, logUpdate, logTransition } from '../../helpers/crmAuditLog';
 import {
@@ -16,24 +15,28 @@ import {
   isOpportunityStale,
   PIPELINE_STAGES,
 } from '../../services/crm/pipelineEngine';
+import { db } from '../../db/connection';
+import {
+  opportunities,
+  customers,
+  opportunityValueHistory,
+  stageTransitions,
+} from '../../db/schema/crm';
+import { eq, desc, sql, and } from 'drizzle-orm';
 
 // ============================================================
 // Opportunity & Pipeline Routes
 // Requirements: 2.1–2.10
 // ============================================================
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-export function createOpportunityRouter(db: Database.Database): Router {
+export function createOpportunityRouter(): Router {
   const router = Router();
 
   // POST /api/crm/opportunities - Create new opportunity
   router.post(
     '/',
     requireCRMPermission('crm:write:lead', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
       const body = req.body as CreateOpportunityInput;
 
@@ -41,7 +44,7 @@ export function createOpportunityRouter(db: Database.Database): Router {
       if (!body.name?.trim()) errors.name = ['Nama opportunity wajib diisi'];
       if (!body.customerId?.trim()) errors.customerId = ['Customer wajib dipilih'];
       if (!body.assignedTo?.trim()) errors.assignedTo = ['Sales Executive wajib dipilih'];
-      if (!body.companyId?.trim()) errors.companyId = ['Company ID wajib diisi'];
+      if (!body.corporateId?.trim()) errors.corporateId = ['Corporate ID wajib diisi'];
 
       if (Object.keys(errors).length > 0) {
         res.status(400).json({
@@ -51,9 +54,11 @@ export function createOpportunityRouter(db: Database.Database): Router {
       }
 
       // Validate customer exists
-      const customer = db
-        .prepare('SELECT id FROM crm_customers WHERE id = ?')
-        .get(body.customerId);
+      const [customer] = await db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(eq(customers.id, body.customerId))
+        .limit(1);
       if (!customer) {
         res.status(404).json({
           error: { code: 'NOT_FOUND', message: 'Pelanggan tidak ditemukan' },
@@ -61,52 +66,48 @@ export function createOpportunityRouter(db: Database.Database): Router {
         return;
       }
 
-      const opportunityId = generateId('OPP');
       const probability = STAGE_PROBABILITY['Lead'];
 
-      db.prepare(
-        `INSERT INTO crm_opportunities 
-         (id, name, customer_id, stage, status, estimated_value, probability, assigned_to, 
-          company_id, description, tender_name, tender_estimated_value, tender_announcement_date, created_by)
-         VALUES (?, ?, ?, 'Lead', 'Active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        opportunityId,
-        body.name.trim(),
-        body.customerId,
-        body.estimatedValue ?? null,
+      const [created] = await db.insert(opportunities).values({
+        name: body.name.trim(),
+        customerId: body.customerId,
+        corporateId: body.corporateId,
+        stage: 'Lead',
+        status: 'Active',
+        estimatedValue: body.estimatedValue ? String(body.estimatedValue) : null,
         probability,
-        body.assignedTo,
-        body.companyId,
-        body.description ?? null,
-        body.tenderName ?? null,
-        body.tenderEstimatedValue ?? null,
-        body.tenderAnnouncementDate ?? null,
-        userId
-      );
+        assignedTo: body.assignedTo,
+        description: body.description ?? null,
+        tenderName: body.tenderName ?? null,
+        tenderEstimatedValue: body.tenderEstimatedValue ? String(body.tenderEstimatedValue) : null,
+        tenderAnnouncementDate: body.tenderAnnouncementDate ? new Date(body.tenderAnnouncementDate) : null,
+        createdBy: userId,
+      }).returning();
 
       // Record initial value history if value provided (Req 2.5)
       if (body.estimatedValue) {
-        db.prepare(
-          `INSERT INTO crm_opportunity_value_history (id, opportunity_id, old_value, new_value, changed_by)
-           VALUES (?, ?, NULL, ?, ?)`
-        ).run(generateId('VH'), opportunityId, body.estimatedValue, userId);
+        await db.insert(opportunityValueHistory).values({
+          opportunityId: created.id,
+          oldValue: null,
+          newValue: String(body.estimatedValue),
+          changedBy: userId,
+        });
       }
 
-      logCreate(db, userId, 'opportunity', opportunityId, {
+      await logCreate(userId, 'opportunity', created.id, {
         name: body.name,
         customerId: body.customerId,
         stage: 'Lead',
       });
 
-      const opp = db
-        .prepare(
-          `SELECT o.*, c.company_name FROM crm_opportunities o
-           LEFT JOIN crm_customers c ON o.customer_id = c.id
-           WHERE o.id = ?`
-        )
-        .get(opportunityId) as any;
+      const [opp] = (await db.execute(sql`
+        SELECT o.*, c.company_name FROM crm.opportunities o
+        LEFT JOIN crm.customers c ON o.customer_id = c.id
+        WHERE o.id = ${created.id}
+      `)).rows;
 
-      res.status(201).json(mapOpportunity(opp, isOpportunityStale(db, opportunityId)));
+      const stale = await isOpportunityStale(created.id);
+      res.status(201).json(mapOpportunity(opp, stale));
     }
   );
 
@@ -114,49 +115,41 @@ export function createOpportunityRouter(db: Database.Database): Router {
   router.get(
     '/',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const { stage, status, assignedTo, search } = req.query;
       const userPerms = req.crmPermissions ?? [];
 
-      let query = `
-        SELECT o.*, c.company_name,
-          (SELECT MAX(i.interaction_date) 
-           FROM crm_interactions i 
-           WHERE i.entity_id = o.id AND i.entity_type = 'opportunity') as last_activity
-        FROM crm_opportunities o
-        LEFT JOIN crm_customers c ON o.customer_id = c.id
-        WHERE 1=1
-      `;
-      const params: any[] = [];
+      const conditions = [sql`1=1`];
 
       // Sales_Executive can only see their own (Req 2.10)
       if (!userPerms.includes('crm:read:all')) {
-        query += ' AND o.assigned_to = ?';
-        params.push(req.userId);
+        conditions.push(sql`o.assigned_to = ${req.userId}`);
       } else if (assignedTo) {
-        query += ' AND o.assigned_to = ?';
-        params.push(assignedTo);
+        conditions.push(sql`o.assigned_to = ${assignedTo as string}`);
       }
 
-      if (stage) {
-        query += ' AND o.stage = ?';
-        params.push(stage);
-      }
-      if (status) {
-        query += ' AND o.status = ?';
-        params.push(status);
-      }
+      if (stage) conditions.push(sql`o.stage = ${stage as string}`);
+      if (status) conditions.push(sql`o.status = ${status as string}`);
       if (search) {
-        query += ' AND (o.name LIKE ? OR c.company_name LIKE ?)';
-        params.push(`%${search}%`, `%${search}%`);
+        const term = `%${search}%`;
+        conditions.push(sql`(o.name ILIKE ${term} OR c.company_name ILIKE ${term})`);
       }
 
-      query += ' ORDER BY o.updated_at DESC';
+      const where = sql.join(conditions, sql` AND `);
 
-      const rows = db.prepare(query).all(...params) as any[];
+      const rows = (await db.execute(sql`
+        SELECT o.*, c.company_name,
+          (SELECT MAX(i.interaction_date)
+           FROM crm.interactions i
+           WHERE i.entity_id = o.id AND i.entity_type = 'opportunity') AS last_activity
+        FROM crm.opportunities o
+        LEFT JOIN crm.customers c ON o.customer_id = c.id
+        WHERE ${where}
+        ORDER BY o.updated_at DESC
+      `)).rows as Record<string, unknown>[];
 
       res.json(
-        rows.map((r) => mapOpportunity(r, isStaleFromLastActivity(r.last_activity)))
+        rows.map((r) => mapOpportunity(r, isStaleFromLastActivity(r.last_activity as string | null)))
       );
     }
   );
@@ -165,18 +158,16 @@ export function createOpportunityRouter(db: Database.Database): Router {
   router.get(
     '/:id',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
-      const opp = db
-        .prepare(
-          `SELECT o.*, c.company_name,
-            (SELECT MAX(i.interaction_date) 
-             FROM crm_interactions i 
-             WHERE i.entity_id = o.id AND i.entity_type = 'opportunity') as last_activity
-           FROM crm_opportunities o
-           LEFT JOIN crm_customers c ON o.customer_id = c.id
-           WHERE o.id = ?`
-        )
-        .get(req.params.id) as any;
+    async (req: Request, res: Response): Promise<void> => {
+      const [opp] = (await db.execute(sql`
+        SELECT o.*, c.company_name,
+          (SELECT MAX(i.interaction_date)
+           FROM crm.interactions i
+           WHERE i.entity_id = o.id AND i.entity_type = 'opportunity') AS last_activity
+        FROM crm.opportunities o
+        LEFT JOIN crm.customers c ON o.customer_id = c.id
+        WHERE o.id = ${req.params.id}
+      `)).rows;
 
       if (!opp) {
         res.status(404).json({
@@ -185,7 +176,7 @@ export function createOpportunityRouter(db: Database.Database): Router {
         return;
       }
 
-      if (!canAccessOpportunity(req, opp.assigned_to)) {
+      if (!canAccessOpportunity(req, opp.assigned_to as string)) {
         res.status(403).json({
           error: {
             code: 'CRM_FORBIDDEN',
@@ -196,23 +187,21 @@ export function createOpportunityRouter(db: Database.Database): Router {
       }
 
       // Include value history
-      const valueHistory = db
-        .prepare(
-          `SELECT * FROM crm_opportunity_value_history 
-           WHERE opportunity_id = ? ORDER BY changed_at DESC`
-        )
-        .all(req.params.id) as any[];
+      const valueHistory = await db
+        .select()
+        .from(opportunityValueHistory)
+        .where(eq(opportunityValueHistory.opportunityId, req.params.id))
+        .orderBy(desc(opportunityValueHistory.changedAt));
 
       // Include stage transitions
-      const transitions = db
-        .prepare(
-          `SELECT * FROM crm_stage_transitions 
-           WHERE opportunity_id = ? ORDER BY transitioned_at DESC`
-        )
-        .all(req.params.id) as any[];
+      const transitions = await db
+        .select()
+        .from(stageTransitions)
+        .where(eq(stageTransitions.opportunityId, req.params.id))
+        .orderBy(desc(stageTransitions.transitionedAt));
 
       res.json({
-        ...mapOpportunity(opp, isStaleFromLastActivity(opp.last_activity)),
+        ...mapOpportunity(opp, isStaleFromLastActivity(opp.last_activity as string | null)),
         valueHistory: valueHistory.map(mapValueHistory),
         stageTransitions: transitions.map(mapTransition),
       });
@@ -223,11 +212,13 @@ export function createOpportunityRouter(db: Database.Database): Router {
   router.put(
     '/:id',
     requireCRMPermission('crm:write:opportunity:own', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
-      const opp = db
-        .prepare('SELECT * FROM crm_opportunities WHERE id = ?')
-        .get(req.params.id) as any;
+      const [opp] = await db
+        .select()
+        .from(opportunities)
+        .where(eq(opportunities.id, req.params.id))
+        .limit(1);
 
       if (!opp) {
         res.status(404).json({
@@ -236,7 +227,7 @@ export function createOpportunityRouter(db: Database.Database): Router {
         return;
       }
 
-      if (!canAccessOpportunity(req, opp.assigned_to)) {
+      if (!canAccessOpportunity(req, opp.assignedTo)) {
         res.status(403).json({
           error: {
             code: 'CRM_FORBIDDEN',
@@ -250,43 +241,41 @@ export function createOpportunityRouter(db: Database.Database): Router {
       const oldValues = { ...opp };
 
       // Track value change (Req 2.5)
-      const newValue = body.estimatedValue !== undefined ? body.estimatedValue : opp.estimated_value;
-      if (newValue !== opp.estimated_value) {
-        db.prepare(
-          `INSERT INTO crm_opportunity_value_history (id, opportunity_id, old_value, new_value, changed_by)
-           VALUES (?, ?, ?, ?, ?)`
-        ).run(generateId('VH'), req.params.id, opp.estimated_value, newValue, userId);
+      const newValue = body.estimatedValue !== undefined ? String(body.estimatedValue) : opp.estimatedValue;
+      if (newValue !== opp.estimatedValue) {
+        await db.insert(opportunityValueHistory).values({
+          opportunityId: req.params.id,
+          oldValue: opp.estimatedValue,
+          newValue: newValue!,
+          changedBy: userId,
+        });
       }
 
-      db.prepare(
-        `UPDATE crm_opportunities
-         SET name = ?, estimated_value = ?, probability = ?, assigned_to = ?,
-             description = ?, tender_name = ?, tender_estimated_value = ?,
-             tender_announcement_date = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`
-      ).run(
-        body.name?.trim() ?? opp.name,
-        newValue ?? null,
-        body.probability ?? opp.probability,
-        body.assignedTo ?? opp.assigned_to,
-        body.description !== undefined ? body.description : opp.description,
-        body.tenderName !== undefined ? body.tenderName : opp.tender_name,
-        body.tenderEstimatedValue !== undefined ? body.tenderEstimatedValue : opp.tender_estimated_value,
-        body.tenderAnnouncementDate !== undefined ? body.tenderAnnouncementDate : opp.tender_announcement_date,
-        req.params.id
-      );
+      await db.update(opportunities).set({
+        name: body.name?.trim() ?? opp.name,
+        estimatedValue: newValue ?? null,
+        probability: body.probability ?? opp.probability,
+        assignedTo: body.assignedTo ?? opp.assignedTo,
+        description: body.description !== undefined ? body.description : opp.description,
+        tenderName: body.tenderName !== undefined ? body.tenderName : opp.tenderName,
+        tenderEstimatedValue: body.tenderEstimatedValue !== undefined ? String(body.tenderEstimatedValue) : opp.tenderEstimatedValue,
+        tenderAnnouncementDate: body.tenderAnnouncementDate !== undefined
+          ? (body.tenderAnnouncementDate ? new Date(body.tenderAnnouncementDate) : null)
+          : opp.tenderAnnouncementDate,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      }).where(eq(opportunities.id, req.params.id));
 
-      logUpdate(db, userId, 'opportunity', req.params.id, oldValues, body);
+      await logUpdate(userId, 'opportunity', req.params.id, oldValues, body);
 
-      const updated = db
-        .prepare(
-          `SELECT o.*, c.company_name FROM crm_opportunities o
-           LEFT JOIN crm_customers c ON o.customer_id = c.id
-           WHERE o.id = ?`
-        )
-        .get(req.params.id) as any;
+      const [updated] = (await db.execute(sql`
+        SELECT o.*, c.company_name FROM crm.opportunities o
+        LEFT JOIN crm.customers c ON o.customer_id = c.id
+        WHERE o.id = ${req.params.id}
+      `)).rows;
 
-      res.json(mapOpportunity(updated, isOpportunityStale(db, req.params.id)));
+      const stale = await isOpportunityStale(req.params.id);
+      res.json(mapOpportunity(updated, stale));
     }
   );
 
@@ -294,13 +283,15 @@ export function createOpportunityRouter(db: Database.Database): Router {
   router.post(
     '/:id/transition',
     requireCRMPermission('crm:write:opportunity:own', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
       const body = req.body as TransitionStageInput;
 
-      const opp = db
-        .prepare('SELECT * FROM crm_opportunities WHERE id = ?')
-        .get(req.params.id) as any;
+      const [opp] = await db
+        .select()
+        .from(opportunities)
+        .where(eq(opportunities.id, req.params.id))
+        .limit(1);
 
       if (!opp) {
         res.status(404).json({
@@ -309,7 +300,7 @@ export function createOpportunityRouter(db: Database.Database): Router {
         return;
       }
 
-      if (!canAccessOpportunity(req, opp.assigned_to)) {
+      if (!canAccessOpportunity(req, opp.assignedTo)) {
         res.status(403).json({
           error: { code: 'CRM_FORBIDDEN', message: 'Akses ditolak.' },
         });
@@ -337,7 +328,7 @@ export function createOpportunityRouter(db: Database.Database): Router {
       }
 
       // Validate transition requirements (Req 2.2, 2.3)
-      const validation = validateStageTransition(db, req.params.id, body.toStage);
+      const validation = await validateStageTransition(req.params.id, body.toStage);
       if (!validation.valid) {
         res.status(422).json({
           error: {
@@ -352,36 +343,31 @@ export function createOpportunityRouter(db: Database.Database): Router {
       const fromStage = opp.stage as PipelineStage;
       const newProbability = STAGE_PROBABILITY[body.toStage];
 
-      db.prepare(
-        `UPDATE crm_opportunities
-         SET stage = ?, probability = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`
-      ).run(body.toStage, newProbability, req.params.id);
+      await db.update(opportunities).set({
+        stage: body.toStage,
+        probability: newProbability,
+        updatedAt: new Date(),
+      }).where(eq(opportunities.id, req.params.id));
 
       // Record stage transition
-      db.prepare(
-        `INSERT INTO crm_stage_transitions (id, opportunity_id, from_stage, to_stage, transitioned_by, notes)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(
-        generateId('ST'),
-        req.params.id,
+      await db.insert(stageTransitions).values({
+        opportunityId: req.params.id,
         fromStage,
-        body.toStage,
-        userId,
-        body.notes ?? null
-      );
+        toStage: body.toStage,
+        transitionedBy: userId,
+        notes: body.notes ?? null,
+      });
 
-      logTransition(db, userId, 'opportunity', req.params.id, { stage: fromStage }, { stage: body.toStage });
+      await logTransition(userId, 'opportunity', req.params.id, { stage: fromStage }, { stage: body.toStage });
 
-      const updated = db
-        .prepare(
-          `SELECT o.*, c.company_name FROM crm_opportunities o
-           LEFT JOIN crm_customers c ON o.customer_id = c.id
-           WHERE o.id = ?`
-        )
-        .get(req.params.id) as any;
+      const [updated] = (await db.execute(sql`
+        SELECT o.*, c.company_name FROM crm.opportunities o
+        LEFT JOIN crm.customers c ON o.customer_id = c.id
+        WHERE o.id = ${req.params.id}
+      `)).rows;
 
-      res.json(mapOpportunity(updated, isOpportunityStale(db, req.params.id)));
+      const stale = await isOpportunityStale(req.params.id);
+      res.json(mapOpportunity(updated, stale));
     }
   );
 
@@ -392,18 +378,18 @@ export function createOpportunityRouter(db: Database.Database): Router {
 // Pipeline Routes (Kanban, Funnel, Forecast)
 // ============================================================
 
-export function createPipelineRouter(db: Database.Database): Router {
+export function createPipelineRouter(): Router {
   const router = Router();
 
   // GET /api/crm/pipeline/kanban - Kanban board data (Req 2.7)
   router.get(
     '/kanban',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userPerms = req.crmPermissions ?? [];
-      const { assignedTo, companyId } = req.query;
+      const { assignedTo, corporateId } = req.query;
 
-      const filters: { assignedTo?: string; companyId?: string } = {};
+      const filters: { assignedTo?: string; corporateId?: string } = {};
 
       // Sales_Executive sees only their own (Req 2.10)
       if (!userPerms.includes('crm:read:all')) {
@@ -412,9 +398,9 @@ export function createPipelineRouter(db: Database.Database): Router {
         filters.assignedTo = assignedTo as string;
       }
 
-      if (companyId) filters.companyId = companyId as string;
+      if (corporateId) filters.corporateId = corporateId as string;
 
-      const columns = buildKanbanData(db, filters);
+      const columns = await buildKanbanData(filters);
       res.json(columns);
     }
   );
@@ -423,11 +409,11 @@ export function createPipelineRouter(db: Database.Database): Router {
   router.get(
     '/funnel',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userPerms = req.crmPermissions ?? [];
-      const { assignedTo, companyId } = req.query;
+      const { assignedTo, corporateId } = req.query;
 
-      const filters: { assignedTo?: string; companyId?: string } = {};
+      const filters: { assignedTo?: string; corporateId?: string } = {};
 
       if (!userPerms.includes('crm:read:all')) {
         filters.assignedTo = req.userId;
@@ -435,9 +421,9 @@ export function createPipelineRouter(db: Database.Database): Router {
         filters.assignedTo = assignedTo as string;
       }
 
-      if (companyId) filters.companyId = companyId as string;
+      if (corporateId) filters.corporateId = corporateId as string;
 
-      const funnel = buildFunnelData(db, filters);
+      const funnel = await buildFunnelData(filters);
       res.json(funnel);
     }
   );
@@ -446,11 +432,11 @@ export function createPipelineRouter(db: Database.Database): Router {
   router.get(
     '/forecast',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userPerms = req.crmPermissions ?? [];
-      const { assignedTo, companyId, period } = req.query;
+      const { assignedTo, corporateId, period } = req.query;
 
-      const filters: { assignedTo?: string; companyId?: string; period?: string } = {};
+      const filters: { assignedTo?: string; corporateId?: string; period?: string } = {};
 
       if (!userPerms.includes('crm:read:all')) {
         filters.assignedTo = req.userId;
@@ -458,10 +444,10 @@ export function createPipelineRouter(db: Database.Database): Router {
         filters.assignedTo = assignedTo as string;
       }
 
-      if (companyId) filters.companyId = companyId as string;
+      if (corporateId) filters.corporateId = corporateId as string;
       if (period) filters.period = period as string;
 
-      const forecast = calculateWeightedForecast(db, filters);
+      const forecast = await calculateWeightedForecast(filters);
       res.json(forecast);
     }
   );
@@ -477,48 +463,48 @@ function mapOpportunity(row: any, isStale: boolean) {
   return {
     id: row.id,
     name: row.name,
-    customerId: row.customer_id,
-    customerName: row.company_name ?? null,
+    customerId: row.customerId ?? row.customer_id,
+    customerName: row.customerName ?? row.company_name ?? null,
     stage: row.stage,
     status: row.status,
-    estimatedValue: row.estimated_value,
+    estimatedValue: row.estimatedValue ?? row.estimated_value,
     probability: row.probability,
-    assignedTo: row.assigned_to,
-    companyId: row.company_id,
+    assignedTo: row.assignedTo ?? row.assigned_to,
+    corporateId: row.corporateId ?? row.corporate_id,
     description: row.description,
-    tenderName: row.tender_name,
-    tenderEstimatedValue: row.tender_estimated_value,
-    tenderAnnouncementDate: row.tender_announcement_date,
-    closeReason: row.close_reason,
-    closeCategory: row.close_category,
-    closedAt: row.closed_at,
-    closedBy: row.closed_by,
+    tenderName: row.tenderName ?? row.tender_name,
+    tenderEstimatedValue: row.tenderEstimatedValue ?? row.tender_estimated_value,
+    tenderAnnouncementDate: row.tenderAnnouncementDate ?? row.tender_announcement_date,
+    closeReason: row.closeReason ?? row.close_reason,
+    closeCategory: row.closeCategory ?? row.close_category,
+    closedAt: row.closedAt ?? row.closed_at,
+    closedBy: row.closedBy ?? row.closed_by,
     isStale,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdBy: row.createdBy ?? row.created_by,
+    createdAt: row.createdAt ?? row.created_at,
+    updatedAt: row.updatedAt ?? row.updated_at,
   };
 }
 
 function mapValueHistory(row: any) {
   return {
     id: row.id,
-    opportunityId: row.opportunity_id,
-    oldValue: row.old_value,
-    newValue: row.new_value,
-    changedBy: row.changed_by,
-    changedAt: row.changed_at,
+    opportunityId: row.opportunityId ?? row.opportunity_id,
+    oldValue: row.oldValue ?? row.old_value,
+    newValue: row.newValue ?? row.new_value,
+    changedBy: row.changedBy ?? row.changed_by,
+    changedAt: row.changedAt ?? row.changed_at,
   };
 }
 
 function mapTransition(row: any) {
   return {
     id: row.id,
-    opportunityId: row.opportunity_id,
-    fromStage: row.from_stage,
-    toStage: row.to_stage,
-    transitionedBy: row.transitioned_by,
-    transitionedAt: row.transitioned_at,
+    opportunityId: row.opportunityId ?? row.opportunity_id,
+    fromStage: row.fromStage ?? row.from_stage,
+    toStage: row.toStage ?? row.to_stage,
+    transitionedBy: row.transitionedBy ?? row.transitioned_by,
+    transitionedAt: row.transitionedAt ?? row.transitioned_at,
     notes: row.notes,
   };
 }

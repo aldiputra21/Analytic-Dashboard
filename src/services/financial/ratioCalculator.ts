@@ -1,18 +1,12 @@
 // Ratio Calculation Engine
-// Requirements: 2.3, 3.1 - 3.10
+// Pure calculation functions — ratios are now computed by database views (v_financial_ratios).
+// This module retained for in-memory calculations, health score, and backward compatibility.
 
-import Database from 'better-sqlite3';
 import { FinancialData } from '../../types/financial/financialData';
 import { CalculatedRatios, RatioName } from '../../types/financial/ratio';
-import { Threshold } from '../../types/financial/threshold';
-
-function generateId(): string {
-  return `rat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
 
 /**
  * Safely divides two numbers. Returns null if denominator is zero.
- * Requirements: 3.10
  */
 function safeDivide(numerator: number, denominator: number, ratioName: string): number | null {
   if (denominator === 0) {
@@ -38,9 +32,8 @@ const HEALTH_WEIGHTS: Record<RatioName, number> = {
   dscr:         0.05,
 };
 
-// Scoring thresholds for each ratio (score 0-100 per ratio)
-function scoreRatio(ratioName: RatioName, value: number | null): number {
-  if (value === null) return 50; // neutral score for null
+export function scoreRatio(ratioName: RatioName, value: number | null): number {
+  if (value === null) return 50;
 
   switch (ratioName) {
     case 'roa':
@@ -95,7 +88,6 @@ function scoreRatio(ratioName: RatioName, value: number | null): number {
 
 /**
  * Calculates the weighted health score (0-100) from all ratios.
- * Requirements: 2.3
  */
 export function calculateHealthScore(ratios: Omit<CalculatedRatios, 'id' | 'financialDataId' | 'subsidiaryId' | 'healthScore' | 'calculatedAt'>): number {
   let totalWeight = 0;
@@ -112,118 +104,52 @@ export function calculateHealthScore(ratios: Omit<CalculatedRatios, 'id' | 'fina
 }
 
 /**
- * Calculates all 9 financial ratios from financial data.
- * Requirements: 3.1 - 3.10
+ * Calculates all 9 financial ratios from financial data (in-memory).
  */
 export function calculateRatios(data: FinancialData): Omit<CalculatedRatios, 'id' | 'financialDataId' | 'subsidiaryId' | 'calculatedAt'> {
-  // ROA = (Net Profit / Total Assets) × 100 (Req 3.1)
   const roa = safeDivide(data.netProfit, data.totalAssets, 'roa');
   const roaPct = roa !== null ? roa * 100 : null;
 
-  // ROE = (Net Profit / Total Equity) × 100 (Req 3.2)
   const roe = safeDivide(data.netProfit, data.totalEquity, 'roe');
   const roePct = roe !== null ? roe * 100 : null;
 
-  // NPM = (Net Profit / Revenue) × 100 (Req 3.3)
   const npm = safeDivide(data.netProfit, data.revenue, 'npm');
   const npmPct = npm !== null ? npm * 100 : null;
 
-  // DER = Total Liabilities / Total Equity (Req 3.4)
   const der = safeDivide(data.totalLiabilities, data.totalEquity, 'der');
-
-  // Current Ratio = Current Assets / Current Liabilities (Req 3.5)
   const currentRatio = safeDivide(data.currentAssets, data.currentLiabilities, 'currentRatio');
-
-  // Quick Ratio = (Current Assets - Inventory) / Current Liabilities (Req 3.6)
   const quickRatio = safeDivide(data.currentAssets - data.inventory, data.currentLiabilities, 'quickRatio');
-
-  // Cash Ratio = Cash / Current Liabilities (Req 3.7)
   const cashRatio = safeDivide(data.cash, data.currentLiabilities, 'cashRatio');
-
-  // OCF Ratio = Operating Cash Flow / Current Liabilities (Req 3.8)
   const ocfRatio = safeDivide(data.operatingCashFlow, data.currentLiabilities, 'ocfRatio');
 
-  // DSCR = Operating Cash Flow / (Interest Expense + Short-term Debt + Current Portion LTD) (Req 3.9)
   const debtService = data.interestExpense + data.shortTermDebt + data.currentPortionLongTermDebt;
   const dscr = safeDivide(data.operatingCashFlow, debtService, 'dscr');
 
-  const ratios = {
-    roa: roaPct,
-    roe: roePct,
-    npm: npmPct,
-    der,
-    currentRatio,
-    quickRatio,
-    cashRatio,
-    ocfRatio,
-    dscr,
-  };
-
+  const ratios = { roa: roaPct, roe: roePct, npm: npmPct, der, currentRatio, quickRatio, cashRatio, ocfRatio, dscr };
   const healthScore = calculateHealthScore(ratios);
 
   return { ...ratios, healthScore };
 }
 
 /**
- * Calculates ratios and persists them to the database.
- * Requirements: 2.3
+ * Maps a view row (v_financial_ratios) to CalculatedRatios.
  */
-export function calculateAndStoreRatios(
-  db: Database.Database,
-  data: FinancialData
-): CalculatedRatios {
-  const ratios = calculateRatios(data);
-  const id = generateId();
-  const now = new Date().toISOString();
-
-  // Upsert: replace if already exists for this financial_data_id
-  db.prepare(`
-    INSERT INTO frs_calculated_ratios
-      (id, financial_data_id, subsidiary_id, roa, roe, npm, der,
-       current_ratio, quick_ratio, cash_ratio, ocf_ratio, dscr, health_score, calculated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(financial_data_id) DO UPDATE SET
-      roa = excluded.roa, roe = excluded.roe, npm = excluded.npm, der = excluded.der,
-      current_ratio = excluded.current_ratio, quick_ratio = excluded.quick_ratio,
-      cash_ratio = excluded.cash_ratio, ocf_ratio = excluded.ocf_ratio,
-      dscr = excluded.dscr, health_score = excluded.health_score,
-      calculated_at = excluded.calculated_at
-  `).run(
-    id,
-    data.id,
-    data.subsidiaryId,
-    ratios.roa,
-    ratios.roe,
-    ratios.npm,
-    ratios.der,
-    ratios.currentRatio,
-    ratios.quickRatio,
-    ratios.cashRatio,
-    ratios.ocfRatio,
-    ratios.dscr,
-    ratios.healthScore,
-    now,
-  );
-
-  const row = db.prepare('SELECT * FROM frs_calculated_ratios WHERE financial_data_id = ?').get(data.id) as any;
-  return mapRowToRatios(row);
-}
-
-export function mapRowToRatios(row: any): CalculatedRatios {
+export function mapRowToRatios(row: Record<string, unknown>): CalculatedRatios {
+  const n = (v: unknown) => (v != null ? parseFloat(String(v)) : null);
   return {
-    id: row.id,
-    financialDataId: row.financial_data_id,
-    subsidiaryId: row.subsidiary_id,
-    roa: row.roa ?? null,
-    roe: row.roe ?? null,
-    npm: row.npm ?? null,
-    der: row.der ?? null,
-    currentRatio: row.current_ratio ?? null,
-    quickRatio: row.quick_ratio ?? null,
-    cashRatio: row.cash_ratio ?? null,
-    ocfRatio: row.ocf_ratio ?? null,
-    dscr: row.dscr ?? null,
-    healthScore: row.health_score,
-    calculatedAt: new Date(row.calculated_at),
+    id: String(row.id ?? ''),
+    financialDataId: '',
+    subsidiaryId: String(row.corporate_id ?? row.corporateId ?? ''),
+    roa: n(row.roa),
+    roe: n(row.roe),
+    npm: n(row.npm),
+    der: n(row.der),
+    currentRatio: n(row.current_ratio ?? row.currentRatio),
+    quickRatio: n(row.quick_ratio ?? row.quickRatio),
+    cashRatio: n(row.cash_ratio ?? row.cashRatio),
+    ocfRatio: n(row.ocf_ratio ?? row.ocfRatio),
+    dscr: n(row.dscr),
+    healthScore: n(row.health_score ?? row.healthScore) ?? 0,
+    calculatedAt: row.calculated_at instanceof Date ? row.calculated_at : new Date(),
   };
 }

@@ -1,15 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
-import Database from 'better-sqlite3';
+import { sql } from 'drizzle-orm';
+import { db } from '../db/connection';
 import { CRMRole, CRM_ROLE_PERMISSIONS } from '../types/crm';
 
 // ============================================================
 // CRM RBAC Middleware
-// Extends the existing MAFINDA RBAC system to support CRM roles:
-// Sales_Manager, Sales_Executive, BD_Manager
-// Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 9.8
+// Drizzle ORM PostgreSQL implementation — uses public.user_corporate_accesses + roles.
 // ============================================================
 
-// Extend Express Request to include CRM context
 declare global {
   namespace Express {
     interface Request {
@@ -22,33 +20,32 @@ declare global {
 }
 
 /**
- * Loads CRM roles for the authenticated user from the database.
- * Attaches crmRoles and crmPermissions to the request object.
+ * Loads CRM roles for the authenticated user from user_corporate_accesses + roles.
  */
-export function loadCRMRoles(db: Database.Database) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    // userId must be set by the existing auth middleware
+export function loadCRMRoles() {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.userId) {
       next();
       return;
     }
 
     try {
-      const rows = db
-        .prepare('SELECT crm_role FROM crm_user_roles WHERE user_id = ?')
-        .all(req.userId) as { crm_role: CRMRole }[];
+      const rows = (await db.execute(sql`
+        SELECT DISTINCT r.name AS role_name
+        FROM public.user_corporate_accesses uca
+        JOIN public.roles r ON uca.role_id = r.id
+        WHERE uca.user_id = ${req.userId} AND r.module = 'crm'
+      `)).rows as { role_name: string }[];
 
-      const crmRoles = rows.map((r) => r.crm_role);
+      const crmRoles = rows.map((r) => r.role_name as CRMRole);
       req.crmRoles = crmRoles;
 
-      // Aggregate all permissions from all CRM roles
       const permissionSet = new Set<string>();
       for (const role of crmRoles) {
         const perms = CRM_ROLE_PERMISSIONS[role] ?? [];
         perms.forEach((p) => permissionSet.add(p));
       }
 
-      // Owner and BOD (existing MAFINDA roles) get read-only CRM access (Req 9.5)
       if (req.userRole === 'ADMIN' || req.userRole === 'OWNER' || req.userRole === 'BOD') {
         permissionSet.add('crm:read:all');
       }
@@ -64,24 +61,17 @@ export function loadCRMRoles(db: Database.Database) {
 
 /**
  * Middleware factory: requires the user to have at least one of the given CRM permissions.
- * Returns 403 if the user lacks the required permission.
- * Requirements: 9.2, 9.3, 9.4, 9.7
  */
 export function requireCRMPermission(...permissions: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const userPerms = req.crmPermissions ?? [];
 
-    const hasPermission = permissions.some((p) => userPerms.includes(p));
-
-    if (!hasPermission) {
+    if (!permissions.some((p) => userPerms.includes(p))) {
       res.status(403).json({
         error: {
           code: 'CRM_FORBIDDEN',
           message: `Akses ditolak. Diperlukan salah satu izin: ${permissions.join(', ')}`,
-          details: {
-            required: permissions,
-            userPermissions: userPerms,
-          },
+          details: { required: permissions, userPermissions: userPerms },
         },
       });
       return;
@@ -93,23 +83,17 @@ export function requireCRMPermission(...permissions: string[]) {
 
 /**
  * Middleware factory: requires the user to have at least one of the given CRM roles.
- * Returns 403 if the user lacks the required role.
  */
 export function requireCRMRole(...roles: CRMRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const userRoles = req.crmRoles ?? [];
 
-    const hasRole = roles.some((r) => userRoles.includes(r));
-
-    if (!hasRole) {
+    if (!roles.some((r) => userRoles.includes(r))) {
       res.status(403).json({
         error: {
           code: 'CRM_ROLE_REQUIRED',
           message: `Akses ditolak. Diperlukan salah satu role CRM: ${roles.join(', ')}`,
-          details: {
-            required: roles,
-            userRoles,
-          },
+          details: { required: roles, userRoles },
         },
       });
       return;
@@ -121,31 +105,16 @@ export function requireCRMRole(...roles: CRMRole[]) {
 
 /**
  * Checks if the current user can access a specific opportunity.
- * Sales_Executive can only access opportunities assigned to them.
- * Sales_Manager and BD_Manager can access all opportunities.
- * Requirements: 2.10, 9.3
  */
 export function canAccessOpportunity(
   req: Request,
-  assignedTo: string
+  assignedTo: string,
 ): boolean {
-  const userRoles = req.crmRoles ?? [];
   const userPerms = req.crmPermissions ?? [];
+  const userRoles = req.crmRoles ?? [];
 
-  // Sales_Manager and BD_Manager can read all
-  if (userPerms.includes('crm:read:all')) {
-    return true;
-  }
-
-  // Sales_Executive can only access their own
-  if (userRoles.includes('Sales_Executive')) {
-    return req.userId === assignedTo;
-  }
-
-  // Owner/BOD with read:all
-  if (userPerms.includes('crm:read:all')) {
-    return true;
-  }
+  if (userPerms.includes('crm:read:all')) return true;
+  if (userRoles.includes('Sales_Executive')) return req.userId === assignedTo;
 
   return false;
 }

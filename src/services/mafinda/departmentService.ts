@@ -1,15 +1,22 @@
 // Department Service — MAFINDA Dashboard Enhancement
-// Requirements: 7.1, 7.5, 7.9
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
+import { eq, and, ne, asc } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { departments, projects } from '../../db/schema';
 
 export interface Department {
   id: string;
+  corporateId: string;
   name: string;
+  code: string;
   description?: string;
+  headName?: string;
   isActive: boolean;
+  createdBy: string;
   createdAt: string;
-  updatedAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 export interface ActiveProject {
@@ -34,122 +41,134 @@ export class NotFoundError extends Error {
   }
 }
 
-function generateId(): string {
-  return `dept_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function mapRow(row: any): Department {
+function mapRow(row: typeof departments.$inferSelect): Department {
   return {
     id: row.id,
+    corporateId: row.corporateId,
     name: row.name,
+    code: row.code,
     description: row.description ?? undefined,
-    isActive: Boolean(row.is_active),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    headName: row.headName ?? undefined,
+    isActive: row.isActive,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    updatedBy: row.updatedBy ?? undefined,
+    updatedAt: row.updatedAt?.toISOString(),
   };
 }
 
-/** Returns all departments ordered by name. */
-export function getAllDepartments(db: Database.Database): Department[] {
-  const rows = db.prepare('SELECT * FROM mafinda_departments ORDER BY name ASC').all() as any[];
+/** Returns all departments for a corporate, ordered by name. */
+export async function getAllDepartments(corporateId: string): Promise<Department[]> {
+  const rows = await db.select().from(departments)
+    .where(eq(departments.corporateId, corporateId))
+    .orderBy(asc(departments.name));
   return rows.map(mapRow);
 }
 
 /** Returns a single department by id, or null if not found. */
-export function getDepartmentById(db: Database.Database, id: string): Department | null {
-  const row = db.prepare('SELECT * FROM mafinda_departments WHERE id = ?').get(id) as any;
+export async function getDepartmentById(id: string): Promise<Department | null> {
+  const [row] = await db.select().from(departments)
+    .where(eq(departments.id, id))
+    .limit(1);
   return row ? mapRow(row) : null;
 }
 
 /**
  * Creates a new department.
- * Throws ConflictError (409) if a department with the same name already exists.
- * Requirements: 7.1, 7.9
+ * Throws ConflictError if code already exists in the same corporate.
  */
-export function createDepartment(
-  db: Database.Database,
-  data: { name: string; description?: string }
-): Department {
-  const existing = db
-    .prepare('SELECT id FROM mafinda_departments WHERE name = ?')
-    .get(data.name) as any;
+export async function createDepartment(
+  data: { corporateId: string; name: string; code: string; description?: string; headName?: string },
+  createdBy: string,
+): Promise<Department> {
+  const [existing] = await db.select({ id: departments.id }).from(departments)
+    .where(and(eq(departments.corporateId, data.corporateId), eq(departments.code, data.code)))
+    .limit(1);
 
   if (existing) {
-    throw new ConflictError(`Nama departemen "${data.name}" sudah digunakan`);
+    throw new ConflictError(`Kode departemen "${data.code}" sudah digunakan`);
   }
 
-  const id = generateId();
-  const now = new Date().toISOString();
+  const [inserted] = await db.insert(departments).values({
+    corporateId: data.corporateId,
+    name: data.name,
+    code: data.code,
+    description: data.description,
+    headName: data.headName,
+    createdBy,
+  }).returning();
 
-  db.prepare(`
-    INSERT INTO mafinda_departments (id, name, description, is_active, created_at, updated_at)
-    VALUES (?, ?, ?, 1, ?, ?)
-  `).run(id, data.name, data.description ?? null, now, now);
-
-  return mapRow(db.prepare('SELECT * FROM mafinda_departments WHERE id = ?').get(id));
+  return mapRow(inserted);
 }
 
 /**
  * Updates an existing department.
- * Throws NotFoundError (404) if not found.
- * Throws ConflictError (409) if the new name conflicts with another department.
- * Requirements: 7.1
+ * Throws NotFoundError if not found.
+ * Throws ConflictError if the new code conflicts within the same corporate.
  */
-export function updateDepartment(
-  db: Database.Database,
+export async function updateDepartment(
   id: string,
-  data: { name?: string; description?: string; isActive?: boolean }
-): Department {
-  const existing = db.prepare('SELECT * FROM mafinda_departments WHERE id = ?').get(id) as any;
+  data: { name?: string; code?: string; description?: string; headName?: string; isActive?: boolean },
+  updatedBy: string,
+): Promise<Department> {
+  const [existing] = await db.select().from(departments)
+    .where(eq(departments.id, id))
+    .limit(1);
   if (!existing) throw new NotFoundError('Departemen tidak ditemukan');
 
-  if (data.name && data.name !== existing.name) {
-    const conflict = db
-      .prepare('SELECT id FROM mafinda_departments WHERE name = ? AND id != ?')
-      .get(data.name, id) as any;
-    if (conflict) throw new ConflictError(`Nama departemen "${data.name}" sudah digunakan`);
+  if (data.code && data.code !== existing.code) {
+    const [conflict] = await db.select({ id: departments.id }).from(departments)
+      .where(and(
+        eq(departments.corporateId, existing.corporateId),
+        eq(departments.code, data.code),
+        ne(departments.id, id),
+      ))
+      .limit(1);
+    if (conflict) throw new ConflictError(`Kode departemen "${data.code}" sudah digunakan`);
   }
 
-  const name = data.name ?? existing.name;
-  const description = data.description !== undefined ? data.description : existing.description;
-  const isActive = data.isActive !== undefined ? (data.isActive ? 1 : 0) : existing.is_active;
-  const now = new Date().toISOString();
+  const [updated] = await db.update(departments).set({
+    name: data.name ?? existing.name,
+    code: data.code ?? existing.code,
+    description: data.description !== undefined ? data.description : existing.description,
+    headName: data.headName !== undefined ? data.headName : existing.headName,
+    isActive: data.isActive !== undefined ? data.isActive : existing.isActive,
+    updatedBy,
+    updatedAt: new Date(),
+  }).where(eq(departments.id, id)).returning();
 
-  db.prepare(`
-    UPDATE mafinda_departments
-    SET name = ?, description = ?, is_active = ?, updated_at = ?
-    WHERE id = ?
-  `).run(name, description, isActive, now, id);
-
-  return mapRow(db.prepare('SELECT * FROM mafinda_departments WHERE id = ?').get(id));
+  return mapRow(updated);
 }
 
 /**
  * Deletes a department by id.
  * Returns the list of active projects that would be affected.
- * Throws NotFoundError (404) if not found.
- * Requirements: 7.1, 7.5
+ * Throws NotFoundError if not found.
  */
-export function deleteDepartment(
-  db: Database.Database,
-  id: string
-): { success: boolean; affectedProjects: ActiveProject[] } {
-  const existing = db.prepare('SELECT * FROM mafinda_departments WHERE id = ?').get(id) as any;
+export async function deleteDepartment(
+  id: string,
+): Promise<{ success: boolean; affectedProjects: ActiveProject[] }> {
+  const [existing] = await db.select().from(departments)
+    .where(eq(departments.id, id))
+    .limit(1);
   if (!existing) throw new NotFoundError('Departemen tidak ditemukan');
 
-  const affectedRows = db
-    .prepare('SELECT id, name, department_id FROM mafinda_projects WHERE department_id = ? AND is_active = 1')
-    .all(id) as any[];
+  const affectedRows = await db.select({
+    id: projects.id,
+    name: projects.name,
+    departmentId: projects.departmentId,
+  }).from(projects)
+    .where(and(eq(projects.departmentId, id), eq(projects.isActive, true)));
 
   const affectedProjects: ActiveProject[] = affectedRows.map((r) => ({
     id: r.id,
     name: r.name,
-    departmentId: r.department_id,
+    departmentId: r.departmentId,
   }));
 
   // Remove child projects first to satisfy FK constraint
-  db.prepare('DELETE FROM mafinda_projects WHERE department_id = ?').run(id);
-  db.prepare('DELETE FROM mafinda_departments WHERE id = ?').run(id);
+  await db.delete(projects).where(eq(projects.departmentId, id));
+  await db.delete(departments).where(eq(departments.id, id));
 
   return { success: true, affectedProjects };
 }

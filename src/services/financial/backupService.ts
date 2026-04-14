@@ -1,14 +1,18 @@
 // Backup and Restore Service
-// Requirements: 14.1, 14.3, 14.6, 14.8
+// PostgreSQL implementation — Neon Cloud manages automated backups.
+// This module provides manual backup/restore via pg_dump/pg_restore
+// and audit-logging of backup operations.
 
-import Database from 'better-sqlite3';
+import { sql } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { auditLogs } from '../../db/schema';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 
+const execAsync = promisify(exec);
 const BACKUP_DIR = process.env.BACKUP_LOCATION ?? './backups';
-const ENCRYPTION_KEY_HEX = process.env.BACKUP_ENCRYPTION_KEY ?? '';
-const ALGORITHM = 'aes-256-cbc';
 
 export interface BackupResult {
   success: boolean;
@@ -24,107 +28,60 @@ export interface RestoreResult {
 }
 
 /**
- * Derives a 32-byte key from the configured encryption key.
+ * Performs a PostgreSQL backup using pg_dump.
+ * Requires pg_dump to be available in PATH and DATABASE_URL env var.
  */
-function getEncryptionKey(): Buffer {
-  if (ENCRYPTION_KEY_HEX.length >= 64) {
-    return Buffer.from(ENCRYPTION_KEY_HEX.slice(0, 64), 'hex');
-  }
-  // Derive key using SHA-256 if not a proper hex key
-  return crypto.createHash('sha256').update(ENCRYPTION_KEY_HEX || 'default-backup-key').digest();
-}
-
-/**
- * Encrypts a buffer using AES-256-CBC.
- * Requirements: 14.3
- */
-function encryptBuffer(data: Buffer): Buffer {
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
-  // Prepend IV to encrypted data
-  return Buffer.concat([iv, encrypted]);
-}
-
-/**
- * Decrypts a buffer using AES-256-CBC.
- * Requirements: 14.3
- */
-function decryptBuffer(data: Buffer): Buffer {
-  const key = getEncryptionKey();
-  const iv = data.slice(0, 16);
-  const encrypted = data.slice(16);
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  return Buffer.concat([decipher.update(encrypted), decipher.final()]);
-}
-
-/**
- * Performs a backup of the SQLite database with AES-256 encryption.
- * Requirements: 14.1, 14.3
- */
-export async function backupDatabase(
-  db: Database.Database,
-  dbPath: string
-): Promise<BackupResult> {
+export async function backupDatabase(): Promise<BackupResult> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupFileName = `frs-backup-${timestamp}.db.enc`;
+  const backupFileName = `cfd-backup-${timestamp}.sql.gz`;
 
   try {
-    // Ensure backup directory exists
     if (!fs.existsSync(BACKUP_DIR)) {
       fs.mkdirSync(BACKUP_DIR, { recursive: true });
     }
 
     const backupPath = path.join(BACKUP_DIR, backupFileName);
+    const databaseUrl = process.env.DATABASE_URL;
 
-    // Use SQLite's built-in backup API for consistency
-    await db.backup(backupPath.replace('.enc', '.tmp'));
+    if (!databaseUrl) {
+      return { success: false, error: 'DATABASE_URL not configured', timestamp: new Date().toISOString() };
+    }
 
-    // Read the temp backup and encrypt it
-    const rawData = fs.readFileSync(backupPath.replace('.enc', '.tmp'));
-    const encrypted = encryptBuffer(rawData);
-    fs.writeFileSync(backupPath, encrypted);
+    await execAsync(`pg_dump "${databaseUrl}" | gzip > "${backupPath}"`);
 
-    // Remove temp file
-    fs.unlinkSync(backupPath.replace('.enc', '.tmp'));
-
-    return {
-      success: true,
-      backupPath,
-      timestamp: new Date().toISOString(),
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err.message,
-      timestamp: new Date().toISOString(),
-    };
+    return { success: true, backupPath, timestamp: new Date().toISOString() };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message, timestamp: new Date().toISOString() };
   }
 }
 
 /**
- * Restores the database from an encrypted backup file.
- * Requirements: 14.6
+ * Restores the database from a pg_dump backup file.
+ * WARNING: This drops and recreates all objects. Use with caution.
  */
-export function restoreDatabase(
-  backupFilePath: string,
-  targetDbPath: string
-): RestoreResult {
+export async function restoreDatabase(backupFilePath: string): Promise<RestoreResult> {
   try {
     if (!fs.existsSync(backupFilePath)) {
       return { success: false, error: 'Backup file not found', timestamp: new Date().toISOString() };
     }
 
-    const encrypted = fs.readFileSync(backupFilePath);
-    const decrypted = decryptBuffer(encrypted);
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      return { success: false, error: 'DATABASE_URL not configured', timestamp: new Date().toISOString() };
+    }
 
-    // Write decrypted data to target path
-    fs.writeFileSync(targetDbPath, decrypted);
+    const isGzip = backupFilePath.endsWith('.gz');
+    const cmd = isGzip
+      ? `gunzip -c "${backupFilePath}" | psql "${databaseUrl}"`
+      : `psql "${databaseUrl}" < "${backupFilePath}"`;
+
+    await execAsync(cmd);
 
     return { success: true, timestamp: new Date().toISOString() };
-  } catch (err: any) {
-    return { success: false, error: err.message, timestamp: new Date().toISOString() };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message, timestamp: new Date().toISOString() };
   }
 }
 
@@ -136,7 +93,7 @@ export function listBackups(): Array<{ filename: string; size: number; createdAt
 
   return fs
     .readdirSync(BACKUP_DIR)
-    .filter((f) => f.endsWith('.db.enc'))
+    .filter((f) => f.endsWith('.sql.gz') || f.endsWith('.sql'))
     .map((filename) => {
       const stat = fs.statSync(path.join(BACKUP_DIR, filename));
       return { filename, size: stat.size, createdAt: stat.birthtime };
@@ -146,29 +103,25 @@ export function listBackups(): Array<{ filename: string; size: number; createdAt
 
 /**
  * Logs a backup or restore operation to the audit log.
- * Requirements: 14.8
  */
-export function logBackupOperation(
-  db: Database.Database,
+export async function logBackupOperation(
   action: 'backup' | 'restore',
   userId: string,
-  result: BackupResult | RestoreResult
-): void {
+  result: BackupResult | RestoreResult,
+): Promise<void> {
   try {
-    db.prepare(`
-      INSERT INTO frs_audit_log (id, user_id, action, entity_type, new_values, created_at)
-      VALUES (?, ?, ?, 'database_backup', ?, CURRENT_TIMESTAMP)
-    `).run(
-      `al_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    await db.insert(auditLogs).values({
       userId,
       action,
-      JSON.stringify({
+      module: 'frs',
+      entityType: 'database_backup',
+      newValues: {
         success: result.success,
         timestamp: result.timestamp,
         ...(result.success && 'backupPath' in result ? { backupPath: result.backupPath } : {}),
         ...(!result.success ? { error: result.error } : {}),
-      }),
-    );
+      },
+    });
   } catch (err) {
     console.error('[Backup] Failed to log operation:', err);
   }

@@ -91,7 +91,7 @@ interface PieSection {
 }
 
 function Pie3DChart({ section }: { section: PieSection }) {
-  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+  const [, setActiveIndex] = useState<number | undefined>(undefined);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -110,7 +110,6 @@ function Pie3DChart({ section }: { section: PieSection }) {
               outerRadius={88}
               innerRadius={0}
               dataKey="value"
-              activeIndex={activeIndex}
               activeShape={render3DActiveShape}
               shape={render3DShape}
               onMouseEnter={(_, i) => setActiveIndex(i)}

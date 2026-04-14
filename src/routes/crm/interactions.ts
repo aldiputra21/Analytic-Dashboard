@@ -1,26 +1,24 @@
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireCRMPermission } from '../../middleware/crmRbac';
 import { logCreate } from '../../helpers/crmAuditLog';
 import { CreateInteractionInput } from '../../types/crm';
+import { db } from '../../db/connection';
+import { interactions, customers, opportunities } from '../../db/schema/crm';
+import { eq, desc, and, sql } from 'drizzle-orm';
 
 // ============================================================
 // Interactions Routes
 // Requirements: 1.6, 1.7
 // ============================================================
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-export function createInteractionRouter(db: Database.Database): Router {
+export function createInteractionRouter(): Router {
   const router = Router();
 
   // POST /api/crm/interactions - Log a new interaction
   router.post(
     '/',
     requireCRMPermission('crm:write:interaction', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
       const body = req.body as CreateInteractionInput;
 
@@ -45,9 +43,11 @@ export function createInteractionRouter(db: Database.Database): Router {
 
       // Validate entity exists
       if (body.entityType === 'customer') {
-        const entity = db
-          .prepare('SELECT id FROM crm_customers WHERE id = ?')
-          .get(body.entityId);
+        const [entity] = await db
+          .select({ id: customers.id })
+          .from(customers)
+          .where(eq(customers.id, body.entityId))
+          .limit(1);
         if (!entity) {
           res.status(404).json({
             error: { code: 'NOT_FOUND', message: 'Pelanggan tidak ditemukan' },
@@ -55,9 +55,11 @@ export function createInteractionRouter(db: Database.Database): Router {
           return;
         }
       } else if (body.entityType === 'opportunity') {
-        const entity = db
-          .prepare('SELECT id FROM crm_opportunities WHERE id = ?')
-          .get(body.entityId);
+        const [entity] = await db
+          .select({ id: opportunities.id })
+          .from(opportunities)
+          .where(eq(opportunities.id, body.entityId))
+          .limit(1);
         if (!entity) {
           res.status(404).json({
             error: { code: 'NOT_FOUND', message: 'Opportunity tidak ditemukan' },
@@ -66,36 +68,25 @@ export function createInteractionRouter(db: Database.Database): Router {
         }
       }
 
-      const interactionId = generateId('INT');
+      const [created] = await db.insert(interactions).values({
+        entityId: body.entityId.trim(),
+        entityType: body.entityType,
+        type: body.type,
+        interactionDate: new Date(body.interactionDate),
+        summary: body.summary.trim(),
+        nextAction: body.nextAction ?? null,
+        nextActionDate: body.nextActionDate ? new Date(body.nextActionDate) : null,
+        createdBy: userId,
+      }).returning();
 
-      db.prepare(
-        `INSERT INTO crm_interactions 
-         (id, entity_id, entity_type, type, interaction_date, summary, next_action, next_action_date, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        interactionId,
-        body.entityId.trim(),
-        body.entityType,
-        body.type,
-        body.interactionDate,
-        body.summary.trim(),
-        body.nextAction ?? null,
-        body.nextActionDate ?? null,
-        userId
-      );
-
-      logCreate(db, userId, 'interaction', interactionId, {
+      await logCreate(userId, 'interaction', created.id, {
         entityId: body.entityId,
         entityType: body.entityType,
         type: body.type,
         interactionDate: body.interactionDate,
       });
 
-      const interaction = db
-        .prepare('SELECT * FROM crm_interactions WHERE id = ?')
-        .get(interactionId) as any;
-
-      res.status(201).json(mapInteraction(interaction));
+      res.status(201).json(created);
     }
   );
 
@@ -103,46 +94,25 @@ export function createInteractionRouter(db: Database.Database): Router {
   router.get(
     '/',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const { entityId, entityType, type } = req.query;
 
-      let query = 'SELECT * FROM crm_interactions WHERE 1=1';
-      const params: any[] = [];
+      const conditions: ReturnType<typeof sql>[] = [];
+      if (entityId) conditions.push(eq(interactions.entityId, entityId as string));
+      if (entityType) conditions.push(eq(interactions.entityType, entityType as string));
+      if (type) conditions.push(eq(interactions.type, type as string));
 
-      if (entityId) {
-        query += ' AND entity_id = ?';
-        params.push(entityId);
-      }
-      if (entityType) {
-        query += ' AND entity_type = ?';
-        params.push(entityType);
-      }
-      if (type) {
-        query += ' AND type = ?';
-        params.push(type);
-      }
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-      query += ' ORDER BY interaction_date DESC, created_at DESC';
+      const rows = await db
+        .select()
+        .from(interactions)
+        .where(whereClause)
+        .orderBy(desc(interactions.interactionDate), desc(interactions.createdAt));
 
-      const interactions = db.prepare(query).all(...params) as any[];
-      res.json(interactions.map(mapInteraction));
+      res.json(rows);
     }
   );
 
   return router;
-}
-
-function mapInteraction(row: any) {
-  return {
-    id: row.id,
-    entityId: row.entity_id,
-    entityType: row.entity_type,
-    type: row.type,
-    interactionDate: row.interaction_date,
-    summary: row.summary,
-    nextAction: row.next_action,
-    nextActionDate: row.next_action_date,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-  };
 }

@@ -1,28 +1,17 @@
-import Database from 'better-sqlite3';
+import { db } from '../db/connection';
+import { auditLogs } from '../db/schema';
 import { AuditAction, CRMAuditLog } from '../types/crm';
+import { eq, and, desc } from 'drizzle-orm';
 
 // ============================================================
 // CRM Audit Log Helper
-// Records all CRM operations to the crm_audit_log table.
-// Requirements: 9.6
+// Drizzle ORM PostgreSQL implementation — writes to public.audit_logs with module='crm'.
 // ============================================================
 
 /**
- * Generates a simple unique ID for audit log entries.
- * Uses timestamp + random suffix to avoid collisions.
+ * Logs a CRM operation to the audit_logs table.
  */
-function generateAuditId(): string {
-  return `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/**
- * Logs a CRM operation to the crm_audit_log table.
- *
- * @param db - The SQLite database instance
- * @param params - Audit log parameters
- */
-export function logCRMAudit(
-  db: Database.Database,
+export async function logCRMAudit(
   params: {
     userId: string;
     action: AuditAction;
@@ -30,170 +19,118 @@ export function logCRMAudit(
     entityId: string;
     oldValues?: Record<string, unknown> | null;
     newValues?: Record<string, unknown> | null;
-  }
-): void {
+  },
+): Promise<void> {
   const { userId, action, entityType, entityId, oldValues, newValues } = params;
 
   try {
-    db.prepare(
-      `INSERT INTO crm_audit_log (id, user_id, action, entity_type, entity_id, old_values, new_values)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      generateAuditId(),
+    await db.insert(auditLogs).values({
       userId,
       action,
+      module: 'crm',
       entityType,
       entityId,
-      oldValues != null ? JSON.stringify(oldValues) : null,
-      newValues != null ? JSON.stringify(newValues) : null
-    );
+      oldValues: oldValues ?? undefined,
+      newValues: newValues ?? undefined,
+    });
   } catch (err) {
-    // Audit log failures should not break the main operation, but we log the error
     console.error('[CRM Audit] Failed to write audit log entry:', err);
   }
 }
 
 /**
  * Retrieves audit log entries for a specific entity.
- *
- * @param db - The SQLite database instance
- * @param entityType - The type of entity (e.g., 'opportunity', 'contract')
- * @param entityId - The ID of the entity
- * @returns Array of audit log entries
  */
-export function getAuditLog(
-  db: Database.Database,
+export async function getAuditLog(
   entityType: string,
-  entityId: string
-): CRMAuditLog[] {
-  const rows = db
-    .prepare(
-      `SELECT * FROM crm_audit_log
-       WHERE entity_type = ? AND entity_id = ?
-       ORDER BY created_at DESC`
-    )
-    .all(entityType, entityId) as any[];
+  entityId: string,
+): Promise<CRMAuditLog[]> {
+  const rows = await db.select().from(auditLogs)
+    .where(and(
+      eq(auditLogs.module, 'crm'),
+      eq(auditLogs.entityType, entityType),
+      eq(auditLogs.entityId, entityId),
+    ))
+    .orderBy(desc(auditLogs.createdAt));
 
   return rows.map(mapRowToAuditLog);
 }
 
 /**
  * Retrieves all audit log entries for a specific user.
- *
- * @param db - The SQLite database instance
- * @param userId - The user ID
- * @param limit - Maximum number of entries to return (default: 100)
- * @returns Array of audit log entries
  */
-export function getUserAuditLog(
-  db: Database.Database,
+export async function getUserAuditLog(
   userId: string,
-  limit = 100
-): CRMAuditLog[] {
-  const rows = db
-    .prepare(
-      `SELECT * FROM crm_audit_log
-       WHERE user_id = ?
-       ORDER BY created_at DESC
-       LIMIT ?`
-    )
-    .all(userId, limit) as any[];
+  limit = 100,
+): Promise<CRMAuditLog[]> {
+  const rows = await db.select().from(auditLogs)
+    .where(and(
+      eq(auditLogs.module, 'crm'),
+      eq(auditLogs.userId, userId),
+    ))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(limit);
 
   return rows.map(mapRowToAuditLog);
 }
 
-/**
- * Maps a raw database row to a CRMAuditLog object.
- */
-function mapRowToAuditLog(row: any): CRMAuditLog {
+function mapRowToAuditLog(row: typeof auditLogs.$inferSelect): CRMAuditLog {
   return {
     id: row.id,
-    userId: row.user_id,
+    userId: row.userId,
     action: row.action as AuditAction,
-    entityType: row.entity_type,
-    entityId: row.entity_id,
-    oldValues: row.old_values ? JSON.parse(row.old_values) : undefined,
-    newValues: row.new_values ? JSON.parse(row.new_values) : undefined,
-    createdAt: new Date(row.created_at),
+    entityType: row.entityType ?? '',
+    entityId: row.entityId ?? '',
+    oldValues: row.oldValues as Record<string, unknown> | undefined,
+    newValues: row.newValues as Record<string, unknown> | undefined,
+    createdAt: row.createdAt,
   };
 }
 
-/**
- * Convenience wrapper: logs a "create" action.
- */
-export function logCreate(
-  db: Database.Database,
-  userId: string,
-  entityType: string,
-  entityId: string,
-  newValues: Record<string, unknown>
-): void {
-  logCRMAudit(db, { userId, action: 'create', entityType, entityId, newValues });
+/** Convenience wrapper: logs a "create" action. */
+export async function logCreate(
+  userId: string, entityType: string, entityId: string,
+  newValues: Record<string, unknown>,
+): Promise<void> {
+  await logCRMAudit({ userId, action: 'create', entityType, entityId, newValues });
 }
 
-/**
- * Convenience wrapper: logs an "update" action.
- */
-export function logUpdate(
-  db: Database.Database,
-  userId: string,
-  entityType: string,
-  entityId: string,
+/** Convenience wrapper: logs an "update" action. */
+export async function logUpdate(
+  userId: string, entityType: string, entityId: string,
+  oldValues: Record<string, unknown>, newValues: Record<string, unknown>,
+): Promise<void> {
+  await logCRMAudit({ userId, action: 'update', entityType, entityId, oldValues, newValues });
+}
+
+/** Convenience wrapper: logs a "delete" action. */
+export async function logDelete(
+  userId: string, entityType: string, entityId: string,
   oldValues: Record<string, unknown>,
-  newValues: Record<string, unknown>
-): void {
-  logCRMAudit(db, { userId, action: 'update', entityType, entityId, oldValues, newValues });
+): Promise<void> {
+  await logCRMAudit({ userId, action: 'delete', entityType, entityId, oldValues });
 }
 
-/**
- * Convenience wrapper: logs a "delete" action.
- */
-export function logDelete(
-  db: Database.Database,
-  userId: string,
-  entityType: string,
-  entityId: string,
-  oldValues: Record<string, unknown>
-): void {
-  logCRMAudit(db, { userId, action: 'delete', entityType, entityId, oldValues });
+/** Convenience wrapper: logs a "transition" action. */
+export async function logTransition(
+  userId: string, entityType: string, entityId: string,
+  oldValues: Record<string, unknown>, newValues: Record<string, unknown>,
+): Promise<void> {
+  await logCRMAudit({ userId, action: 'transition', entityType, entityId, oldValues, newValues });
 }
 
-/**
- * Convenience wrapper: logs a "transition" action (e.g., pipeline stage change).
- */
-export function logTransition(
-  db: Database.Database,
-  userId: string,
-  entityType: string,
-  entityId: string,
-  oldValues: Record<string, unknown>,
-  newValues: Record<string, unknown>
-): void {
-  logCRMAudit(db, { userId, action: 'transition', entityType, entityId, oldValues, newValues });
+/** Convenience wrapper: logs an "approve" action. */
+export async function logApprove(
+  userId: string, entityType: string, entityId: string,
+  newValues?: Record<string, unknown>,
+): Promise<void> {
+  await logCRMAudit({ userId, action: 'approve', entityType, entityId, newValues });
 }
 
-/**
- * Convenience wrapper: logs an "approve" action.
- */
-export function logApprove(
-  db: Database.Database,
-  userId: string,
-  entityType: string,
-  entityId: string,
-  newValues?: Record<string, unknown>
-): void {
-  logCRMAudit(db, { userId, action: 'approve', entityType, entityId, newValues });
-}
-
-/**
- * Convenience wrapper: logs a "reject" action.
- */
-export function logReject(
-  db: Database.Database,
-  userId: string,
-  entityType: string,
-  entityId: string,
-  newValues?: Record<string, unknown>
-): void {
-  logCRMAudit(db, { userId, action: 'reject', entityType, entityId, newValues });
+/** Convenience wrapper: logs a "reject" action. */
+export async function logReject(
+  userId: string, entityType: string, entityId: string,
+  newValues?: Record<string, unknown>,
+): Promise<void> {
+  await logCRMAudit({ userId, action: 'reject', entityType, entityId, newValues });
 }

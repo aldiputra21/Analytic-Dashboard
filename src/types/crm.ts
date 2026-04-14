@@ -181,7 +181,7 @@ export interface Opportunity {
   estimatedValue?: number;
   probability: number;
   assignedTo: string;
-  companyId: string;
+  corporateId: string;
   description?: string;
   tenderName?: string;
   tenderEstimatedValue?: number;
@@ -420,7 +420,7 @@ export interface CreateOpportunityInput {
   customerId: string;
   estimatedValue?: number;
   assignedTo: string;
-  companyId: string;
+  corporateId: string;
   description?: string;
   tenderName?: string;
   tenderEstimatedValue?: number;

@@ -2,19 +2,33 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Corporate Finance Dashboard (CFD)
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/15d43b3a-341c-411c-80b7-8a0dace7c254
+Full-stack financial dashboard & CRM for PT Titian Servis Indonesia. Built with React 19, Express 4, PostgreSQL (Neon), and Drizzle ORM.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js 20+, PostgreSQL database (or Neon account)
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+2. Copy `.env.example` to `.env.local` and set:
+   - `DATABASE_URL` — PostgreSQL connection string
+   - `GEMINI_API_KEY` — Gemini API key (optional, for AI features)
+   - `JWT_SECRET` — Secret for JWT tokens
+3. Push database schema:
+   ```bash
+   npx drizzle-kit push
+   ```
+4. Seed initial data:
+   ```bash
+   npx tsx init-and-seed.ts    # Core data (users, corporates, departments)
+   npx tsx seed-data.ts         # Historical financial data
+   npx tsx seed-crm.ts          # CRM demo data
+   ```
+5. Run the app:
+   ```bash
+   npm run dev
+   ```

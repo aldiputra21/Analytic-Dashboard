@@ -55,8 +55,8 @@ export interface AuditLogEntry {
 }
 
 export interface CreateAuditLogInput {
-  userId: string;
-  action: AuditLogEntry['action'];
+  userId?: string;
+  action: AuditLogEntry['action'] | 'password_reset_request' | 'password_reset_complete';
   entityType: string;
   entityId?: string;
   subsidiaryId?: string;
@@ -73,4 +73,13 @@ export interface JWTPayload {
   role: UserRole;
   iat?: number;
   exp?: number;
+}
+
+export interface ForgotPasswordInput {
+  identifier: string;
+}
+
+export interface ResetPasswordInput {
+  token: string;
+  password: string;
 }

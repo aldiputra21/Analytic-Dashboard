@@ -25,7 +25,7 @@ export function OpportunityForm({
     customerId: initialData?.customerId ?? '',
     estimatedValue: initialData?.estimatedValue,
     assignedTo: initialData?.assignedTo ?? '',
-    companyId,
+    corporateId: initialData?.corporateId ?? companyId,
     description: initialData?.description ?? '',
     tenderName: initialData?.tenderName ?? '',
     tenderEstimatedValue: initialData?.tenderEstimatedValue,

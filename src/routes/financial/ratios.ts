@@ -2,7 +2,6 @@
 // Requirements: 12.2, 12.4, 8.1, 8.2, 6.1, 6.4, 6.5, 6.6, 6.7
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireFRSAuth } from '../../middleware/frsAuth';
 import { authorize } from '../../middleware/frsRbac';
 import { mapRowToRatios } from '../../services/financial/ratioCalculator';
@@ -15,7 +14,9 @@ import {
   getIndustryBenchmarkComparison,
 } from '../../services/financial/benchmarkingService';
 import { RatioName } from '../../types/financial/ratio';
-import { PeriodType } from '../../types/financial/financialData';
+import { db } from '../../db/connection';
+import { userCorporateAccesses, corporates } from '../../db/schema/public';
+import { eq, and, sql } from 'drizzle-orm';
 
 // Simple in-memory cache with 5-minute TTL
 // Requirements: 12.4
@@ -41,17 +42,17 @@ function setCached<T>(key: string, data: T): void {
   cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-export function invalidateRatiosCache(subsidiaryId?: string): void {
-  if (subsidiaryId) {
+export function invalidateRatiosCache(corporateId?: string): void {
+  if (corporateId) {
     for (const key of cache.keys()) {
-      if (key.includes(subsidiaryId)) cache.delete(key);
+      if (key.includes(corporateId)) cache.delete(key);
     }
   } else {
     cache.clear();
   }
 }
 
-export function createRatiosRouter(db: Database.Database): Router {
+export function createRatiosRouter(): Router {
   const router = Router();
   router.use(requireFRSAuth);
 
@@ -61,10 +62,10 @@ export function createRatiosRouter(db: Database.Database): Router {
    * Implements 5-minute in-memory cache.
    * Requirements: 12.2, 12.4
    */
-  router.get('/', authorize('financial_data', 'read', db), (req: Request, res: Response) => {
-    const { subsidiaryId, periodType, startDate, endDate, limit } = req.query as Record<string, string>;
+  router.get('/', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+    const { corporateId, departmentId, startDate, endDate, limit } = req.query as Record<string, string>;
 
-    const cacheKey = `ratios:${subsidiaryId ?? 'all'}:${periodType ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}:${limit ?? ''}`;
+    const cacheKey = `ratios:${corporateId ?? 'all'}:${departmentId ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}:${limit ?? ''}`;
     const cached = getCached<any[]>(cacheKey);
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -72,60 +73,51 @@ export function createRatiosRouter(db: Database.Database): Router {
       return;
     }
 
-    let sql = `
-      SELECT cr.*, fd.period_type, fd.period_start_date, fd.period_end_date, fd.updated_at as data_updated_at
-      FROM frs_calculated_ratios cr
-      JOIN frs_financial_data fd ON cr.financial_data_id = fd.id
-      WHERE 1=1
-    `;
-    const params: any[] = [];
+    const conditions: ReturnType<typeof sql>[] = [sql`1=1`];
 
-    if (subsidiaryId) {
-      sql += ' AND cr.subsidiary_id = ?';
-      params.push(subsidiaryId);
+    if (corporateId) {
+      conditions.push(sql`corporate_id = ${corporateId}`);
+    }
+    if (departmentId) {
+      conditions.push(sql`department_id = ${departmentId}`);
     }
 
-    // subsidiary_manager: restrict to their subsidiaries
+    // subsidiary_manager: restrict to their corporates
     if (req.frsUser!.role === 'subsidiary_manager') {
-      const accessRows = db
-        .prepare('SELECT subsidiary_id FROM frs_user_subsidiary_access WHERE user_id = ?')
-        .all(req.frsUser!.userId) as any[];
+      const accessRows = await db
+        .select({ corporateId: userCorporateAccesses.corporateId })
+        .from(userCorporateAccesses)
+        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
       if (accessRows.length === 0) {
         res.json([]);
         return;
       }
-      const placeholders = accessRows.map(() => '?').join(',');
-      sql += ` AND cr.subsidiary_id IN (${placeholders})`;
-      params.push(...accessRows.map((r) => r.subsidiary_id));
+      const ids = accessRows.map((r) => r.corporateId);
+      conditions.push(sql`corporate_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`);
     }
 
-    if (periodType) {
-      sql += ' AND fd.period_type = ?';
-      params.push(periodType);
-    }
     if (startDate) {
-      sql += ' AND fd.period_start_date >= ?';
-      params.push(startDate);
+      conditions.push(sql`period >= ${startDate}`);
     }
     if (endDate) {
-      sql += ' AND fd.period_end_date <= ?';
-      params.push(endDate);
+      conditions.push(sql`period <= ${endDate}`);
     }
 
-    sql += ' ORDER BY fd.period_start_date DESC';
+    const whereClause = sql.join(conditions, sql` AND `);
+    const limitClause = limit ? sql` LIMIT ${parseInt(limit)}` : sql``;
 
-    if (limit) {
-      sql += ' LIMIT ?';
-      params.push(parseInt(limit));
-    }
+    const rows = (await db.execute(sql`
+      SELECT * FROM cfd.v_financial_ratios
+      WHERE ${whereClause}
+      ORDER BY period DESC
+      ${limitClause}
+    `)).rows as any[];
 
-    const rows = db.prepare(sql).all(...params) as any[];
-    const result = rows.map((row) => ({
+    const result = rows.map((row: any) => ({
       ...mapRowToRatios(row),
-      periodType: row.period_type,
-      periodStartDate: row.period_start_date,
-      periodEndDate: row.period_end_date,
-      dataUpdatedAt: row.data_updated_at,
+      departmentId: row.department_id,
+      corporateId: row.corporate_id,
+      period: row.period,
     }));
 
     setCached(cacheKey, result);
@@ -135,9 +127,9 @@ export function createRatiosRouter(db: Database.Database): Router {
 
   /**
    * GET /api/frs/ratios/latest
-   * Get the most recent ratio for each active subsidiary.
+   * Get the most recent ratio for each active corporate.
    */
-  router.get('/latest', authorize('financial_data', 'read', db), (req: Request, res: Response) => {
+  router.get('/latest', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
     const cacheKey = `ratios:latest:${req.frsUser!.userId}`;
     const cached = getCached<any[]>(cacheKey);
     if (cached) {
@@ -146,27 +138,24 @@ export function createRatiosRouter(db: Database.Database): Router {
       return;
     }
 
-    const sql = `
-      SELECT cr.*, fd.period_type, fd.period_start_date, fd.period_end_date, fd.updated_at as data_updated_at
-      FROM frs_calculated_ratios cr
-      JOIN frs_financial_data fd ON cr.financial_data_id = fd.id
-      JOIN subsidiaries s ON cr.subsidiary_id = s.id
-      WHERE s.is_active = 1
-        AND fd.period_start_date = (
-          SELECT MAX(fd2.period_start_date)
-          FROM frs_financial_data fd2
-          WHERE fd2.subsidiary_id = cr.subsidiary_id
+    const rows = (await db.execute(sql`
+      SELECT vr.*
+      FROM cfd.v_financial_ratios vr
+      JOIN public.corporates c ON vr.corporate_id = c.id
+      WHERE c.is_active = true
+        AND vr.period = (
+          SELECT MAX(vr2.period)
+          FROM cfd.v_financial_ratios vr2
+          WHERE vr2.corporate_id = vr.corporate_id
         )
-      ORDER BY s.name ASC
-    `;
+      ORDER BY c.name ASC
+    `)).rows as any[];
 
-    const rows = db.prepare(sql).all() as any[];
-    const result = rows.map((row) => ({
+    const result = rows.map((row: any) => ({
       ...mapRowToRatios(row),
-      periodType: row.period_type,
-      periodStartDate: row.period_start_date,
-      periodEndDate: row.period_end_date,
-      dataUpdatedAt: row.data_updated_at,
+      departmentId: row.department_id,
+      corporateId: row.corporate_id,
+      period: row.period,
     }));
 
     setCached(cacheKey, result);
@@ -180,8 +169,8 @@ export function createRatiosRouter(db: Database.Database): Router {
    * Supports time period filtering: 3m, 6m, 1y, 3y, 5y
    * Requirements: 8.1, 8.2
    */
-  router.get('/trends', authorize('financial_data', 'read', db), (req: Request, res: Response) => {
-    const { subsidiaryId, ratioName, periodType, period } = req.query as Record<string, string>;
+  router.get('/trends', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+    const { corporateId, ratioName, period } = req.query as Record<string, string>;
 
     // Resolve date range from period shorthand
     let startDate: string | undefined;
@@ -198,22 +187,26 @@ export function createRatiosRouter(db: Database.Database): Router {
       startDate = d.toISOString().split('T')[0];
     }
 
-    // Determine which subsidiaries to query
-    let subsidiaryIds: string[] = [];
-    if (subsidiaryId) {
-      subsidiaryIds = [subsidiaryId];
+    // Determine which corporates to query
+    let corporateIds: string[] = [];
+    if (corporateId) {
+      corporateIds = [corporateId];
     } else {
-      const rows = db.prepare('SELECT id FROM subsidiaries WHERE is_active = 1').all() as any[];
-      subsidiaryIds = rows.map((r) => r.id);
+      const rows = await db
+        .select({ id: corporates.id })
+        .from(corporates)
+        .where(eq(corporates.isActive, true));
+      corporateIds = rows.map((r) => r.id);
     }
 
-    // Restrict subsidiary_manager to their assigned subsidiaries
+    // Restrict subsidiary_manager to their assigned corporates
     if (req.frsUser!.role === 'subsidiary_manager') {
-      const accessRows = db
-        .prepare('SELECT subsidiary_id FROM frs_user_subsidiary_access WHERE user_id = ?')
-        .all(req.frsUser!.userId) as any[];
-      const allowed = new Set(accessRows.map((r: any) => r.subsidiary_id));
-      subsidiaryIds = subsidiaryIds.filter((id) => allowed.has(id));
+      const accessRows = await db
+        .select({ corporateId: userCorporateAccesses.corporateId })
+        .from(userCorporateAccesses)
+        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
+      const allowed = new Set(accessRows.map((r) => r.corporateId));
+      corporateIds = corporateIds.filter((id) => allowed.has(id));
     }
 
     const ratioNames: RatioName[] = ratioName
@@ -221,13 +214,11 @@ export function createRatiosRouter(db: Database.Database): Router {
       : ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
     const results: any[] = [];
-    for (const subId of subsidiaryIds) {
+    for (const corpId of corporateIds) {
       for (const rn of ratioNames) {
-        const trend = getSubsidiaryRatioTrends(
-          db,
-          subId,
+        const trend = await getSubsidiaryRatioTrends(
+          corpId,
           rn,
-          periodType as PeriodType | undefined,
           startDate,
           undefined
         );
@@ -235,9 +226,9 @@ export function createRatiosRouter(db: Database.Database): Router {
       }
 
       // Include CAGR data
-      const cagr = getSubsidiaryCAGR(db, subId);
+      const cagr = await getSubsidiaryCAGR(corpId);
       if (cagr.length > 0) {
-        results.push({ subsidiaryId: subId, type: 'cagr', data: cagr });
+        results.push({ corporateId: corpId, type: 'cagr', data: cagr });
       }
     }
 
@@ -249,10 +240,8 @@ export function createRatiosRouter(db: Database.Database): Router {
    * Returns benchmarking data: rankings, portfolio averages, gaps.
    * Requirements: 6.1, 6.4, 6.5, 6.6, 6.7
    */
-  router.get('/benchmark', authorize('financial_data', 'read', db), (req: Request, res: Response) => {
-    const { periodType, startDate, endDate } = req.query as Record<string, string>;
-
-    const cacheKey = `benchmark:${periodType ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}`;
+  router.get('/benchmark', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+    const cacheKey = `benchmark:all`;
     const cached = getCached<any>(cacheKey);
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -260,8 +249,8 @@ export function createRatiosRouter(db: Database.Database): Router {
       return;
     }
 
-    const benchmarks = calculateBenchmarks(db, periodType as PeriodType | undefined, startDate, endDate);
-    const industryComparisons = getIndustryBenchmarkComparison(db, periodType as PeriodType | undefined, startDate, endDate);
+    const benchmarks = await calculateBenchmarks();
+    const industryComparisons = await getIndustryBenchmarkComparison();
 
     const result = { benchmarks, industryComparisons };
     setCached(cacheKey, result);

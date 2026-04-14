@@ -2,7 +2,6 @@
 // Requirements: 7.1, 7.3, 7.4, 7.5, 7.7, 10.1, 10.3, 10.4, 10.5, 10.6, 10.8
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireFRSAuth } from '../../middleware/frsAuth';
 import { authorize } from '../../middleware/frsRbac';
 import { generateConsolidatedReport } from '../../services/financial/reportGenerator';
@@ -12,9 +11,12 @@ import {
   listScheduledReports,
   deleteScheduledReport,
 } from '../../services/financial/scheduledReportService';
-import { PeriodType } from '../../types/financial/financialData';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
+import { db } from '../../db/connection';
+import { userCorporateAccesses, corporates } from '../../db/schema/public';
+import { eq, and, sql as sqlTag } from 'drizzle-orm';
 
-export function createReportsRouter(db: Database.Database): Router {
+export function createReportsRouter(): Router {
   const router = Router();
   router.use(requireFRSAuth);
 
@@ -23,14 +25,14 @@ export function createReportsRouter(db: Database.Database): Router {
    * Generate a consolidated report for a given period.
    * Requirements: 7.1, 7.3, 7.4, 7.5, 7.7
    */
-  router.get('/consolidated', authorize('reports', 'read', db), (req: Request, res: Response) => {
-    const { periodType, startDate, endDate } = req.query as Record<string, string>;
+  router.get('/consolidated', authorize('reports', 'read'), async (req: Request, res: Response) => {
+    const { period } = req.query as Record<string, string>;
 
-    if (!periodType || !startDate || !endDate) {
+    if (!period) {
       res.status(400).json({
         error: {
           code: 'FRS_VALIDATION_ERROR',
-          message: 'periodType, startDate, and endDate are required',
+          message: 'period is required',
           timestamp: new Date().toISOString(),
           requestId: Math.random().toString(36).slice(2),
         },
@@ -38,12 +40,7 @@ export function createReportsRouter(db: Database.Database): Router {
       return;
     }
 
-    const report = generateConsolidatedReport(
-      db,
-      periodType as PeriodType,
-      startDate,
-      endDate
-    );
+    const report = await generateConsolidatedReport(period);
 
     res.json(report);
   });
@@ -53,8 +50,8 @@ export function createReportsRouter(db: Database.Database): Router {
    * Export financial ratio data in CSV, Excel, or PDF format.
    * Requirements: 10.1, 10.3, 10.4, 10.8
    */
-  router.get('/export', authorize('reports', 'export', db), async (req: Request, res: Response) => {
-    const { format, subsidiaryId, periodType, startDate, endDate } = req.query as Record<string, string>;
+  router.get('/export', authorize('reports', 'export'), async (req: Request, res: Response) => {
+    const { format, corporateId, startDate, endDate } = req.query as Record<string, string>;
 
     if (!format || !['csv', 'excel', 'pdf'].includes(format)) {
       res.status(400).json({
@@ -68,72 +65,64 @@ export function createReportsRouter(db: Database.Database): Router {
       return;
     }
 
-    // Access control: subsidiary_manager can only export their subsidiaries
-    let allowedSubsidiaryIds: string[] | null = null;
+    // Access control: subsidiary_manager can only export their corporates
+    let allowedCorporateIds: string[] | null = null;
     if (req.frsUser!.role === 'subsidiary_manager') {
-      const accessRows = db
-        .prepare('SELECT subsidiary_id FROM frs_user_subsidiary_access WHERE user_id = ?')
-        .all(req.frsUser!.userId) as any[];
-      allowedSubsidiaryIds = accessRows.map((r) => r.subsidiary_id);
+      const accessRows = await db
+        .select({ corporateId: userCorporateAccesses.corporateId })
+        .from(userCorporateAccesses)
+        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
+      allowedCorporateIds = accessRows.map((r) => r.corporateId);
     }
 
-    // Fetch ratio data with filters
-    let sql = `
-      SELECT cr.*, fd.period_type, fd.period_start_date, fd.period_end_date,
-             s.name as subsidiary_name
-      FROM frs_calculated_ratios cr
-      JOIN frs_financial_data fd ON cr.financial_data_id = fd.id
-      JOIN subsidiaries s ON cr.subsidiary_id = s.id
-      WHERE s.is_active = 1
-    `;
-    const params: any[] = [];
+    // Fetch ratio data from cfd.v_financial_ratios view
+    const conditions: ReturnType<typeof sqlTag>[] = [];
 
-    if (subsidiaryId) {
-      sql += ' AND cr.subsidiary_id = ?';
-      params.push(subsidiaryId);
+    if (corporateId) {
+      conditions.push(sqlTag`vr.corporate_id = ${corporateId}`);
     }
-    if (allowedSubsidiaryIds) {
-      if (allowedSubsidiaryIds.length === 0) {
+    if (allowedCorporateIds) {
+      if (allowedCorporateIds.length === 0) {
         res.json({ message: 'No data available for export' });
         return;
       }
-      const placeholders = allowedSubsidiaryIds.map(() => '?').join(',');
-      sql += ` AND cr.subsidiary_id IN (${placeholders})`;
-      params.push(...allowedSubsidiaryIds);
-    }
-    if (periodType) {
-      sql += ' AND fd.period_type = ?';
-      params.push(periodType);
+      conditions.push(sqlTag`vr.corporate_id IN (${sqlTag.join(allowedCorporateIds.map(id => sqlTag`${id}`), sqlTag`, `)})`);
     }
     if (startDate) {
-      sql += ' AND fd.period_start_date >= ?';
-      params.push(startDate);
+      conditions.push(sqlTag`vr.period >= ${startDate}`);
     }
     if (endDate) {
-      sql += ' AND fd.period_end_date <= ?';
-      params.push(endDate);
+      conditions.push(sqlTag`vr.period <= ${endDate}`);
     }
-    sql += ' ORDER BY fd.period_start_date DESC';
 
-    const rows = db.prepare(sql).all(...params) as any[];
+    const whereClause = conditions.length > 0
+      ? sqlTag`WHERE ${sqlTag.join(conditions, sqlTag` AND `)}`
+      : sqlTag``;
+
+    const rows = (await db.execute(sqlTag`
+      SELECT vr.*, c.name as corporate_name
+      FROM cfd.v_financial_ratios vr
+      JOIN public.corporates c ON vr.corporate_id = c.id
+      ${whereClause}
+      ORDER BY vr.period DESC
+    `)).rows as any[];
 
     // Metadata for export (Req 10.4)
     const metadata = {
       exportDate: new Date().toISOString(),
       periodRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All periods',
-      exportedBy: req.frsUser!.username,
+      exportedBy: (req as any).frsUser?.username ?? 'system',
     };
 
     // Log export to audit log (Req 10.7)
-    db.prepare(`
-      INSERT INTO frs_audit_log (id, user_id, action, entity_type, new_values, created_at)
-      VALUES (?, ?, 'export', 'financial_ratios', ?, ?)
-    `).run(
-      `al_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      req.frsUser!.userId,
-      JSON.stringify({ format, subsidiaryId, periodType, startDate, endDate }),
-      new Date().toISOString()
-    );
+    await createFRSAuditLog({
+      userId: req.frsUser!.userId,
+      action: 'export',
+      entityType: 'financial_ratios',
+      newValues: { format, corporateId, startDate, endDate },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     try {
       if (format === 'csv') {
@@ -169,8 +158,8 @@ export function createReportsRouter(db: Database.Database): Router {
    * Create a scheduled report.
    * Requirements: 10.5
    */
-  router.post('/schedule', authorize('reports', 'schedule', db), (req: Request, res: Response) => {
-    const { name, reportType, subsidiaryIds, periodType, format, scheduleFrequency, scheduleDay, recipients } = req.body;
+  router.post('/schedule', authorize('reports', 'schedule'), async (req: Request, res: Response) => {
+    const { name, reportType, corporateIds, periodType, format, scheduleFrequency, scheduleDay, recipients } = req.body;
 
     if (!name || !reportType || !periodType || !format || !scheduleFrequency || !scheduleDay || !recipients) {
       res.status(400).json({
@@ -184,10 +173,10 @@ export function createReportsRouter(db: Database.Database): Router {
       return;
     }
 
-    const result = createScheduledReport(db, {
+    const result = await createScheduledReport({
       name,
       reportType,
-      subsidiaryIds: subsidiaryIds ?? [],
+      corporateIds: corporateIds ?? [],
       periodType,
       format,
       scheduleFrequency,
@@ -210,8 +199,8 @@ export function createReportsRouter(db: Database.Database): Router {
    * List all scheduled reports.
    * Requirements: 10.5
    */
-  router.get('/scheduled', authorize('reports', 'read', db), (_req: Request, res: Response) => {
-    const reports = listScheduledReports(db);
+  router.get('/scheduled', authorize('reports', 'read'), async (_req: Request, res: Response) => {
+    const reports = await listScheduledReports();
     res.json(reports);
   });
 
@@ -220,8 +209,8 @@ export function createReportsRouter(db: Database.Database): Router {
    * Delete a scheduled report.
    * Requirements: 10.5
    */
-  router.delete('/schedule/:id', authorize('reports', 'schedule', db), (req: Request, res: Response) => {
-    const result = deleteScheduledReport(db, req.params.id);
+  router.delete('/schedule/:id', authorize('reports', 'schedule'), async (req: Request, res: Response) => {
+    const result = await deleteScheduledReport(req.params.id);
     if (!result.success) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: result.error, timestamp: new Date().toISOString(), requestId: Math.random().toString(36).slice(2) },

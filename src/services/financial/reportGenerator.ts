@@ -1,9 +1,10 @@
 // Report Generator Service
-// Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.7
+// Drizzle ORM PostgreSQL implementation — uses cfd.v_financial_summary view
 
-import Database from 'better-sqlite3';
+import { sql } from 'drizzle-orm';
+import { db } from '../../db/connection';
 import { calculateRatios } from './ratioCalculator';
-import { FinancialData, PeriodType } from '../../types/financial/financialData';
+import { FinancialData } from '../../types/financial/financialData';
 import { CalculatedRatios } from '../../types/financial/ratio';
 
 export interface SubsidiaryContribution {
@@ -14,8 +15,8 @@ export interface SubsidiaryContribution {
   totalAssets: number;
   totalEquity: number;
   totalLiabilities: number;
-  revenueContribution: number;   // %
-  profitContribution: number;    // %
+  revenueContribution: number;
+  profitContribution: number;
 }
 
 export interface ConsolidatedFinancials {
@@ -31,9 +32,7 @@ export interface ConsolidatedFinancials {
 }
 
 export interface ConsolidatedReport {
-  periodType: PeriodType;
-  periodStartDate: string;
-  periodEndDate: string;
+  period: string;
   generatedAt: string;
   consolidated: ConsolidatedFinancials;
   consolidatedRatios: Omit<CalculatedRatios, 'id' | 'financialDataId' | 'subsidiaryId' | 'calculatedAt'>;
@@ -42,87 +41,84 @@ export interface ConsolidatedReport {
 }
 
 /**
- * Generates a consolidated financial report for all active subsidiaries.
- * Aggregates financial data and calculates consolidated ratios.
- * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.7
+ * Generates a consolidated financial report for all active corporates.
+ * Aggregates financial data from v_financial_summary and calculates consolidated ratios.
  */
-export function generateConsolidatedReport(
-  db: Database.Database,
-  periodType: PeriodType,
-  periodStartDate: string,
-  periodEndDate: string
-): ConsolidatedReport {
-  // Fetch all active subsidiaries
-  const subsidiaries = db.prepare(
-    'SELECT id, name FROM subsidiaries WHERE is_active = 1'
-  ).all() as Array<{ id: string; name: string }>;
-
-  if (subsidiaries.length === 0) {
-    return buildEmptyReport(periodType, periodStartDate, periodEndDate);
+export async function generateConsolidatedReport(
+  period: string,
+): Promise<ConsolidatedReport> {
+  interface ReportRow {
+    corporate_id: string;
+    corporate_name: string;
+    revenue: string;
+    net_profit: string;
+    interest_expense: string;
+    cash: string;
+    inventory: string;
+    current_assets: string;
+    total_assets: string;
+    current_liabilities: string;
+    short_term_bank_loans: string;
+    total_liabilities: string;
+    total_equity: string;
   }
 
-  // Fetch financial data for each subsidiary in the given period
-  const financialDataRows: Array<FinancialData & { subsidiary_name: string }> = [];
+  const rows = (await db.execute(sql`
+    SELECT
+      vs.corporate_id,
+      c.name AS corporate_name,
+      SUM(vs.revenue)::text AS revenue,
+      SUM(vs.net_profit)::text AS net_profit,
+      SUM(vs.interest_expense)::text AS interest_expense,
+      SUM(vs.cash)::text AS cash,
+      SUM(vs.inventory)::text AS inventory,
+      SUM(vs.current_assets)::text AS current_assets,
+      SUM(vs.total_assets)::text AS total_assets,
+      SUM(vs.current_liabilities)::text AS current_liabilities,
+      SUM(vs.short_term_bank_loans)::text AS short_term_bank_loans,
+      SUM(vs.total_liabilities)::text AS total_liabilities,
+      SUM(vs.total_equity)::text AS total_equity
+    FROM cfd.v_financial_summary vs
+    JOIN public.corporates c ON vs.corporate_id = c.id
+    WHERE vs.period = ${period} AND c.is_active = true
+    GROUP BY vs.corporate_id, c.name
+  `)).rows as unknown as ReportRow[];
 
-  for (const sub of subsidiaries) {
-    const row = db.prepare(`
-      SELECT fd.*, s.name as subsidiary_name
-      FROM frs_financial_data fd
-      JOIN subsidiaries s ON fd.subsidiary_id = s.id
-      WHERE fd.subsidiary_id = ?
-        AND fd.period_type = ?
-        AND fd.period_start_date >= ?
-        AND fd.period_end_date <= ?
-      ORDER BY fd.period_start_date DESC
-      LIMIT 1
-    `).get(sub.id, periodType, periodStartDate, periodEndDate) as any;
-
-    if (row) {
-      financialDataRows.push(mapRowToFinancialData(row));
-    }
+  if (rows.length === 0) {
+    return buildEmptyReport(period);
   }
 
-  if (financialDataRows.length === 0) {
-    return buildEmptyReport(periodType, periodStartDate, periodEndDate);
-  }
+  const n = (v: string | null) => parseFloat(v ?? '0') || 0;
 
-  // Aggregate consolidated totals (Req 7.1, 7.4)
   const consolidated: ConsolidatedFinancials = {
-    revenue: 0,
-    netProfit: 0,
-    operatingCashFlow: 0,
-    cash: 0,
-    currentAssets: 0,
-    totalAssets: 0,
-    currentLiabilities: 0,
-    totalLiabilities: 0,
-    totalEquity: 0,
+    revenue: 0, netProfit: 0, operatingCashFlow: 0, cash: 0,
+    currentAssets: 0, totalAssets: 0, currentLiabilities: 0,
+    totalLiabilities: 0, totalEquity: 0,
   };
 
-  for (const data of financialDataRows) {
-    consolidated.revenue += data.revenue;
-    consolidated.netProfit += data.netProfit;
-    consolidated.operatingCashFlow += data.operatingCashFlow;
-    consolidated.cash += data.cash;
-    consolidated.currentAssets += data.currentAssets;
-    consolidated.totalAssets += data.totalAssets;
-    consolidated.currentLiabilities += data.currentLiabilities;
-    consolidated.totalLiabilities += data.totalLiabilities;
-    consolidated.totalEquity += data.totalEquity;
+  for (const row of rows) {
+    consolidated.revenue += n(row.revenue);
+    consolidated.netProfit += n(row.net_profit);
+    consolidated.cash += n(row.cash);
+    consolidated.currentAssets += n(row.current_assets);
+    consolidated.totalAssets += n(row.total_assets);
+    consolidated.currentLiabilities += n(row.current_liabilities);
+    consolidated.totalLiabilities += n(row.total_liabilities);
+    consolidated.totalEquity += n(row.total_equity);
   }
 
-  // Calculate consolidated ratios using aggregated totals (Req 7.3)
-  const consolidatedFinancialData: FinancialData = {
+  // Build a FinancialData-compatible object for ratio calculation
+  const consolidatedFD: FinancialData = {
     id: 'consolidated',
     subsidiaryId: 'consolidated',
-    periodType,
-    periodStartDate: new Date(periodStartDate),
-    periodEndDate: new Date(periodEndDate),
+    periodType: 'monthly',
+    periodStartDate: new Date(period + '-01'),
+    periodEndDate: new Date(period + '-01'),
     ...consolidated,
-    interestExpense: financialDataRows.reduce((s, d) => s + d.interestExpense, 0),
-    inventory: financialDataRows.reduce((s, d) => s + d.inventory, 0),
-    shortTermDebt: financialDataRows.reduce((s, d) => s + d.shortTermDebt, 0),
-    currentPortionLongTermDebt: financialDataRows.reduce((s, d) => s + d.currentPortionLongTermDebt, 0),
+    interestExpense: rows.reduce((s, r) => s + n(r.interest_expense), 0),
+    inventory: rows.reduce((s, r) => s + n(r.inventory), 0),
+    shortTermDebt: rows.reduce((s, r) => s + n(r.short_term_bank_loans), 0),
+    currentPortionLongTermDebt: 0,
     isRestated: false,
     version: 1,
     createdAt: new Date(),
@@ -130,58 +126,43 @@ export function generateConsolidatedReport(
     createdBy: 'system',
   };
 
-  const consolidatedRatios = calculateRatios(consolidatedFinancialData);
+  const consolidatedRatios = calculateRatios(consolidatedFD);
 
-  // Calculate contribution percentages (Req 7.5)
-  const contributions: SubsidiaryContribution[] = financialDataRows.map((data) => {
-    const subName = (data as any).subsidiary_name ?? '';
-    return {
-      subsidiaryId: data.subsidiaryId,
-      subsidiaryName: subName,
-      revenue: data.revenue,
-      netProfit: data.netProfit,
-      totalAssets: data.totalAssets,
-      totalEquity: data.totalEquity,
-      totalLiabilities: data.totalLiabilities,
-      revenueContribution:
-        consolidated.revenue !== 0
-          ? (data.revenue / consolidated.revenue) * 100
-          : 0,
-      profitContribution:
-        consolidated.netProfit !== 0
-          ? (data.netProfit / consolidated.netProfit) * 100
-          : 0,
-    };
-  });
+  const contributions: SubsidiaryContribution[] = rows.map((row) => ({
+    subsidiaryId: row.corporate_id,
+    subsidiaryName: row.corporate_name,
+    revenue: n(row.revenue),
+    netProfit: n(row.net_profit),
+    totalAssets: n(row.total_assets),
+    totalEquity: n(row.total_equity),
+    totalLiabilities: n(row.total_liabilities),
+    revenueContribution:
+      consolidated.revenue !== 0
+        ? (n(row.revenue) / consolidated.revenue) * 100 : 0,
+    profitContribution:
+      consolidated.netProfit !== 0
+        ? (n(row.net_profit) / consolidated.netProfit) * 100 : 0,
+  }));
 
   return {
-    periodType,
-    periodStartDate,
-    periodEndDate,
+    period,
     generatedAt: new Date().toISOString(),
     consolidated,
     consolidatedRatios,
     contributions,
-    subsidiaryCount: financialDataRows.length,
+    subsidiaryCount: rows.length,
   };
 }
 
-function buildEmptyReport(
-  periodType: PeriodType,
-  periodStartDate: string,
-  periodEndDate: string
-): ConsolidatedReport {
-  const emptyConsolidated: ConsolidatedFinancials = {
-    revenue: 0, netProfit: 0, operatingCashFlow: 0, cash: 0,
-    currentAssets: 0, totalAssets: 0, currentLiabilities: 0,
-    totalLiabilities: 0, totalEquity: 0,
-  };
+function buildEmptyReport(period: string): ConsolidatedReport {
   return {
-    periodType,
-    periodStartDate,
-    periodEndDate,
+    period,
     generatedAt: new Date().toISOString(),
-    consolidated: emptyConsolidated,
+    consolidated: {
+      revenue: 0, netProfit: 0, operatingCashFlow: 0, cash: 0,
+      currentAssets: 0, totalAssets: 0, currentLiabilities: 0,
+      totalLiabilities: 0, totalEquity: 0,
+    },
     consolidatedRatios: {
       roa: null, roe: null, npm: null, der: null,
       currentRatio: null, quickRatio: null, cashRatio: null,
@@ -189,35 +170,5 @@ function buildEmptyReport(
     },
     contributions: [],
     subsidiaryCount: 0,
-  };
-}
-
-function mapRowToFinancialData(row: any): FinancialData & { subsidiary_name: string } {
-  return {
-    id: row.id,
-    subsidiaryId: row.subsidiary_id,
-    periodType: row.period_type,
-    periodStartDate: new Date(row.period_start_date),
-    periodEndDate: new Date(row.period_end_date),
-    revenue: row.revenue,
-    netProfit: row.net_profit,
-    operatingCashFlow: row.operating_cash_flow,
-    interestExpense: row.interest_expense ?? 0,
-    cash: row.cash,
-    inventory: row.inventory ?? 0,
-    currentAssets: row.current_assets,
-    totalAssets: row.total_assets,
-    currentLiabilities: row.current_liabilities,
-    shortTermDebt: row.short_term_debt ?? 0,
-    currentPortionLongTermDebt: row.current_portion_long_term_debt ?? 0,
-    totalLiabilities: row.total_liabilities,
-    totalEquity: row.total_equity,
-    isRestated: Boolean(row.is_restated),
-    restatementReason: row.restatement_reason,
-    version: row.version ?? 1,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-    createdBy: row.created_by,
-    subsidiary_name: row.subsidiary_name ?? '',
   };
 }

@@ -29,6 +29,12 @@ import { DepartmentPerformance } from '../../MAFINDA/dashboard/DepartmentPerform
 import { useDashboard, type DashboardFilters } from '../../../hooks/mafinda/useDashboard';
 import { useManagement } from '../../../hooks/mafinda/useManagement';
 
+function parseDateSafe(value: string | Date | null | undefined): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export const FRSDashboard: React.FC = () => {
   const [selectedCompany, setSelectedCompany] = useState<string | 'all'>('all');
   const [period, setPeriod] = useState<PeriodRange>('1y');
@@ -117,11 +123,15 @@ export const FRSDashboard: React.FC = () => {
 
     return Array.from(byDate.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, values]) => ({
-        date: new Date(date),
-        label: format(new Date(date), 'MMM yy'),
-        ...values,
-      }));
+      .flatMap(([date, values]) => {
+        const parsedDate = parseDateSafe(date);
+        if (!parsedDate) return [];
+        return [{
+          date: parsedDate,
+          label: format(parsedDate, 'MMM yy'),
+          ...values,
+        }];
+      });
   }, [trendRatios, subsidiaries]);
 
   // Build trend series
@@ -139,8 +149,10 @@ export const FRSDashboard: React.FC = () => {
   const yoyData = useMemo(() => {
     if (displayedRatios.length === 0) return [];
     const latest = displayedRatios[0];
+    const latestDate = parseDateSafe(latest.periodStartDate);
+    if (!latestDate) return [];
     // Find data from ~1 year ago
-    const oneYearAgo = format(subYears(new Date(latest.periodStartDate), 1), 'yyyy-MM-dd');
+    const oneYearAgo = format(subYears(latestDate, 1), 'yyyy-MM-dd');
     const prevRatio = trendRatios.find(
       (r) => r.subsidiaryId === latest.subsidiaryId && r.periodStartDate <= oneYearAgo
     );

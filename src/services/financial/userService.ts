@@ -1,159 +1,171 @@
 // User Management Service
-// Requirements: 9.1, 9.5, 9.9
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
-import { FRSUser, CreateUserInput, UpdateUserInput, UserSubsidiaryAccess, UserRole } from '../../types/financial/user';
-import { hashPassword, validatePasswordStrength } from './authService';
-import { mapRowToUser } from './authService';
-
-function generateId(): string {
-  return `usr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
+import { eq, asc, or } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { users, userCorporateAccesses, roles, corporates } from '../../db/schema';
+import { FRSUser, CreateUserInput, UpdateUserInput, UserSubsidiaryAccess } from '../../types/financial/user';
+import { hashPassword, validatePasswordStrength, mapRowToUser } from './authService';
 
 /**
  * Creates a new user with strong password validation.
- * Requirements: 9.5, 9.6
  */
 export async function createUser(
-  db: Database.Database,
   input: CreateUserInput,
-  createdBy: string
+  createdBy: string,
 ): Promise<{ user?: FRSUser; error?: string }> {
-  // Validate password strength (Req 9.6)
   const pwCheck = validatePasswordStrength(input.password);
   if (!pwCheck.valid) {
     return { error: pwCheck.message };
   }
 
-  // Check for duplicate username/email
-  const existingUsername = db.prepare('SELECT id FROM frs_users WHERE username = ?').get(input.username);
-  if (existingUsername) return { error: 'Username already exists' };
-
-  const existingEmail = db.prepare('SELECT id FROM frs_users WHERE email = ?').get(input.email);
+  // Check for duplicate email or username
+  const [existingEmail] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, input.email))
+    .limit(1);
   if (existingEmail) return { error: 'Email already exists' };
 
-  const id = generateId();
+  if (input.username) {
+    const [existingUsername] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, input.username))
+      .limit(1);
+    if (existingUsername) return { error: 'Username already exists' };
+  }
+
   const passwordHash = await hashPassword(input.password);
-  const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO frs_users (id, username, email, password_hash, role, full_name, is_active, created_at, updated_at, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-  `).run(id, input.username, input.email, passwordHash, input.role, input.fullName, now, now, createdBy);
+  const [inserted] = await db.insert(users).values({
+    username: input.username ?? null,
+    email: input.email,
+    passwordHash,
+    fullName: input.fullName,
+    createdBy,
+  }).returning();
 
-  const row = db.prepare('SELECT * FROM frs_users WHERE id = ?').get(id) as any;
-  return { user: mapRowToUser(row) };
+  return { user: mapRowToUser(inserted) };
 }
 
 /**
  * Lists all users.
  */
-export function listUsers(db: Database.Database): FRSUser[] {
-  const rows = db.prepare('SELECT * FROM frs_users ORDER BY created_at ASC').all() as any[];
+export async function listUsers(): Promise<FRSUser[]> {
+  const rows = await db.select().from(users).orderBy(asc(users.createdAt));
   return rows.map(mapRowToUser);
 }
 
 /**
  * Gets a user by ID.
  */
-export function getUserById(db: Database.Database, id: string): FRSUser | null {
-  const row = db.prepare('SELECT * FROM frs_users WHERE id = ?').get(id) as any;
+export async function getUserById(id: string): Promise<FRSUser | null> {
+  const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return row ? mapRowToUser(row) : null;
 }
 
 /**
  * Updates a user's profile.
- * Requirements: 9.5
  */
-export function updateUser(
-  db: Database.Database,
+export async function updateUser(
   id: string,
-  input: UpdateUserInput
-): FRSUser | null {
-  const existing = db.prepare('SELECT * FROM frs_users WHERE id = ?').get(id) as any;
+  input: UpdateUserInput,
+): Promise<FRSUser | null> {
+  const [existing] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!existing) return null;
 
-  db.prepare(`
-    UPDATE frs_users SET
-      username = ?, email = ?, role = ?, full_name = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(
-    input.username ?? existing.username,
-    input.email ?? existing.email,
-    input.role ?? existing.role,
-    input.fullName ?? existing.full_name,
-    id,
-  );
+  // Check username uniqueness if being changed
+  if (input.username !== undefined && input.username !== existing.username) {
+    if (input.username) {
+      const [dup] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, input.username))
+        .limit(1);
+      if (dup) return null; // caller should handle conflict
+    }
+  }
 
-  const row = db.prepare('SELECT * FROM frs_users WHERE id = ?').get(id) as any;
-  return mapRowToUser(row);
+  const [updated] = await db.update(users).set({
+    username: input.username !== undefined ? (input.username ?? null) : existing.username,
+    email: input.email ?? existing.email,
+    fullName: input.fullName ?? existing.fullName,
+    updatedAt: new Date(),
+  }).where(eq(users.id, id)).returning();
+
+  return mapRowToUser(updated);
 }
 
 /**
  * Activates or deactivates a user.
- * Requirements: 9.5
  */
-export function setUserStatus(
-  db: Database.Database,
+export async function setUserStatus(
   id: string,
-  isActive: boolean
-): FRSUser | null {
-  const existing = db.prepare('SELECT * FROM frs_users WHERE id = ?').get(id) as any;
+  isActive: boolean,
+): Promise<FRSUser | null> {
+  const [existing] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!existing) return null;
 
-  db.prepare('UPDATE frs_users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(isActive ? 1 : 0, id);
+  const [updated] = await db.update(users).set({
+    isActive,
+    updatedAt: new Date(),
+  }).where(eq(users.id, id)).returning();
 
-  const row = db.prepare('SELECT * FROM frs_users WHERE id = ?').get(id) as any;
-  return mapRowToUser(row);
+  return mapRowToUser(updated);
 }
 
 /**
- * Assigns subsidiary access to a user.
- * Requirements: 9.9
+ * Assigns corporate access to a user with a given role.
+ * Scope-based: 'corporate' scope assigns access at corporate level.
  */
-export function assignSubsidiaryAccess(
-  db: Database.Database,
+export async function assignSubsidiaryAccess(
   userId: string,
   subsidiaryIds: string[],
-  grantedBy: string
-): { success: boolean; error?: string } {
-  const user = db.prepare('SELECT id FROM frs_users WHERE id = ?').get(userId);
+  grantedBy: string,
+): Promise<{ success: boolean; error?: string }> {
+  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
   if (!user) return { success: false, error: 'User not found' };
 
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO frs_user_subsidiary_access (id, user_id, subsidiary_id, granted_at, granted_by)
-    VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-  `);
-
-  const doInsert = db.transaction(() => {
-    for (const subsidiaryId of subsidiaryIds) {
-      const sub = db.prepare('SELECT id FROM subsidiaries WHERE id = ?').get(subsidiaryId);
-      if (!sub) throw new Error(`Subsidiary ${subsidiaryId} not found`);
-      insert.run(`usa_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, userId, subsidiaryId, grantedBy);
-    }
-  });
+  // Get default role (e.g., first role or 'subsidiary_manager')
+  const [defaultRole] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, 'subsidiary_manager')).limit(1);
+  if (!defaultRole) return { success: false, error: 'Default role not found' };
 
   try {
-    doInsert();
+    await db.transaction(async (tx) => {
+      for (const corporateId of subsidiaryIds) {
+        const [corp] = await tx.select({ id: corporates.id }).from(corporates).where(eq(corporates.id, corporateId)).limit(1);
+        if (!corp) throw new Error(`Corporate ${corporateId} not found`);
+
+        await tx.insert(userCorporateAccesses).values({
+          userId,
+          roleId: defaultRole.id,
+          scope: 'corporate',
+          corporateId,
+          grantedBy,
+        }).onConflictDoNothing();
+      }
+    });
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
 /**
- * Gets all subsidiary access records for a user.
+ * Gets all corporate access records for a user.
  */
-export function getUserSubsidiaryAccess(db: Database.Database, userId: string): UserSubsidiaryAccess[] {
-  const rows = db
-    .prepare('SELECT * FROM frs_user_subsidiary_access WHERE user_id = ?')
-    .all(userId) as any[];
+export async function getUserSubsidiaryAccess(userId: string): Promise<UserSubsidiaryAccess[]> {
+  const rows = await db
+    .select()
+    .from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.userId, userId));
+
   return rows.map((row) => ({
     id: row.id,
-    userId: row.user_id,
-    subsidiaryId: row.subsidiary_id,
-    grantedAt: new Date(row.granted_at),
-    grantedBy: row.granted_by,
+    userId: row.userId,
+    subsidiaryId: row.corporateId ?? '',
+    grantedAt: row.createdAt,
+    grantedBy: row.grantedBy ?? '',
   }));
 }

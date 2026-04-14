@@ -3,7 +3,6 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
-import Database from 'better-sqlite3';
 import rateLimit from 'express-rate-limit';
 import { createFRSAuthRouter } from './auth';
 import { createSubsidiariesRouter } from './subsidiaries';
@@ -29,7 +28,7 @@ const authLimiter = rateLimit({
  * Creates and returns the main FRS router.
  * Mount at /api/frs in the Express app.
  */
-export function createFRSRouter(db: Database.Database): Router {
+export function createFRSRouter(): Router {
   const router = Router();
 
   // Attach a unique request ID to every FRS request (used in error responses)
@@ -41,34 +40,34 @@ export function createFRSRouter(db: Database.Database): Router {
   });
 
   // Auth routes (rate limited)
-  router.use('/auth', authLimiter, createFRSAuthRouter(db));
+  router.use('/auth', authLimiter, createFRSAuthRouter());
 
   // Subsidiary management
-  router.use('/subsidiaries', createSubsidiariesRouter(db));
+  router.use('/subsidiaries', createSubsidiariesRouter());
 
   // Financial data management (bulk must be registered before /:id routes)
-  router.use('/financial-data', createFinancialDataRouter(db));
+  router.use('/financial-data', createFinancialDataRouter());
 
   // User management (Owner only)
-  router.use('/users', createUsersRouter(db));
+  router.use('/users', createUsersRouter());
 
   // Calculated ratios (with caching)
-  router.use('/ratios', createRatiosRouter(db));
+  router.use('/ratios', createRatiosRouter());
 
   // Threshold configuration (Owner only for write)
-  router.use('/thresholds', createThresholdsRouter(db));
+  router.use('/thresholds', createThresholdsRouter());
 
   // Alert management
-  router.use('/alerts', createAlertsRouter(db));
+  router.use('/alerts', createAlertsRouter());
 
   // Reports and export
-  router.use('/reports', createReportsRouter(db));
+  router.use('/reports', createReportsRouter());
 
   // Audit log (Owner only)
-  router.use('/audit-log', createAuditLogRouter(db));
+  router.use('/audit-log', createAuditLogRouter());
 
   // Backup and restore (Owner only)
-  router.use('/backup', createBackupRouter(db));
+  router.use('/backup', createBackupRouter());
 
   return router;
 }

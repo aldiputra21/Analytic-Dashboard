@@ -1,127 +1,164 @@
 // Bulk Import Service (CSV/Excel)
-// Requirements: 2.4, 2.5
+// Drizzle ORM PostgreSQL implementation — imports balance sheets & income statements
 
 import * as XLSX from 'xlsx';
-import Database from 'better-sqlite3';
-import { CreateFinancialDataInput, BulkImportResult, BulkImportError, PeriodType } from '../../types/financial/financialData';
-import { validateFinancialData } from './dataValidator';
-import { createFinancialData } from './financialDataService';
-import { calculateAndStoreRatios } from './ratioCalculator';
+import {
+  saveBalanceSheet,
+  saveIncomeStatement,
+  BalanceSheetInput,
+  IncomeStatementInput,
+} from '../mafinda/financialStatementService';
 
-const COLUMN_MAP: Record<string, keyof CreateFinancialDataInput> = {
-  subsidiary_id: 'subsidiaryId',
-  subsidiaryid: 'subsidiaryId',
-  period_type: 'periodType',
-  periodtype: 'periodType',
-  period_start_date: 'periodStartDate',
-  periodstartdate: 'periodStartDate',
-  period_end_date: 'periodEndDate',
-  periodenddate: 'periodEndDate',
-  revenue: 'revenue',
-  net_profit: 'netProfit',
-  netprofit: 'netProfit',
-  operating_cash_flow: 'operatingCashFlow',
-  operatingcashflow: 'operatingCashFlow',
-  interest_expense: 'interestExpense',
-  interestexpense: 'interestExpense',
-  cash: 'cash',
-  inventory: 'inventory',
-  current_assets: 'currentAssets',
-  currentassets: 'currentAssets',
-  total_assets: 'totalAssets',
-  totalassets: 'totalAssets',
-  current_liabilities: 'currentLiabilities',
-  currentliabilities: 'currentLiabilities',
-  short_term_debt: 'shortTermDebt',
-  shorttermdebt: 'shortTermDebt',
-  current_portion_long_term_debt: 'currentPortionLongTermDebt',
-  currentportionlongtermdebt: 'currentPortionLongTermDebt',
-  total_liabilities: 'totalLiabilities',
-  totalliabilities: 'totalLiabilities',
-  total_equity: 'totalEquity',
-  totalequity: 'totalEquity',
+export interface BulkImportError {
+  rowNumber: number;
+  field: string;
+  message: string;
+}
+
+export interface BulkImportResult {
+  successCount: number;
+  errorCount: number;
+  errors: BulkImportError[];
+}
+
+// Column mapping: CSV/Excel header → { target: 'bs' | 'is', field }
+const COLUMN_MAP: Record<string, { target: 'bs' | 'is' | 'meta'; field: string }> = {
+  department_id:            { target: 'meta', field: 'departmentId' },
+  departmentid:             { target: 'meta', field: 'departmentId' },
+  period:                   { target: 'meta', field: 'period' },
+  // Balance sheet fields
+  cash_and_bank:            { target: 'bs', field: 'cashAndBank' },
+  cashandbank:              { target: 'bs', field: 'cashAndBank' },
+  cash:                     { target: 'bs', field: 'cashAndBank' },
+  accounts_receivable:      { target: 'bs', field: 'accountsReceivable' },
+  accountsreceivable:       { target: 'bs', field: 'accountsReceivable' },
+  work_in_progress:         { target: 'bs', field: 'workInProgress' },
+  workinprogress:           { target: 'bs', field: 'workInProgress' },
+  inventory:                { target: 'bs', field: 'inventory' },
+  prepaid_expenses:         { target: 'bs', field: 'prepaidExpenses' },
+  prepaidexpenses:          { target: 'bs', field: 'prepaidExpenses' },
+  land:                     { target: 'bs', field: 'land' },
+  building:                 { target: 'bs', field: 'building' },
+  equipment:                { target: 'bs', field: 'equipment' },
+  other_fixed_assets:       { target: 'bs', field: 'otherFixedAssets' },
+  otherfixedassets:         { target: 'bs', field: 'otherFixedAssets' },
+  accounts_payable:         { target: 'bs', field: 'accountsPayable' },
+  accountspayable:          { target: 'bs', field: 'accountsPayable' },
+  bank_loan_current:        { target: 'bs', field: 'bankLoanCurrent' },
+  bankloancurrent:          { target: 'bs', field: 'bankLoanCurrent' },
+  other_current_liabilities: { target: 'bs', field: 'otherCurrentLiabilities' },
+  othercurrentliabilities:  { target: 'bs', field: 'otherCurrentLiabilities' },
+  bank_loan_long_term:      { target: 'bs', field: 'bankLoanLongTerm' },
+  bankloanlongterm:         { target: 'bs', field: 'bankLoanLongTerm' },
+  other_long_term_liabilities: { target: 'bs', field: 'otherLongTermLiabilities' },
+  otherlongtermliabilities: { target: 'bs', field: 'otherLongTermLiabilities' },
+  shareholder_loan:         { target: 'bs', field: 'shareholderLoan' },
+  shareholderloan:          { target: 'bs', field: 'shareholderLoan' },
+  capital:                  { target: 'bs', field: 'capital' },
+  earnings_after_tax:       { target: 'bs', field: 'earningsAfterTax' },
+  earningsaftertax:         { target: 'bs', field: 'earningsAfterTax' },
+  retained_earnings:        { target: 'bs', field: 'retainedEarnings' },
+  retainedearnings:         { target: 'bs', field: 'retainedEarnings' },
+  dividends:                { target: 'bs', field: 'dividends' },
+  // Income statement fields
+  revenue:                  { target: 'is', field: 'revenue' },
+  cogs:                     { target: 'is', field: 'cogs' },
+  cost_of_goods_sold:       { target: 'is', field: 'cogs' },
+  operating_expenses:       { target: 'is', field: 'operatingExpenses' },
+  operatingexpenses:        { target: 'is', field: 'operatingExpenses' },
+  interest_expense:         { target: 'is', field: 'interestExpense' },
+  interestexpense:          { target: 'is', field: 'interestExpense' },
+  tax_expense:              { target: 'is', field: 'taxExpense' },
+  taxexpense:               { target: 'is', field: 'taxExpense' },
 };
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]/g, '');
 }
 
-function parseRow(rawRow: Record<string, any>, rowNumber: number): { input: Partial<CreateFinancialDataInput>; errors: BulkImportError[] } {
-  const input: Partial<CreateFinancialDataInput> = {};
-  const errors: BulkImportError[] = [];
-
-  for (const [rawKey, value] of Object.entries(rawRow)) {
-    const normalized = normalizeKey(rawKey);
-    const mappedKey = COLUMN_MAP[normalized];
-    if (!mappedKey) continue;
-
-    if (mappedKey === 'periodStartDate' || mappedKey === 'periodEndDate') {
-      const date = new Date(value);
-      if (isNaN(date.getTime())) {
-        errors.push({ rowNumber, field: mappedKey, message: `Invalid date: ${value}` });
-      } else {
-        (input as any)[mappedKey] = date;
-      }
-    } else if (mappedKey === 'periodType') {
-      (input as any)[mappedKey] = String(value).toLowerCase() as PeriodType;
-    } else if (mappedKey === 'subsidiaryId') {
-      (input as any)[mappedKey] = String(value);
-    } else {
-      const num = parseFloat(value);
-      if (isNaN(num)) {
-        errors.push({ rowNumber, field: mappedKey, message: `${mappedKey} must be a number, got: ${value}` });
-      } else {
-        (input as any)[mappedKey] = num;
-      }
-    }
-  }
-
-  return { input, errors };
-}
-
 /**
  * Processes a bulk import file (CSV or Excel buffer).
- * Validates each row, processes valid rows, returns error report.
- * Requirements: 2.4, 2.5
+ * Each row is split into a balance sheet record and an income statement record.
  */
-export function processBulkImport(
-  db: Database.Database,
+export async function processBulkImport(
   fileBuffer: Buffer,
-  mimeType: string,
-  createdBy: string
-): BulkImportResult {
+  _mimeType: string,
+  createdBy: string,
+): Promise<BulkImportResult> {
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
-  const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+  const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
   const allErrors: BulkImportError[] = [];
   let successCount = 0;
 
   for (let i = 0; i < rawRows.length; i++) {
     const rowNumber = i + 2; // 1-indexed, row 1 is header
-    const { input, errors: parseErrors } = parseRow(rawRows[i], rowNumber);
+    const rawRow = rawRows[i];
 
-    if (parseErrors.length > 0) {
-      allErrors.push(...parseErrors);
+    const meta: Record<string, string> = {};
+    const bsFields: Record<string, string> = {};
+    const isFields: Record<string, string> = {};
+    const rowErrors: BulkImportError[] = [];
+
+    for (const [rawKey, value] of Object.entries(rawRow)) {
+      const normalized = normalizeKey(rawKey);
+      const mapping = COLUMN_MAP[normalized];
+      if (!mapping) continue;
+
+      if (mapping.target === 'meta') {
+        meta[mapping.field] = String(value ?? '');
+      } else {
+        const num = parseFloat(String(value));
+        if (isNaN(num)) {
+          rowErrors.push({ rowNumber, field: mapping.field, message: `${mapping.field} must be a number, got: ${value}` });
+        } else {
+          const strVal = num.toFixed(2);
+          if (mapping.target === 'bs') bsFields[mapping.field] = strVal;
+          else isFields[mapping.field] = strVal;
+        }
+      }
+    }
+
+    if (!meta.departmentId) {
+      rowErrors.push({ rowNumber, field: 'departmentId', message: 'departmentId is required' });
+    }
+    if (!meta.period || !/^\d{4}-\d{2}$/.test(meta.period)) {
+      rowErrors.push({ rowNumber, field: 'period', message: 'period must be in YYYY-MM format' });
+    }
+
+    if (rowErrors.length > 0) {
+      allErrors.push(...rowErrors);
       continue;
     }
 
-    const validation = validateFinancialData(input, rowNumber);
-    if (!validation.valid) {
-      allErrors.push(...validation.errors);
-      continue;
-    }
+    try {
+      // Save balance sheet if any BS fields are present
+      if (Object.keys(bsFields).length > 0) {
+        const bsInput: BalanceSheetInput = {
+          departmentId: meta.departmentId,
+          period: meta.period,
+          ...bsFields,
+        };
+        await saveBalanceSheet(bsInput, createdBy);
+      }
 
-    const result = createFinancialData(db, input as CreateFinancialDataInput, createdBy);
-    if (result.error) {
-      allErrors.push({ rowNumber, field: 'subsidiaryId+period', message: result.error });
-      continue;
-    }
+      // Save income statement if any IS fields are present
+      if (Object.keys(isFields).length > 0) {
+        const isInput: IncomeStatementInput = {
+          departmentId: meta.departmentId,
+          period: meta.period,
+          ...isFields,
+        };
+        await saveIncomeStatement(isInput, createdBy);
+      }
 
-    // Trigger ratio calculation for each valid row
-    calculateAndStoreRatios(db, result.data!);
-    successCount++;
+      successCount++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      allErrors.push({ rowNumber, field: 'save', message });
+    }
   }
 
   return {

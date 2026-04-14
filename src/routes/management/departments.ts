@@ -2,7 +2,6 @@
 // Requirements: 7.1, 7.6, 7.9
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import {
   getAllDepartments,
   getDepartmentById,
@@ -13,13 +12,18 @@ import {
   NotFoundError,
 } from '../../services/mafinda/departmentService.js';
 
-export function createDepartmentRouter(db: Database.Database): Router {
+export function createDepartmentRouter(): Router {
   const router = Router();
 
-  // GET /api/departments — list all departments
-  router.get('/', (_req: Request, res: Response): void => {
+  // GET /api/departments?corporateId=xxx — list departments for a corporate
+  router.get('/', async (req: Request, res: Response): Promise<void> => {
+    const { corporateId } = req.query as Record<string, string>;
+    if (!corporateId) {
+      res.status(400).json({ error: 'Query parameter "corporateId" wajib diisi' });
+      return;
+    }
     try {
-      const departments = getAllDepartments(db);
+      const departments = await getAllDepartments(corporateId);
       res.json(departments);
     } catch {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
@@ -27,16 +31,29 @@ export function createDepartmentRouter(db: Database.Database): Router {
   });
 
   // POST /api/departments — create new department
-  router.post('/', (req: Request, res: Response): void => {
-    const { name, description } = req.body ?? {};
+  router.post('/', async (req: Request, res: Response): Promise<void> => {
+    const { corporateId, name, code, description, headName } = req.body ?? {};
 
+    if (!corporateId?.trim()) {
+      res.status(400).json({ error: 'Field "corporateId" wajib diisi' });
+      return;
+    }
     if (!name?.trim()) {
       res.status(400).json({ error: 'Field "name" wajib diisi' });
       return;
     }
+    if (!code?.trim()) {
+      res.status(400).json({ error: 'Field "code" wajib diisi' });
+      return;
+    }
+
+    const createdBy = (req as any).user?.username ?? 'system';
 
     try {
-      const dept = createDepartment(db, { name: name.trim(), description });
+      const dept = await createDepartment(
+        { corporateId: corporateId.trim(), name: name.trim(), code: code.trim(), description, headName },
+        createdBy,
+      );
       res.status(201).json(dept);
     } catch (err) {
       if (err instanceof ConflictError) {
@@ -48,20 +65,24 @@ export function createDepartmentRouter(db: Database.Database): Router {
   });
 
   // PUT /api/departments/:id — update department
-  router.put('/:id', (req: Request, res: Response): void => {
-    const { name, description, isActive } = req.body ?? {};
+  router.put('/:id', async (req: Request, res: Response): Promise<void> => {
+    const { name, code, description, headName, isActive } = req.body ?? {};
 
     if (name !== undefined && !name?.trim()) {
       res.status(400).json({ error: 'Field "name" tidak boleh kosong' });
       return;
     }
 
+    const updatedBy = (req as any).user?.username ?? 'system';
+
     try {
-      const dept = updateDepartment(db, req.params.id, {
+      const dept = await updateDepartment(req.params.id, {
         name: name?.trim(),
+        code: code?.trim(),
         description,
+        headName,
         isActive,
-      });
+      }, updatedBy);
       res.json(dept);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -77,9 +98,9 @@ export function createDepartmentRouter(db: Database.Database): Router {
   });
 
   // DELETE /api/departments/:id — delete department
-  router.delete('/:id', (req: Request, res: Response): void => {
+  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
     try {
-      const result = deleteDepartment(db, req.params.id);
+      const result = await deleteDepartment(req.params.id);
       res.json(result);
     } catch (err) {
       if (err instanceof NotFoundError) {

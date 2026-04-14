@@ -1,157 +1,132 @@
-// Subsidiary Service
-// Requirements: 1.1, 1.2, 1.3, 1.5, 1.6
+// Subsidiary (Corporate) Service
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
+import { eq, asc, sql } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { corporates, balanceSheets, incomeStatements } from '../../db/schema';
 import { Subsidiary, CreateSubsidiaryInput, UpdateSubsidiaryInput } from '../../types/financial/subsidiary';
 
 const MAX_SUBSIDIARIES = 5;
 
-function generateId(): string {
-  return `sub_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function mapRowToSubsidiary(row: any): Subsidiary {
+function mapRowToSubsidiary(row: typeof corporates.$inferSelect): Subsidiary {
   return {
     id: row.id,
     name: row.name,
-    industrySector: row.industry_sector,
-    fiscalYearStartMonth: row.fiscal_year_start_month,
+    industrySector: row.industry ?? '',
+    fiscalYearStartMonth: row.fiscalYearStartMonth,
     currency: row.currency,
-    taxRate: row.tax_rate,
-    isActive: Boolean(row.is_active),
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-    createdBy: row.created_by,
+    taxRate: row.taxRate ? parseFloat(row.taxRate) : 0,
+    isActive: row.isActive,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt ?? row.createdAt,
+    createdBy: row.createdBy,
   };
 }
 
 /**
- * Creates a new subsidiary. Enforces max 5 limit.
- * Requirements: 1.1, 1.2, 1.3
+ * Creates a new corporate (subsidiary). Enforces max 5 limit.
  */
-export function createSubsidiary(
-  db: Database.Database,
+export async function createSubsidiary(
   input: CreateSubsidiaryInput,
-  createdBy: string
-): { subsidiary?: Subsidiary; error?: string } {
-  const count = (db.prepare('SELECT COUNT(*) as count FROM subsidiaries').get() as any).count;
+  createdBy: string,
+): Promise<{ subsidiary?: Subsidiary; error?: string }> {
+  const [{ count }] = await db.select({ count: sql<number>`COUNT(*)` }).from(corporates);
   if (count >= MAX_SUBSIDIARIES) {
     return { error: `Maximum of ${MAX_SUBSIDIARIES} subsidiaries allowed` };
   }
 
-  const id = generateId();
-  const now = new Date().toISOString();
+  const code = input.name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
 
-  db.prepare(`
-    INSERT INTO subsidiaries (id, name, industry_sector, fiscal_year_start_month, currency, tax_rate, is_active, created_at, updated_at, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-  `).run(
-    id,
-    input.name,
-    input.industrySector,
-    input.fiscalYearStartMonth,
-    input.currency ?? 'IDR',
-    input.taxRate,
-    now,
-    now,
+  const [inserted] = await db.insert(corporates).values({
+    name: input.name,
+    code,
+    industry: input.industrySector,
+    fiscalYearStartMonth: input.fiscalYearStartMonth,
+    currency: input.currency ?? 'IDR',
+    taxRate: input.taxRate?.toString(),
     createdBy,
-  );
+  }).returning();
 
-  const row = db.prepare('SELECT * FROM subsidiaries WHERE id = ?').get(id) as any;
-  return { subsidiary: mapRowToSubsidiary(row) };
+  return { subsidiary: mapRowToSubsidiary(inserted) };
 }
 
 /**
- * Lists all subsidiaries with optional active filter.
- * Requirements: 1.1
+ * Lists all corporates with optional active filter.
  */
-export function listSubsidiaries(
-  db: Database.Database,
-  activeOnly?: boolean
-): Subsidiary[] {
-  const sql = activeOnly
-    ? 'SELECT * FROM subsidiaries WHERE is_active = 1 ORDER BY created_at ASC'
-    : 'SELECT * FROM subsidiaries ORDER BY created_at ASC';
-  const rows = db.prepare(sql).all() as any[];
+export async function listSubsidiaries(activeOnly?: boolean): Promise<Subsidiary[]> {
+  const rows = activeOnly
+    ? await db.select().from(corporates).where(eq(corporates.isActive, true)).orderBy(asc(corporates.createdAt))
+    : await db.select().from(corporates).orderBy(asc(corporates.createdAt));
   return rows.map(mapRowToSubsidiary);
 }
 
 /**
- * Gets a subsidiary by ID.
+ * Gets a corporate by ID.
  */
-export function getSubsidiaryById(
-  db: Database.Database,
-  id: string
-): Subsidiary | null {
-  const row = db.prepare('SELECT * FROM subsidiaries WHERE id = ?').get(id) as any;
+export async function getSubsidiaryById(id: string): Promise<Subsidiary | null> {
+  const [row] = await db.select().from(corporates).where(eq(corporates.id, id)).limit(1);
   return row ? mapRowToSubsidiary(row) : null;
 }
 
 /**
- * Updates a subsidiary's profile.
- * Requirements: 1.2
+ * Updates a corporate's profile.
  */
-export function updateSubsidiary(
-  db: Database.Database,
+export async function updateSubsidiary(
   id: string,
-  input: UpdateSubsidiaryInput
-): Subsidiary | null {
-  const existing = db.prepare('SELECT * FROM subsidiaries WHERE id = ?').get(id) as any;
+  input: UpdateSubsidiaryInput,
+): Promise<Subsidiary | null> {
+  const [existing] = await db.select().from(corporates).where(eq(corporates.id, id)).limit(1);
   if (!existing) return null;
 
-  const updated = {
+  const [updated] = await db.update(corporates).set({
     name: input.name ?? existing.name,
-    industry_sector: input.industrySector ?? existing.industry_sector,
-    fiscal_year_start_month: input.fiscalYearStartMonth ?? existing.fiscal_year_start_month,
+    industry: input.industrySector ?? existing.industry,
+    fiscalYearStartMonth: input.fiscalYearStartMonth ?? existing.fiscalYearStartMonth,
     currency: input.currency ?? existing.currency,
-    tax_rate: input.taxRate ?? existing.tax_rate,
-  };
+    taxRate: input.taxRate !== undefined ? input.taxRate.toString() : existing.taxRate,
+    updatedAt: new Date(),
+  }).where(eq(corporates.id, id)).returning();
 
-  db.prepare(`
-    UPDATE subsidiaries
-    SET name = ?, industry_sector = ?, fiscal_year_start_month = ?, currency = ?, tax_rate = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(updated.name, updated.industry_sector, updated.fiscal_year_start_month, updated.currency, updated.tax_rate, id);
-
-  const row = db.prepare('SELECT * FROM subsidiaries WHERE id = ?').get(id) as any;
-  return mapRowToSubsidiary(row);
+  return mapRowToSubsidiary(updated);
 }
 
 /**
- * Toggles subsidiary active status.
- * Requirements: 1.5
+ * Toggles corporate active status.
  */
-export function setSubsidiaryStatus(
-  db: Database.Database,
+export async function setSubsidiaryStatus(
   id: string,
-  isActive: boolean
-): Subsidiary | null {
-  const existing = db.prepare('SELECT * FROM subsidiaries WHERE id = ?').get(id) as any;
+  isActive: boolean,
+): Promise<Subsidiary | null> {
+  const [existing] = await db.select().from(corporates).where(eq(corporates.id, id)).limit(1);
   if (!existing) return null;
 
-  db.prepare('UPDATE subsidiaries SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(isActive ? 1 : 0, id);
+  const [updated] = await db.update(corporates).set({
+    isActive,
+    updatedAt: new Date(),
+  }).where(eq(corporates.id, id)).returning();
 
-  const row = db.prepare('SELECT * FROM subsidiaries WHERE id = ?').get(id) as any;
-  return mapRowToSubsidiary(row);
+  return mapRowToSubsidiary(updated);
 }
 
 /**
- * Deletes a subsidiary. Rejects if it has financial data.
- * Requirements: 1.6
+ * Deletes a corporate. Rejects if it has financial data (balance sheets or income statements).
  */
-export function deleteSubsidiary(
-  db: Database.Database,
-  id: string
-): { success: boolean; error?: string } {
-  const existing = db.prepare('SELECT * FROM subsidiaries WHERE id = ?').get(id) as any;
+export async function deleteSubsidiary(
+  id: string,
+): Promise<{ success: boolean; error?: string }> {
+  const [existing] = await db.select().from(corporates).where(eq(corporates.id, id)).limit(1);
   if (!existing) return { success: false, error: 'Subsidiary not found' };
 
-  const hasData = (db.prepare('SELECT COUNT(*) as count FROM frs_financial_data WHERE subsidiary_id = ?').get(id) as any).count > 0;
-  if (hasData) {
-    return { success: false, error: 'Cannot delete subsidiary with existing financial data' };
+  // Check for financial data via departments → balance_sheets / income_statements
+  // For now, check if any departments exist under this corporate
+  const { departments } = await import('../../db/schema');
+  const [dept] = await db.select({ id: departments.id }).from(departments)
+    .where(eq(departments.corporateId, id)).limit(1);
+
+  if (dept) {
+    return { success: false, error: 'Cannot delete subsidiary with existing departments/financial data' };
   }
 
-  db.prepare('DELETE FROM subsidiaries WHERE id = ?').run(id);
+  await db.delete(corporates).where(eq(corporates.id, id));
   return { success: true };
 }

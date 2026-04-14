@@ -1,31 +1,30 @@
 // Alert Engine Service
-// Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 11.8
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
+import { eq, and, ne, desc, sql } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { alerts } from '../../db/schema';
 import { CalculatedRatios, RatioName } from '../../types/financial/ratio';
 import { Alert, AlertSeverity } from '../../types/financial/alert';
 import { Threshold } from '../../types/financial/threshold';
 import { getThreshold } from './thresholdService';
-import { PeriodType } from '../../types/financial/financialData';
 
-function generateId(): string {
-  return `alr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
+type AlertRow = typeof alerts.$inferSelect;
 
-function mapRowToAlert(row: any): Alert {
+function mapRowToAlert(row: AlertRow): Alert {
   return {
     id: row.id,
-    subsidiaryId: row.subsidiary_id,
-    financialDataId: row.financial_data_id,
-    ratioName: row.ratio_name as RatioName,
+    subsidiaryId: row.corporateId,
+    financialDataId: undefined,
+    ratioName: row.ratioName as RatioName,
     severity: row.severity as AlertSeverity,
-    currentValue: row.current_value,
-    thresholdValue: row.threshold_value,
+    currentValue: parseFloat(row.currentValue),
+    thresholdValue: parseFloat(row.thresholdValue),
     message: row.message,
-    status: row.status,
-    acknowledgedAt: row.acknowledged_at ? new Date(row.acknowledged_at) : undefined,
-    acknowledgedBy: row.acknowledged_by ?? undefined,
-    createdAt: new Date(row.created_at),
+    status: row.status as Alert['status'],
+    acknowledgedAt: row.acknowledgedAt ?? undefined,
+    acknowledgedBy: row.acknowledgedBy ?? undefined,
+    createdAt: row.createdAt,
   };
 }
 
@@ -33,17 +32,12 @@ function mapRowToAlert(row: any): Alert {
 // Threshold Evaluation
 // ============================================================
 
-/**
- * Determines alert severity for a ratio value against its threshold.
- * Returns null if no breach.
- * Requirements: 5.1, 5.2
- */
 function evaluateThresholdBreach(
   ratioName: RatioName,
   value: number,
-  threshold: Threshold
+  threshold: Threshold,
 ): { severity: AlertSeverity; thresholdValue: number; message: string } | null {
-  // "Higher is better" ratios: ROA, ROE, NPM, Current Ratio, Quick Ratio, Cash Ratio, OCF Ratio, DSCR
+  // "Higher is better" ratios
   if (threshold.healthyMin != null || threshold.moderateMin != null) {
     const healthyMin = threshold.healthyMin ?? Infinity;
     const moderateMin = threshold.moderateMin ?? -Infinity;
@@ -65,7 +59,7 @@ function evaluateThresholdBreach(
     return null;
   }
 
-  // "Lower is better" ratios: DER
+  // "Lower is better" ratios (DER)
   if (threshold.healthyMax != null || threshold.moderateMax != null) {
     const healthyMax = threshold.healthyMax ?? -Infinity;
     const moderateMax = threshold.moderateMax ?? Infinity;
@@ -91,7 +85,7 @@ function evaluateThresholdBreach(
 }
 
 // ============================================================
-// Specific Alert Rules (Requirements 5.3 - 5.6)
+// Specific Alert Rules
 // ============================================================
 
 interface AlertCandidate {
@@ -103,11 +97,10 @@ interface AlertCandidate {
 }
 
 function buildSpecificAlerts(ratios: CalculatedRatios): AlertCandidate[] {
-  const alerts: AlertCandidate[] = [];
+  const result: AlertCandidate[] = [];
 
-  // Req 5.4: DER > 2.0 → High
   if (ratios.der !== null && ratios.der > 2.0) {
-    alerts.push({
+    result.push({
       ratioName: 'der',
       severity: 'high',
       currentValue: ratios.der,
@@ -116,9 +109,8 @@ function buildSpecificAlerts(ratios: CalculatedRatios): AlertCandidate[] {
     });
   }
 
-  // Req 5.5: Current Ratio < 1.0 → High
   if (ratios.currentRatio !== null && ratios.currentRatio < 1.0) {
-    alerts.push({
+    result.push({
       ratioName: 'currentRatio',
       severity: 'high',
       currentValue: ratios.currentRatio,
@@ -127,9 +119,8 @@ function buildSpecificAlerts(ratios: CalculatedRatios): AlertCandidate[] {
     });
   }
 
-  // Req 5.6: NPM < 5% → Medium
   if (ratios.npm !== null && ratios.npm < 5) {
-    alerts.push({
+    result.push({
       ratioName: 'npm',
       severity: 'medium',
       currentValue: ratios.npm,
@@ -138,307 +129,209 @@ function buildSpecificAlerts(ratios: CalculatedRatios): AlertCandidate[] {
     });
   }
 
-  return alerts;
+  return result;
 }
 
 // ============================================================
 // Main Alert Evaluation
-// Requirements: 5.1 - 5.6
 // ============================================================
 
 /**
- * Evaluates all ratio values against thresholds and generates alerts.
- * Also runs specific hard-coded alert rules.
+ * Evaluates ratio values against thresholds and generates alerts.
  */
-export function evaluateAlerts(
-  db: Database.Database,
-  subsidiaryId: string,
-  financialDataId: string,
+export async function evaluateAlerts(
+  corporateId: string,
+  period: string,
   ratios: CalculatedRatios,
-  periodType: PeriodType
-): Alert[] {
+  departmentId?: string,
+): Promise<Alert[]> {
   const generatedAlerts: Alert[] = [];
-  const now = new Date().toISOString();
 
-  // Resolve existing active alerts for this financial data entry
-  db.prepare(`
-    UPDATE frs_alerts SET status = 'resolved'
-    WHERE subsidiary_id = ? AND financial_data_id = ? AND status = 'active'
-  `).run(subsidiaryId, financialDataId);
+  // Resolve existing active alerts for this corporate+period
+  await db.update(alerts).set({ status: 'resolved' }).where(
+    and(eq(alerts.corporateId, corporateId), eq(alerts.period, period), eq(alerts.status, 'active')),
+  );
 
   const ratioNames: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
-  // Threshold-based evaluation (Req 5.1, 5.2)
+  // Threshold-based evaluation
   for (const ratioName of ratioNames) {
     const value = ratios[ratioName] as number | null;
     if (value === null) continue;
 
-    const threshold = getThreshold(db, subsidiaryId, ratioName, periodType);
+    const threshold = await getThreshold(corporateId, ratioName);
     if (!threshold) continue;
 
     const breach = evaluateThresholdBreach(ratioName, value, threshold);
     if (!breach) continue;
 
-    const id = generateId();
-    db.prepare(`
-      INSERT INTO frs_alerts
-        (id, subsidiary_id, financial_data_id, ratio_name, severity, current_value, threshold_value, message, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
-    `).run(id, subsidiaryId, financialDataId, ratioName, breach.severity, value, breach.thresholdValue, breach.message, now);
+    const [inserted] = await db.insert(alerts).values({
+      corporateId,
+      departmentId: departmentId ?? null,
+      ratioName,
+      severity: breach.severity,
+      currentValue: value.toString(),
+      thresholdValue: breach.thresholdValue.toString(),
+      message: breach.message,
+      status: 'active',
+      period,
+    }).returning();
 
-    const row = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
-    generatedAlerts.push(mapRowToAlert(row));
+    generatedAlerts.push(mapRowToAlert(inserted));
   }
 
-  // Specific hard-coded alert rules (Req 5.3 - 5.6)
+  // Specific hard-coded alert rules
   const specificAlerts = buildSpecificAlerts(ratios);
   for (const candidate of specificAlerts) {
-    // Avoid duplicate if threshold-based already created one for same ratio
     const alreadyCreated = generatedAlerts.some((a) => a.ratioName === candidate.ratioName);
     if (alreadyCreated) continue;
 
-    const id = generateId();
-    db.prepare(`
-      INSERT INTO frs_alerts
-        (id, subsidiary_id, financial_data_id, ratio_name, severity, current_value, threshold_value, message, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
-    `).run(id, subsidiaryId, financialDataId, candidate.ratioName, candidate.severity, candidate.currentValue, candidate.thresholdValue, candidate.message, now);
+    const [inserted] = await db.insert(alerts).values({
+      corporateId,
+      departmentId: departmentId ?? null,
+      ratioName: candidate.ratioName,
+      severity: candidate.severity,
+      currentValue: candidate.currentValue.toString(),
+      thresholdValue: candidate.thresholdValue.toString(),
+      message: candidate.message,
+      status: 'active',
+      period,
+    }).returning();
 
-    const row = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
-    generatedAlerts.push(mapRowToAlert(row));
+    generatedAlerts.push(mapRowToAlert(inserted));
   }
 
   return generatedAlerts;
 }
 
 // ============================================================
-// Negative OCF Detection (Req 5.3)
-// Called separately since we need raw OCF value
+// Negative OCF Detection
 // ============================================================
 
-/**
- * Checks for negative operating cash flow and generates a high alert.
- * Requirements: 5.3
- */
-export function checkNegativeOCF(
-  db: Database.Database,
-  subsidiaryId: string,
-  financialDataId: string,
-  operatingCashFlow: number
-): Alert | null {
+export async function checkNegativeOCF(
+  corporateId: string,
+  period: string,
+  operatingCashFlow: number,
+  departmentId?: string,
+): Promise<Alert | null> {
   if (operatingCashFlow >= 0) return null;
 
-  const now = new Date().toISOString();
-  const id = generateId();
+  const [inserted] = await db.insert(alerts).values({
+    corporateId,
+    departmentId: departmentId ?? null,
+    ratioName: 'ocfRatio',
+    severity: 'high',
+    currentValue: operatingCashFlow.toString(),
+    thresholdValue: '0',
+    message: `Negative Operating Cash Flow: ${operatingCashFlow.toFixed(2)}`,
+    status: 'active',
+    period,
+  }).returning();
 
-  db.prepare(`
-    INSERT INTO frs_alerts
-      (id, subsidiary_id, financial_data_id, ratio_name, severity, current_value, threshold_value, message, status, created_at)
-    VALUES (?, ?, ?, 'ocfRatio', 'high', ?, 0, ?, 'active', ?)
-  `).run(id, subsidiaryId, financialDataId, operatingCashFlow, `Negative Operating Cash Flow: ${operatingCashFlow.toFixed(2)}`, now);
-
-  const row = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
-  return mapRowToAlert(row);
+  return mapRowToAlert(inserted);
 }
 
 // ============================================================
 // Declining Trend Detection
-// Requirements: 5.7
 // ============================================================
 
 /**
  * Detects 3 consecutive periods of declining ROA, ROE, or NPM.
- * Generates a medium severity alert if detected.
- * Requirements: 5.7
+ * Uses v_financial_ratios view via raw SQL.
  */
-export function detectDecliningTrend(
-  db: Database.Database,
-  subsidiaryId: string,
-  financialDataId: string
-): Alert[] {
+export async function detectDecliningTrend(
+  corporateId: string,
+  period: string,
+  departmentId?: string,
+): Promise<Alert[]> {
   const profitabilityRatios: RatioName[] = ['roa', 'roe', 'npm'];
-  const alerts: Alert[] = [];
-  const now = new Date().toISOString();
+  const result: Alert[] = [];
 
   for (const ratioName of profitabilityRatios) {
-    const colName = ratioName === 'currentRatio' ? 'current_ratio'
-      : ratioName === 'quickRatio' ? 'quick_ratio'
-      : ratioName === 'cashRatio' ? 'cash_ratio'
-      : ratioName === 'ocfRatio' ? 'ocf_ratio'
-      : ratioName;
-
-    // Get last 3 periods for this subsidiary, ordered by period start date desc
-    const rows = db.prepare(`
-      SELECT cr.${colName} as ratio_value, fd.period_start_date
-      FROM frs_calculated_ratios cr
-      JOIN frs_financial_data fd ON fd.id = cr.financial_data_id
-      WHERE cr.subsidiary_id = ?
-        AND cr.${colName} IS NOT NULL
-      ORDER BY fd.period_start_date DESC
+    const rows = (await db.execute(sql`
+      SELECT ${sql.raw(ratioName)} as ratio_value, period
+      FROM cfd.v_financial_ratios
+      WHERE corporate_id = ${corporateId}
+        AND ${sql.raw(ratioName)} IS NOT NULL
+      ORDER BY period DESC
       LIMIT 3
-    `).all(subsidiaryId) as any[];
+    `)).rows as { ratio_value: string; period: string }[];
 
     if (rows.length < 3) continue;
 
-    // rows[0] = most recent, rows[2] = oldest
-    const [latest, middle, oldest] = rows;
-    const isDecline = latest.ratio_value < middle.ratio_value && middle.ratio_value < oldest.ratio_value;
+    const [latest, middle, oldest] = rows.map(r => parseFloat(r.ratio_value));
+    if (!(latest < middle && middle < oldest)) continue;
 
-    if (!isDecline) continue;
-
-    // Check if we already have an active declining trend alert for this ratio
-    const existing = db.prepare(`
-      SELECT id FROM frs_alerts
-      WHERE subsidiary_id = ? AND ratio_name = ? AND severity = 'medium'
-        AND message LIKE '%declining trend%' AND status = 'active'
-    `).get(subsidiaryId, ratioName);
+    // Check for existing declining trend alert
+    const [existing] = await db
+      .select({ id: alerts.id })
+      .from(alerts)
+      .where(and(
+        eq(alerts.corporateId, corporateId),
+        eq(alerts.ratioName, ratioName),
+        eq(alerts.status, 'active'),
+      ))
+      .limit(1);
 
     if (existing) continue;
 
-    const id = generateId();
-    db.prepare(`
-      INSERT INTO frs_alerts
-        (id, subsidiary_id, financial_data_id, ratio_name, severity, current_value, threshold_value, message, status, created_at)
-      VALUES (?, ?, ?, ?, 'medium', ?, ?, ?, 'active', ?)
-    `).run(
-      id,
-      subsidiaryId,
-      financialDataId,
+    const [inserted] = await db.insert(alerts).values({
+      corporateId,
+      departmentId: departmentId ?? null,
       ratioName,
-      latest.ratio_value,
-      oldest.ratio_value,
-      `${ratioName.toUpperCase()} shows declining trend over 3 consecutive periods: ${oldest.ratio_value.toFixed(2)} → ${middle.ratio_value.toFixed(2)} → ${latest.ratio_value.toFixed(2)}`,
-      now
-    );
+      severity: 'medium',
+      currentValue: latest.toString(),
+      thresholdValue: oldest.toString(),
+      message: `${ratioName.toUpperCase()} shows declining trend over 3 consecutive periods: ${oldest.toFixed(2)} → ${middle.toFixed(2)} → ${latest.toFixed(2)}`,
+      status: 'active',
+      period,
+    }).returning();
 
-    const row = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
-    alerts.push(mapRowToAlert(row));
+    result.push(mapRowToAlert(inserted));
   }
 
-  return alerts;
+  return result;
 }
 
 // ============================================================
-// Unusual Data Pattern Detection
-// Requirements: 11.8
+// Re-evaluation
 // ============================================================
 
-const FINANCIAL_FIELDS = [
-  'revenue', 'net_profit', 'operating_cash_flow', 'cash',
-  'current_assets', 'total_assets', 'current_liabilities',
-  'total_liabilities', 'total_equity',
-] as const;
+export async function reevaluateAlertsForSubsidiary(
+  corporateId: string,
+): Promise<void> {
+  // Get the most recent period from the financial ratios view
+  const rows = (await db.execute(sql`
+    SELECT DISTINCT ON (department_id) *
+    FROM cfd.v_financial_ratios
+    WHERE corporate_id = ${corporateId}
+    ORDER BY department_id, period DESC
+  `)).rows as {
+    period: string;
+    roa: string | null; roe: string | null; npm: string | null;
+    der: string | null; current_ratio: string | null; quick_ratio: string | null;
+    cash_ratio: string | null;
+  }[];
 
-/**
- * Detects when a financial value differs by >50% from the previous period.
- * Generates an alert for unusual data patterns.
- * Requirements: 11.8
- */
-export function detectUnusualDataPatterns(
-  db: Database.Database,
-  subsidiaryId: string,
-  financialDataId: string,
-  periodType: PeriodType
-): Alert[] {
-  const alerts: Alert[] = [];
-  const now = new Date().toISOString();
-
-  // Get current financial data
-  const current = db.prepare('SELECT * FROM frs_financial_data WHERE id = ?').get(financialDataId) as any;
-  if (!current) return alerts;
-
-  // Get previous period data for same subsidiary and period type
-  const previous = db.prepare(`
-    SELECT * FROM frs_financial_data
-    WHERE subsidiary_id = ? AND period_type = ? AND period_start_date < ?
-    ORDER BY period_start_date DESC
-    LIMIT 1
-  `).get(subsidiaryId, periodType, current.period_start_date) as any;
-
-  if (!previous) return alerts;
-
-  for (const field of FINANCIAL_FIELDS) {
-    const currentVal: number = current[field];
-    const previousVal: number = previous[field];
-
-    if (previousVal === 0) continue; // avoid division by zero
-
-    const changePct = Math.abs((currentVal - previousVal) / Math.abs(previousVal)) * 100;
-
-    if (changePct > 50) {
-      const id = generateId();
-      const friendlyField = field.replace(/_/g, ' ');
-      db.prepare(`
-        INSERT INTO frs_alerts
-          (id, subsidiary_id, financial_data_id, ratio_name, severity, current_value, threshold_value, message, status, created_at)
-        VALUES (?, ?, ?, 'unusual_pattern', 'medium', ?, ?, ?, 'active', ?)
-      `).run(
-        id,
-        subsidiaryId,
-        financialDataId,
-        currentVal,
-        previousVal,
-        `Unusual data pattern: ${friendlyField} changed by ${changePct.toFixed(1)}% from previous period (${previousVal.toFixed(2)} → ${currentVal.toFixed(2)})`,
-        now
-      );
-
-      const row = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
-      alerts.push(mapRowToAlert(row));
-    }
-  }
-
-  return alerts;
-}
-
-// ============================================================
-// Threshold Re-evaluation
-// Requirements: 15.4
-// ============================================================
-
-/**
- * Re-evaluates all current ratio values for a subsidiary against updated thresholds.
- * Generates new alerts or resolves existing ones.
- * Requirements: 15.4
- */
-export function reevaluateAlertsForSubsidiary(
-  db: Database.Database,
-  subsidiaryId: string
-): void {
-  // Get the most recent financial data entry per period type
-  const latestEntries = db.prepare(`
-    SELECT fd.id as financial_data_id, fd.period_type, fd.operating_cash_flow,
-           cr.*
-    FROM frs_financial_data fd
-    JOIN frs_calculated_ratios cr ON cr.financial_data_id = fd.id
-    WHERE fd.subsidiary_id = ?
-    GROUP BY fd.period_type
-    HAVING fd.period_start_date = MAX(fd.period_start_date)
-  `).all(subsidiaryId) as any[];
-
-  for (const entry of latestEntries) {
+  for (const entry of rows) {
     const ratios: CalculatedRatios = {
-      id: entry.id,
-      financialDataId: entry.financial_data_id,
-      subsidiaryId,
-      roa: entry.roa,
-      roe: entry.roe,
-      npm: entry.npm,
-      der: entry.der,
-      currentRatio: entry.current_ratio,
-      quickRatio: entry.quick_ratio,
-      cashRatio: entry.cash_ratio,
-      ocfRatio: entry.ocf_ratio,
-      dscr: entry.dscr,
-      healthScore: entry.health_score,
-      calculatedAt: new Date(entry.calculated_at),
+      id: '',
+      financialDataId: '',
+      subsidiaryId: corporateId,
+      roa: entry.roa ? parseFloat(entry.roa) : null,
+      roe: entry.roe ? parseFloat(entry.roe) : null,
+      npm: entry.npm ? parseFloat(entry.npm) : null,
+      der: entry.der ? parseFloat(entry.der) : null,
+      currentRatio: entry.current_ratio ? parseFloat(entry.current_ratio) : null,
+      quickRatio: entry.quick_ratio ? parseFloat(entry.quick_ratio) : null,
+      cashRatio: entry.cash_ratio ? parseFloat(entry.cash_ratio) : null,
+      ocfRatio: null,
+      dscr: null,
+      healthScore: 0,
+      calculatedAt: new Date(),
     };
 
-    evaluateAlerts(db, subsidiaryId, entry.financial_data_id, ratios, entry.period_type as PeriodType);
-
-    // Check negative OCF
-    if (entry.operating_cash_flow < 0) {
-      checkNegativeOCF(db, subsidiaryId, entry.financial_data_id, entry.operating_cash_flow);
-    }
+    await evaluateAlerts(corporateId, entry.period, ratios);
   }
 }
 
@@ -447,81 +340,71 @@ export function reevaluateAlertsForSubsidiary(
 // ============================================================
 
 export interface AlertFilters {
-  subsidiaryId?: string;
+  corporateId?: string;
   severity?: string;
   status?: string;
   limit?: number;
   offset?: number;
 }
 
-/**
- * Lists alerts with optional filters.
- */
-export function listAlerts(db: Database.Database, filters: AlertFilters): Alert[] {
-  const conditions: string[] = [];
-  const params: unknown[] = [];
+export async function listAlerts(filters: AlertFilters): Promise<Alert[]> {
+  const conditions = [];
 
-  if (filters.subsidiaryId) { conditions.push('subsidiary_id = ?'); params.push(filters.subsidiaryId); }
-  if (filters.severity) { conditions.push('severity = ?'); params.push(filters.severity); }
-  if (filters.status) { conditions.push('status = ?'); params.push(filters.status); }
+  if (filters.corporateId) conditions.push(eq(alerts.corporateId, filters.corporateId));
+  if (filters.severity) conditions.push(eq(alerts.severity, filters.severity));
+  if (filters.status) conditions.push(eq(alerts.status, filters.status));
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
 
-  const rows = db
-    .prepare(`SELECT * FROM frs_alerts ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset) as any[];
+  const rows = await db
+    .select()
+    .from(alerts)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(alerts.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   return rows.map(mapRowToAlert);
 }
 
-/**
- * Gets a single alert by ID.
- */
-export function getAlertById(db: Database.Database, id: string): Alert | null {
-  const row = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
+export async function getAlertById(id: string): Promise<Alert | null> {
+  const [row] = await db.select().from(alerts).where(eq(alerts.id, id)).limit(1);
   return row ? mapRowToAlert(row) : null;
 }
 
-/**
- * Acknowledges an alert.
- */
-export function acknowledgeAlert(
-  db: Database.Database,
+export async function acknowledgeAlert(
   id: string,
-  userId: string
-): Alert | null {
-  const existing = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
+  userId: string,
+): Promise<Alert | null> {
+  const [existing] = await db.select().from(alerts).where(eq(alerts.id, id)).limit(1);
   if (!existing) return null;
 
-  db.prepare(`
-    UPDATE frs_alerts
-    SET status = 'acknowledged', acknowledged_at = CURRENT_TIMESTAMP, acknowledged_by = ?
-    WHERE id = ?
-  `).run(userId, id);
+  const [updated] = await db.update(alerts).set({
+    status: 'acknowledged',
+    acknowledgedAt: new Date(),
+    acknowledgedBy: userId,
+  }).where(eq(alerts.id, id)).returning();
 
-  const row = db.prepare('SELECT * FROM frs_alerts WHERE id = ?').get(id) as any;
-  return mapRowToAlert(row);
+  return mapRowToAlert(updated);
 }
 
-/**
- * Gets alert history (all non-active alerts).
- */
-export function getAlertHistory(db: Database.Database, filters: AlertFilters): Alert[] {
-  const conditions: string[] = ["status != 'active'"];
-  const params: unknown[] = [];
+export async function getAlertHistory(filters: AlertFilters): Promise<Alert[]> {
+  const conditions = [ne(alerts.status, 'active')];
 
-  if (filters.subsidiaryId) { conditions.push('subsidiary_id = ?'); params.push(filters.subsidiaryId); }
-  if (filters.severity) { conditions.push('severity = ?'); params.push(filters.severity); }
+  if (filters.corporateId) conditions.push(eq(alerts.corporateId, filters.corporateId));
+  if (filters.severity) conditions.push(eq(alerts.severity, filters.severity));
 
-  const where = `WHERE ${conditions.join(' AND ')}`;
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
 
-  const rows = db
-    .prepare(`SELECT * FROM frs_alerts ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset) as any[];
+  const rows = await db
+    .select()
+    .from(alerts)
+    .where(and(...conditions))
+    .orderBy(desc(alerts.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   return rows.map(mapRowToAlert);
 }

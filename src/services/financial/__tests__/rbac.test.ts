@@ -1,8 +1,27 @@
-import { describe, it, expect } from 'vitest';
-import { hasPermission } from '../../../middleware/frsRbac';
-import Database from 'better-sqlite3';
-import { initFinancialRatioSchema } from '../../../db/initFinancialRatio';
-import { checkSubsidiaryAccess } from '../../../middleware/frsRbac';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+
+const accessDbState = vi.hoisted(() => ({
+  rows: [] as any[],
+}));
+
+import { hasPermission, checkSubsidiaryAccess } from '../../../middleware/frsRbac';
+
+// Mock the DB connection — checkSubsidiaryAccess uses the singleton db internally
+vi.mock('../../../db/connection', () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => accessDbState.rows,
+        }),
+      }),
+    }),
+  },
+}));
+
+beforeEach(() => {
+  accessDbState.rows = [];
+});
 
 describe('hasPermission', () => {
   it('owner has full access to all resources', () => {
@@ -30,26 +49,15 @@ describe('hasPermission', () => {
 });
 
 describe('checkSubsidiaryAccess', () => {
-  it('returns false when user has no access', () => {
-    const db = new Database(':memory:');
-    initFinancialRatioSchema(db);
-    expect(checkSubsidiaryAccess(db, 'user1', 'sub1')).toBe(false);
-    db.close();
+  it('returns false when user has no access', async () => {
+    accessDbState.rows = [];
+
+    await expect(checkSubsidiaryAccess('user-1', 'corp-1')).resolves.toBe(false);
   });
 
-  it('returns true when access is granted', () => {
-    const db = new Database(':memory:');
-    initFinancialRatioSchema(db);
+  it('returns true when access is granted', async () => {
+    accessDbState.rows = [{ id: 'access-1' }];
 
-    // Create a subsidiary and user, then grant access
-    db.prepare(`INSERT INTO subsidiaries (id, name, industry_sector, fiscal_year_start_month, currency, tax_rate, created_by)
-      VALUES ('sub1', 'Test Sub', 'Manufacturing', 1, 'IDR', 0.25, 'owner1')`).run();
-    db.prepare(`INSERT INTO frs_users (id, username, email, password_hash, role, full_name)
-      VALUES ('user1', 'mgr1', 'mgr1@test.com', 'hash', 'subsidiary_manager', 'Manager One')`).run();
-    db.prepare(`INSERT INTO frs_user_subsidiary_access (id, user_id, subsidiary_id, granted_by)
-      VALUES ('acc1', 'user1', 'sub1', 'owner1')`).run();
-
-    expect(checkSubsidiaryAccess(db, 'user1', 'sub1')).toBe(true);
-    db.close();
+    await expect(checkSubsidiaryAccess('user-1', 'corp-1')).resolves.toBe(true);
   });
 });

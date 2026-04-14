@@ -1,318 +1,215 @@
 // Threshold Service
-// Requirements: 1.4, 5.10, 15.1 - 15.8
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
+import { eq, and } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { thresholds } from '../../db/schema';
 import { Threshold, CreateThresholdInput } from '../../types/financial/threshold';
 import { RatioName } from '../../types/financial/ratio';
-import { PeriodType } from '../../types/financial/financialData';
 
-const RATIO_NAMES: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
-const PERIOD_TYPES: PeriodType[] = ['monthly', 'quarterly', 'annual'];
-
-function generateId(): string {
-  return `thr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
+export const RATIO_NAMES: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
 // ============================================================
 // Industry Default Thresholds
-// Requirements: 1.4, 15.2
 // ============================================================
 
 type RatioThresholdDefaults = {
-  healthyMin?: number;
-  moderateMin?: number;
-  riskyMax?: number;
-  healthyMax?: number;
-  moderateMax?: number;
-  riskyMin?: number;
+  healthy_min?: number;
+  moderate_min?: number;
+  risky_max?: number;
+  healthy_max?: number;
+  moderate_max?: number;
+  risky_min?: number;
 };
 
-// Base defaults applicable to all industries
 const BASE_DEFAULTS: Record<RatioName, RatioThresholdDefaults> = {
-  roa:          { healthyMin: 5,   moderateMin: 2,   riskyMax: 0 },
-  roe:          { healthyMin: 10,  moderateMin: 5,   riskyMax: 0 },
-  npm:          { healthyMin: 10,  moderateMin: 5,   riskyMax: 0 },
-  der:          { healthyMax: 1.0, moderateMax: 2.0, riskyMin: 2.0 },
-  currentRatio: { healthyMin: 2.0, moderateMin: 1.0, riskyMax: 1.0 },
-  quickRatio:   { healthyMin: 1.0, moderateMin: 0.5, riskyMax: 0.5 },
-  cashRatio:    { healthyMin: 0.5, moderateMin: 0.2, riskyMax: 0.2 },
-  ocfRatio:     { healthyMin: 1.0, moderateMin: 0.5, riskyMax: 0 },
-  dscr:         { healthyMin: 1.5, moderateMin: 1.0, riskyMax: 1.0 },
+  roa:          { healthy_min: 5,   moderate_min: 2,   risky_max: 0 },
+  roe:          { healthy_min: 10,  moderate_min: 5,   risky_max: 0 },
+  npm:          { healthy_min: 10,  moderate_min: 5,   risky_max: 0 },
+  der:          { healthy_max: 1.0, moderate_max: 2.0, risky_min: 2.0 },
+  currentRatio: { healthy_min: 2.0, moderate_min: 1.0, risky_max: 1.0 },
+  quickRatio:   { healthy_min: 1.0, moderate_min: 0.5, risky_max: 0.5 },
+  cashRatio:    { healthy_min: 0.5, moderate_min: 0.2, risky_max: 0.2 },
+  ocfRatio:     { healthy_min: 1.0, moderate_min: 0.5, risky_max: 0 },
+  dscr:         { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
 };
 
-// Industry-specific overrides
 const INDUSTRY_OVERRIDES: Record<string, Partial<Record<RatioName, RatioThresholdDefaults>>> = {
   manufacturing: {
-    roa:          { healthyMin: 4,   moderateMin: 2,   riskyMax: 0 },
-    der:          { healthyMax: 1.5, moderateMax: 2.5, riskyMin: 2.5 },
-    currentRatio: { healthyMin: 1.5, moderateMin: 1.0, riskyMax: 1.0 },
+    roa:          { healthy_min: 4,   moderate_min: 2,   risky_max: 0 },
+    der:          { healthy_max: 1.5, moderate_max: 2.5, risky_min: 2.5 },
+    currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
   },
   retail: {
-    npm:          { healthyMin: 5,   moderateMin: 2,   riskyMax: 0 },
-    currentRatio: { healthyMin: 1.5, moderateMin: 1.0, riskyMax: 1.0 },
-    der:          { healthyMax: 1.5, moderateMax: 2.5, riskyMin: 2.5 },
+    npm:          { healthy_min: 5,   moderate_min: 2,   risky_max: 0 },
+    currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
+    der:          { healthy_max: 1.5, moderate_max: 2.5, risky_min: 2.5 },
   },
   banking: {
-    roa:          { healthyMin: 1,   moderateMin: 0.5, riskyMax: 0 },
-    roe:          { healthyMin: 12,  moderateMin: 8,   riskyMax: 0 },
-    der:          { healthyMax: 8.0, moderateMax: 12.0, riskyMin: 12.0 },
+    roa:          { healthy_min: 1,   moderate_min: 0.5, risky_max: 0 },
+    roe:          { healthy_min: 12,  moderate_min: 8,   risky_max: 0 },
+    der:          { healthy_max: 8.0, moderate_max: 12.0, risky_min: 12.0 },
   },
   property: {
-    der:          { healthyMax: 2.0, moderateMax: 3.0, riskyMin: 3.0 },
-    currentRatio: { healthyMin: 1.5, moderateMin: 1.0, riskyMax: 1.0 },
+    der:          { healthy_max: 2.0, moderate_max: 3.0, risky_min: 3.0 },
+    currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
   },
   technology: {
-    npm:          { healthyMin: 15,  moderateMin: 8,   riskyMax: 0 },
-    roa:          { healthyMin: 8,   moderateMin: 4,   riskyMax: 0 },
+    npm:          { healthy_min: 15,  moderate_min: 8,   risky_max: 0 },
+    roa:          { healthy_min: 8,   moderate_min: 4,   risky_max: 0 },
   },
 };
 
-/**
- * Returns threshold defaults for a given industry sector and ratio.
- */
-function getDefaultsForRatio(industrySector: string, ratioName: RatioName): RatioThresholdDefaults {
+export function getDefaultsForRatio(industrySector: string, ratioName: RatioName): RatioThresholdDefaults {
   const sector = industrySector.toLowerCase();
-  const override = INDUSTRY_OVERRIDES[sector]?.[ratioName];
-  return override ?? BASE_DEFAULTS[ratioName];
+  return INDUSTRY_OVERRIDES[sector]?.[ratioName] ?? BASE_DEFAULTS[ratioName];
 }
 
-/**
- * Initializes default thresholds for all 9 ratios x 3 period types for a new subsidiary.
- * Requirements: 1.4, 15.2
- */
-export function initDefaultThresholds(
-  db: Database.Database,
-  subsidiaryId: string,
-  industrySector: string,
-  updatedBy: string
-): void {
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO frs_thresholds
-      (id, subsidiary_id, ratio_name, period_type, healthy_min, moderate_min, risky_max,
-       healthy_max, moderate_max, risky_min, is_default, created_at, updated_at, updated_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-  `);
+type ThresholdRow = typeof thresholds.$inferSelect;
 
-  const insertMany = db.transaction(() => {
-    for (const ratioName of RATIO_NAMES) {
-      const defaults = getDefaultsForRatio(industrySector, ratioName);
-      for (const periodType of PERIOD_TYPES) {
-        insert.run(
-          generateId(),
-          subsidiaryId,
-          ratioName,
-          periodType,
-          defaults.healthyMin ?? null,
-          defaults.moderateMin ?? null,
-          defaults.riskyMax ?? null,
-          defaults.healthyMax ?? null,
-          defaults.moderateMax ?? null,
-          defaults.riskyMin ?? null,
-          updatedBy,
-        );
-      }
-    }
-  });
-
-  insertMany();
-}
-
-function mapRowToThreshold(row: any): Threshold {
+function mapRowToThreshold(row: ThresholdRow): Threshold {
+  const tv = row.thresholds as RatioThresholdDefaults;
   return {
     id: row.id,
-    subsidiaryId: row.subsidiary_id,
-    ratioName: row.ratio_name as RatioName,
-    periodType: row.period_type as PeriodType,
-    healthyMin: row.healthy_min ?? undefined,
-    moderateMin: row.moderate_min ?? undefined,
-    riskyMax: row.risky_max ?? undefined,
-    healthyMax: row.healthy_max ?? undefined,
-    moderateMax: row.moderate_max ?? undefined,
-    riskyMin: row.risky_min ?? undefined,
-    isDefault: Boolean(row.is_default),
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-    updatedBy: row.updated_by,
+    subsidiaryId: row.corporateId,
+    ratioName: row.ratioName as RatioName,
+    periodType: 'monthly', // no periodType distinction in new schema
+    healthyMin: tv.healthy_min,
+    moderateMin: tv.moderate_min,
+    riskyMax: tv.risky_max,
+    healthyMax: tv.healthy_max,
+    moderateMax: tv.moderate_max,
+    riskyMin: tv.risky_min,
+    isDefault: row.isDefault,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt ?? row.createdAt,
+    updatedBy: row.updatedBy ?? row.createdBy,
   };
 }
 
 /**
- * Gets all thresholds for a subsidiary, optionally filtered by period type.
+ * Initializes default thresholds (9 ratios) for a corporate.
  */
-export function getThresholds(
-  db: Database.Database,
-  subsidiaryId: string,
-  periodType?: PeriodType
-): Threshold[] {
-  const sql = periodType
-    ? 'SELECT * FROM frs_thresholds WHERE subsidiary_id = ? AND period_type = ?'
-    : 'SELECT * FROM frs_thresholds WHERE subsidiary_id = ?';
-  const rows = periodType
-    ? (db.prepare(sql).all(subsidiaryId, periodType) as any[])
-    : (db.prepare(sql).all(subsidiaryId) as any[]);
+export async function initDefaultThresholds(
+  corporateId: string,
+  industrySector: string,
+  updatedBy: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    for (const ratioName of RATIO_NAMES) {
+      const defaults = getDefaultsForRatio(industrySector, ratioName);
+      await tx.insert(thresholds).values({
+        corporateId,
+        ratioName,
+        thresholds: defaults,
+        isDefault: true,
+        createdBy: updatedBy,
+      }).onConflictDoNothing();
+    }
+  });
+}
+
+/**
+ * Gets all thresholds for a corporate.
+ */
+export async function getThresholds(
+  corporateId: string,
+): Promise<Threshold[]> {
+  const rows = await db.select().from(thresholds).where(eq(thresholds.corporateId, corporateId));
   return rows.map(mapRowToThreshold);
 }
 
 /**
- * Gets a single threshold for a subsidiary+ratio+period.
+ * Gets a single threshold for a corporate + ratio.
  */
-export function getThreshold(
-  db: Database.Database,
-  subsidiaryId: string,
+export async function getThreshold(
+  corporateId: string,
   ratioName: RatioName,
-  periodType: PeriodType
-): Threshold | null {
-  const row = db
-    .prepare('SELECT * FROM frs_thresholds WHERE subsidiary_id = ? AND ratio_name = ? AND period_type = ?')
-    .get(subsidiaryId, ratioName, periodType) as any;
+): Promise<Threshold | null> {
+  const [row] = await db
+    .select()
+    .from(thresholds)
+    .where(and(eq(thresholds.corporateId, corporateId), eq(thresholds.ratioName, ratioName)))
+    .limit(1);
   return row ? mapRowToThreshold(row) : null;
 }
 
 /**
- * Updates thresholds for a subsidiary. Validates healthy > moderate > risky ordering.
- * Records history for each changed threshold.
- * Requirements: 15.1, 15.3, 15.5
+ * Updates thresholds for a corporate. Validates ordering.
  */
-export function updateThresholds(
-  db: Database.Database,
-  subsidiaryId: string,
-  updates: CreateThresholdInput[],
-  updatedBy: string
-): { success: boolean; error?: string } {
+export async function updateThresholds(
+  corporateId: string,
+  updates: Omit<CreateThresholdInput, 'subsidiaryId' | 'periodType'>[],
+  updatedBy: string,
+): Promise<{ success: boolean; error?: string }> {
   for (const u of updates) {
-    // Validate ordering for "higher is better" ratios
     if (u.healthyMin != null && u.moderateMin != null && u.healthyMin < u.moderateMin) {
       return { success: false, error: `For ${u.ratioName}: healthyMin must be >= moderateMin` };
     }
-    // Validate ordering for "lower is better" ratios (DER)
     if (u.healthyMax != null && u.moderateMax != null && u.healthyMax > u.moderateMax) {
       return { success: false, error: `For ${u.ratioName}: healthyMax must be <= moderateMax` };
     }
   }
 
-  const upsert = db.prepare(`
-    INSERT INTO frs_thresholds
-      (id, subsidiary_id, ratio_name, period_type, healthy_min, moderate_min, risky_max,
-       healthy_max, moderate_max, risky_min, is_default, updated_at, updated_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, ?)
-    ON CONFLICT(subsidiary_id, ratio_name, period_type) DO UPDATE SET
-      healthy_min = excluded.healthy_min,
-      moderate_min = excluded.moderate_min,
-      risky_max = excluded.risky_max,
-      healthy_max = excluded.healthy_max,
-      moderate_max = excluded.moderate_max,
-      risky_min = excluded.risky_min,
-      is_default = 0,
-      updated_at = CURRENT_TIMESTAMP,
-      updated_by = excluded.updated_by
-  `);
-
-  const insertHistory = db.prepare(`
-    INSERT INTO frs_threshold_history
-      (id, threshold_id, subsidiary_id, ratio_name, period_type, old_values, new_values, changed_at, changed_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-  `);
-
-  const doUpdate = db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const u of updates) {
-      // Capture old values before update (for history)
-      const existing = db
-        .prepare('SELECT * FROM frs_thresholds WHERE subsidiary_id = ? AND ratio_name = ? AND period_type = ?')
-        .get(subsidiaryId, u.ratioName, u.periodType) as any;
+      const thresholdValues: RatioThresholdDefaults = {
+        healthy_min: u.healthyMin ?? undefined,
+        moderate_min: u.moderateMin ?? undefined,
+        risky_max: u.riskyMax ?? undefined,
+        healthy_max: u.healthyMax ?? undefined,
+        moderate_max: u.moderateMax ?? undefined,
+        risky_min: u.riskyMin ?? undefined,
+      };
 
-      const newId = generateId();
-      upsert.run(
-        newId,
-        subsidiaryId,
-        u.ratioName,
-        u.periodType,
-        u.healthyMin ?? null,
-        u.moderateMin ?? null,
-        u.riskyMax ?? null,
-        u.healthyMax ?? null,
-        u.moderateMax ?? null,
-        u.riskyMin ?? null,
-        updatedBy,
-      );
+      const [existing] = await tx
+        .select()
+        .from(thresholds)
+        .where(and(eq(thresholds.corporateId, corporateId), eq(thresholds.ratioName, u.ratioName)))
+        .limit(1);
 
-      // Record history (Req 15.5)
-      const afterRow = db
-        .prepare('SELECT * FROM frs_thresholds WHERE subsidiary_id = ? AND ratio_name = ? AND period_type = ?')
-        .get(subsidiaryId, u.ratioName, u.periodType) as any;
-
-      insertHistory.run(
-        `thr_hist_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        afterRow?.id ?? newId,
-        subsidiaryId,
-        u.ratioName,
-        u.periodType,
-        JSON.stringify(existing ? {
-          healthyMin: existing.healthy_min,
-          moderateMin: existing.moderate_min,
-          riskyMax: existing.risky_max,
-          healthyMax: existing.healthy_max,
-          moderateMax: existing.moderate_max,
-          riskyMin: existing.risky_min,
-        } : null),
-        JSON.stringify({
-          healthyMin: u.healthyMin ?? null,
-          moderateMin: u.moderateMin ?? null,
-          riskyMax: u.riskyMax ?? null,
-          healthyMax: u.healthyMax ?? null,
-          moderateMax: u.moderateMax ?? null,
-          riskyMin: u.riskyMin ?? null,
-        }),
-        updatedBy,
-      );
+      if (existing) {
+        await tx.update(thresholds).set({
+          thresholds: thresholdValues,
+          isDefault: false,
+          updatedBy,
+          updatedAt: new Date(),
+        }).where(eq(thresholds.id, existing.id));
+      } else {
+        await tx.insert(thresholds).values({
+          corporateId,
+          ratioName: u.ratioName,
+          thresholds: thresholdValues,
+          isDefault: false,
+          createdBy: updatedBy,
+        });
+      }
     }
   });
 
-  doUpdate();
   return { success: true };
 }
 
 /**
- * Gets threshold change history for a subsidiary.
- * Requirements: 15.5
+ * Gets threshold change history. No dedicated history table in new schema;
+ * returns empty array. Use audit_logs for history.
  */
-export function getThresholdHistory(
-  db: Database.Database,
-  subsidiaryId: string,
-  limit = 100,
-  offset = 0
-): any[] {
-  const rows = db
-    .prepare(`
-      SELECT * FROM frs_threshold_history
-      WHERE subsidiary_id = ?
-      ORDER BY changed_at DESC
-      LIMIT ? OFFSET ?
-    `)
-    .all(subsidiaryId, limit, offset) as any[];
-
-  return rows.map((row) => ({
-    id: row.id,
-    thresholdId: row.threshold_id,
-    subsidiaryId: row.subsidiary_id,
-    ratioName: row.ratio_name,
-    periodType: row.period_type,
-    oldValues: JSON.parse(row.old_values),
-    newValues: JSON.parse(row.new_values),
-    changedAt: new Date(row.changed_at),
-    changedBy: row.changed_by,
-  }));
+export async function getThresholdHistory(
+  _corporateId: string,
+  _limit = 100,
+  _offset = 0,
+): Promise<unknown[]> {
+  return [];
 }
 
 /**
- * Resets thresholds to industry defaults for a subsidiary.
- * Requirements: 15.6
+ * Resets thresholds to industry defaults for a corporate.
  */
-export function resetThresholdsToDefaults(
-  db: Database.Database,
-  subsidiaryId: string,
+export async function resetThresholdsToDefaults(
+  corporateId: string,
   industrySector: string,
-  updatedBy: string
-): void {
-  db.prepare('DELETE FROM frs_thresholds WHERE subsidiary_id = ?').run(subsidiaryId);
-  initDefaultThresholds(db, subsidiaryId, industrySector, updatedBy);
+  updatedBy: string,
+): Promise<void> {
+  await db.delete(thresholds).where(eq(thresholds.corporateId, corporateId));
+  await initDefaultThresholds(corporateId, industrySector, updatedBy);
 }

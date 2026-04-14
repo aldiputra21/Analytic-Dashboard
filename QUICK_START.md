@@ -1,70 +1,69 @@
-# MAFINDA - Quick Start Guide
+# CFD — Quick Start Guide
 
-## 🚀 Start Demo in 30 Seconds
+## 🚀 Start in 2 Minutes
 
 ```bash
-npm run demo
+# 1. Install dependencies
+npm install
+
+# 2. Copy env and set DATABASE_URL
+cp .env.example .env.local
+# Edit .env.local with your PostgreSQL connection string
+
+# 3. Push schema & seed data
+npx drizzle-kit push
+npx tsx init-and-seed.ts
+npx tsx seed-data.ts
+npx tsx seed-crm.ts
+
+# 4. Start
+npm run dev
 ```
 
 Buka browser: **http://localhost:5000**
 
 ## 👤 Login Credentials
 
-| Role | Username | Password | Access |
-|------|----------|----------|--------|
-| Banking Officer | `banking` | `banking123` | Input cash flow |
-| Finance Analyst | `finance` | `finance123` | Approve data |
-| Admin | `admin` | `admin123` | Full access |
+| Role | Email | Password | Access |
+|------|-------|----------|--------|
+| Owner | `owner@holding.com` | `owner123` | Full access (FRS) |
+| Admin | `admin@cfd.local` | `changeme` | Full access (CFD) |
+| Banking | `banking@cfd.local` | `changeme` | Input cash flow |
+| Finance | `finance@cfd.local` | `changeme` | Approve data |
 
 ## 📋 Demo Checklist
 
-1. ✅ Run `npm run demo`
-2. ✅ Login as Banking Officer
-3. ✅ Input cash flow data (Input Data tab)
-4. ✅ Login as Finance Analyst
-5. ✅ Approve data (Approval Center tab)
-6. ✅ View updated dashboard (Dashboard tab)
+1. ✅ Setup database & seed data (steps above)
+2. ✅ Login as Admin
+3. ✅ View Dashboard (Analitik tab)
+4. ✅ Input cash flow data (Input Data tab)
+5. ✅ Manage departments/projects (CFD tab)
+6. ✅ Explore CRM pipeline (CRM tab)
 
-## 🎯 Key Features to Show
+## 🎯 Key Features
 
-- **Dashboard**: Cash position, Achievement gauge, Department performance
-- **Input Form**: Weekly cash flow entry (W1-W5)
-- **Approval**: Review and approve/reject workflow
-- **Real-time**: Data updates immediately after approval
-
-## 📚 Documentation
-
-- **Demo Guide**: `MAFINDA_DEMO_GUIDE.md`
-- **Demo Ready**: `MAFINDA_DEMO_READY.md`
-- **Implementation**: `MAFINDA_IMPLEMENTATION_PROGRESS.md`
+- **FRS Dashboard**: Financial ratios, health score, alerts, benchmarking
+- **Financial Management**: Cash flow, income statement, balance sheet input
+- **CRM Pipeline**: Lead → Qualification → Tender → Proposal → Negotiation → Contract
+- **Reports**: Trend analysis, consolidated reports, Excel/PDF export
 
 ## 🆘 Troubleshooting
 
 **Server won't start?**
 ```bash
-# Kill existing process
-# Windows: netstat -ano | findstr :5000
-# Mac/Linux: lsof -ti:5000 | xargs kill -9
+# Check DATABASE_URL is set correctly in .env.local
+# Test connection:
+npx tsx -e "import './src/db/connection'; console.log('DB OK')"
 ```
 
 **No data showing?**
 ```bash
-npm run seed:mafinda
+npx tsx init-and-seed.ts
+npx tsx seed-data.ts
+npx tsx seed-crm.ts
 ```
 
-**Reset everything?**
+**Schema out of sync?**
 ```bash
-rm finance.db
-npm run demo
+npx drizzle-kit push
 ```
-
-## 💡 Pro Tips
-
-- Use 2 browser windows for Banking Officer & Finance Analyst
-- Current period has some pending approvals ready for demo
-- Historical data available for 12 months (2024-01 to 2024-12)
-- Select different companies (ASI/TSI) to see different data
-
----
-
-**Need help?** Check `MAFINDA_DEMO_READY.md` for complete demo script!

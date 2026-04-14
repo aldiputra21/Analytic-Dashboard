@@ -2,7 +2,6 @@
 // Requirements: 9.1, 9.5, 9.9
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireFRSAuth } from '../../middleware/frsAuth';
 import { authorize } from '../../middleware/frsRbac';
 import {
@@ -16,7 +15,7 @@ import {
 } from '../../services/financial/userService';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
 
-export function createUsersRouter(db: Database.Database): Router {
+export function createUsersRouter(): Router {
   const router = Router();
 
   router.use(requireFRSAuth);
@@ -25,7 +24,7 @@ export function createUsersRouter(db: Database.Database): Router {
    * POST /api/frs/users
    * Create a new user (Owner only).
    */
-  router.post('/', authorize('users', 'manage_users', db), async (req: Request, res: Response) => {
+  router.post('/', authorize('users', 'manage_users'), async (req: Request, res: Response) => {
     const { username, email, password, role, fullName } = req.body;
 
     if (!username || !email || !password || !role || !fullName) {
@@ -42,7 +41,7 @@ export function createUsersRouter(db: Database.Database): Router {
       return;
     }
 
-    const result = await createUser(db, { username, email, password, role, fullName }, req.frsUser!.userId);
+    const result = await createUser({ username, email, password, role, fullName }, req.frsUser!.userId);
 
     if (result.error) {
       res.status(422).json({
@@ -51,7 +50,7 @@ export function createUsersRouter(db: Database.Database): Router {
       return;
     }
 
-    createFRSAuditLog(db, {
+    await createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'create',
       entityType: 'user',
@@ -68,8 +67,8 @@ export function createUsersRouter(db: Database.Database): Router {
    * GET /api/frs/users
    * List all users (Owner only).
    */
-  router.get('/', authorize('users', 'manage_users', db), (req: Request, res: Response) => {
-    const users = listUsers(db);
+  router.get('/', authorize('users', 'manage_users'), async (_req: Request, res: Response) => {
+    const users = await listUsers();
     res.json(users);
   });
 
@@ -77,8 +76,8 @@ export function createUsersRouter(db: Database.Database): Router {
    * GET /api/frs/users/:id
    * Get user details (Owner only).
    */
-  router.get('/:id', authorize('users', 'manage_users', db), (req: Request, res: Response) => {
-    const user = getUserById(db, req.params.id);
+  router.get('/:id', authorize('users', 'manage_users'), async (req: Request, res: Response) => {
+    const user = await getUserById(req.params.id);
     if (!user) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: 'User not found', timestamp: new Date().toISOString(), requestId: '' },
@@ -92,10 +91,10 @@ export function createUsersRouter(db: Database.Database): Router {
    * PUT /api/frs/users/:id
    * Update a user (Owner only).
    */
-  router.put('/:id', authorize('users', 'manage_users', db), (req: Request, res: Response) => {
-    const { username, email, role, fullName } = req.body;
+  router.put('/:id', authorize('users', 'manage_users'), async (req: Request, res: Response) => {
+    const { email, fullName } = req.body;
 
-    const existing = getUserById(db, req.params.id);
+    const existing = await getUserById(req.params.id);
     if (!existing) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: 'User not found', timestamp: new Date().toISOString(), requestId: '' },
@@ -103,15 +102,15 @@ export function createUsersRouter(db: Database.Database): Router {
       return;
     }
 
-    const updated = updateUser(db, req.params.id, { username, email, role, fullName });
+    const updated = await updateUser(req.params.id, { email, fullName });
 
-    createFRSAuditLog(db, {
+    await createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'update',
       entityType: 'user',
       entityId: req.params.id,
-      oldValues: { username: existing.username, role: existing.role },
-      newValues: { username, role },
+      oldValues: { email: existing.email },
+      newValues: { email },
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -123,7 +122,7 @@ export function createUsersRouter(db: Database.Database): Router {
    * PATCH /api/frs/users/:id/status
    * Activate or deactivate a user (Owner only).
    */
-  router.patch('/:id/status', authorize('users', 'manage_users', db), (req: Request, res: Response) => {
+  router.patch('/:id/status', authorize('users', 'manage_users'), async (req: Request, res: Response) => {
     const { isActive } = req.body;
 
     if (typeof isActive !== 'boolean') {
@@ -133,7 +132,7 @@ export function createUsersRouter(db: Database.Database): Router {
       return;
     }
 
-    const updated = setUserStatus(db, req.params.id, isActive);
+    const updated = await setUserStatus(req.params.id, isActive);
     if (!updated) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: 'User not found', timestamp: new Date().toISOString(), requestId: '' },
@@ -141,7 +140,7 @@ export function createUsersRouter(db: Database.Database): Router {
       return;
     }
 
-    createFRSAuditLog(db, {
+    await createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'update',
       entityType: 'user',
@@ -159,7 +158,7 @@ export function createUsersRouter(db: Database.Database): Router {
    * Assign subsidiary access to a user (Owner only).
    * Requirements: 9.9
    */
-  router.post('/:id/subsidiary-access', authorize('users', 'manage_users', db), (req: Request, res: Response) => {
+  router.post('/:id/subsidiary-access', authorize('users', 'manage_users'), async (req: Request, res: Response) => {
     const { subsidiaryIds } = req.body;
 
     if (!Array.isArray(subsidiaryIds) || subsidiaryIds.length === 0) {
@@ -169,7 +168,7 @@ export function createUsersRouter(db: Database.Database): Router {
       return;
     }
 
-    const result = assignSubsidiaryAccess(db, req.params.id, subsidiaryIds, req.frsUser!.userId);
+    const result = await assignSubsidiaryAccess(req.params.id, subsidiaryIds, req.frsUser!.userId);
 
     if (!result.success) {
       res.status(422).json({
@@ -178,7 +177,7 @@ export function createUsersRouter(db: Database.Database): Router {
       return;
     }
 
-    createFRSAuditLog(db, {
+    await createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'update',
       entityType: 'user_subsidiary_access',
@@ -188,7 +187,7 @@ export function createUsersRouter(db: Database.Database): Router {
       userAgent: req.headers['user-agent'],
     });
 
-    const access = getUserSubsidiaryAccess(db, req.params.id);
+    const access = await getUserSubsidiaryAccess(req.params.id);
     res.json(access);
   });
 
@@ -196,15 +195,15 @@ export function createUsersRouter(db: Database.Database): Router {
    * GET /api/frs/users/:id/subsidiary-access
    * Get subsidiary access for a user (Owner only).
    */
-  router.get('/:id/subsidiary-access', authorize('users', 'manage_users', db), (req: Request, res: Response) => {
-    const user = getUserById(db, req.params.id);
+  router.get('/:id/subsidiary-access', authorize('users', 'manage_users'), async (req: Request, res: Response) => {
+    const user = await getUserById(req.params.id);
     if (!user) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: 'User not found', timestamp: new Date().toISOString(), requestId: '' },
       });
       return;
     }
-    const access = getUserSubsidiaryAccess(db, req.params.id);
+    const access = await getUserSubsidiaryAccess(req.params.id);
     res.json(access);
   });
 

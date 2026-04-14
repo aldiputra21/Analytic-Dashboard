@@ -2,7 +2,6 @@
 // Requirements: 1.1, 1.2, 1.3, 1.5, 1.6
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireFRSAuth } from '../../middleware/frsAuth';
 import { authorize, requireSubsidiaryAccess } from '../../middleware/frsRbac';
 import {
@@ -15,8 +14,11 @@ import {
 } from '../../services/financial/subsidiaryService';
 import { initDefaultThresholds } from '../../services/financial/thresholdService';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
+import { db } from '../../db/connection';
+import { userCorporateAccesses } from '../../db/schema/public';
+import { eq } from 'drizzle-orm';
 
-export function createSubsidiariesRouter(db: Database.Database): Router {
+export function createSubsidiariesRouter(): Router {
   const router = Router();
 
   // All routes require authentication
@@ -26,7 +28,7 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
    * POST /api/frs/subsidiaries
    * Create a new subsidiary (Owner only). Max 5 limit enforced.
    */
-  router.post('/', authorize('subsidiaries', 'write', db), (req: Request, res: Response) => {
+  router.post('/', authorize('subsidiaries', 'write'), async (req: Request, res: Response) => {
     const { name, industrySector, fiscalYearStartMonth, currency, taxRate } = req.body;
 
     if (!name || !industrySector || !fiscalYearStartMonth || taxRate == null) {
@@ -43,7 +45,7 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
       return;
     }
 
-    const result = createSubsidiary(db, { name, industrySector, fiscalYearStartMonth, currency, taxRate }, req.frsUser!.userId);
+    const result = await createSubsidiary({ name, industrySector, fiscalYearStartMonth, currency, taxRate }, req.frsUser!.userId);
 
     if (result.error) {
       res.status(422).json({
@@ -54,10 +56,10 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
 
     const subsidiary = result.subsidiary!;
 
-    // Initialize default thresholds for all 9 ratios x 3 period types
-    initDefaultThresholds(db, subsidiary.id, industrySector, req.frsUser!.userId);
+    // Initialize default thresholds for all 9 ratios
+    await initDefaultThresholds(subsidiary.id, industrySector, req.frsUser!.userId);
 
-    createFRSAuditLog(db, {
+    await createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'create',
       entityType: 'subsidiary',
@@ -74,16 +76,17 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
    * GET /api/frs/subsidiaries
    * List subsidiaries. Optional ?active=true filter.
    */
-  router.get('/', authorize('subsidiaries', 'read', db), (req: Request, res: Response) => {
+  router.get('/', authorize('subsidiaries', 'read'), async (req: Request, res: Response) => {
     const activeOnly = req.query.active === 'true';
-    let subsidiaries = listSubsidiaries(db, activeOnly);
+    let subsidiaries = await listSubsidiaries(activeOnly);
 
-    // subsidiary_manager: filter to only their assigned subsidiaries
+    // subsidiary_manager: filter to only their assigned corporates
     if (req.frsUser!.role === 'subsidiary_manager') {
-      const accessRows = db
-        .prepare('SELECT subsidiary_id FROM frs_user_subsidiary_access WHERE user_id = ?')
-        .all(req.frsUser!.userId) as any[];
-      const allowed = new Set(accessRows.map((r) => r.subsidiary_id));
+      const accessRows = await db
+        .select({ corporateId: userCorporateAccesses.corporateId })
+        .from(userCorporateAccesses)
+        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
+      const allowed = new Set(accessRows.map((r) => r.corporateId));
       subsidiaries = subsidiaries.filter((s) => allowed.has(s.id));
     }
 
@@ -94,8 +97,8 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
    * GET /api/frs/subsidiaries/:id
    * Get subsidiary details.
    */
-  router.get('/:id', authorize('subsidiaries', 'read', db), requireSubsidiaryAccess(db), (req: Request, res: Response) => {
-    const subsidiary = getSubsidiaryById(db, req.params.id);
+  router.get('/:id', authorize('subsidiaries', 'read'), requireSubsidiaryAccess(), async (req: Request, res: Response) => {
+    const subsidiary = await getSubsidiaryById(req.params.id);
     if (!subsidiary) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: 'Subsidiary not found', timestamp: new Date().toISOString(), requestId: '' },
@@ -109,10 +112,10 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
    * PUT /api/frs/subsidiaries/:id
    * Update subsidiary profile (Owner only).
    */
-  router.put('/:id', authorize('subsidiaries', 'write', db), (req: Request, res: Response) => {
+  router.put('/:id', authorize('subsidiaries', 'write'), async (req: Request, res: Response) => {
     const { name, industrySector, fiscalYearStartMonth, currency, taxRate } = req.body;
 
-    const existing = getSubsidiaryById(db, req.params.id);
+    const existing = await getSubsidiaryById(req.params.id);
     if (!existing) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: 'Subsidiary not found', timestamp: new Date().toISOString(), requestId: '' },
@@ -120,9 +123,9 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
       return;
     }
 
-    const updated = updateSubsidiary(db, req.params.id, { name, industrySector, fiscalYearStartMonth, currency, taxRate });
+    const updated = await updateSubsidiary(req.params.id, { name, industrySector, fiscalYearStartMonth, currency, taxRate });
 
-    createFRSAuditLog(db, {
+    await createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'update',
       entityType: 'subsidiary',
@@ -140,7 +143,7 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
    * PATCH /api/frs/subsidiaries/:id/status
    * Activate or deactivate a subsidiary (Owner only).
    */
-  router.patch('/:id/status', authorize('subsidiaries', 'configure', db), (req: Request, res: Response) => {
+  router.patch('/:id/status', authorize('subsidiaries', 'configure'), async (req: Request, res: Response) => {
     const { isActive } = req.body;
 
     if (typeof isActive !== 'boolean') {
@@ -150,7 +153,7 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
       return;
     }
 
-    const updated = setSubsidiaryStatus(db, req.params.id, isActive);
+    const updated = await setSubsidiaryStatus(req.params.id, isActive);
     if (!updated) {
       res.status(404).json({
         error: { code: 'FRS_NOT_FOUND', message: 'Subsidiary not found', timestamp: new Date().toISOString(), requestId: '' },
@@ -158,7 +161,7 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
       return;
     }
 
-    createFRSAuditLog(db, {
+    await createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'update',
       entityType: 'subsidiary',
@@ -175,8 +178,8 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
    * DELETE /api/frs/subsidiaries/:id
    * Delete a subsidiary. Rejected if it has financial data.
    */
-  router.delete('/:id', authorize('subsidiaries', 'delete', db), (req: Request, res: Response) => {
-    const result = deleteSubsidiary(db, req.params.id);
+  router.delete('/:id', authorize('subsidiaries', 'delete'), async (req: Request, res: Response) => {
+    const result = await deleteSubsidiary(req.params.id);
 
     if (!result.success) {
       const isNotFound = result.error === 'Subsidiary not found';
@@ -191,7 +194,7 @@ export function createSubsidiariesRouter(db: Database.Database): Router {
       return;
     }
 
-    createFRSAuditLog(db, {
+    createFRSAuditLog({
       userId: req.frsUser!.userId,
       action: 'delete',
       entityType: 'subsidiary',

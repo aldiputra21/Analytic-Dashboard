@@ -1,7 +1,9 @@
 // Financial Statement Service — MAFINDA Dashboard Enhancement
-// Requirements: 8.1, 8.2, 8.3, 8.6, 8.7, 8.8, 8.9, 8.10
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
+import { eq, and, desc } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema';
 
 // ─── Error Classes ────────────────────────────────────────────────────────────
 
@@ -25,94 +27,132 @@ export class NotFoundError extends Error {
 
 export interface BalanceSheet {
   id: string;
+  departmentId: string;
   period: string;
-  currentAssets: number;
-  fixedAssets: number;
-  otherAssets: number;
-  shortTermLiabilities: number;
-  longTermLiabilities: number;
-  paidInCapital: number;
-  retainedEarnings: number;
-  otherEquity: number;
-  version: number;
+  // Aktiva Lancar
+  cashAndBank: string;
+  accountsReceivable: string;
+  workInProgress: string;
+  inventory: string;
+  prepaidExpenses: string;
+  // Aktiva Tetap
+  land: string;
+  building: string;
+  equipment: string;
+  otherFixedAssets: string;
+  // Kewajiban Lancar
+  accountsPayable: string;
+  bankLoanCurrent: string;
+  otherCurrentLiabilities: string;
+  // Kewajiban Jangka Panjang
+  bankLoanLongTerm: string;
+  otherLongTermLiabilities: string;
+  shareholderLoan: string;
+  // Ekuitas
+  capital: string;
+  earningsAfterTax: string;
+  retainedEarnings: string;
+  dividends: string;
+  notes?: string;
+  createdBy: string;
   createdAt: string;
-  updatedAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 export interface BalanceSheetInput {
+  departmentId: string;
   period: string;
-  currentAssets: number;
-  fixedAssets: number;
-  otherAssets: number;
-  shortTermLiabilities: number;
-  longTermLiabilities: number;
-  paidInCapital: number;
-  retainedEarnings: number;
-  otherEquity: number;
+  cashAndBank?: string;
+  accountsReceivable?: string;
+  workInProgress?: string;
+  inventory?: string;
+  prepaidExpenses?: string;
+  land?: string;
+  building?: string;
+  equipment?: string;
+  otherFixedAssets?: string;
+  accountsPayable?: string;
+  bankLoanCurrent?: string;
+  otherCurrentLiabilities?: string;
+  bankLoanLongTerm?: string;
+  otherLongTermLiabilities?: string;
+  shareholderLoan?: string;
+  capital?: string;
+  earningsAfterTax?: string;
+  retainedEarnings?: string;
+  dividends?: string;
+  notes?: string;
 }
 
 export interface IncomeStatement {
   id: string;
+  departmentId: string;
   period: string;
-  revenue: number;
-  costOfGoodsSold: number;
-  operationalExpenses: number;
-  interestExpense: number;
-  tax: number;
-  netProfit: number;
-  version: number;
+  revenue: string;
+  cogs: string;
+  operatingExpenses: string;
+  interestExpense: string;
+  taxExpense: string;
+  notes?: string;
+  createdBy: string;
   createdAt: string;
-  updatedAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 export interface IncomeStatementInput {
+  departmentId: string;
   period: string;
-  revenue: number;
-  costOfGoodsSold: number;
-  operationalExpenses: number;
-  interestExpense: number;
-  tax: number;
-  netProfit: number;
+  revenue?: string;
+  cogs?: string;
+  operatingExpenses?: string;
+  interestExpense?: string;
+  taxExpense?: string;
+  notes?: string;
 }
 
 export interface CashFlow {
   id: string;
+  departmentId: string;
+  entityType: string;
+  entityId: string;
   period: string;
-  departmentId?: string;
-  projectId?: string;
-  operatingCashIn: number;
-  operatingCashOut: number;
-  investingCashIn: number;
-  investingCashOut: number;
-  financingCashIn: number;
-  financingCashOut: number;
-  version: number;
+  week: string;
+  operatingCashIn: string;
+  operatingCashOut: string;
+  investingCashIn: string;
+  investingCashOut: string;
+  financingCashIn: string;
+  financingCashOut: string;
+  notes?: string;
+  createdBy: string;
   createdAt: string;
-  updatedAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 export interface CashFlowInput {
+  departmentId: string;
+  entityType: string;
+  entityId: string;
   period: string;
-  departmentId?: string;
-  projectId?: string;
-  operatingCashIn: number;
-  operatingCashOut: number;
-  investingCashIn: number;
-  investingCashOut: number;
-  financingCashIn: number;
-  financingCashOut: number;
+  week: string;
+  operatingCashIn?: string;
+  operatingCashOut?: string;
+  investingCashIn?: string;
+  investingCashOut?: string;
+  financingCashIn?: string;
+  financingCashOut?: string;
+  notes?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
 /** Throws ValidationError if any of the provided values are negative. */
-function assertNonNegative(fields: Record<string, number>): void {
+function assertNonNegative(fields: Record<string, string | undefined>): void {
   for (const [key, value] of Object.entries(fields)) {
-    if (value < 0) {
+    if (value !== undefined && parseFloat(value) < 0) {
       throw new ValidationError(`Field "${key}" tidak boleh bernilai negatif`);
     }
   }
@@ -120,235 +160,250 @@ function assertNonNegative(fields: Record<string, number>): void {
 
 // ─── Balance Sheet ────────────────────────────────────────────────────────────
 
-function mapBalanceSheetRow(row: any): BalanceSheet {
+function mapBalanceSheetRow(row: typeof balanceSheets.$inferSelect): BalanceSheet {
   return {
     id: row.id,
+    departmentId: row.departmentId,
     period: row.period,
-    currentAssets: row.current_assets,
-    fixedAssets: row.fixed_assets,
-    otherAssets: row.other_assets,
-    shortTermLiabilities: row.short_term_liabilities,
-    longTermLiabilities: row.long_term_liabilities,
-    paidInCapital: row.paid_in_capital,
-    retainedEarnings: row.retained_earnings,
-    otherEquity: row.other_equity,
-    version: row.version,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    cashAndBank: row.cashAndBank,
+    accountsReceivable: row.accountsReceivable,
+    workInProgress: row.workInProgress,
+    inventory: row.inventory,
+    prepaidExpenses: row.prepaidExpenses,
+    land: row.land,
+    building: row.building,
+    equipment: row.equipment,
+    otherFixedAssets: row.otherFixedAssets,
+    accountsPayable: row.accountsPayable,
+    bankLoanCurrent: row.bankLoanCurrent,
+    otherCurrentLiabilities: row.otherCurrentLiabilities,
+    bankLoanLongTerm: row.bankLoanLongTerm,
+    otherLongTermLiabilities: row.otherLongTermLiabilities,
+    shareholderLoan: row.shareholderLoan,
+    capital: row.capital,
+    earningsAfterTax: row.earningsAfterTax,
+    retainedEarnings: row.retainedEarnings,
+    dividends: row.dividends,
+    notes: row.notes ?? undefined,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    updatedBy: row.updatedBy ?? undefined,
+    updatedAt: row.updatedAt?.toISOString(),
   };
 }
 
 /**
- * Saves a balance sheet record. If a record for the period already exists,
- * it is overwritten and the version is incremented.
- * Validates that all financial fields are non-negative.
- * Requirements: 8.1, 8.6, 8.7, 8.10
+ * Saves a balance sheet record. If a record for the (departmentId, period)
+ * already exists, it is updated.
  */
-export function saveBalanceSheet(db: Database.Database, input: BalanceSheetInput): BalanceSheet {
+export async function saveBalanceSheet(input: BalanceSheetInput, createdBy: string): Promise<BalanceSheet> {
   assertNonNegative({
-    currentAssets: input.currentAssets,
-    fixedAssets: input.fixedAssets,
-    otherAssets: input.otherAssets,
-    shortTermLiabilities: input.shortTermLiabilities,
-    longTermLiabilities: input.longTermLiabilities,
-    paidInCapital: input.paidInCapital,
-    retainedEarnings: input.retainedEarnings,
-    otherEquity: input.otherEquity,
+    cashAndBank: input.cashAndBank,
+    accountsReceivable: input.accountsReceivable,
+    inventory: input.inventory,
   });
 
-  const existing = db
-    .prepare('SELECT id, version FROM mafinda_balance_sheets WHERE period = ?')
-    .get(input.period) as any;
-
-  const now = new Date().toISOString();
+  const [existing] = await db.select().from(balanceSheets)
+    .where(and(
+      eq(balanceSheets.departmentId, input.departmentId),
+      eq(balanceSheets.period, input.period),
+    ))
+    .limit(1);
 
   if (existing) {
-    db.prepare(`
-      UPDATE mafinda_balance_sheets
-      SET current_assets = ?, fixed_assets = ?, other_assets = ?,
-          short_term_liabilities = ?, long_term_liabilities = ?,
-          paid_in_capital = ?, retained_earnings = ?, other_equity = ?,
-          version = version + 1, updated_at = ?
-      WHERE id = ?
-    `).run(
-      input.currentAssets, input.fixedAssets, input.otherAssets,
-      input.shortTermLiabilities, input.longTermLiabilities,
-      input.paidInCapital, input.retainedEarnings, input.otherEquity,
-      now, existing.id
-    );
+    const [updated] = await db.update(balanceSheets).set({
+      cashAndBank: input.cashAndBank ?? existing.cashAndBank,
+      accountsReceivable: input.accountsReceivable ?? existing.accountsReceivable,
+      workInProgress: input.workInProgress ?? existing.workInProgress,
+      inventory: input.inventory ?? existing.inventory,
+      prepaidExpenses: input.prepaidExpenses ?? existing.prepaidExpenses,
+      land: input.land ?? existing.land,
+      building: input.building ?? existing.building,
+      equipment: input.equipment ?? existing.equipment,
+      otherFixedAssets: input.otherFixedAssets ?? existing.otherFixedAssets,
+      accountsPayable: input.accountsPayable ?? existing.accountsPayable,
+      bankLoanCurrent: input.bankLoanCurrent ?? existing.bankLoanCurrent,
+      otherCurrentLiabilities: input.otherCurrentLiabilities ?? existing.otherCurrentLiabilities,
+      bankLoanLongTerm: input.bankLoanLongTerm ?? existing.bankLoanLongTerm,
+      otherLongTermLiabilities: input.otherLongTermLiabilities ?? existing.otherLongTermLiabilities,
+      shareholderLoan: input.shareholderLoan ?? existing.shareholderLoan,
+      capital: input.capital ?? existing.capital,
+      earningsAfterTax: input.earningsAfterTax ?? existing.earningsAfterTax,
+      retainedEarnings: input.retainedEarnings ?? existing.retainedEarnings,
+      dividends: input.dividends ?? existing.dividends,
+      notes: input.notes !== undefined ? input.notes : existing.notes,
+      updatedBy: createdBy,
+      updatedAt: new Date(),
+    }).where(eq(balanceSheets.id, existing.id)).returning();
 
-    return mapBalanceSheetRow(
-      db.prepare('SELECT * FROM mafinda_balance_sheets WHERE id = ?').get(existing.id)
-    );
+    return mapBalanceSheetRow(updated);
   }
 
-  const id = generateId('bs');
-  db.prepare(`
-    INSERT INTO mafinda_balance_sheets
-      (id, period, current_assets, fixed_assets, other_assets,
-       short_term_liabilities, long_term_liabilities,
-       paid_in_capital, retained_earnings, other_equity,
-       version, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-  `).run(
-    id, input.period,
-    input.currentAssets, input.fixedAssets, input.otherAssets,
-    input.shortTermLiabilities, input.longTermLiabilities,
-    input.paidInCapital, input.retainedEarnings, input.otherEquity,
-    now, now
-  );
+  const [inserted] = await db.insert(balanceSheets).values({
+    departmentId: input.departmentId,
+    period: input.period,
+    cashAndBank: input.cashAndBank ?? '0',
+    accountsReceivable: input.accountsReceivable ?? '0',
+    workInProgress: input.workInProgress ?? '0',
+    inventory: input.inventory ?? '0',
+    prepaidExpenses: input.prepaidExpenses ?? '0',
+    land: input.land ?? '0',
+    building: input.building ?? '0',
+    equipment: input.equipment ?? '0',
+    otherFixedAssets: input.otherFixedAssets ?? '0',
+    accountsPayable: input.accountsPayable ?? '0',
+    bankLoanCurrent: input.bankLoanCurrent ?? '0',
+    otherCurrentLiabilities: input.otherCurrentLiabilities ?? '0',
+    bankLoanLongTerm: input.bankLoanLongTerm ?? '0',
+    otherLongTermLiabilities: input.otherLongTermLiabilities ?? '0',
+    shareholderLoan: input.shareholderLoan ?? '0',
+    capital: input.capital ?? '0',
+    earningsAfterTax: input.earningsAfterTax ?? '0',
+    retainedEarnings: input.retainedEarnings ?? '0',
+    dividends: input.dividends ?? '0',
+    notes: input.notes,
+    createdBy,
+  }).returning();
 
-  return mapBalanceSheetRow(
-    db.prepare('SELECT * FROM mafinda_balance_sheets WHERE id = ?').get(id)
-  );
+  return mapBalanceSheetRow(inserted);
 }
 
 /**
- * Returns balance sheets, optionally filtered by period.
- * Requirements: 8.7
+ * Returns balance sheets, optionally filtered by departmentId and/or period.
  */
-export function getBalanceSheets(
-  db: Database.Database,
-  filter?: { period?: string }
-): BalanceSheet[] {
-  if (filter?.period) {
-    const rows = db
-      .prepare('SELECT * FROM mafinda_balance_sheets WHERE period = ? ORDER BY period DESC')
-      .all(filter.period) as any[];
-    return rows.map(mapBalanceSheetRow);
-  }
-  const rows = db
-    .prepare('SELECT * FROM mafinda_balance_sheets ORDER BY period DESC')
-    .all() as any[];
+export async function getBalanceSheets(
+  filter?: { departmentId?: string; period?: string },
+): Promise<BalanceSheet[]> {
+  const conditions = [];
+  if (filter?.departmentId) conditions.push(eq(balanceSheets.departmentId, filter.departmentId));
+  if (filter?.period) conditions.push(eq(balanceSheets.period, filter.period));
+
+  const rows = await db.select().from(balanceSheets)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(balanceSheets.period));
+
   return rows.map(mapBalanceSheetRow);
 }
 
 // ─── Income Statement ─────────────────────────────────────────────────────────
 
-function mapIncomeStatementRow(row: any): IncomeStatement {
+function mapIncomeStatementRow(row: typeof incomeStatements.$inferSelect): IncomeStatement {
   return {
     id: row.id,
+    departmentId: row.departmentId,
     period: row.period,
     revenue: row.revenue,
-    costOfGoodsSold: row.cost_of_goods_sold,
-    operationalExpenses: row.operational_expenses,
-    interestExpense: row.interest_expense,
-    tax: row.tax,
-    netProfit: row.net_profit,
-    version: row.version,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    cogs: row.cogs,
+    operatingExpenses: row.operatingExpenses,
+    interestExpense: row.interestExpense,
+    taxExpense: row.taxExpense,
+    notes: row.notes ?? undefined,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    updatedBy: row.updatedBy ?? undefined,
+    updatedAt: row.updatedAt?.toISOString(),
   };
 }
 
 /**
- * Saves an income statement record. If a record for the period already exists,
- * it is overwritten and the version is incremented.
- * Validates that all financial fields are non-negative.
- * Requirements: 8.2, 8.6, 8.8, 8.10
+ * Saves an income statement record. If a record for the (departmentId, period)
+ * already exists, it is updated.
  */
-export function saveIncomeStatement(
-  db: Database.Database,
-  input: IncomeStatementInput
-): IncomeStatement {
+export async function saveIncomeStatement(
+  input: IncomeStatementInput,
+  createdBy: string,
+): Promise<IncomeStatement> {
   assertNonNegative({
     revenue: input.revenue,
-    costOfGoodsSold: input.costOfGoodsSold,
-    operationalExpenses: input.operationalExpenses,
+    cogs: input.cogs,
+    operatingExpenses: input.operatingExpenses,
     interestExpense: input.interestExpense,
-    tax: input.tax,
-    netProfit: input.netProfit,
+    taxExpense: input.taxExpense,
   });
 
-  const existing = db
-    .prepare('SELECT id, version FROM mafinda_income_statements WHERE period = ?')
-    .get(input.period) as any;
-
-  const now = new Date().toISOString();
+  const [existing] = await db.select().from(incomeStatements)
+    .where(and(
+      eq(incomeStatements.departmentId, input.departmentId),
+      eq(incomeStatements.period, input.period),
+    ))
+    .limit(1);
 
   if (existing) {
-    db.prepare(`
-      UPDATE mafinda_income_statements
-      SET revenue = ?, cost_of_goods_sold = ?, operational_expenses = ?,
-          interest_expense = ?, tax = ?, net_profit = ?,
-          version = version + 1, updated_at = ?
-      WHERE id = ?
-    `).run(
-      input.revenue, input.costOfGoodsSold, input.operationalExpenses,
-      input.interestExpense, input.tax, input.netProfit,
-      now, existing.id
-    );
+    const [updated] = await db.update(incomeStatements).set({
+      revenue: input.revenue ?? existing.revenue,
+      cogs: input.cogs ?? existing.cogs,
+      operatingExpenses: input.operatingExpenses ?? existing.operatingExpenses,
+      interestExpense: input.interestExpense ?? existing.interestExpense,
+      taxExpense: input.taxExpense ?? existing.taxExpense,
+      notes: input.notes !== undefined ? input.notes : existing.notes,
+      updatedBy: createdBy,
+      updatedAt: new Date(),
+    }).where(eq(incomeStatements.id, existing.id)).returning();
 
-    return mapIncomeStatementRow(
-      db.prepare('SELECT * FROM mafinda_income_statements WHERE id = ?').get(existing.id)
-    );
+    return mapIncomeStatementRow(updated);
   }
 
-  const id = generateId('is');
-  db.prepare(`
-    INSERT INTO mafinda_income_statements
-      (id, period, revenue, cost_of_goods_sold, operational_expenses,
-       interest_expense, tax, net_profit, version, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-  `).run(
-    id, input.period,
-    input.revenue, input.costOfGoodsSold, input.operationalExpenses,
-    input.interestExpense, input.tax, input.netProfit,
-    now, now
-  );
+  const [inserted] = await db.insert(incomeStatements).values({
+    departmentId: input.departmentId,
+    period: input.period,
+    revenue: input.revenue ?? '0',
+    cogs: input.cogs ?? '0',
+    operatingExpenses: input.operatingExpenses ?? '0',
+    interestExpense: input.interestExpense ?? '0',
+    taxExpense: input.taxExpense ?? '0',
+    notes: input.notes,
+    createdBy,
+  }).returning();
 
-  return mapIncomeStatementRow(
-    db.prepare('SELECT * FROM mafinda_income_statements WHERE id = ?').get(id)
-  );
+  return mapIncomeStatementRow(inserted);
 }
 
 /**
- * Returns income statements, optionally filtered by period.
- * Requirements: 8.8
+ * Returns income statements, optionally filtered by departmentId and/or period.
  */
-export function getIncomeStatements(
-  db: Database.Database,
-  filter?: { period?: string }
-): IncomeStatement[] {
-  if (filter?.period) {
-    const rows = db
-      .prepare('SELECT * FROM mafinda_income_statements WHERE period = ? ORDER BY period DESC')
-      .all(filter.period) as any[];
-    return rows.map(mapIncomeStatementRow);
-  }
-  const rows = db
-    .prepare('SELECT * FROM mafinda_income_statements ORDER BY period DESC')
-    .all() as any[];
+export async function getIncomeStatements(
+  filter?: { departmentId?: string; period?: string },
+): Promise<IncomeStatement[]> {
+  const conditions = [];
+  if (filter?.departmentId) conditions.push(eq(incomeStatements.departmentId, filter.departmentId));
+  if (filter?.period) conditions.push(eq(incomeStatements.period, filter.period));
+
+  const rows = await db.select().from(incomeStatements)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(incomeStatements.period));
+
   return rows.map(mapIncomeStatementRow);
 }
 
-// ─── Cash Flow ────────────────────────────────────────────────────────────────
+// ─── Cash Flow (Weekly) ─────────────────────────────────────────────────────
 
-function mapCashFlowRow(row: any): CashFlow {
+function mapCashFlowRow(row: typeof weeklyCashFlows.$inferSelect): CashFlow {
   return {
     id: row.id,
+    departmentId: row.departmentId,
+    entityType: row.entityType,
+    entityId: row.entityId,
     period: row.period,
-    departmentId: row.department_id ?? undefined,
-    projectId: row.project_id ?? undefined,
-    operatingCashIn: row.operating_cash_in,
-    operatingCashOut: row.operating_cash_out,
-    investingCashIn: row.investing_cash_in,
-    investingCashOut: row.investing_cash_out,
-    financingCashIn: row.financing_cash_in,
-    financingCashOut: row.financing_cash_out,
-    version: row.version,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    week: row.week,
+    operatingCashIn: row.operatingCashIn,
+    operatingCashOut: row.operatingCashOut,
+    investingCashIn: row.investingCashIn,
+    investingCashOut: row.investingCashOut,
+    financingCashIn: row.financingCashIn,
+    financingCashOut: row.financingCashOut,
+    notes: row.notes ?? undefined,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    updatedBy: row.updatedBy ?? undefined,
+    updatedAt: row.updatedAt?.toISOString(),
   };
 }
 
 /**
- * Saves a cash flow record. If a record for the same (period, departmentId, projectId)
- * already exists, it is overwritten and the version is incremented.
- * Validates that all cash values are non-negative.
- * Requirements: 8.3, 8.6, 8.9, 8.10
+ * Saves a cash flow record. If a record for the same (entityType, entityId, period, week)
+ * already exists, it is updated.
  */
-export function saveCashFlow(db: Database.Database, input: CashFlowInput): CashFlow {
+export async function saveCashFlow(input: CashFlowInput, createdBy: string): Promise<CashFlow> {
   assertNonNegative({
     operatingCashIn: input.operatingCashIn,
     operatingCashOut: input.operatingCashOut,
@@ -358,88 +413,65 @@ export function saveCashFlow(db: Database.Database, input: CashFlowInput): CashF
     financingCashOut: input.financingCashOut,
   });
 
-  const deptId = input.departmentId ?? null;
-  const projId = input.projectId ?? null;
-
-  const existing = db.prepare(`
-    SELECT id, version FROM mafinda_cash_flows
-    WHERE period = ?
-      AND (department_id IS ? OR (department_id IS NULL AND ? IS NULL))
-      AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))
-  `).get(input.period, deptId, deptId, projId, projId) as any;
-
-  const now = new Date().toISOString();
+  const [existing] = await db.select().from(weeklyCashFlows)
+    .where(and(
+      eq(weeklyCashFlows.entityType, input.entityType),
+      eq(weeklyCashFlows.entityId, input.entityId),
+      eq(weeklyCashFlows.period, input.period),
+      eq(weeklyCashFlows.week, input.week),
+    ))
+    .limit(1);
 
   if (existing) {
-    db.prepare(`
-      UPDATE mafinda_cash_flows
-      SET operating_cash_in = ?, operating_cash_out = ?,
-          investing_cash_in = ?, investing_cash_out = ?,
-          financing_cash_in = ?, financing_cash_out = ?,
-          version = version + 1, updated_at = ?
-      WHERE id = ?
-    `).run(
-      input.operatingCashIn, input.operatingCashOut,
-      input.investingCashIn, input.investingCashOut,
-      input.financingCashIn, input.financingCashOut,
-      now, existing.id
-    );
+    const [updated] = await db.update(weeklyCashFlows).set({
+      operatingCashIn: input.operatingCashIn ?? existing.operatingCashIn,
+      operatingCashOut: input.operatingCashOut ?? existing.operatingCashOut,
+      investingCashIn: input.investingCashIn ?? existing.investingCashIn,
+      investingCashOut: input.investingCashOut ?? existing.investingCashOut,
+      financingCashIn: input.financingCashIn ?? existing.financingCashIn,
+      financingCashOut: input.financingCashOut ?? existing.financingCashOut,
+      notes: input.notes !== undefined ? input.notes : existing.notes,
+      updatedBy: createdBy,
+      updatedAt: new Date(),
+    }).where(eq(weeklyCashFlows.id, existing.id)).returning();
 
-    return mapCashFlowRow(
-      db.prepare('SELECT * FROM mafinda_cash_flows WHERE id = ?').get(existing.id)
-    );
+    return mapCashFlowRow(updated);
   }
 
-  const id = generateId('cf');
-  db.prepare(`
-    INSERT INTO mafinda_cash_flows
-      (id, period, department_id, project_id,
-       operating_cash_in, operating_cash_out,
-       investing_cash_in, investing_cash_out,
-       financing_cash_in, financing_cash_out,
-       version, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-  `).run(
-    id, input.period, deptId, projId,
-    input.operatingCashIn, input.operatingCashOut,
-    input.investingCashIn, input.investingCashOut,
-    input.financingCashIn, input.financingCashOut,
-    now, now
-  );
+  const [inserted] = await db.insert(weeklyCashFlows).values({
+    departmentId: input.departmentId,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    period: input.period,
+    week: input.week,
+    operatingCashIn: input.operatingCashIn ?? '0',
+    operatingCashOut: input.operatingCashOut ?? '0',
+    investingCashIn: input.investingCashIn ?? '0',
+    investingCashOut: input.investingCashOut ?? '0',
+    financingCashIn: input.financingCashIn ?? '0',
+    financingCashOut: input.financingCashOut ?? '0',
+    notes: input.notes,
+    createdBy,
+  }).returning();
 
-  return mapCashFlowRow(
-    db.prepare('SELECT * FROM mafinda_cash_flows WHERE id = ?').get(id)
-  );
+  return mapCashFlowRow(inserted);
 }
 
 /**
- * Returns cash flow records, optionally filtered by period and/or departmentId.
- * Requirements: 8.9
+ * Returns cash flow records, optionally filtered.
  */
-export function getCashFlows(
-  db: Database.Database,
-  filter?: { period?: string; departmentId?: string; projectId?: string }
-): CashFlow[] {
-  const conditions: string[] = [];
-  const params: any[] = [];
+export async function getCashFlows(
+  filter?: { departmentId?: string; entityType?: string; entityId?: string; period?: string },
+): Promise<CashFlow[]> {
+  const conditions = [];
+  if (filter?.departmentId) conditions.push(eq(weeklyCashFlows.departmentId, filter.departmentId));
+  if (filter?.entityType) conditions.push(eq(weeklyCashFlows.entityType, filter.entityType));
+  if (filter?.entityId) conditions.push(eq(weeklyCashFlows.entityId, filter.entityId));
+  if (filter?.period) conditions.push(eq(weeklyCashFlows.period, filter.period));
 
-  if (filter?.period) {
-    conditions.push('period = ?');
-    params.push(filter.period);
-  }
-  if (filter?.departmentId !== undefined) {
-    conditions.push('department_id = ?');
-    params.push(filter.departmentId);
-  }
-  if (filter?.projectId !== undefined) {
-    conditions.push('project_id = ?');
-    params.push(filter.projectId);
-  }
-
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const rows = db
-    .prepare(`SELECT * FROM mafinda_cash_flows ${where} ORDER BY period DESC`)
-    .all(...params) as any[];
+  const rows = await db.select().from(weeklyCashFlows)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(weeklyCashFlows.period));
 
   return rows.map(mapCashFlowRow);
 }

@@ -1,180 +1,210 @@
 // Project Service — MAFINDA Dashboard Enhancement
-// Requirements: 7.2, 7.10
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
+import { eq, and, ne, asc } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { departments, projects } from '../../db/schema';
 import { ConflictError, NotFoundError } from './departmentService';
 
 export interface Project {
   id: string;
   departmentId: string;
   departmentName?: string;
+  code: string;
   name: string;
   description?: string;
+  sourceType: string;
+  status: string;
   startDate?: string;
   endDate?: string;
   isActive: boolean;
+  createdBy: string;
   createdAt: string;
-  updatedAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
-function generateId(): string {
-  return `proj_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function mapRow(row: any): Project {
+function mapRow(row: typeof projects.$inferSelect & { departmentName?: string | null }): Project {
   return {
     id: row.id,
-    departmentId: row.department_id,
-    departmentName: row.department_name ?? undefined,
+    departmentId: row.departmentId,
+    departmentName: (row as any).departmentName ?? undefined,
+    code: row.code,
     name: row.name,
     description: row.description ?? undefined,
-    startDate: row.start_date ?? undefined,
-    endDate: row.end_date ?? undefined,
-    isActive: Boolean(row.is_active),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    sourceType: row.sourceType,
+    status: row.status,
+    startDate: row.startDate?.toISOString() ?? undefined,
+    endDate: row.endDate?.toISOString() ?? undefined,
+    isActive: row.isActive,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    updatedBy: row.updatedBy ?? undefined,
+    updatedAt: row.updatedAt?.toISOString(),
   };
 }
 
 /** Returns all projects for a given department, optionally filtered to active only. */
-export function getProjectsByDepartment(
-  db: Database.Database,
+export async function getProjectsByDepartment(
   departmentId: string,
-  activeOnly = false
-): Project[] {
-  const sql = activeOnly
-    ? `SELECT p.*, d.name AS department_name
-       FROM mafinda_projects p
-       LEFT JOIN mafinda_departments d ON d.id = p.department_id
-       WHERE p.department_id = ? AND p.is_active = 1
-       ORDER BY p.name ASC`
-    : `SELECT p.*, d.name AS department_name
-       FROM mafinda_projects p
-       LEFT JOIN mafinda_departments d ON d.id = p.department_id
-       WHERE p.department_id = ?
-       ORDER BY p.name ASC`;
+  activeOnly = false,
+): Promise<Project[]> {
+  const conditions = [eq(projects.departmentId, departmentId)];
+  if (activeOnly) conditions.push(eq(projects.isActive, true));
 
-  const rows = db.prepare(sql).all(departmentId) as any[];
-  return rows.map(mapRow);
+  const rows = await db.select({
+    id: projects.id,
+    departmentId: projects.departmentId,
+    departmentName: departments.name,
+    code: projects.code,
+    name: projects.name,
+    description: projects.description,
+    sourceType: projects.sourceType,
+    sourceId: projects.sourceId,
+    status: projects.status,
+    startDate: projects.startDate,
+    endDate: projects.endDate,
+    isActive: projects.isActive,
+    createdBy: projects.createdBy,
+    createdAt: projects.createdAt,
+    updatedBy: projects.updatedBy,
+    updatedAt: projects.updatedAt,
+  }).from(projects)
+    .leftJoin(departments, eq(departments.id, projects.departmentId))
+    .where(and(...conditions))
+    .orderBy(asc(projects.name));
+
+  return rows.map((r) => mapRow(r as any));
 }
 
 /** Returns a single project by id, or null if not found. */
-export function getProjectById(db: Database.Database, id: string): Project | null {
-  const row = db.prepare(`
-    SELECT p.*, d.name AS department_name
-    FROM mafinda_projects p
-    LEFT JOIN mafinda_departments d ON d.id = p.department_id
-    WHERE p.id = ?
-  `).get(id) as any;
-  return row ? mapRow(row) : null;
+export async function getProjectById(id: string): Promise<Project | null> {
+  const [row] = await db.select({
+    id: projects.id,
+    departmentId: projects.departmentId,
+    departmentName: departments.name,
+    code: projects.code,
+    name: projects.name,
+    description: projects.description,
+    sourceType: projects.sourceType,
+    sourceId: projects.sourceId,
+    status: projects.status,
+    startDate: projects.startDate,
+    endDate: projects.endDate,
+    isActive: projects.isActive,
+    createdBy: projects.createdBy,
+    createdAt: projects.createdAt,
+    updatedBy: projects.updatedBy,
+    updatedAt: projects.updatedAt,
+  }).from(projects)
+    .leftJoin(departments, eq(departments.id, projects.departmentId))
+    .where(eq(projects.id, id))
+    .limit(1);
+
+  return row ? mapRow(row as any) : null;
 }
 
 /**
  * Creates a new project.
- * Throws ConflictError (409) if a project with the same name already exists in the same department.
- * Requirements: 7.2, 7.10
+ * Throws ConflictError if code already exists in the same department.
  */
-export function createProject(
-  db: Database.Database,
+export async function createProject(
   data: {
     departmentId: string;
+    code: string;
     name: string;
     description?: string;
     startDate?: string;
     endDate?: string;
-  }
-): Project {
-  const dept = db
-    .prepare('SELECT id FROM mafinda_departments WHERE id = ?')
-    .get(data.departmentId) as any;
+  },
+  createdBy: string,
+): Promise<Project> {
+  const [dept] = await db.select({ id: departments.id }).from(departments)
+    .where(eq(departments.id, data.departmentId))
+    .limit(1);
   if (!dept) throw new NotFoundError('Departemen tidak ditemukan');
 
-  const conflict = db
-    .prepare('SELECT id FROM mafinda_projects WHERE department_id = ? AND name = ?')
-    .get(data.departmentId, data.name) as any;
+  const [conflict] = await db.select({ id: projects.id }).from(projects)
+    .where(and(eq(projects.departmentId, data.departmentId), eq(projects.code, data.code)))
+    .limit(1);
   if (conflict) {
-    throw new ConflictError(
-      `Nama proyek "${data.name}" sudah ada dalam departemen ini`
-    );
+    throw new ConflictError(`Kode proyek "${data.code}" sudah ada dalam departemen ini`);
   }
 
-  const id = generateId();
-  const now = new Date().toISOString();
+  const [inserted] = await db.insert(projects).values({
+    departmentId: data.departmentId,
+    code: data.code,
+    name: data.name,
+    description: data.description,
+    startDate: data.startDate ? new Date(data.startDate) : undefined,
+    endDate: data.endDate ? new Date(data.endDate) : undefined,
+    createdBy,
+  }).returning();
 
-  db.prepare(`
-    INSERT INTO mafinda_projects (id, department_id, name, description, start_date, end_date, is_active, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-  `).run(
-    id,
-    data.departmentId,
-    data.name,
-    data.description ?? null,
-    data.startDate ?? null,
-    data.endDate ?? null,
-    now,
-    now
-  );
-
-  return getProjectById(db, id)!;
+  return (await getProjectById(inserted.id))!;
 }
 
 /**
  * Updates an existing project.
- * Throws NotFoundError (404) if not found.
- * Throws ConflictError (409) if the new name conflicts within the same department.
- * Requirements: 7.2
+ * Throws NotFoundError if not found.
+ * Throws ConflictError if the new code conflicts within the same department.
  */
-export function updateProject(
-  db: Database.Database,
+export async function updateProject(
   id: string,
   data: {
     name?: string;
+    code?: string;
     description?: string;
     startDate?: string;
     endDate?: string;
     isActive?: boolean;
-  }
-): Project {
-  const existing = db.prepare('SELECT * FROM mafinda_projects WHERE id = ?').get(id) as any;
+    status?: string;
+  },
+  updatedBy: string,
+): Promise<Project> {
+  const [existing] = await db.select().from(projects)
+    .where(eq(projects.id, id))
+    .limit(1);
   if (!existing) throw new NotFoundError('Proyek tidak ditemukan');
 
-  if (data.name && data.name !== existing.name) {
-    const conflict = db
-      .prepare('SELECT id FROM mafinda_projects WHERE department_id = ? AND name = ? AND id != ?')
-      .get(existing.department_id, data.name, id) as any;
+  if (data.code && data.code !== existing.code) {
+    const [conflict] = await db.select({ id: projects.id }).from(projects)
+      .where(and(
+        eq(projects.departmentId, existing.departmentId),
+        eq(projects.code, data.code),
+        ne(projects.id, id),
+      ))
+      .limit(1);
     if (conflict) {
-      throw new ConflictError(`Nama proyek "${data.name}" sudah ada dalam departemen ini`);
+      throw new ConflictError(`Kode proyek "${data.code}" sudah ada dalam departemen ini`);
     }
   }
 
-  const name = data.name ?? existing.name;
-  const description = data.description !== undefined ? data.description : existing.description;
-  const startDate = data.startDate !== undefined ? data.startDate : existing.start_date;
-  const endDate = data.endDate !== undefined ? data.endDate : existing.end_date;
-  const isActive = data.isActive !== undefined ? (data.isActive ? 1 : 0) : existing.is_active;
-  const now = new Date().toISOString();
+  const [updated] = await db.update(projects).set({
+    name: data.name ?? existing.name,
+    code: data.code ?? existing.code,
+    description: data.description !== undefined ? data.description : existing.description,
+    startDate: data.startDate !== undefined ? new Date(data.startDate) : existing.startDate,
+    endDate: data.endDate !== undefined ? new Date(data.endDate) : existing.endDate,
+    isActive: data.isActive !== undefined ? data.isActive : existing.isActive,
+    status: data.status ?? existing.status,
+    updatedBy,
+    updatedAt: new Date(),
+  }).where(eq(projects.id, id)).returning();
 
-  db.prepare(`
-    UPDATE mafinda_projects
-    SET name = ?, description = ?, start_date = ?, end_date = ?, is_active = ?, updated_at = ?
-    WHERE id = ?
-  `).run(name, description, startDate, endDate, isActive, now, id);
-
-  return getProjectById(db, id)!;
+  return (await getProjectById(updated.id))!;
 }
 
 /**
  * Deletes a project by id.
- * Throws NotFoundError (404) if not found.
- * Requirements: 7.2
+ * Throws NotFoundError if not found.
  */
-export function deleteProject(
-  db: Database.Database,
-  id: string
-): { success: boolean } {
-  const existing = db.prepare('SELECT id FROM mafinda_projects WHERE id = ?').get(id) as any;
+export async function deleteProject(id: string): Promise<{ success: boolean }> {
+  const [existing] = await db.select({ id: projects.id }).from(projects)
+    .where(eq(projects.id, id))
+    .limit(1);
   if (!existing) throw new NotFoundError('Proyek tidak ditemukan');
 
-  db.prepare('DELETE FROM mafinda_projects WHERE id = ?').run(id);
+  await db.delete(projects).where(eq(projects.id, id));
   return { success: true };
 }

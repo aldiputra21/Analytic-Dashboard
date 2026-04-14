@@ -1,15 +1,15 @@
 // FRS Role-Based Access Control Middleware
-// Requirements: 9.1, 9.2, 9.3, 9.4
+// Drizzle ORM PostgreSQL implementation — uses public.user_corporate_accesses
 
 import { Request, Response, NextFunction } from 'express';
-import Database from 'better-sqlite3';
+import { eq, and } from 'drizzle-orm';
+import { db } from '../db/connection';
+import { userCorporateAccesses } from '../db/schema';
 import { UserRole } from '../types/financial/user';
 import { createFRSAuditLog } from '../services/financial/auditLogService';
 
 // ============================================================
 // Permission Map
-// Defines what each role can do per resource.
-// Requirements: 9.2, 9.3, 9.4
 // ============================================================
 
 type Action = 'read' | 'write' | 'delete' | 'configure' | 'manage_users' | 'export' | 'schedule';
@@ -61,10 +61,9 @@ export function hasPermission(role: UserRole, resource: string, action: Action):
 /**
  * Middleware factory: requires the user to have permission for resource+action.
  * Logs unauthorized attempts to audit_log.
- * Requirements: 9.2, 9.3, 9.4, 9.10
  */
-export function authorize(resource: string, action: Action, db?: Database.Database) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+export function authorize(resource: string, action: Action) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const user = req.frsUser;
 
     if (!user) {
@@ -80,17 +79,14 @@ export function authorize(resource: string, action: Action, db?: Database.Databa
     }
 
     if (!hasPermission(user.role, resource, action)) {
-      // Log unauthorized access attempt (Req 9.10)
-      if (db) {
-        createFRSAuditLog(db, {
-          userId: user.userId,
-          action: 'delete', // closest available action for unauthorized attempt
-          entityType: resource,
-          newValues: { attemptedAction: action, denied: true },
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'],
-        });
-      }
+      await createFRSAuditLog({
+        userId: user.userId,
+        action: 'delete',
+        entityType: resource,
+        newValues: { attemptedAction: action, denied: true },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
 
       res.status(403).json({
         error: {
@@ -108,35 +104,34 @@ export function authorize(resource: string, action: Action, db?: Database.Databa
 }
 
 /**
- * Checks if a subsidiary_manager user has access to a specific subsidiary.
- * Requirements: 9.4
+ * Checks if a subsidiary_manager user has access to a specific corporate (subsidiary).
  */
-export function checkSubsidiaryAccess(
-  db: Database.Database,
+export async function checkSubsidiaryAccess(
   userId: string,
-  subsidiaryId: string
-): boolean {
-  const row = db
-    .prepare('SELECT id FROM frs_user_subsidiary_access WHERE user_id = ? AND subsidiary_id = ?')
-    .get(userId, subsidiaryId);
+  corporateId: string,
+): Promise<boolean> {
+  const [row] = await db.select({ id: userCorporateAccesses.id }).from(userCorporateAccesses)
+    .where(and(
+      eq(userCorporateAccesses.userId, userId),
+      eq(userCorporateAccesses.corporateId, corporateId),
+    ))
+    .limit(1);
   return row != null;
 }
 
 /**
  * Middleware: for subsidiary_manager role, verifies they have access to the
- * subsidiaryId in req.params.subsidiaryId or req.query.subsidiaryId.
+ * subsidiaryId in req.params or req.query.
  * Owner and BOD bypass this check.
- * Requirements: 9.4
  */
-export function requireSubsidiaryAccess(db: Database.Database) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+export function requireSubsidiaryAccess() {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const user = req.frsUser;
     if (!user) {
       res.status(401).json({ error: { code: 'FRS_UNAUTHORIZED', message: 'Authentication required', timestamp: new Date().toISOString(), requestId: '' } });
       return;
     }
 
-    // Owner and BOD have access to all subsidiaries
     if (user.role === 'owner' || user.role === 'bod') {
       next();
       return;
@@ -150,13 +145,12 @@ export function requireSubsidiaryAccess(db: Database.Database) {
       return;
     }
 
-    if (!checkSubsidiaryAccess(db, user.userId, subsidiaryId)) {
-      createFRSAuditLog(db, {
+    if (!(await checkSubsidiaryAccess(user.userId, subsidiaryId))) {
+      await createFRSAuditLog({
         userId: user.userId,
         action: 'delete',
         entityType: 'subsidiary_access',
-        subsidiaryId,
-        newValues: { denied: true, reason: 'no_subsidiary_access' },
+        newValues: { denied: true, reason: 'no_subsidiary_access', corporateId: subsidiaryId },
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
       });

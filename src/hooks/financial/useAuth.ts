@@ -20,6 +20,15 @@ interface LoginInput {
   password: string;
 }
 
+interface ForgotPasswordInput {
+  identifier: string;
+}
+
+interface ResetPasswordInput {
+  token: string;
+  password: string;
+}
+
 // ── Singleton store so all useAuth() instances share the same state ──────────
 let _state: AuthState = { user: null, token: null, isLoading: true, error: null };
 const _listeners = new Set<(s: AuthState) => void>();
@@ -51,7 +60,7 @@ function setState(next: AuthState | ((prev: AuthState) => AuthState)) {
 window.addEventListener('frs:unauthorized', () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
-  setState({ user: null, token: null, isLoading: false, error: 'Session expired' });
+  setState({ user: null, token: null, isLoading: false, error: 'SESSION_EXPIRED' });
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -75,7 +84,7 @@ export function useAuth() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setState((s) => ({ ...s, isLoading: false, error: data.error?.message || 'Login failed' }));
+        setState((s) => ({ ...s, isLoading: false, error: data.error?.code || 'FRS_LOGIN_FAILED' }));
         return false;
       }
       localStorage.setItem(TOKEN_KEY, data.token);
@@ -83,7 +92,7 @@ export function useAuth() {
       setState({ user: data.user, token: data.token, isLoading: false, error: null });
       return true;
     } catch {
-      setState((s) => ({ ...s, isLoading: false, error: 'Network error' }));
+      setState((s) => ({ ...s, isLoading: false, error: 'NETWORK_ERROR' }));
       return false;
     }
   }, []);
@@ -105,12 +114,48 @@ export function useAuth() {
     setState({ user: null, token: null, isLoading: false, error: null });
   }, []);
 
+  const forgotPassword = useCallback(async (input: ForgotPasswordInput) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false as const, error: data.error?.code || 'NETWORK_ERROR' };
+      }
+      return { success: true as const, message: data.message as string };
+    } catch {
+      return { success: false as const, error: 'NETWORK_ERROR' };
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (input: ResetPasswordInput) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false as const, error: data.error?.code || 'NETWORK_ERROR' };
+      }
+      return { success: true as const, message: data.message as string };
+    } catch {
+      return { success: false as const, error: 'NETWORK_ERROR' };
+    }
+  }, []);
+
   return {
     user: state.user,
     token: state.token,
     isLoading: state.isLoading,
     error: state.error,
     login,
+    forgotPassword,
+    resetPassword,
     logout,
     isOwner: state.user?.role === 'owner',
     isBOD: state.user?.role === 'bod',

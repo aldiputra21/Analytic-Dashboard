@@ -1,26 +1,24 @@
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireCRMPermission } from '../../middleware/crmRbac';
 import { logCreate, logUpdate } from '../../helpers/crmAuditLog';
 import { CreateCustomerInput, CreateContactInput } from '../../types/crm';
+import { db } from '../../db/connection';
+import { customers, contacts, interactions } from '../../db/schema/crm';
+import { eq, and, sql, desc, count } from 'drizzle-orm';
 
 // ============================================================
 // Customer & Contact Routes
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.10
 // ============================================================
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-export function createCustomerRouter(db: Database.Database): Router {
+export function createCustomerRouter(): Router {
   const router = Router();
 
   // POST /api/crm/customers - Create new customer
   router.post(
     '/',
     requireCRMPermission('crm:write:customer', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
       const body = req.body as CreateCustomerInput;
 
@@ -53,13 +51,15 @@ export function createCustomerRouter(db: Database.Database): Router {
       }
 
       // Check uniqueness (company_name + npwp) (Req 1.10)
-      const existing = db
-        .prepare(
-          'SELECT id FROM crm_customers WHERE company_name = ? AND (npwp = ? OR (npwp IS NULL AND ? IS NULL))'
+      const [existing] = await db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(
+          body.npwp
+            ? and(eq(customers.companyName, body.companyName.trim()), eq(customers.npwp, body.npwp))
+            : and(eq(customers.companyName, body.companyName.trim()), sql`${customers.npwp} IS NULL`)
         )
-        .get(body.companyName.trim(), body.npwp ?? null, body.npwp ?? null) as
-        | { id: string }
-        | undefined;
+        .limit(1);
 
       if (existing) {
         res.status(422).json({
@@ -72,13 +72,13 @@ export function createCustomerRouter(db: Database.Database): Router {
         return;
       }
 
-      const customerId = generateId('CUST');
-
       // Validate parentCustomerId if provided
       if (body.parentCustomerId) {
-        const parentExists = db
-          .prepare('SELECT id FROM crm_customers WHERE id = ?')
-          .get(body.parentCustomerId);
+        const [parentExists] = await db
+          .select({ id: customers.id })
+          .from(customers)
+          .where(eq(customers.id, body.parentCustomerId))
+          .limit(1);
         if (!parentExists) {
           res.status(400).json({
             error: {
@@ -91,56 +91,47 @@ export function createCustomerRouter(db: Database.Database): Router {
         }
       }
 
-      const insertCustomer = db.prepare(
-        `INSERT INTO crm_customers (id, company_name, industry, address, npwp, parent_customer_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      );
-
-      const insertContact = db.prepare(
-        `INSERT INTO crm_contacts (id, customer_id, name, title, phone, email, role, is_primary)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      );
-
-      const transaction = db.transaction(() => {
-        insertCustomer.run(
-          customerId,
-          body.companyName.trim(),
-          body.industry.trim(),
-          body.address ?? null,
-          body.npwp ?? null,
-          body.parentCustomerId ?? null,
-          userId
-        );
+      const result = await db.transaction(async (tx) => {
+        const [created] = await tx.insert(customers).values({
+          companyName: body.companyName.trim(),
+          industry: body.industry.trim(),
+          address: body.address ?? null,
+          npwp: body.npwp ?? null,
+          parentCustomerId: body.parentCustomerId ?? null,
+          createdBy: userId,
+        }).returning();
 
         for (const contact of body.contacts) {
-          insertContact.run(
-            generateId('CONT'),
-            customerId,
-            contact.name.trim(),
-            contact.title ?? null,
-            contact.phone ?? null,
-            contact.email ?? null,
-            contact.role,
-            contact.isPrimary ? 1 : 0
-          );
+          await tx.insert(contacts).values({
+            customerId: created.id,
+            name: contact.name.trim(),
+            title: contact.title ?? null,
+            phone: contact.phone ?? null,
+            email: contact.email ?? null,
+            role: contact.role,
+            isPrimary: contact.isPrimary ?? false,
+          });
         }
+
+        return created;
       });
 
-      transaction();
-
-      logCreate(db, userId, 'customer', customerId, {
+      await logCreate(userId, 'customer', result.id, {
         companyName: body.companyName,
         industry: body.industry,
       });
 
-      const customer = db
-        .prepare('SELECT * FROM crm_customers WHERE id = ?')
-        .get(customerId) as any;
-      const contacts = db
-        .prepare('SELECT * FROM crm_contacts WHERE customer_id = ?')
-        .all(customerId);
+      const [customer] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.id, result.id))
+        .limit(1);
+      const customerContacts = await db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.customerId, result.id));
 
-      res.status(201).json({ ...mapCustomer(customer), contacts: contacts.map(mapContact) });
+      res.status(201).json({ ...mapCustomer(customer), contacts: customerContacts.map(mapContact) });
     }
   );
 
@@ -148,36 +139,35 @@ export function createCustomerRouter(db: Database.Database): Router {
   router.get(
     '/',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const { search, status } = req.query;
 
-      let query = `
-        SELECT c.*, 
-          (SELECT COUNT(*) FROM crm_contacts WHERE customer_id = c.id AND role = 'PIC') as pic_count,
-          p.company_name as parent_company_name
-        FROM crm_customers c
-        LEFT JOIN crm_customers p ON c.parent_customer_id = p.id
-        WHERE 1=1
-      `;
-      const params: any[] = [];
+      const conditions = [sql`1=1`];
 
       if (search) {
-        query += ` AND (c.company_name LIKE ? OR c.industry LIKE ?)`;
-        params.push(`%${search}%`, `%${search}%`);
+        const term = `%${search}%`;
+        conditions.push(sql`(c.company_name ILIKE ${term} OR c.industry ILIKE ${term})`);
       }
       if (status) {
-        query += ` AND c.status = ?`;
-        params.push(status);
+        conditions.push(sql`c.status = ${status as string}`);
       }
 
-      query += ` ORDER BY c.created_at DESC`;
+      const where = sql.join(conditions, sql` AND `);
 
-      const customers = db.prepare(query).all(...params) as any[];
+      const rows = (await db.execute(sql`
+        SELECT c.*,
+          (SELECT COUNT(*) FROM crm.contacts WHERE customer_id = c.id AND role = 'PIC') AS pic_count,
+          p.company_name AS parent_company_name
+        FROM crm.customers c
+        LEFT JOIN crm.customers p ON c.parent_customer_id = p.id
+        WHERE ${where}
+        ORDER BY c.created_at DESC
+      `)).rows as Record<string, unknown>[];
 
       res.json(
-        customers.map((c) => ({
+        rows.map((c: any) => ({
           ...mapCustomer(c),
-          picCount: c.pic_count,
+          picCount: Number(c.pic_count ?? 0),
         }))
       );
     }
@@ -187,13 +177,13 @@ export function createCustomerRouter(db: Database.Database): Router {
   router.get(
     '/:id',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
-      const customer = db
-        .prepare(`SELECT c.*, p.company_name as parent_company_name
-          FROM crm_customers c
-          LEFT JOIN crm_customers p ON c.parent_customer_id = p.id
-          WHERE c.id = ?`)
-        .get(req.params.id) as any;
+    async (req: Request, res: Response): Promise<void> => {
+      const [customer] = (await db.execute(sql`
+        SELECT c.*, p.company_name AS parent_company_name
+        FROM crm.customers c
+        LEFT JOIN crm.customers p ON c.parent_customer_id = p.id
+        WHERE c.id = ${req.params.id}
+      `)).rows as Record<string, unknown>[];
 
       if (!customer) {
         res.status(404).json({
@@ -202,27 +192,29 @@ export function createCustomerRouter(db: Database.Database): Router {
         return;
       }
 
-      const contacts = db
-        .prepare('SELECT * FROM crm_contacts WHERE customer_id = ? ORDER BY is_primary DESC')
-        .all(req.params.id);
+      const customerContacts = await db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.customerId, req.params.id))
+        .orderBy(desc(contacts.isPrimary));
 
       // Fetch child customers
-      const children = db
-        .prepare(`SELECT c.id, c.company_name, c.industry, c.status,
-          (SELECT COUNT(*) FROM crm_contacts WHERE customer_id = c.id AND role = 'PIC') as pic_count
-          FROM crm_customers c WHERE c.parent_customer_id = ?
-          ORDER BY c.company_name`)
-        .all(req.params.id) as any[];
+      const children = (await db.execute(sql`
+        SELECT c.id, c.company_name, c.industry, c.status,
+          (SELECT COUNT(*) FROM crm.contacts WHERE customer_id = c.id AND role = 'PIC') AS pic_count
+        FROM crm.customers c WHERE c.parent_customer_id = ${req.params.id}
+        ORDER BY c.company_name
+      `)).rows as Record<string, unknown>[];
 
       res.json({
         ...mapCustomer(customer),
-        contacts: contacts.map(mapContact),
+        contacts: customerContacts.map(mapContact),
         children: children.map((ch: any) => ({
           id: ch.id,
           companyName: ch.company_name,
           industry: ch.industry,
           status: ch.status,
-          picCount: ch.pic_count,
+          picCount: Number(ch.pic_count ?? 0),
         })),
       });
     }
@@ -232,11 +224,13 @@ export function createCustomerRouter(db: Database.Database): Router {
   router.put(
     '/:id',
     requireCRMPermission('crm:write:customer', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
-      const customer = db
-        .prepare('SELECT * FROM crm_customers WHERE id = ?')
-        .get(req.params.id) as any;
+      const [customer] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.id, req.params.id))
+        .limit(1);
 
       if (!customer) {
         res.status(404).json({
@@ -271,9 +265,11 @@ export function createCustomerRouter(db: Database.Database): Router {
           });
           return;
         }
-        const parentExists = db
-          .prepare('SELECT id FROM crm_customers WHERE id = ?')
-          .get(body.parentCustomerId);
+        const [parentExists] = await db
+          .select({ id: customers.id })
+          .from(customers)
+          .where(eq(customers.id, body.parentCustomerId))
+          .limit(1);
         if (!parentExists) {
           res.status(400).json({
             error: {
@@ -287,11 +283,13 @@ export function createCustomerRouter(db: Database.Database): Router {
         // Prevent circular: check if target parent is a descendant of current customer
         let checkId: string | null = body.parentCustomerId;
         while (checkId) {
-          const ancestor = db
-            .prepare('SELECT parent_customer_id FROM crm_customers WHERE id = ?')
-            .get(checkId) as { parent_customer_id: string | null } | undefined;
+          const [ancestor] = await db
+            .select({ parentCustomerId: customers.parentCustomerId })
+            .from(customers)
+            .where(eq(customers.id, checkId))
+            .limit(1);
           if (!ancestor) break;
-          if (ancestor.parent_customer_id === req.params.id) {
+          if (ancestor.parentCustomerId === req.params.id) {
             res.status(400).json({
               error: {
                 code: 'VALIDATION_ERROR',
@@ -301,23 +299,23 @@ export function createCustomerRouter(db: Database.Database): Router {
             });
             return;
           }
-          checkId = ancestor.parent_customer_id;
+          checkId = ancestor.parentCustomerId;
         }
       }
 
-      const newName = body.companyName?.trim() ?? customer.company_name;
+      const newName = body.companyName?.trim() ?? customer.companyName;
       const newNpwp = body.npwp !== undefined ? body.npwp : customer.npwp;
 
       // Check uniqueness if name or npwp changed
-      if (newName !== customer.company_name || newNpwp !== customer.npwp) {
-        const dup = db
-          .prepare(
-            `SELECT id FROM crm_customers 
-             WHERE company_name = ? AND (npwp = ? OR (npwp IS NULL AND ? IS NULL)) AND id != ?`
-          )
-          .get(newName, newNpwp ?? null, newNpwp ?? null, req.params.id) as
-          | { id: string }
-          | undefined;
+      if (newName !== customer.companyName || newNpwp !== customer.npwp) {
+        const dupCondition = newNpwp
+          ? and(eq(customers.companyName, newName), eq(customers.npwp, newNpwp), sql`${customers.id} != ${req.params.id}`)
+          : and(eq(customers.companyName, newName), sql`${customers.npwp} IS NULL`, sql`${customers.id} != ${req.params.id}`);
+        const [dup] = await db
+          .select({ id: customers.id })
+          .from(customers)
+          .where(dupCondition)
+          .limit(1);
 
         if (dup) {
           res.status(422).json({
@@ -335,35 +333,34 @@ export function createCustomerRouter(db: Database.Database): Router {
 
       const newParent = body.parentCustomerId !== undefined
         ? (body.parentCustomerId ?? null)
-        : customer.parent_customer_id;
+        : customer.parentCustomerId;
 
-      db.prepare(
-        `UPDATE crm_customers 
-         SET company_name = ?, industry = ?, address = ?, npwp = ?, status = ?, parent_customer_id = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`
-      ).run(
-        newName,
-        body.industry?.trim() ?? customer.industry,
-        body.address !== undefined ? body.address : customer.address,
-        newNpwp ?? null,
-        (body as any).status ?? customer.status,
-        newParent,
-        req.params.id
-      );
+      await db.update(customers).set({
+        companyName: newName,
+        industry: body.industry?.trim() ?? customer.industry,
+        address: body.address !== undefined ? body.address : customer.address,
+        npwp: newNpwp ?? null,
+        status: (body as any).status ?? customer.status,
+        parentCustomerId: newParent,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      }).where(eq(customers.id, req.params.id));
 
-      logUpdate(db, userId, 'customer', req.params.id, oldValues, req.body);
+      await logUpdate(userId, 'customer', req.params.id, oldValues, req.body);
 
-      const updated = db
-        .prepare(`SELECT c.*, p.company_name as parent_company_name
-          FROM crm_customers c
-          LEFT JOIN crm_customers p ON c.parent_customer_id = p.id
-          WHERE c.id = ?`)
-        .get(req.params.id) as any;
-      const contacts = db
-        .prepare('SELECT * FROM crm_contacts WHERE customer_id = ? ORDER BY is_primary DESC')
-        .all(req.params.id);
+      const [updated] = (await db.execute(sql`
+        SELECT c.*, p.company_name AS parent_company_name
+        FROM crm.customers c
+        LEFT JOIN crm.customers p ON c.parent_customer_id = p.id
+        WHERE c.id = ${req.params.id}
+      `)).rows as Record<string, unknown>[];
+      const customerContacts = await db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.customerId, req.params.id))
+        .orderBy(desc(contacts.isPrimary));
 
-      res.json({ ...mapCustomer(updated), contacts: contacts.map(mapContact) });
+      res.json({ ...mapCustomer(updated), contacts: customerContacts.map(mapContact) });
     }
   );
 
@@ -371,10 +368,12 @@ export function createCustomerRouter(db: Database.Database): Router {
   router.get(
     '/:id/interactions',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
-      const customer = db
-        .prepare('SELECT id FROM crm_customers WHERE id = ?')
-        .get(req.params.id);
+    async (req: Request, res: Response): Promise<void> => {
+      const [customer] = await db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(eq(customers.id, req.params.id))
+        .limit(1);
 
       if (!customer) {
         res.status(404).json({
@@ -383,15 +382,18 @@ export function createCustomerRouter(db: Database.Database): Router {
         return;
       }
 
-      const interactions = db
-        .prepare(
-          `SELECT * FROM crm_interactions 
-           WHERE entity_id = ? AND entity_type = 'customer'
-           ORDER BY interaction_date DESC`
+      const rows = await db
+        .select()
+        .from(interactions)
+        .where(
+          and(
+            eq(interactions.entityId, req.params.id),
+            eq(interactions.entityType, 'customer')
+          )
         )
-        .all(req.params.id);
+        .orderBy(desc(interactions.interactionDate));
 
-      res.json(interactions.map(mapInteraction));
+      res.json(rows.map(mapInteraction));
     }
   );
 
@@ -402,20 +404,22 @@ export function createCustomerRouter(db: Database.Database): Router {
 // Contacts Router (mounted separately for /api/crm/contacts/:id)
 // ============================================================
 
-export function createContactRouter(db: Database.Database): Router {
+export function createContactRouter(): Router {
   const router = Router({ mergeParams: true });
 
   // POST /api/crm/customers/:customerId/contacts
   router.post(
     '/',
     requireCRMPermission('crm:write:customer', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
       const { customerId } = req.params;
 
-      const customer = db
-        .prepare('SELECT id FROM crm_customers WHERE id = ?')
-        .get(customerId);
+      const [customer] = await db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(eq(customers.id, customerId))
+        .limit(1);
 
       if (!customer) {
         res.status(404).json({
@@ -437,29 +441,19 @@ export function createContactRouter(db: Database.Database): Router {
         return;
       }
 
-      const contactId = generateId('CONT');
-
-      db.prepare(
-        `INSERT INTO crm_contacts (id, customer_id, name, title, phone, email, role, is_primary)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        contactId,
+      const [created] = await db.insert(contacts).values({
         customerId,
-        body.name.trim(),
-        body.title ?? null,
-        body.phone ?? null,
-        body.email ?? null,
-        body.role,
-        body.isPrimary ? 1 : 0
-      );
+        name: body.name.trim(),
+        title: body.title ?? null,
+        phone: body.phone ?? null,
+        email: body.email ?? null,
+        role: body.role,
+        isPrimary: body.isPrimary ?? false,
+      }).returning();
 
-      logCreate(db, userId, 'contact', contactId, { customerId, name: body.name, role: body.role });
+      await logCreate(userId, 'contact', created.id, { customerId, name: body.name, role: body.role });
 
-      const contact = db
-        .prepare('SELECT * FROM crm_contacts WHERE id = ?')
-        .get(contactId) as any;
-
-      res.status(201).json(mapContact(contact));
+      res.status(201).json(mapContact(created));
     }
   );
 
@@ -470,18 +464,20 @@ export function createContactRouter(db: Database.Database): Router {
 // Standalone contact update/delete (mounted at /api/crm/contacts)
 // ============================================================
 
-export function createContactStandaloneRouter(db: Database.Database): Router {
+export function createContactStandaloneRouter(): Router {
   const router = Router();
 
   // PUT /api/crm/contacts/:id
   router.put(
     '/:id',
     requireCRMPermission('crm:write:customer', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
-      const contact = db
-        .prepare('SELECT * FROM crm_contacts WHERE id = ?')
-        .get(req.params.id) as any;
+      const [contact] = await db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.id, req.params.id))
+        .limit(1);
 
       if (!contact) {
         res.status(404).json({
@@ -493,25 +489,16 @@ export function createContactStandaloneRouter(db: Database.Database): Router {
       const body = req.body as Partial<CreateContactInput>;
       const oldValues = { ...contact };
 
-      db.prepare(
-        `UPDATE crm_contacts 
-         SET name = ?, title = ?, phone = ?, email = ?, role = ?, is_primary = ?
-         WHERE id = ?`
-      ).run(
-        body.name?.trim() ?? contact.name,
-        body.title !== undefined ? body.title : contact.title,
-        body.phone !== undefined ? body.phone : contact.phone,
-        body.email !== undefined ? body.email : contact.email,
-        body.role ?? contact.role,
-        body.isPrimary !== undefined ? (body.isPrimary ? 1 : 0) : contact.is_primary,
-        req.params.id
-      );
+      const [updated] = await db.update(contacts).set({
+        name: body.name?.trim() ?? contact.name,
+        title: body.title !== undefined ? body.title : contact.title,
+        phone: body.phone !== undefined ? body.phone : contact.phone,
+        email: body.email !== undefined ? body.email : contact.email,
+        role: body.role ?? contact.role,
+        isPrimary: body.isPrimary !== undefined ? body.isPrimary : contact.isPrimary,
+      }).where(eq(contacts.id, req.params.id)).returning();
 
-      logUpdate(db, userId, 'contact', req.params.id, oldValues, req.body);
-
-      const updated = db
-        .prepare('SELECT * FROM crm_contacts WHERE id = ?')
-        .get(req.params.id) as any;
+      await logUpdate(userId, 'contact', req.params.id, oldValues, req.body);
 
       res.json(mapContact(updated));
     }
@@ -521,11 +508,13 @@ export function createContactStandaloneRouter(db: Database.Database): Router {
   router.delete(
     '/:id',
     requireCRMPermission('crm:write:customer', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
-      const contact = db
-        .prepare('SELECT * FROM crm_contacts WHERE id = ?')
-        .get(req.params.id) as any;
+      const [contact] = await db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.id, req.params.id))
+        .limit(1);
 
       if (!contact) {
         res.status(404).json({
@@ -535,28 +524,32 @@ export function createContactStandaloneRouter(db: Database.Database): Router {
       }
 
       // Ensure at least one PIC remains
-      const picCount = (
-        db
-          .prepare(
-            `SELECT COUNT(*) as cnt FROM crm_contacts 
-             WHERE customer_id = ? AND role = 'PIC' AND id != ?`
-          )
-          .get(contact.customer_id, req.params.id) as { cnt: number }
-      ).cnt;
+      if (contact.role === 'PIC') {
+        const [picCount] = await db
+          .select({ cnt: count() })
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.customerId, contact.customerId),
+              eq(contacts.role, 'PIC'),
+              sql`${contacts.id} != ${req.params.id}`
+            )
+          );
 
-      if (contact.role === 'PIC' && picCount === 0) {
-        res.status(422).json({
-          error: {
-            code: 'LAST_PIC',
-            message: 'Tidak dapat menghapus kontak PIC terakhir. Minimal satu PIC harus ada.',
-          },
-        });
-        return;
+        if ((picCount?.cnt ?? 0) === 0) {
+          res.status(422).json({
+            error: {
+              code: 'LAST_PIC',
+              message: 'Tidak dapat menghapus kontak PIC terakhir. Minimal satu PIC harus ada.',
+            },
+          });
+          return;
+        }
       }
 
-      db.prepare('DELETE FROM crm_contacts WHERE id = ?').run(req.params.id);
+      await db.delete(contacts).where(eq(contacts.id, req.params.id));
 
-      logUpdate(db, userId, 'contact', req.params.id, contact, { deleted: true });
+      await logUpdate(userId, 'contact', req.params.id, contact, { deleted: true });
 
       res.json({ success: true });
     }
@@ -572,44 +565,44 @@ export function createContactStandaloneRouter(db: Database.Database): Router {
 function mapCustomer(row: any) {
   return {
     id: row.id,
-    companyName: row.company_name,
+    companyName: row.companyName ?? row.company_name,
     industry: row.industry,
     address: row.address,
     npwp: row.npwp,
-    parentCustomerId: row.parent_customer_id ?? null,
-    parentCompanyName: row.parent_company_name ?? null,
+    parentCustomerId: row.parentCustomerId ?? row.parent_customer_id ?? null,
+    parentCompanyName: row.parentCompanyName ?? row.parent_company_name ?? null,
     status: row.status,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdBy: row.createdBy ?? row.created_by,
+    createdAt: row.createdAt ?? row.created_at,
+    updatedAt: row.updatedAt ?? row.updated_at,
   };
 }
 
 function mapContact(row: any) {
   return {
     id: row.id,
-    customerId: row.customer_id,
+    customerId: row.customerId ?? row.customer_id,
     name: row.name,
     title: row.title,
     phone: row.phone,
     email: row.email,
     role: row.role,
-    isPrimary: row.is_primary === 1,
-    createdAt: row.created_at,
+    isPrimary: row.isPrimary ?? row.is_primary ?? false,
+    createdAt: row.createdAt ?? row.created_at,
   };
 }
 
 function mapInteraction(row: any) {
   return {
     id: row.id,
-    entityId: row.entity_id,
-    entityType: row.entity_type,
+    entityId: row.entityId ?? row.entity_id,
+    entityType: row.entityType ?? row.entity_type,
     type: row.type,
-    interactionDate: row.interaction_date,
+    interactionDate: row.interactionDate ?? row.interaction_date,
     summary: row.summary,
-    nextAction: row.next_action,
-    nextActionDate: row.next_action_date,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
+    nextAction: row.nextAction ?? row.next_action,
+    nextActionDate: row.nextActionDate ?? row.next_action_date,
+    createdBy: row.createdBy ?? row.created_by,
+    createdAt: row.createdAt ?? row.created_at,
   };
 }

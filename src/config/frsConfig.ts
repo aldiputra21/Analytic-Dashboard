@@ -9,7 +9,10 @@ const configSchema = z.object({
   APP_URL: z.string().url().optional(),
 
   // Database
-  DATABASE_URL: z.string().min(1).default('./finance.db'),
+  DATABASE_URL: z.string().url().refine(
+    (v) => v.startsWith('postgresql://') || v.startsWith('postgres://'),
+    { message: 'DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://)' }
+  ),
 
   // JWT
   FRS_JWT_SECRET: z

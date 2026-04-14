@@ -2,7 +2,6 @@
 // Requirements: 7.2, 7.7, 7.10
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import {
   getProjectsByDepartment,
   getProjectById,
@@ -12,48 +11,74 @@ import {
   Project,
 } from '../../services/mafinda/projectService.js';
 import { ConflictError, NotFoundError } from '../../services/mafinda/departmentService.js';
+import { db } from '../../db/connection.js';
+import { projects } from '../../db/schema/public.js';
+import { departments } from '../../db/schema/public.js';
+import { asc, eq } from 'drizzle-orm';
 
-export function createProjectRouter(db: Database.Database): Router {
+export function createProjectRouter(): Router {
   const router = Router();
 
   // GET /api/projects — list projects, optionally filtered by departmentId
-  router.get('/', (req: Request, res: Response): void => {
+  router.get('/', async (req: Request, res: Response): Promise<void> => {
     const { departmentId } = req.query as Record<string, string>;
 
     try {
-      let projects: Project[];
+      let result: Project[];
       if (departmentId) {
-        projects = getProjectsByDepartment(db, departmentId);
+        result = await getProjectsByDepartment(departmentId);
       } else {
         // Return all projects across all departments
-        const rows = db.prepare(`
-          SELECT p.*, d.name AS department_name
-          FROM mafinda_projects p
-          LEFT JOIN mafinda_departments d ON d.id = p.department_id
-          ORDER BY p.name ASC
-        `).all() as any[];
-        projects = rows.map((row) => ({
+        const rows = await db.select({
+          id: projects.id,
+          departmentId: projects.departmentId,
+          departmentName: departments.name,
+          code: projects.code,
+          name: projects.name,
+          description: projects.description,
+          sourceType: projects.sourceType,
+          sourceId: projects.sourceId,
+          status: projects.status,
+          startDate: projects.startDate,
+          endDate: projects.endDate,
+          isActive: projects.isActive,
+          createdBy: projects.createdBy,
+          createdAt: projects.createdAt,
+          updatedBy: projects.updatedBy,
+          updatedAt: projects.updatedAt,
+        })
+          .from(projects)
+          .leftJoin(departments, eq(departments.id, projects.departmentId))
+          .orderBy(asc(projects.name));
+
+        result = rows.map((row) => ({
           id: row.id,
-          departmentId: row.department_id,
-          departmentName: row.department_name ?? undefined,
+          departmentId: row.departmentId,
+          departmentName: row.departmentName ?? undefined,
+          code: row.code,
           name: row.name,
           description: row.description ?? undefined,
-          startDate: row.start_date ?? undefined,
-          endDate: row.end_date ?? undefined,
-          isActive: Boolean(row.is_active),
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
+          sourceType: row.sourceType ?? undefined,
+          sourceId: row.sourceId ?? undefined,
+          status: row.status ?? undefined,
+          startDate: row.startDate?.toISOString().slice(0, 10),
+          endDate: row.endDate?.toISOString().slice(0, 10),
+          isActive: row.isActive ?? true,
+          createdBy: row.createdBy,
+          createdAt: row.createdAt.toISOString(),
+          updatedBy: row.updatedBy ?? undefined,
+          updatedAt: row.updatedAt?.toISOString(),
         }));
       }
-      res.json(projects);
+      res.json(result);
     } catch {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
     }
   });
 
   // POST /api/projects — create new project
-  router.post('/', (req: Request, res: Response): void => {
-    const { departmentId, name, description, startDate, endDate } = req.body ?? {};
+  router.post('/', async (req: Request, res: Response): Promise<void> => {
+    const { departmentId, code, name, description, startDate, endDate } = req.body ?? {};
 
     if (!departmentId?.trim()) {
       res.status(400).json({ error: 'Field "departmentId" wajib diisi' });
@@ -63,15 +88,22 @@ export function createProjectRouter(db: Database.Database): Router {
       res.status(400).json({ error: 'Field "name" wajib diisi' });
       return;
     }
+    if (!code?.trim()) {
+      res.status(400).json({ error: 'Field "code" wajib diisi' });
+      return;
+    }
+
+    const createdBy = (req as any).user?.username ?? 'system';
 
     try {
-      const project = createProject(db, {
+      const project = await createProject({
         departmentId: departmentId.trim(),
+        code: code.trim(),
         name: name.trim(),
         description,
         startDate,
         endDate,
-      });
+      }, createdBy);
       res.status(201).json(project);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -87,22 +119,26 @@ export function createProjectRouter(db: Database.Database): Router {
   });
 
   // PUT /api/projects/:id — update project
-  router.put('/:id', (req: Request, res: Response): void => {
-    const { name, description, startDate, endDate, isActive } = req.body ?? {};
+  router.put('/:id', async (req: Request, res: Response): Promise<void> => {
+    const { name, code, description, startDate, endDate, isActive, status } = req.body ?? {};
 
     if (name !== undefined && !name?.trim()) {
       res.status(400).json({ error: 'Field "name" tidak boleh kosong' });
       return;
     }
 
+    const updatedBy = (req as any).user?.username ?? 'system';
+
     try {
-      const project = updateProject(db, req.params.id, {
+      const project = await updateProject(req.params.id, {
         name: name?.trim(),
+        code: code?.trim(),
         description,
         startDate,
         endDate,
         isActive,
-      });
+        status,
+      }, updatedBy);
       res.json(project);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -118,9 +154,9 @@ export function createProjectRouter(db: Database.Database): Router {
   });
 
   // DELETE /api/projects/:id — delete project
-  router.delete('/:id', (req: Request, res: Response): void => {
+  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
     try {
-      const result = deleteProject(db, req.params.id);
+      const result = await deleteProject(req.params.id);
       res.json(result);
     } catch (err) {
       if (err instanceof NotFoundError) {

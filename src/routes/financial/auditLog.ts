@@ -2,12 +2,11 @@
 // Requirements: 10.7, 11.7
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireFRSAuth } from '../../middleware/frsAuth';
 import { authorize } from '../../middleware/frsRbac';
 import { getFRSAuditLog } from '../../services/financial/auditLogService';
 
-export function createAuditLogRouter(db: Database.Database): Router {
+export function createAuditLogRouter(): Router {
   const router = Router();
   router.use(requireFRSAuth);
 
@@ -17,10 +16,10 @@ export function createAuditLogRouter(db: Database.Database): Router {
    * Supports filtering by action='export' for export history (Req 10.7).
    * Requirements: 10.7, 11.7
    */
-  router.get('/', authorize('audit_log', 'read', db), (req: Request, res: Response) => {
+  router.get('/', authorize('audit_log', 'read'), async (req: Request, res: Response) => {
     const {
       userId,
-      subsidiaryId,
+      departmentId,
       entityType,
       action,
       startDate,
@@ -29,9 +28,9 @@ export function createAuditLogRouter(db: Database.Database): Router {
       offset,
     } = req.query as Record<string, string>;
 
-    const entries = getFRSAuditLog(db, {
+    const entries = await getFRSAuditLog({
       userId,
-      subsidiaryId,
+      departmentId,
       entityType,
       action,
       startDate: startDate ? new Date(startDate) : undefined,

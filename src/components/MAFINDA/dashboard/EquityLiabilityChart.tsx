@@ -48,7 +48,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export const EquityLiabilityChart: React.FC<EquityLiabilityChartProps> = ({ data, isLoading }) => {
-  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+  const [, setActiveIndex] = useState<number | undefined>(undefined);
 
   if (isLoading) {
     return (
@@ -112,7 +112,6 @@ export const EquityLiabilityChart: React.FC<EquityLiabilityChartProps> = ({ data
             innerRadius={55}
             outerRadius={85}
             dataKey="value"
-            activeIndex={activeIndex}
             activeShape={renderActiveShape}
             onMouseEnter={(_, i) => setActiveIndex(i)}
             onMouseLeave={() => setActiveIndex(undefined)}

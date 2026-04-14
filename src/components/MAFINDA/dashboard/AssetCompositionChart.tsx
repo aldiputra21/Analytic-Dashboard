@@ -48,7 +48,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export const AssetCompositionChart: React.FC<AssetCompositionChartProps> = ({ data, isLoading }) => {
-  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+  const [, setActiveIndex] = useState<number | undefined>(undefined);
 
   if (isLoading) {
     return (
@@ -92,7 +92,6 @@ export const AssetCompositionChart: React.FC<AssetCompositionChartProps> = ({ da
             innerRadius={60}
             outerRadius={90}
             dataKey="value"
-            activeIndex={activeIndex}
             activeShape={renderActiveShape}
             onMouseEnter={(_, i) => setActiveIndex(i)}
             onMouseLeave={() => setActiveIndex(undefined)}

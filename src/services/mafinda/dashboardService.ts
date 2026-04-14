@@ -1,7 +1,16 @@
 // Dashboard Service — MAFINDA Dashboard Enhancement
-// Requirements: 1.3, 1.6, 2.5, 3.4, 3.5, 3.6, 4.5, 5.5, 6.5
+// Drizzle ORM PostgreSQL implementation
 
-import Database from 'better-sqlite3';
+import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { departments } from '../../db/schema/public';
+import {
+  balanceSheets,
+  incomeStatements,
+  targetHeaders,
+  targetDetails,
+  weeklyCashFlows,
+} from '../../db/schema/cfd';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,7 +25,6 @@ export interface DeptRevenueTargetItem {
 
 export interface DeptRevenueTargetResult {
   period: string;
-  periodType: string;
   departments: DeptRevenueTargetItem[];
 }
 
@@ -25,7 +33,7 @@ export interface RevenueCostSummary {
   departmentId?: string;
   departmentName?: string;
   revenue: number;
-  revenueChange: number;       // % change vs previous period
+  revenueChange: number;
   operationalCost: number;
   operationalCostChange: number;
 }
@@ -34,33 +42,41 @@ export interface CashFlowDataPoint {
   period: string;
   cashIn: number;
   cashOut: number;
-  netCashFlow: number;         // cashIn - cashOut
+  netCashFlow: number;
 }
 
 export interface CashFlowResult {
   data: CashFlowDataPoint[];
   departmentId?: string;
-  projectId?: string;
+  entityType?: string;
+  entityId?: string;
 }
 
 export interface AssetComposition {
   period: string;
   currentAssets: number;
   fixedAssets: number;
+  // Backward-compatible alias used by existing dashboard widgets
   otherAssets: number;
-  totalAssets: number;         // currentAssets + fixedAssets + otherAssets
+  totalAssets: number;
 }
 
 export interface EquityLiabilityComposition {
   period: string;
-  paidInCapital: number;
+  capital: number;
+  earningsAfterTax: number;
   retainedEarnings: number;
+  dividends: number;
+  currentLiabilities: number;
+  longTermLiabilities: number;
+  // Backward-compatible aliases used by existing dashboard widgets
+  paidInCapital: number;
   otherEquity: number;
   shortTermLiabilities: number;
-  longTermLiabilities: number;
-  totalEquity: number;         // paidInCapital + retainedEarnings + otherEquity
-  totalLiabilities: number;   // shortTermLiabilities + longTermLiabilities
-  totalAssets: number;         // totalEquity + totalLiabilities
+  totalEquity: number;
+  totalLiabilities: number;
+  totalAssets: number;
+  totalEquityAndLiabilities: number;
 }
 
 export interface HistoricalDataPoint {
@@ -73,74 +89,63 @@ export interface HistoricalDataPoint {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Calculates achievement rate.
- * Returns 0 when target is 0 to avoid division by zero.
- * Requirements: 1.3
- */
 export function calculateAchievementRate(target: number, realization: number): number {
   if (target === 0) return 0;
   return (realization / target) * 100;
 }
 
-/**
- * Calculates net cash flow.
- * Requirements: 3.4
- */
 export function calculateNetCashFlow(cashIn: number, cashOut: number): number {
   return cashIn - cashOut;
 }
 
-/**
- * Builds asset composition ensuring totalAssets = currentAssets + fixedAssets + otherAssets.
- * Requirements: 4.5
- */
 export function buildAssetComposition(
   period: string,
   currentAssets: number,
   fixedAssets: number,
-  otherAssets: number
 ): AssetComposition {
   return {
     period,
     currentAssets,
     fixedAssets,
-    otherAssets,
-    totalAssets: currentAssets + fixedAssets + otherAssets,
+    otherAssets: 0,
+    totalAssets: currentAssets + fixedAssets,
   };
 }
 
-/**
- * Builds equity & liability composition ensuring totalEquity + totalLiabilities = totalAssets.
- * Requirements: 5.5
- */
 export function buildEquityLiabilityComposition(
   period: string,
-  paidInCapital: number,
+  capital: number,
+  earningsAfterTax: number,
   retainedEarnings: number,
-  otherEquity: number,
-  shortTermLiabilities: number,
-  longTermLiabilities: number
+  dividends: number,
+  currentLiabilities: number,
+  longTermLiabilities: number,
 ): EquityLiabilityComposition {
-  const totalEquity = paidInCapital + retainedEarnings + otherEquity;
-  const totalLiabilities = shortTermLiabilities + longTermLiabilities;
+  const totalEquity = capital + earningsAfterTax + retainedEarnings - dividends;
+  const totalLiabilities = currentLiabilities + longTermLiabilities;
+  const totalAssets = totalEquity + totalLiabilities;
   return {
     period,
-    paidInCapital,
+    capital,
+    earningsAfterTax,
     retainedEarnings,
-    otherEquity,
-    shortTermLiabilities,
+    dividends,
+    currentLiabilities,
     longTermLiabilities,
+    paidInCapital: capital,
+    otherEquity: earningsAfterTax,
+    shortTermLiabilities: currentLiabilities,
     totalEquity,
     totalLiabilities,
-    totalAssets: totalEquity + totalLiabilities,
+    totalAssets,
+    totalEquityAndLiabilities: totalAssets,
   };
 }
 
 /** Returns the previous period string in "YYYY-MM" format. */
 function previousPeriod(period: string): string {
   const [year, month] = period.split('-').map(Number);
-  const date = new Date(year, month - 2); // month-2 because Date months are 0-indexed
+  const date = new Date(year, month - 2);
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
@@ -152,80 +157,107 @@ function percentChange(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
+/** Parse period "YYYY-MM" into { year, month }. */
+function parsePeriod(period: string): { year: number; month: number } {
+  const [year, month] = period.split('-').map(Number);
+  return { year, month };
+}
+
+/** Parse numeric string to number, defaulting to 0. */
+function n(value: string | null | undefined): number {
+  return parseFloat(value ?? '0') || 0;
+}
+
 // ─── Service Functions ────────────────────────────────────────────────────────
 
 /**
  * Returns target vs realization revenue per department for a given period.
- * achievementRate = (realization / target) * 100
- * Requirements: 1.3, 1.6
+ * Target comes from target_details (targetType = 'revenue').
+ * Realization comes from income_statements (revenue).
  */
-export function getDeptRevenueTarget(
-  db: Database.Database,
+export async function getDeptRevenueTarget(
   period: string,
-  periodType: string
-): DeptRevenueTargetResult {
-  const departments = db
-    .prepare('SELECT id, name FROM mafinda_departments WHERE is_active = 1 ORDER BY name ASC')
-    .all() as any[];
+  corporateId: string,
+): Promise<DeptRevenueTargetResult> {
+  const { year, month } = parsePeriod(period);
 
-  const items: DeptRevenueTargetItem[] = departments.map((dept) => {
-    const targetRow = db.prepare(`
-      SELECT revenue_target FROM mafinda_targets
-      WHERE entity_type = 'department' AND entity_id = ? AND period = ? AND period_type = ?
-    `).get(dept.id, period, periodType) as any;
+  const depts = await db.select({ id: departments.id, name: departments.name })
+    .from(departments)
+    .where(and(eq(departments.corporateId, corporateId), eq(departments.isActive, true)))
+    .orderBy(asc(departments.name));
 
-    const realizationRow = db.prepare(`
-      SELECT revenue FROM mafinda_revenue_realizations
-      WHERE entity_type = 'department' AND entity_id = ? AND period = ? AND period_type = ?
-    `).get(dept.id, period, periodType) as any;
+  const items: DeptRevenueTargetItem[] = [];
+  for (const dept of depts) {
+    // Get revenue target from target_headers → target_details
+    const [targetRow] = await db
+      .select({ amount: targetDetails.amount })
+      .from(targetDetails)
+      .innerJoin(targetHeaders, eq(targetDetails.targetHeaderId, targetHeaders.id))
+      .where(and(
+        eq(targetHeaders.departmentId, dept.id),
+        eq(targetHeaders.fiscalYear, year),
+        eq(targetHeaders.fiscalMonth, month),
+        eq(targetDetails.targetType, 'revenue'),
+      ))
+      .limit(1);
 
-    const target = targetRow?.revenue_target ?? 0;
-    const realization = realizationRow?.revenue ?? 0;
+    // Get realization from income_statements
+    const [realizationRow] = await db
+      .select({ revenue: incomeStatements.revenue })
+      .from(incomeStatements)
+      .where(and(
+        eq(incomeStatements.departmentId, dept.id),
+        eq(incomeStatements.period, period),
+      ))
+      .limit(1);
 
-    return {
+    const target = n(targetRow?.amount);
+    const realization = n(realizationRow?.revenue);
+
+    items.push({
       departmentId: dept.id,
       departmentName: dept.name,
       target,
       realization,
       achievementRate: calculateAchievementRate(target, realization),
-    };
-  });
+    });
+  }
 
-  return { period, periodType, departments: items };
+  return { period, departments: items };
 }
 
 /**
  * Returns revenue and operational cost summary, optionally filtered by department.
  * Includes percentage change vs the previous period.
- * Requirements: 2.5
  */
-export function getRevenueCostSummary(
-  db: Database.Database,
+export async function getRevenueCostSummary(
   period: string,
-  departmentId?: string
-): RevenueCostSummary {
+  departmentId?: string,
+): Promise<RevenueCostSummary> {
   const prevPeriod = previousPeriod(period);
 
   if (departmentId) {
-    // Per-department: use revenue_realizations
-    const dept = db
-      .prepare('SELECT id, name FROM mafinda_departments WHERE id = ?')
-      .get(departmentId) as any;
+    const [dept] = await db.select({ id: departments.id, name: departments.name })
+      .from(departments)
+      .where(eq(departments.id, departmentId))
+      .limit(1);
 
-    const current = db.prepare(`
-      SELECT revenue, operational_cost FROM mafinda_revenue_realizations
-      WHERE entity_type = 'department' AND entity_id = ? AND period = ?
-    `).get(departmentId, period) as any;
+    const [current] = await db
+      .select({ revenue: incomeStatements.revenue, opex: incomeStatements.operatingExpenses })
+      .from(incomeStatements)
+      .where(and(eq(incomeStatements.departmentId, departmentId), eq(incomeStatements.period, period)))
+      .limit(1);
 
-    const previous = db.prepare(`
-      SELECT revenue, operational_cost FROM mafinda_revenue_realizations
-      WHERE entity_type = 'department' AND entity_id = ? AND period = ?
-    `).get(departmentId, prevPeriod) as any;
+    const [previous] = await db
+      .select({ revenue: incomeStatements.revenue, opex: incomeStatements.operatingExpenses })
+      .from(incomeStatements)
+      .where(and(eq(incomeStatements.departmentId, departmentId), eq(incomeStatements.period, prevPeriod)))
+      .limit(1);
 
-    const revenue = current?.revenue ?? 0;
-    const operationalCost = current?.operational_cost ?? 0;
-    const prevRevenue = previous?.revenue ?? 0;
-    const prevCost = previous?.operational_cost ?? 0;
+    const revenue = n(current?.revenue);
+    const operationalCost = n(current?.opex);
+    const prevRevenue = n(previous?.revenue);
+    const prevCost = n(previous?.opex);
 
     return {
       period,
@@ -238,19 +270,27 @@ export function getRevenueCostSummary(
     };
   }
 
-  // Aggregate across all departments from income statements
-  const current = db.prepare(`
-    SELECT revenue, operational_expenses FROM mafinda_income_statements WHERE period = ?
-  `).get(period) as any;
+  // Aggregate all departments
+  const currentAgg = await db
+    .select({
+      revenue: sql<string>`COALESCE(SUM(${incomeStatements.revenue}::numeric), 0)`,
+      opex: sql<string>`COALESCE(SUM(${incomeStatements.operatingExpenses}::numeric), 0)`,
+    })
+    .from(incomeStatements)
+    .where(eq(incomeStatements.period, period));
 
-  const previous = db.prepare(`
-    SELECT revenue, operational_expenses FROM mafinda_income_statements WHERE period = ?
-  `).get(prevPeriod) as any;
+  const previousAgg = await db
+    .select({
+      revenue: sql<string>`COALESCE(SUM(${incomeStatements.revenue}::numeric), 0)`,
+      opex: sql<string>`COALESCE(SUM(${incomeStatements.operatingExpenses}::numeric), 0)`,
+    })
+    .from(incomeStatements)
+    .where(eq(incomeStatements.period, prevPeriod));
 
-  const revenue = current?.revenue ?? 0;
-  const operationalCost = current?.operational_expenses ?? 0;
-  const prevRevenue = previous?.revenue ?? 0;
-  const prevCost = previous?.operational_expenses ?? 0;
+  const revenue = n(currentAgg[0]?.revenue);
+  const operationalCost = n(currentAgg[0]?.opex);
+  const prevRevenue = n(previousAgg[0]?.revenue);
+  const prevCost = n(previousAgg[0]?.opex);
 
   return {
     period,
@@ -263,18 +303,16 @@ export function getRevenueCostSummary(
 
 /**
  * Returns cash flow data points for a range of months.
- * Optionally filtered by departmentId and/or projectId.
- * netCashFlow = cashIn - cashOut for each period.
- * Requirements: 3.4, 3.5, 3.6
+ * Aggregates weekly_cash_flows across weeks per period.
+ * Optionally filtered by departmentId or entityType/entityId.
  */
-export function getCashFlowData(
-  db: Database.Database,
+export async function getCashFlowData(
   period: string,
   months = 6,
   departmentId?: string,
-  projectId?: string
-): CashFlowResult {
-  // Build list of periods to cover
+  entityType?: string,
+  entityId?: string,
+): Promise<CashFlowResult> {
   const [year, month] = period.split('-').map(Number);
   const periods: string[] = [];
   for (let i = months - 1; i >= 0; i--) {
@@ -284,35 +322,35 @@ export function getCashFlowData(
     periods.push(`${y}-${m}`);
   }
 
-  const conditions: string[] = ['period IN (' + periods.map(() => '?').join(',') + ')'];
-  const params: any[] = [...periods];
+  const conditions = [inArray(weeklyCashFlows.period, periods)];
+  if (departmentId) conditions.push(eq(weeklyCashFlows.departmentId, departmentId));
+  if (entityType) conditions.push(eq(weeklyCashFlows.entityType, entityType));
+  if (entityId) conditions.push(eq(weeklyCashFlows.entityId, entityId));
 
-  if (departmentId !== undefined) {
-    conditions.push('department_id = ?');
-    params.push(departmentId);
-  }
-  if (projectId !== undefined) {
-    conditions.push('project_id = ?');
-    params.push(projectId);
-  }
+  const rows = await db
+    .select({
+      period: weeklyCashFlows.period,
+      cashIn: sql<string>`SUM(
+        ${weeklyCashFlows.operatingCashIn}::numeric +
+        ${weeklyCashFlows.investingCashIn}::numeric +
+        ${weeklyCashFlows.financingCashIn}::numeric
+      )`,
+      cashOut: sql<string>`SUM(
+        ${weeklyCashFlows.operatingCashOut}::numeric +
+        ${weeklyCashFlows.investingCashOut}::numeric +
+        ${weeklyCashFlows.financingCashOut}::numeric
+      )`,
+    })
+    .from(weeklyCashFlows)
+    .where(and(...conditions))
+    .groupBy(weeklyCashFlows.period)
+    .orderBy(asc(weeklyCashFlows.period));
 
-  const rows = db.prepare(`
-    SELECT period,
-      SUM(operating_cash_in + investing_cash_in + financing_cash_in) AS cash_in,
-      SUM(operating_cash_out + investing_cash_out + financing_cash_out) AS cash_out
-    FROM mafinda_cash_flows
-    WHERE ${conditions.join(' AND ')}
-    GROUP BY period
-    ORDER BY period ASC
-  `).all(...params) as any[];
-
-  // Build a map for quick lookup
   const rowMap = new Map<string, { cashIn: number; cashOut: number }>();
   for (const r of rows) {
-    rowMap.set(r.period, { cashIn: r.cash_in ?? 0, cashOut: r.cash_out ?? 0 });
+    rowMap.set(r.period, { cashIn: n(r.cashIn), cashOut: n(r.cashOut) });
   }
 
-  // Return a data point for every period in range (zero-fill missing)
   const data: CashFlowDataPoint[] = periods.map((p) => {
     const entry = rowMap.get(p) ?? { cashIn: 0, cashOut: 0 };
     return {
@@ -323,94 +361,156 @@ export function getCashFlowData(
     };
   });
 
-  return {
-    data,
-    departmentId,
-    projectId,
-  };
+  return { data, departmentId, entityType, entityId };
 }
 
 /**
- * Returns asset composition for a given period.
- * totalAssets = currentAssets + fixedAssets + otherAssets
- * Requirements: 4.5
+ * Returns asset composition for a given period (optionally filtered by department).
+ * currentAssets = cash_and_bank + accounts_receivable + work_in_progress + inventory + prepaid_expenses
+ * fixedAssets = land + building + equipment + other_fixed_assets
  */
-export function getAssetComposition(
-  db: Database.Database,
-  period: string
-): AssetComposition | null {
-  const row = db.prepare(`
-    SELECT period, current_assets, fixed_assets, other_assets
-    FROM mafinda_balance_sheets
-    WHERE period = ?
-  `).get(period) as any;
+export async function getAssetComposition(
+  period: string,
+  departmentId?: string,
+): Promise<AssetComposition | null> {
+  const conditions = [eq(balanceSheets.period, period)];
+  if (departmentId) conditions.push(eq(balanceSheets.departmentId, departmentId));
+
+  const [row] = await db
+    .select({
+      period: balanceSheets.period,
+      currentAssets: sql<string>`SUM(
+        ${balanceSheets.cashAndBank}::numeric + ${balanceSheets.accountsReceivable}::numeric +
+        ${balanceSheets.workInProgress}::numeric + ${balanceSheets.inventory}::numeric +
+        ${balanceSheets.prepaidExpenses}::numeric
+      )`,
+      fixedAssets: sql<string>`SUM(
+        ${balanceSheets.land}::numeric + ${balanceSheets.building}::numeric +
+        ${balanceSheets.equipment}::numeric + ${balanceSheets.otherFixedAssets}::numeric
+      )`,
+    })
+    .from(balanceSheets)
+    .where(and(...conditions))
+    .groupBy(balanceSheets.period);
 
   if (!row) return null;
 
-  return buildAssetComposition(
-    row.period,
-    row.current_assets,
-    row.fixed_assets,
-    row.other_assets
-  );
+  return buildAssetComposition(row.period, n(row.currentAssets), n(row.fixedAssets));
 }
 
 /**
- * Returns equity & liability composition for a given period.
- * totalEquity + totalLiabilities = totalAssets
- * Requirements: 5.5
+ * Returns equity & liability composition for a given period (optionally filtered by department).
  */
-export function getEquityLiabilityComposition(
-  db: Database.Database,
-  period: string
-): EquityLiabilityComposition | null {
-  const row = db.prepare(`
-    SELECT period, paid_in_capital, retained_earnings, other_equity,
-           short_term_liabilities, long_term_liabilities
-    FROM mafinda_balance_sheets
-    WHERE period = ?
-  `).get(period) as any;
+export async function getEquityLiabilityComposition(
+  period: string,
+  departmentId?: string,
+): Promise<EquityLiabilityComposition | null> {
+  const conditions = [eq(balanceSheets.period, period)];
+  if (departmentId) conditions.push(eq(balanceSheets.departmentId, departmentId));
+
+  const [row] = await db
+    .select({
+      period: balanceSheets.period,
+      capital: sql<string>`SUM(${balanceSheets.capital}::numeric)`,
+      earningsAfterTax: sql<string>`SUM(${balanceSheets.earningsAfterTax}::numeric)`,
+      retainedEarnings: sql<string>`SUM(${balanceSheets.retainedEarnings}::numeric)`,
+      dividends: sql<string>`SUM(${balanceSheets.dividends}::numeric)`,
+      currentLiabilities: sql<string>`SUM(
+        ${balanceSheets.accountsPayable}::numeric +
+        ${balanceSheets.bankLoanCurrent}::numeric +
+        ${balanceSheets.otherCurrentLiabilities}::numeric
+      )`,
+      longTermLiabilities: sql<string>`SUM(
+        ${balanceSheets.bankLoanLongTerm}::numeric +
+        ${balanceSheets.otherLongTermLiabilities}::numeric +
+        ${balanceSheets.shareholderLoan}::numeric
+      )`,
+    })
+    .from(balanceSheets)
+    .where(and(...conditions))
+    .groupBy(balanceSheets.period);
 
   if (!row) return null;
 
   return buildEquityLiabilityComposition(
     row.period,
-    row.paid_in_capital,
-    row.retained_earnings,
-    row.other_equity,
-    row.short_term_liabilities,
-    row.long_term_liabilities
+    n(row.capital),
+    n(row.earningsAfterTax),
+    n(row.retainedEarnings),
+    n(row.dividends),
+    n(row.currentLiabilities),
+    n(row.longTermLiabilities),
   );
 }
 
 /**
- * Returns historical financial data for the last N months ending at the most recent period.
- * Joins income statements and balance sheets by period.
- * Requirements: 6.5
+ * Returns historical financial data for the last N months.
+ * Joins income statements and balance sheets by (departmentId, period).
+ * net_profit = revenue - cogs - operating_expenses - interest_expense - tax_expense
  */
-export function getHistoricalData(
-  db: Database.Database,
-  months: number
-): HistoricalDataPoint[] {
-  const rows = db.prepare(`
-    SELECT
-      i.period,
-      i.revenue,
-      i.net_profit,
-      (COALESCE(b.current_assets, 0) + COALESCE(b.fixed_assets, 0) + COALESCE(b.other_assets, 0)) AS total_assets,
-      (COALESCE(b.short_term_liabilities, 0) + COALESCE(b.long_term_liabilities, 0)) AS total_liabilities
-    FROM mafinda_income_statements i
-    LEFT JOIN mafinda_balance_sheets b ON b.period = i.period
-    ORDER BY i.period DESC
-    LIMIT ?
-  `).all(months) as any[];
+export async function getHistoricalData(
+  months: number,
+  departmentId?: string,
+): Promise<HistoricalDataPoint[]> {
+  const conditions = departmentId ? [eq(incomeStatements.departmentId, departmentId)] : [];
 
-  // Return in ascending order for chart rendering
-  return rows.reverse().map((r) => ({
-    period: r.period,
-    revenue: r.revenue,
-    netProfit: r.net_profit,
-    totalAssets: r.total_assets,
-    totalLiabilities: r.total_liabilities,
-  }));
+  const rows = await db
+    .select({
+      period: incomeStatements.period,
+      revenue: sql<string>`SUM(${incomeStatements.revenue}::numeric)`,
+      netProfit: sql<string>`SUM(
+        ${incomeStatements.revenue}::numeric -
+        ${incomeStatements.cogs}::numeric -
+        ${incomeStatements.operatingExpenses}::numeric -
+        ${incomeStatements.interestExpense}::numeric -
+        ${incomeStatements.taxExpense}::numeric
+      )`,
+    })
+    .from(incomeStatements)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(incomeStatements.period)
+    .orderBy(desc(incomeStatements.period))
+    .limit(months);
+
+  // Build asset/liability totals via balance sheets for each period
+  const periodsInResult = rows.map((r) => r.period);
+  const bsRows = periodsInResult.length > 0
+    ? await db
+        .select({
+          period: balanceSheets.period,
+          totalAssets: sql<string>`SUM(
+            ${balanceSheets.cashAndBank}::numeric + ${balanceSheets.accountsReceivable}::numeric +
+            ${balanceSheets.workInProgress}::numeric + ${balanceSheets.inventory}::numeric +
+            ${balanceSheets.prepaidExpenses}::numeric + ${balanceSheets.land}::numeric +
+            ${balanceSheets.building}::numeric + ${balanceSheets.equipment}::numeric +
+            ${balanceSheets.otherFixedAssets}::numeric
+          )`,
+          totalLiabilities: sql<string>`SUM(
+            ${balanceSheets.accountsPayable}::numeric + ${balanceSheets.bankLoanCurrent}::numeric +
+            ${balanceSheets.otherCurrentLiabilities}::numeric + ${balanceSheets.bankLoanLongTerm}::numeric +
+            ${balanceSheets.otherLongTermLiabilities}::numeric + ${balanceSheets.shareholderLoan}::numeric
+          )`,
+        })
+        .from(balanceSheets)
+        .where(
+          departmentId
+            ? and(inArray(balanceSheets.period, periodsInResult), eq(balanceSheets.departmentId, departmentId))
+            : inArray(balanceSheets.period, periodsInResult),
+        )
+        .groupBy(balanceSheets.period)
+    : [];
+
+  const bsMap = new Map(bsRows.map((r) => [r.period, r]));
+
+  // Return ascending for charts
+  return rows.reverse().map((r) => {
+    const bs = bsMap.get(r.period);
+    return {
+      period: r.period,
+      revenue: n(r.revenue),
+      netProfit: n(r.netProfit),
+      totalAssets: n(bs?.totalAssets),
+      totalLiabilities: n(bs?.totalLiabilities),
+    };
+  });
 }

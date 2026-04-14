@@ -1,20 +1,18 @@
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import { requireCRMPermission, hasCRMRole } from '../../middleware/crmRbac';
-import { logCreate, logUpdate, logApprove, logReject } from '../../helpers/crmAuditLog';
+import { logCreate, logApprove, logReject } from '../../helpers/crmAuditLog';
 import { CreateQualificationInput, ResourcePlanItem } from '../../types/crm';
 import { calculateFeasibility, FEASIBILITY_THRESHOLDS } from '../../services/crm/feasibilityCalculator';
+import { db } from '../../db/connection';
+import { qualifications, opportunities } from '../../db/schema/crm';
+import { eq, desc, asc, max } from 'drizzle-orm';
 
 // ============================================================
 // Qualification & Feasibility Routes
 // Requirements: 3.1–3.7
 // ============================================================
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-export function createQualificationRouter(db: Database.Database): Router {
+export function createQualificationRouter(): Router {
   const router = Router({ mergeParams: true });
 
   // POST /api/crm/opportunities/:id/qualification
@@ -22,13 +20,15 @@ export function createQualificationRouter(db: Database.Database): Router {
   router.post(
     '/',
     requireCRMPermission('crm:write:qualification', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
       const opportunityId = req.params.id;
 
-      const opp = db
-        .prepare('SELECT id, stage FROM crm_opportunities WHERE id = ?')
-        .get(opportunityId) as any;
+      const [opp] = await db
+        .select({ id: opportunities.id, stage: opportunities.stage })
+        .from(opportunities)
+        .where(eq(opportunities.id, opportunityId))
+        .limit(1);
 
       if (!opp) {
         res.status(404).json({
@@ -43,51 +43,36 @@ export function createQualificationRouter(db: Database.Database): Router {
       const { feasibilityScore, recommendation } = calculateFeasibility(body);
 
       // Get current max version for this opportunity
-      const maxVersion = (
-        db
-          .prepare(
-            'SELECT COALESCE(MAX(version), 0) as max_v FROM crm_qualifications WHERE opportunity_id = ?'
-          )
-          .get(opportunityId) as { max_v: number }
-      ).max_v;
+      const [maxResult] = await db
+        .select({ maxV: max(qualifications.version) })
+        .from(qualifications)
+        .where(eq(qualifications.opportunityId, opportunityId));
+      const newVersion = (maxResult?.maxV ?? 0) + 1;
 
-      const newVersion = maxVersion + 1;
-      const qualId = generateId('QUAL');
-
-      db.prepare(
-        `INSERT INTO crm_qualifications
-         (id, opportunity_id, version, technical_capability_score, resource_availability_score,
-          contract_value_score, estimated_margin_score, risk_score,
-          feasibility_score, recommendation, notes, resource_plan, status, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`
-      ).run(
-        qualId,
+      const [created] = await db.insert(qualifications).values({
         opportunityId,
-        newVersion,
-        body.technicalCapabilityScore ?? null,
-        body.resourceAvailabilityScore ?? null,
-        body.contractValueScore ?? null,
-        body.estimatedMarginScore ?? null,
-        body.riskScore ?? null,
-        feasibilityScore,
+        version: newVersion,
+        technicalCapabilityScore: body.technicalCapabilityScore ?? null,
+        resourceAvailabilityScore: body.resourceAvailabilityScore ?? null,
+        contractValueScore: body.contractValueScore ?? null,
+        estimatedMarginScore: body.estimatedMarginScore ?? null,
+        riskScore: body.riskScore ?? null,
+        feasibilityScore: String(feasibilityScore),
         recommendation,
-        body.notes ?? null,
-        body.resourcePlan ? JSON.stringify(body.resourcePlan) : null,
-        userId
-      );
+        notes: body.notes ?? null,
+        resourcePlan: body.resourcePlan ? JSON.stringify(body.resourcePlan) : null,
+        status: 'Draft',
+        createdBy: userId,
+      }).returning();
 
-      logCreate(db, userId, 'qualification', qualId, {
+      await logCreate(userId, 'qualification', created.id, {
         opportunityId,
         version: newVersion,
         feasibilityScore,
         recommendation,
       });
 
-      const qual = db
-        .prepare('SELECT * FROM crm_qualifications WHERE id = ?')
-        .get(qualId) as any;
-
-      res.status(201).json(mapQualification(qual));
+      res.status(201).json(mapQualification(created));
     }
   );
 
@@ -96,12 +81,14 @@ export function createQualificationRouter(db: Database.Database): Router {
   router.get(
     '/',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const opportunityId = req.params.id;
 
-      const opp = db
-        .prepare('SELECT id FROM crm_opportunities WHERE id = ?')
-        .get(opportunityId);
+      const [opp] = await db
+        .select({ id: opportunities.id })
+        .from(opportunities)
+        .where(eq(opportunities.id, opportunityId))
+        .limit(1);
 
       if (!opp) {
         res.status(404).json({
@@ -110,13 +97,12 @@ export function createQualificationRouter(db: Database.Database): Router {
         return;
       }
 
-      const qual = db
-        .prepare(
-          `SELECT * FROM crm_qualifications
-           WHERE opportunity_id = ?
-           ORDER BY version DESC LIMIT 1`
-        )
-        .get(opportunityId) as any;
+      const [qual] = await db
+        .select()
+        .from(qualifications)
+        .where(eq(qualifications.opportunityId, opportunityId))
+        .orderBy(desc(qualifications.version))
+        .limit(1);
 
       if (!qual) {
         res.status(404).json({
@@ -134,7 +120,7 @@ export function createQualificationRouter(db: Database.Database): Router {
   router.post(
     '/approve',
     requireCRMPermission('crm:approve:qualification', 'crm:write:all'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const userId = req.userId!;
       const opportunityId = req.params.id;
 
@@ -149,13 +135,12 @@ export function createQualificationRouter(db: Database.Database): Router {
         return;
       }
 
-      const qual = db
-        .prepare(
-          `SELECT * FROM crm_qualifications
-           WHERE opportunity_id = ?
-           ORDER BY version DESC LIMIT 1`
-        )
-        .get(opportunityId) as any;
+      const [qual] = await db
+        .select()
+        .from(qualifications)
+        .where(eq(qualifications.opportunityId, opportunityId))
+        .orderBy(desc(qualifications.version))
+        .limit(1);
 
       if (!qual) {
         res.status(404).json({
@@ -173,24 +158,19 @@ export function createQualificationRouter(db: Database.Database): Router {
 
       const { action } = req.body as { action?: 'approve' | 'reject'; notes?: string };
       const isApprove = action !== 'reject';
-
       const newStatus = isApprove ? 'Approved' : 'Rejected';
 
-      db.prepare(
-        `UPDATE crm_qualifications
-         SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP
-         WHERE id = ?`
-      ).run(newStatus, userId, qual.id);
+      const [updated] = await db
+        .update(qualifications)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(eq(qualifications.id, qual.id))
+        .returning();
 
       if (isApprove) {
-        logApprove(db, userId, 'qualification', qual.id, { status: newStatus });
+        await logApprove(userId, 'qualification', qual.id, { status: newStatus });
       } else {
-        logReject(db, userId, 'qualification', qual.id, { status: newStatus });
+        await logReject(userId, 'qualification', qual.id, { status: newStatus });
       }
-
-      const updated = db
-        .prepare('SELECT * FROM crm_qualifications WHERE id = ?')
-        .get(qual.id) as any;
 
       res.json(mapQualification(updated));
     }
@@ -201,12 +181,14 @@ export function createQualificationRouter(db: Database.Database): Router {
   router.get(
     '/history',
     requireCRMPermission('crm:read:all', 'crm:read:own'),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const opportunityId = req.params.id;
 
-      const opp = db
-        .prepare('SELECT id FROM crm_opportunities WHERE id = ?')
-        .get(opportunityId);
+      const [opp] = await db
+        .select({ id: opportunities.id })
+        .from(opportunities)
+        .where(eq(opportunities.id, opportunityId))
+        .limit(1);
 
       if (!opp) {
         res.status(404).json({
@@ -215,13 +197,11 @@ export function createQualificationRouter(db: Database.Database): Router {
         return;
       }
 
-      const history = db
-        .prepare(
-          `SELECT * FROM crm_qualifications
-           WHERE opportunity_id = ?
-           ORDER BY version ASC`
-        )
-        .all(opportunityId) as any[];
+      const history = await db
+        .select()
+        .from(qualifications)
+        .where(eq(qualifications.opportunityId, opportunityId))
+        .orderBy(asc(qualifications.version));
 
       res.json(history.map(mapQualification));
     }
@@ -237,25 +217,24 @@ export function createQualificationRouter(db: Database.Database): Router {
 function mapQualification(row: any) {
   return {
     id: row.id,
-    opportunityId: row.opportunity_id,
+    opportunityId: row.opportunityId ?? row.opportunity_id,
     version: row.version,
-    technicalCapabilityScore: row.technical_capability_score,
-    resourceAvailabilityScore: row.resource_availability_score,
-    contractValueScore: row.contract_value_score,
-    estimatedMarginScore: row.estimated_margin_score,
-    riskScore: row.risk_score,
-    feasibilityScore: row.feasibility_score,
+    technicalCapabilityScore: row.technicalCapabilityScore ?? row.technical_capability_score,
+    resourceAvailabilityScore: row.resourceAvailabilityScore ?? row.resource_availability_score,
+    contractValueScore: row.contractValueScore ?? row.contract_value_score,
+    estimatedMarginScore: row.estimatedMarginScore ?? row.estimated_margin_score,
+    riskScore: row.riskScore ?? row.risk_score,
+    feasibilityScore: parseFloat(row.feasibilityScore ?? row.feasibility_score ?? '0'),
     recommendation: row.recommendation,
     notes: row.notes,
-    resourcePlan: row.resource_plan ? JSON.parse(row.resource_plan) as ResourcePlanItem[] : null,
+    resourcePlan: typeof row.resourcePlan === 'string'
+      ? JSON.parse(row.resourcePlan) as ResourcePlanItem[]
+      : (row.resourcePlan ?? (row.resource_plan ? JSON.parse(row.resource_plan) : null)),
     status: row.status,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    approvedBy: row.approved_by,
-    approvedAt: row.approved_at,
-    // Convenience flag for pipeline engine
+    createdBy: row.createdBy ?? row.created_by,
+    createdAt: row.createdAt ?? row.created_at,
+    updatedAt: row.updatedAt ?? row.updated_at,
     isApproved: row.status === 'Approved',
-    // Warn if score is below reject threshold (Req 3.4)
-    requiresConfirmation: row.feasibility_score < FEASIBILITY_THRESHOLDS.REJECT_MAX,
+    requiresConfirmation: parseFloat(row.feasibilityScore ?? row.feasibility_score ?? '0') < FEASIBILITY_THRESHOLDS.REJECT_MAX,
   };
 }

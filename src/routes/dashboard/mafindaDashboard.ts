@@ -2,7 +2,6 @@
 // Requirements: 1.6, 2.5, 3.5, 4.5, 5.5, 6.5
 
 import { Router, Request, Response } from 'express';
-import Database from 'better-sqlite3';
 import {
   getDeptRevenueTarget,
   getRevenueCostSummary,
@@ -12,29 +11,29 @@ import {
   getHistoricalData,
 } from '../../services/mafinda/dashboardService.js';
 
-export function createMafindaDashboardRouter(db: Database.Database): Router {
+export function createMafindaDashboardRouter(): Router {
   const router = Router();
 
   /**
    * GET /api/dashboard/dept-revenue-target
    * Target vs realisasi revenue per departemen
    * Requirements: 1.6
-   * Query params: period (required, format YYYY-MM), periodType (required: monthly|quarterly|annual)
+   * Query params: period (required, format YYYY-MM), corporateId (required)
    */
-  router.get('/dept-revenue-target', (req: Request, res: Response) => {
-    const { period, periodType } = req.query as Record<string, string>;
+  router.get('/dept-revenue-target', async (req: Request, res: Response) => {
+    const { period, corporateId } = req.query as Record<string, string>;
 
     if (!period) {
       res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
       return;
     }
-    if (!periodType || !['monthly', 'quarterly', 'annual'].includes(periodType)) {
-      res.status(400).json({ error: 'Parameter periodType wajib diisi (monthly|quarterly|annual)' });
+    if (!corporateId) {
+      res.status(400).json({ error: 'Parameter corporateId wajib diisi' });
       return;
     }
 
     try {
-      const data = getDeptRevenueTarget(db, period, periodType);
+      const data = await getDeptRevenueTarget(period, corporateId);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
@@ -47,7 +46,7 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
    * Requirements: 2.5
    * Query params: period (required), departmentId (optional)
    */
-  router.get('/revenue-cost-summary', (req: Request, res: Response) => {
+  router.get('/revenue-cost-summary', async (req: Request, res: Response) => {
     const { period, departmentId } = req.query as Record<string, string>;
 
     if (!period) {
@@ -56,7 +55,7 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
     }
 
     try {
-      const data = getRevenueCostSummary(db, period, departmentId);
+      const data = await getRevenueCostSummary(period, departmentId);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
@@ -67,10 +66,10 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
    * GET /api/dashboard/cash-flow
    * Data arus kas dengan filter departemen & proyek
    * Requirements: 3.5
-   * Query params: period (required), months (optional), departmentId (optional), projectId (optional)
+   * Query params: period (required), months (optional), departmentId (optional), entityType (optional), entityId (optional)
    */
-  router.get('/cash-flow', (req: Request, res: Response) => {
-    const { period, months, departmentId, projectId } = req.query as Record<string, string>;
+  router.get('/cash-flow', async (req: Request, res: Response) => {
+    const { period, months, departmentId, entityType, entityId } = req.query as Record<string, string>;
 
     if (!period) {
       res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
@@ -84,7 +83,7 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
     }
 
     try {
-      const data = getCashFlowData(db, period, monthsNum, departmentId, projectId);
+      const data = await getCashFlowData(period, monthsNum, departmentId, entityType, entityId);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
@@ -95,10 +94,10 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
    * GET /api/dashboard/asset-composition
    * Komposisi aset dari neraca
    * Requirements: 4.5
-   * Query params: period (required, format YYYY-MM)
+   * Query params: period (required, format YYYY-MM), departmentId (optional)
    */
-  router.get('/asset-composition', (req: Request, res: Response) => {
-    const { period } = req.query as Record<string, string>;
+  router.get('/asset-composition', async (req: Request, res: Response) => {
+    const { period, departmentId } = req.query as Record<string, string>;
 
     if (!period) {
       res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
@@ -106,7 +105,7 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
     }
 
     try {
-      const data = getAssetComposition(db, period);
+      const data = await getAssetComposition(period, departmentId);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
@@ -117,10 +116,10 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
    * GET /api/dashboard/equity-liability-composition
    * Komposisi ekuitas & liabilitas dari neraca
    * Requirements: 5.5
-   * Query params: period (required, format YYYY-MM)
+   * Query params: period (required, format YYYY-MM), departmentId (optional)
    */
-  router.get('/equity-liability-composition', (req: Request, res: Response) => {
-    const { period } = req.query as Record<string, string>;
+  router.get('/equity-liability-composition', async (req: Request, res: Response) => {
+    const { period, departmentId } = req.query as Record<string, string>;
 
     if (!period) {
       res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
@@ -128,7 +127,7 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
     }
 
     try {
-      const data = getEquityLiabilityComposition(db, period);
+      const data = await getEquityLiabilityComposition(period, departmentId);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
@@ -141,8 +140,8 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
    * Requirements: 6.5
    * Query params: months (required: 3|6|12|24)
    */
-  router.get('/historical-data', (req: Request, res: Response) => {
-    const { months } = req.query as Record<string, string>;
+  router.get('/historical-data', async (req: Request, res: Response) => {
+    const { months, departmentId } = req.query as Record<string, string>;
 
     if (!months) {
       res.status(400).json({ error: 'Parameter months wajib diisi (3|6|12|24)' });
@@ -156,7 +155,7 @@ export function createMafindaDashboardRouter(db: Database.Database): Router {
     }
 
     try {
-      const data = getHistoricalData(db, monthsNum);
+      const data = await getHistoricalData(monthsNum, departmentId);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
