@@ -8,12 +8,19 @@ export interface FRSUser {
   username: string;
   email: string;
   role: UserRole;
+  permissions?: string[];
+  authzVersion?: number;
   fullName: string;
   isActive: boolean;
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string;
+  corporateId?: string;  // User's primary corporate/subsidiary ID
+  subsidiaryIds?: string[];  // All accessible corporate/subsidiary IDs
+  hasFullCorporateAccess?: boolean; // Whether user has access to all corporates (null in DB)
+  roleName?: string;
+  roleDescription?: string;
 }
 
 export interface CreateUserInput {
@@ -22,6 +29,7 @@ export interface CreateUserInput {
   password: string;
   role: UserRole;
   fullName: string;
+  subsidiaryIds?: string[];
 }
 
 export interface UpdateUserInput {
@@ -29,6 +37,7 @@ export interface UpdateUserInput {
   email?: string;
   role?: UserRole;
   fullName?: string;
+  subsidiaryIds?: string[];
 }
 
 export interface UserSubsidiaryAccess {
@@ -71,6 +80,9 @@ export interface JWTPayload {
   userId: string;
   username: string;
   role: UserRole;
+  roleName?: string;
+  roleDescription?: string;
+  authzVersion?: number;
   iat?: number;
   exp?: number;
 }

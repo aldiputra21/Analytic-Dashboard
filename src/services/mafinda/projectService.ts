@@ -1,15 +1,18 @@
 // Project Service — MAFINDA Dashboard Enhancement
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, and, ne, asc } from 'drizzle-orm';
+import { eq, and, ne, asc, ilike, or, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments, projects } from '../../db/schema/index.js';
 import { ConflictError, NotFoundError } from './departmentService';
+import { createFRSAuditLog } from '../financial/auditLogService';
+import { RequestContext } from '../financial/auditLogService';
 
 export interface Project {
   id: string;
   departmentId: string;
   departmentName?: string;
+  corporateId?: string;
   code: string;
   name: string;
   description?: string;
@@ -24,11 +27,12 @@ export interface Project {
   updatedAt?: string;
 }
 
-function mapRow(row: typeof projects.$inferSelect & { departmentName?: string | null }): Project {
+function mapRow(row: typeof projects.$inferSelect & { departmentName?: string | null; corporateId?: string | null }): Project {
   return {
     id: row.id,
     departmentId: row.departmentId,
     departmentName: (row as any).departmentName ?? undefined,
+    corporateId: (row as any).corporateId ?? undefined,
     code: row.code,
     name: row.name,
     description: row.description ?? undefined,
@@ -77,6 +81,107 @@ export async function getProjectsByDepartment(
   return rows.map((r) => mapRow(r as any));
 }
 
+/** Lists all projects with pagination and search. */
+export async function getAllProjects(options: {
+  corporateId?: string;
+  departmentId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{ records: Project[]; totalCount: number }> {
+  const { corporateId, departmentId, search, page = 1, pageSize = 0 } = options;
+
+  let baseFilters: any[] = [];
+  if (departmentId) {
+    baseFilters.push(eq(projects.departmentId, departmentId));
+  }
+  
+  if (corporateId) {
+    baseFilters.push(eq(departments.corporateId, corporateId));
+  }
+  
+  if (search) {
+    baseFilters.push(or(
+      ilike(projects.name, `%${search}%`),
+      ilike(projects.code, `%${search}%`)
+    ));
+  }
+
+  const whereClause = baseFilters.length > 0 ? and(...baseFilters) : undefined;
+
+  // Get total count
+  const [countResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(projects)
+    .leftJoin(departments, eq(departments.id, projects.departmentId))
+    .where(whereClause);
+  const totalCount = Number(countResult.count);
+
+  let query = db.select({
+    id: projects.id,
+    departmentId: projects.departmentId,
+    departmentName: departments.name,
+    corporateId: departments.corporateId,
+    code: projects.code,
+    name: projects.name,
+    description: projects.description,
+    sourceType: projects.sourceType,
+    status: projects.status,
+    startDate: projects.startDate,
+    endDate: projects.endDate,
+    isActive: projects.isActive,
+    createdBy: projects.createdBy,
+    createdAt: projects.createdAt,
+    updatedBy: projects.updatedBy,
+    updatedAt: projects.updatedAt,
+  }).from(projects)
+    .leftJoin(departments, eq(departments.id, projects.departmentId))
+    .where(whereClause);
+
+  if (pageSize > 0) {
+    query = query.limit(pageSize).offset((page - 1) * pageSize) as any;
+  }
+
+  const rows = await query.orderBy(asc(projects.code));
+
+  return {
+    records: rows.map((r) => mapRow(r as any)),
+    totalCount,
+  };
+}
+
+/**
+ * Gets all active projects for dropdowns/items.
+ */
+export async function getActiveProjects(corporateId?: string): Promise<Project[]> {
+  let baseQuery = db.select({
+    id: projects.id,
+    departmentId: projects.departmentId,
+    departmentName: departments.name,
+    corporateId: departments.corporateId,
+    code: projects.code,
+    name: projects.name,
+    description: projects.description,
+    sourceType: projects.sourceType,
+    status: projects.status,
+    startDate: projects.startDate,
+    endDate: projects.endDate,
+    isActive: projects.isActive,
+    createdBy: projects.createdBy,
+    createdAt: projects.createdAt,
+    updatedBy: projects.updatedBy,
+    updatedAt: projects.updatedAt,
+  }).from(projects)
+    .leftJoin(departments, eq(departments.id, projects.departmentId));
+
+  const filters = [eq(projects.isActive, true)];
+  if (corporateId) {
+    filters.push(eq(departments.corporateId, corporateId));
+  }
+
+  const rows = await baseQuery.where(and(...filters)).orderBy(asc(projects.name));
+  return rows.map(r => mapRow(r as any));
+}
+
 /** Returns a single project by id, or null if not found. */
 export async function getProjectById(id: string): Promise<Project | null> {
   const [row] = await db.select({
@@ -116,8 +221,11 @@ export async function createProject(
     description?: string;
     startDate?: string;
     endDate?: string;
+    isActive?: boolean;
+    status?: string;
   },
   createdBy: string,
+  context?: RequestContext,
 ): Promise<Project> {
   const [dept] = await db.select({ id: departments.id }).from(departments)
     .where(eq(departments.id, data.departmentId))
@@ -138,10 +246,25 @@ export async function createProject(
     description: data.description,
     startDate: data.startDate ? new Date(data.startDate) : undefined,
     endDate: data.endDate ? new Date(data.endDate) : undefined,
+    isActive: data.isActive ?? true,
+    status: data.status ?? 'active',
     createdBy,
+    updatedBy: createdBy,
   }).returning();
 
-  return (await getProjectById(inserted.id))!;
+  const project = (await getProjectById(inserted.id))!;
+
+  await createFRSAuditLog({
+    userId: createdBy,
+    action: 'create',
+    entityType: 'project',
+    entityId: project.id,
+    newValues: JSON.parse(JSON.stringify(project)),
+    ipAddress: context?.ip,
+    userAgent: context?.userAgent,
+  });
+
+  return project;
 }
 
 /**
@@ -161,6 +284,7 @@ export async function updateProject(
     status?: string;
   },
   updatedBy: string,
+  context?: RequestContext,
 ): Promise<Project> {
   const [existing] = await db.select().from(projects)
     .where(eq(projects.id, id))
@@ -184,28 +308,57 @@ export async function updateProject(
     name: data.name ?? existing.name,
     code: data.code ?? existing.code,
     description: data.description !== undefined ? data.description : existing.description,
-    startDate: data.startDate !== undefined ? new Date(data.startDate) : existing.startDate,
-    endDate: data.endDate !== undefined ? new Date(data.endDate) : existing.endDate,
+    startDate: data.startDate !== undefined ? (data.startDate ? new Date(data.startDate) : null) : existing.startDate,
+    endDate: data.endDate !== undefined ? (data.endDate ? new Date(data.endDate) : null) : existing.endDate,
     isActive: data.isActive !== undefined ? data.isActive : existing.isActive,
     status: data.status ?? existing.status,
-    updatedBy,
+    updatedBy: updatedBy,
     updatedAt: new Date(),
   }).where(eq(projects.id, id)).returning();
 
-  return (await getProjectById(updated.id))!;
+  const project = (await getProjectById(updated.id))!;
+  const oldRow = await getProjectById(id);
+
+  await createFRSAuditLog({
+    userId: updatedBy,
+    action: 'update',
+    entityType: 'project',
+    entityId: id,
+    oldValues: JSON.parse(JSON.stringify(oldRow)),
+    newValues: JSON.parse(JSON.stringify(project)),
+    ipAddress: context?.ip,
+    userAgent: context?.userAgent,
+  });
+
+  return project;
 }
 
 /**
  * Deletes a project by id.
  * Throws NotFoundError if not found.
  */
-export async function deleteProject(id: string): Promise<{ success: boolean }> {
-  const [existing] = await db.select({ id: projects.id }).from(projects)
-    .where(eq(projects.id, id))
-    .limit(1);
-  if (!existing) throw new NotFoundError('Proyek tidak ditemukan');
+export async function deleteProject(
+  id: string,
+  deletedBy?: string,
+  context?: RequestContext,
+): Promise<{ success: boolean }> {
+  const existingFull = await getProjectById(id);
+  if (!existingFull) throw new NotFoundError('Proyek tidak ditemukan');
 
-  await db.delete(projects).where(eq(projects.id, id));
+  const result = await db.delete(projects).where(eq(projects.id, id)).returning();
+  
+  if (result.length > 0) {
+    await createFRSAuditLog({
+      userId: deletedBy || '',
+      action: 'delete',
+      entityType: 'project',
+      entityId: id,
+      oldValues: JSON.parse(JSON.stringify(existingFull)),
+      ipAddress: context?.ip,
+      userAgent: context?.userAgent,
+    });
+  }
+  
   return { success: true };
 }
 

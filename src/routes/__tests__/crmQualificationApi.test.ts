@@ -38,18 +38,19 @@ function createDbFacade() {
   };
 }
 
-vi.mock('../../middleware/crmRbac', () => ({
-  requireCRMPermission: () => (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    req.userId = (req.headers['x-user-id'] as string) ?? 'user-1';
-    const rolesHeader = (req.headers['x-roles'] as string) ?? '';
-    req.crmRoles = rolesHeader
-      .split(',')
-      .map((r) => r.trim())
-      .filter(Boolean) as CRMRole[];
-    req.crmPermissions = ['crm:read:all', 'crm:write:all', 'crm:approve:qualification'];
+vi.mock('../../middleware/rbac', () => ({
+  requirePermission: () => (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    req.user = {
+      userId: (req.headers['x-user-id'] as string) ?? 'user-1',
+      username: 'testuser',
+      role: ((req.headers['x-roles'] as string) ?? 'owner') as any,
+    };
     next();
   },
-  hasCRMRole: (req: express.Request, role: CRMRole) => (req.crmRoles ?? []).includes(role),
+}));
+
+vi.mock('../../services/financial/permissionService', () => ({
+  userHasPermission: vi.fn(async () => true),
 }));
 
 vi.mock('../../helpers/crmAuditLog', () => ({
@@ -152,7 +153,7 @@ describe('CRM Qualification Routes', () => {
       .send({ action: 'approve' });
 
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('CRM_FORBIDDEN');
+    expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
   test('POST /approve approves latest qualification for manager role', async () => {

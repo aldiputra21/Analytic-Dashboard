@@ -10,25 +10,34 @@ import { QueryProvider } from './shared/QueryProvider';
 import { ErrorBoundary } from './shared/ErrorBoundary';
 import { ToastProvider } from './shared/Toast';
 import { useAuth } from '../../hooks/financial/useAuth';
-import { useAlerts } from '../../hooks/financial/useAlerts';
-import { useSubsidiaries } from '../../hooks/financial/useSubsidiaries';
+import { Toaster } from 'sonner';
+import { useNotifications } from '../../hooks/financial/useNotifications';
+import { useCorporates } from '../../hooks/financial/useCorporates';
 
 // Lazy-loaded route components for code splitting (Req 12.2)
 const FRSDashboard = lazy(() => import('./dashboard/FRSDashboard').then((m) => ({ default: m.FRSDashboard })));
 const ThresholdConfig = lazy(() => import('./admin/ThresholdConfig').then((m) => ({ default: m.ThresholdConfig })));
 const AuditLog = lazy(() => import('./admin/AuditLog').then((m) => ({ default: m.AuditLog })));
-const SubsidiaryManager = lazy(() => import('./admin/SubsidiaryManager').then((m) => ({ default: m.SubsidiaryManager })));
+const CorporateManager = lazy(() => import('./admin/CorporateManager').then((m) => ({ default: m.CorporateManager })));
+const CostCenterManager = lazy(() => import('./admin/CostCenterManager').then((m) => ({ default: m.CostCenterManager })));
+const DepartmentManager = lazy(() => import('./admin/DepartmentManager').then((m) => ({ default: m.DepartmentManager })));
+const ProjectManager = lazy(() => import('./admin/ProjectManager').then((m) => ({ default: m.ProjectManager })));
+const TargetManager = lazy(() => import('./admin/TargetManager').then((m) => ({ default: m.TargetManager })));
 const UserManager = lazy(() => import('./admin/UserManager').then((m) => ({ default: m.UserManager })));
-const FinancialDataForm = lazy(() => import('./data-entry/FinancialDataForm').then((m) => ({ default: m.FinancialDataForm })));
-const BulkImport = lazy(() => import('./data-entry/BulkImport').then((m) => ({ default: m.BulkImport })));
 const BenchmarkingTable = lazy(() => import('./reports/BenchmarkingTable').then((m) => ({ default: m.BenchmarkingTable })));
 const ConsolidatedReport = lazy(() => import('./reports/ConsolidatedReport').then((m) => ({ default: m.ConsolidatedReport })));
 const TrendAnalysis = lazy(() => import('./reports/TrendAnalysis').then((m) => ({ default: m.TrendAnalysis })));
+const AlertsInbox = lazy(() => import('./dashboard/AlertsInbox').then((m) => ({ default: m.AlertsInbox })));
 
 // MAFINDA lazy-loaded components
 const ManagementPage = lazy(() => import('../MAFINDA/management/ManagementPage').then((m) => ({ default: m.ManagementPage })));
 const DataEntryPage = lazy(() => import('../MAFINDA/data-entry/DataEntryPage').then((m) => ({ default: m.DataEntryPage })));
 const CRMPage = lazy(() => import('../MAFINDA/crm/CRMPage').then((m) => ({ default: m.CRMPage })));
+
+// Financial Data Refinement Managers
+const BalanceSheetManager = lazy(() => import('./data-entry/BalanceSheetManager').then((m) => ({ default: m.BalanceSheetManager })));
+const IncomeStatementManager = lazy(() => import('./data-entry/IncomeStatementManager').then((m) => ({ default: m.IncomeStatementManager })));
+const WeeklyCashFlowManager = lazy(() => import('./data-entry/WeeklyCashFlowManager').then((m) => ({ default: m.WeeklyCashFlowManager })));
 
 // Skeleton screen for loading states (Req 12.1)
 const PageSkeleton: React.FC = () => (
@@ -243,19 +252,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onForgotPassword, onRese
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 relative">
           <div className="flex justify-between items-center">
             <label className="block text-sm font-medium" style={{ color: '#1c1b1b' }} htmlFor="password">
               {copy.passwordLabel}
             </label>
-            <button
-              type="button"
-              onClick={() => navigateAuthView('forgot-password')}
-              className="cursor-pointer text-xs font-semibold hover:underline underline-offset-4"
-              style={{ color: '#ba0015' }}
-            >
-              {copy.forgotPassword}
-            </button>
           </div>
           <div className="relative group flex items-center rounded-lg transition-colors" style={{ background: '#f0eded' }}>
             <input
@@ -290,6 +291,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onForgotPassword, onRese
             </button>
             <div className="absolute bottom-0 left-0 h-0.5 w-0 group-focus-within:w-full transition-all duration-300" style={{ background: '#ba0015' }} />
           </div>
+          <button
+            type="button"
+            onClick={() => navigateAuthView('forgot-password')}
+            className="absolute top-0 right-0 cursor-pointer text-xs font-semibold hover:underline underline-offset-4"
+            style={{ color: '#ba0015' }}
+          >
+            {copy.forgotPassword}
+          </button>
         </div>
 
         <div className="flex items-center gap-3 py-1">
@@ -606,9 +615,17 @@ const ComingSoon: React.FC<{ page: string }> = ({ page }) => (
 const AppContent: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<FRSPage>('dashboard');
   const [selectedSubsidiaryId, setSelectedSubsidiaryId] = useState<string | undefined>();
-  const { alerts } = useAlerts({ status: 'active' });
-  const { subsidiaries } = useSubsidiaries();
-  const alertCount = React.useMemo(() => alerts.filter((a) => a.status === 'active').length, [alerts]);
+  const { user, token } = useAuth();
+  const notificationOptions = React.useMemo(
+    () => ({ status: 'unread' as const, enabled: Boolean(user), token }),
+    [user, token]
+  );
+  const { unreadCount } = useNotifications(notificationOptions);
+  const { corporates: subsidiaries } = useCorporates();
+  const alertCount = React.useMemo(
+    () => unreadCount || 0,
+    [unreadCount],
+  );
 
   // Pick first subsidiary for threshold config if none selected
   const thresholdSubsidiaryId = selectedSubsidiaryId ?? subsidiaries[0]?.id;
@@ -638,6 +655,7 @@ const AppContent: React.FC = () => {
           <ConsolidatedReport />
         </div>
       );
+      case 'alerts': return <AlertsInbox />;
       case 'thresholds':
         return thresholdSubsidiaryId ? (
           <div className="p-6 space-y-4">
@@ -660,57 +678,54 @@ const AppContent: React.FC = () => {
         ) : (
           <ComingSoon page="thresholds" />
         );
-      case 'subsidiaries':
+      case 'corporates':
         return (
           <div className="p-6">
-            <SubsidiaryManager />
+            <CorporateManager />
+          </div>
+        );
+      case 'cost-centers':
+        return (
+          <div className="p-6">
+            <CostCenterManager />
+          </div>
+        );
+      case 'departments':
+        return (
+          <div className="p-6">
+            <DepartmentManager />
+          </div>
+        );
+      case 'projects':
+        return (
+          <div className="p-6">
+            <ProjectManager />
+          </div>
+        );
+      case 'targets':
+        return (
+          <div className="p-6">
+            <TargetManager />
           </div>
         );
       case 'users':
         return (
-          <div className="p-6">
+          <div className="p-4">
             <UserManager />
           </div>
         );
       case 'audit-log':
         return (
-          <div className="p-6">
+          <div className="p-4">
             <AuditLog />
           </div>
         );
-      case 'data-entry':
-        return (
-          <div className="p-6 max-w-3xl">
-            <div className="mb-4">
-              <h2 className="text-base font-semibold text-slate-900">Manual Data Entry</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Enter financial data for a subsidiary period</p>
-            </div>
-            <FinancialDataForm />
-          </div>
-        );
-      case 'bulk-import':
-        return (
-          <div className="p-6 max-w-2xl">
-            <div className="mb-4">
-              <h2 className="text-base font-semibold text-slate-900">Bulk Import</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Import financial data from CSV or Excel file</p>
-            </div>
-            <BulkImport />
-          </div>
-        );
-      // MAFINDA pages
-      case 'mafinda-management':
-        return (
-          <div className="p-4">
-            <ManagementPage />
-          </div>
-        );
-      case 'mafinda-data-entry':
-        return (
-          <div className="p-4">
-            <DataEntryPage />
-          </div>
-        );
+      case 'cfd-balance-sheets':
+        return <BalanceSheetManager />;
+      case 'cfd-income-statements':
+        return <IncomeStatementManager />;
+      case 'cfd-weekly-cash-flows':
+        return <WeeklyCashFlowManager />;
       case 'crm-dashboard':
         return <CRMPage activeTab="dashboard" />;
       case 'crm-opportunities':
@@ -759,6 +774,7 @@ export const FRSApp: React.FC = () => {
 const FRSAppWithProviders: React.FC = () => (
   <ErrorBoundary>
     <ToastProvider>
+      <Toaster position="bottom-right" closeButton duration={10000} richColors />
       <QueryProvider>
         <FRSApp />
       </QueryProvider>

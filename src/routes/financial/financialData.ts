@@ -7,13 +7,11 @@
 
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { requireFRSAuth } from '../../middleware/frsAuth';
-import { authorize } from '../../middleware/frsRbac';
+import { requirePermission, requireSubsidiaryAccess } from '../../middleware/rbac';
 import {
   queryFinancialData,
   getFinancialDataById,
 } from '../../services/financial/financialDataService';
-import { processBulkImport } from '../../services/financial/bulkImportService';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { db } from '../../db/connection';
 import { userCorporateAccesses } from '../../db/schema/public';
@@ -24,48 +22,20 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 export function createFinancialDataRouter(): Router {
   const router = Router();
 
-  router.use(requireFRSAuth);
-
-  /**
-   * POST /api/frs/financial-data/bulk
-   * Bulk import financial data from CSV or Excel file.
-   * Requirements: 2.4, 2.5
-   */
-  router.post('/bulk', authorize('financial_data', 'write'), upload.single('file'), async (req: Request, res: Response) => {
-    if (!req.file) {
-      res.status(400).json({
-        error: { code: 'FRS_VALIDATION_ERROR', message: 'A file is required (field name: file)', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
-
-    const result = await processBulkImport(req.file.buffer, req.file.mimetype, req.frsUser!.userId);
-
-    await createFRSAuditLog({
-      userId: req.frsUser!.userId,
-      action: 'create',
-      entityType: 'financial_data_bulk',
-      newValues: { successCount: result.successCount, errorCount: result.errorCount },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
-
-    res.status(result.errorCount > 0 && result.successCount === 0 ? 422 : 200).json(result);
-  });
 
   /**
    * GET /api/frs/financial-data
    * Query financial data (from v_financial_summary view) with filters.
    */
-  router.get('/', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.reports.read'), async (req: Request, res: Response) => {
     const { corporateId, departmentId, period, limit, offset } = req.query as any;
 
     // subsidiary_manager: restrict to their corporates
-    if (req.frsUser!.role === 'subsidiary_manager' && !corporateId) {
+    if (req.user!.role === 'subsidiary_manager' && !corporateId) {
       const accessRows = await db
         .select({ corporateId: userCorporateAccesses.corporateId })
         .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
+        .where(eq(userCorporateAccesses.userId, req.user!.userId));
       if (accessRows.length === 0) {
         res.json([]);
         return;
@@ -95,7 +65,7 @@ export function createFinancialDataRouter(): Router {
    * GET /api/frs/financial-data/:id
    * Get a single financial data entry (from v_financial_summary view).
    */
-  router.get('/:id', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.reports.read'), async (req: Request, res: Response) => {
     const data = await getFinancialDataById(req.params.id);
     if (!data) {
       res.status(404).json({

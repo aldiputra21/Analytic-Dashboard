@@ -3,28 +3,156 @@
 
 import { eq, and, ne, desc, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { alerts } from '../../db/schema/index.js';
+import { randomUUID } from 'node:crypto';
+import { notifications, permissions, rolePermissions, userCorporateAccesses } from '../../db/schema/index.js';
 import { CalculatedRatios, RatioName } from '../../types/financial/ratio';
 import { Alert, AlertSeverity } from '../../types/financial/alert';
 import { Threshold } from '../../types/financial/threshold';
 import { getThreshold } from './thresholdService';
+import { createNotification } from './notificationService';
 
-type AlertRow = typeof alerts.$inferSelect;
+type NotificationRow = typeof notifications.$inferSelect;
 
-function mapRowToAlert(row: AlertRow): Alert {
+interface NotificationAlertDraft {
+  sourceEntityId: string;
+  corporateId: string;
+  departmentId: string | null;
+  ratioName: RatioName;
+  severity: AlertSeverity;
+  currentValue: number;
+  thresholdValue: number;
+  message: string;
+  period: string;
+  createdAt: Date;
+}
+
+function mapDraftToAlert(draft: NotificationAlertDraft): Alert {
+  return {
+    id: draft.sourceEntityId,
+    subsidiaryId: draft.corporateId,
+    financialDataId: undefined,
+    ratioName: draft.ratioName,
+    severity: draft.severity,
+    currentValue: draft.currentValue,
+    thresholdValue: draft.thresholdValue,
+    message: draft.message,
+    status: 'active',
+    createdAt: draft.createdAt,
+  };
+}
+
+function mapNotificationToAlert(row: NotificationRow): Alert {
+  const payload = (row.payload ?? {}) as Record<string, unknown>;
+  const rawStatus = String((row as unknown as { status?: string }).status ?? 'unread');
+  const legacyAcknowledgedAt = (row as unknown as { acknowledgedAt?: Date | null }).acknowledgedAt;
+  const legacyAcknowledgedBy = (row as unknown as { acknowledgedBy?: string | null }).acknowledgedBy;
+
+  const mappedStatus: Alert['status'] = rawStatus === 'unread' || rawStatus === 'active'
+    ? 'active'
+    : rawStatus === 'read' || rawStatus === 'acknowledged'
+      ? 'acknowledged'
+      : 'resolved';
+
   return {
     id: row.id,
-    subsidiaryId: row.corporateId,
-    financialDataId: undefined,
-    ratioName: row.ratioName as RatioName,
+    subsidiaryId: String(payload.corporateId ?? ''),
+    financialDataId: String(payload.financialDataId ?? ''),
+    ratioName: String(payload.ratioName ?? row.category) as RatioName,
     severity: row.severity as AlertSeverity,
-    currentValue: parseFloat(row.currentValue),
-    thresholdValue: parseFloat(row.thresholdValue),
-    message: row.message,
-    status: row.status as Alert['status'],
-    acknowledgedAt: row.acknowledgedAt ?? undefined,
-    acknowledgedBy: row.acknowledgedBy ?? undefined,
+    currentValue: Number(payload.currentValue ?? 0),
+    thresholdValue: Number(payload.thresholdValue ?? 0),
+    message: String(payload.message ?? row.templateKey),
+    status: mappedStatus,
+    acknowledgedAt: row.readAt ?? legacyAcknowledgedAt ?? undefined,
+    acknowledgedBy: row.readBy ?? legacyAcknowledgedBy ?? undefined,
     createdAt: row.createdAt,
+  };
+}
+
+async function resolveActiveNotificationsForPeriod(
+  corporateId: string,
+  period: string,
+): Promise<void> {
+  await db.update(notifications).set({
+    status: 'archived',
+    updatedAt: new Date(),
+  }).where(and(
+    eq(notifications.sourceModule, 'cfd'),
+    eq(notifications.sourceEntityType, 'alert'),
+    sql`${notifications.payload} ->> 'corporateId' = ${corporateId}`,
+    sql`${notifications.payload} ->> 'period' = ${period}`,
+    sql`${notifications.status} IN ('unread', 'read')`,
+  ));
+}
+
+async function fanOutAlertNotification(draft: NotificationAlertDraft): Promise<void> {
+  const recipientRows = await db.select({
+    userId: userCorporateAccesses.userId,
+    roleId: userCorporateAccesses.roleId,
+  })
+    .from(userCorporateAccesses)
+    .where(sql`
+      (
+        ${userCorporateAccesses.scope} = 'system'
+        OR ${userCorporateAccesses.corporateId} = ${draft.corporateId}
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM ${rolePermissions} rp
+        INNER JOIN ${permissions} p ON p.id = rp.permission_id
+        WHERE rp.role_id = ${userCorporateAccesses.roleId}
+          AND p.key = 'cfd.alerts.read'
+      )
+    `);
+
+  await Promise.all(recipientRows.map((recipient) => createNotification({
+    sourceModule: 'cfd',
+    sourceEntityType: 'alert',
+    sourceEntityId: draft.sourceEntityId,
+    recipientUserId: recipient.userId,
+    recipientRoleId: recipient.roleId,
+    category: 'alert',
+    templateKey: 'cfd.ratio.breach',
+    templateVars: {
+      ratioName: draft.ratioName,
+      currentValue: draft.currentValue,
+      thresholdValue: draft.thresholdValue,
+      period: draft.period,
+    },
+    payload: {
+      corporateId: draft.corporateId,
+      departmentId: draft.departmentId,
+      ratioName: draft.ratioName,
+      currentValue: draft.currentValue,
+      thresholdValue: draft.thresholdValue,
+      message: draft.message,
+      period: draft.period,
+    },
+    severity: draft.severity,
+  })));
+}
+
+function buildAlertDraft(
+  corporateId: string,
+  period: string,
+  ratioName: RatioName,
+  severity: AlertSeverity,
+  currentValue: number,
+  thresholdValue: number,
+  message: string,
+  departmentId?: string,
+): NotificationAlertDraft {
+  return {
+    sourceEntityId: randomUUID(),
+    corporateId,
+    departmentId: departmentId ?? null,
+    ratioName,
+    severity,
+    currentValue,
+    thresholdValue,
+    message,
+    period,
+    createdAt: new Date(),
   };
 }
 
@@ -147,10 +275,7 @@ export async function evaluateAlerts(
 ): Promise<Alert[]> {
   const generatedAlerts: Alert[] = [];
 
-  // Resolve existing active alerts for this corporate+period
-  await db.update(alerts).set({ status: 'resolved' }).where(
-    and(eq(alerts.corporateId, corporateId), eq(alerts.period, period), eq(alerts.status, 'active')),
-  );
+  await resolveActiveNotificationsForPeriod(corporateId, period);
 
   const ratioNames: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
@@ -165,19 +290,20 @@ export async function evaluateAlerts(
     const breach = evaluateThresholdBreach(ratioName, value, threshold);
     if (!breach) continue;
 
-    const [inserted] = await db.insert(alerts).values({
+    const draft = buildAlertDraft(
       corporateId,
-      departmentId: departmentId ?? null,
-      ratioName,
-      severity: breach.severity,
-      currentValue: value.toString(),
-      thresholdValue: breach.thresholdValue.toString(),
-      message: breach.message,
-      status: 'active',
       period,
-    }).returning();
+      ratioName,
+      breach.severity,
+      value,
+      breach.thresholdValue,
+      breach.message,
+      departmentId,
+    );
 
-    generatedAlerts.push(mapRowToAlert(inserted));
+    await fanOutAlertNotification(draft);
+
+    generatedAlerts.push(mapDraftToAlert(draft));
   }
 
   // Specific hard-coded alert rules
@@ -186,19 +312,20 @@ export async function evaluateAlerts(
     const alreadyCreated = generatedAlerts.some((a) => a.ratioName === candidate.ratioName);
     if (alreadyCreated) continue;
 
-    const [inserted] = await db.insert(alerts).values({
+    const draft = buildAlertDraft(
       corporateId,
-      departmentId: departmentId ?? null,
-      ratioName: candidate.ratioName,
-      severity: candidate.severity,
-      currentValue: candidate.currentValue.toString(),
-      thresholdValue: candidate.thresholdValue.toString(),
-      message: candidate.message,
-      status: 'active',
       period,
-    }).returning();
+      candidate.ratioName,
+      candidate.severity,
+      candidate.currentValue,
+      candidate.thresholdValue,
+      candidate.message,
+      departmentId,
+    );
 
-    generatedAlerts.push(mapRowToAlert(inserted));
+    await fanOutAlertNotification(draft);
+
+    generatedAlerts.push(mapDraftToAlert(draft));
   }
 
   return generatedAlerts;
@@ -216,19 +343,20 @@ export async function checkNegativeOCF(
 ): Promise<Alert | null> {
   if (operatingCashFlow >= 0) return null;
 
-  const [inserted] = await db.insert(alerts).values({
+  const draft = buildAlertDraft(
     corporateId,
-    departmentId: departmentId ?? null,
-    ratioName: 'ocfRatio',
-    severity: 'high',
-    currentValue: operatingCashFlow.toString(),
-    thresholdValue: '0',
-    message: `Negative Operating Cash Flow: ${operatingCashFlow.toFixed(2)}`,
-    status: 'active',
     period,
-  }).returning();
+    'ocfRatio',
+    'high',
+    operatingCashFlow,
+    0,
+    `Negative Operating Cash Flow: ${operatingCashFlow.toFixed(2)}`,
+    departmentId,
+  );
 
-  return mapRowToAlert(inserted);
+  await fanOutAlertNotification(draft);
+
+  return mapDraftToAlert(draft);
 }
 
 // ============================================================
@@ -262,32 +390,34 @@ export async function detectDecliningTrend(
     const [latest, middle, oldest] = rows.map(r => parseFloat(r.ratio_value));
     if (!(latest < middle && middle < oldest)) continue;
 
-    // Check for existing declining trend alert
-    const [existing] = await db
-      .select({ id: alerts.id })
-      .from(alerts)
+    const [existingNotification] = await db
+      .select({ id: notifications.id })
+      .from(notifications)
       .where(and(
-        eq(alerts.corporateId, corporateId),
-        eq(alerts.ratioName, ratioName),
-        eq(alerts.status, 'active'),
+        eq(notifications.sourceModule, 'cfd'),
+        eq(notifications.sourceEntityType, 'alert'),
+        sql`${notifications.status} IN ('unread', 'read')`,
+        sql`${notifications.payload} ->> 'corporateId' = ${corporateId}`,
+        sql`${notifications.payload} ->> 'ratioName' = ${ratioName}`,
       ))
       .limit(1);
 
-    if (existing) continue;
+    if (existingNotification) continue;
 
-    const [inserted] = await db.insert(alerts).values({
+    const draft = buildAlertDraft(
       corporateId,
-      departmentId: departmentId ?? null,
-      ratioName,
-      severity: 'medium',
-      currentValue: latest.toString(),
-      thresholdValue: oldest.toString(),
-      message: `${ratioName.toUpperCase()} shows declining trend over 3 consecutive periods: ${oldest.toFixed(2)} → ${middle.toFixed(2)} → ${latest.toFixed(2)}`,
-      status: 'active',
       period,
-    }).returning();
+      ratioName,
+      'medium',
+      latest,
+      oldest,
+      `${ratioName.toUpperCase()} shows declining trend over 3 consecutive periods: ${oldest.toFixed(2)} -> ${middle.toFixed(2)} -> ${latest.toFixed(2)}`,
+      departmentId,
+    );
 
-    result.push(mapRowToAlert(inserted));
+    await fanOutAlertNotification(draft);
+
+    result.push(mapDraftToAlert(draft));
   }
 
   return result;
@@ -345,67 +475,118 @@ export interface AlertFilters {
   status?: string;
   limit?: number;
   offset?: number;
+  recipientUserId?: string;
 }
 
 export async function listAlerts(filters: AlertFilters): Promise<Alert[]> {
-  const conditions = [];
+  const conditions = [
+    eq(notifications.sourceModule, 'cfd'),
+    eq(notifications.sourceEntityType, 'alert'),
+  ];
 
-  if (filters.corporateId) conditions.push(eq(alerts.corporateId, filters.corporateId));
-  if (filters.severity) conditions.push(eq(alerts.severity, filters.severity));
-  if (filters.status) conditions.push(eq(alerts.status, filters.status));
+  if (filters.recipientUserId) {
+    conditions.push(eq(notifications.recipientUserId, filters.recipientUserId));
+  }
 
-  const limit = filters.limit ?? 50;
-  const offset = filters.offset ?? 0;
+  if (filters.severity) conditions.push(eq(notifications.severity, filters.severity));
+  if (filters.status === 'active') conditions.push(eq(notifications.status, 'unread'));
+  if (filters.status === 'acknowledged') conditions.push(eq(notifications.status, 'read'));
+  if (filters.status === 'resolved') conditions.push(eq(notifications.status, 'archived'));
+  if (filters.corporateId) conditions.push(sql`${notifications.payload} ->> 'corporateId' = ${filters.corporateId}`);
 
-  const rows = await db
-    .select()
-    .from(alerts)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(alerts.createdAt))
-    .limit(limit)
-    .offset(offset);
+  const rows = await db.select().from(notifications)
+    .where(and(...conditions))
+    .orderBy(desc(notifications.createdAt))
+    .limit(filters.limit ?? 50)
+    .offset(filters.offset ?? 0);
 
-  return rows.map(mapRowToAlert);
+  return rows.map(mapNotificationToAlert);
 }
 
 export async function getAlertById(id: string): Promise<Alert | null> {
-  const [row] = await db.select().from(alerts).where(eq(alerts.id, id)).limit(1);
-  return row ? mapRowToAlert(row) : null;
+  const [notificationRow] = await db.select().from(notifications)
+    .where(and(
+      eq(notifications.id, id),
+      eq(notifications.sourceModule, 'cfd'),
+      eq(notifications.sourceEntityType, 'alert'),
+    ))
+    .limit(1);
+
+  if (notificationRow) {
+    return mapNotificationToAlert(notificationRow);
+  }
+
+  return null;
+}
+
+export async function getUserAlertById(
+  id: string,
+  userId: string,
+): Promise<Alert | null> {
+  const [notificationRow] = await db.select().from(notifications)
+    .where(and(
+      eq(notifications.id, id),
+      eq(notifications.recipientUserId, userId),
+      eq(notifications.sourceModule, 'cfd'),
+      eq(notifications.sourceEntityType, 'alert'),
+    ))
+    .limit(1);
+
+  if (notificationRow) {
+    return mapNotificationToAlert(notificationRow);
+  }
+
+  return null;
 }
 
 export async function acknowledgeAlert(
   id: string,
   userId: string,
 ): Promise<Alert | null> {
-  const [existing] = await db.select().from(alerts).where(eq(alerts.id, id)).limit(1);
-  if (!existing) return null;
+  const [notificationRow] = await db.select().from(notifications)
+    .where(and(
+      eq(notifications.id, id),
+      eq(notifications.recipientUserId, userId),
+      eq(notifications.sourceModule, 'cfd'),
+      eq(notifications.sourceEntityType, 'alert'),
+    ))
+    .limit(1);
 
-  const [updated] = await db.update(alerts).set({
-    status: 'acknowledged',
-    acknowledgedAt: new Date(),
-    acknowledgedBy: userId,
-  }).where(eq(alerts.id, id)).returning();
+  if (notificationRow) {
+    const [updatedNotification] = await db.update(notifications).set({
+      status: 'read',
+      readAt: new Date(),
+      readBy: userId,
+      updatedAt: new Date(),
+      updatedBy: userId,
+    }).where(eq(notifications.id, id)).returning();
 
-  return mapRowToAlert(updated);
+    return updatedNotification ? mapNotificationToAlert(updatedNotification) : null;
+  }
+
+  return null;
 }
 
 export async function getAlertHistory(filters: AlertFilters): Promise<Alert[]> {
-  const conditions = [ne(alerts.status, 'active')];
+  const conditions = [
+    eq(notifications.sourceModule, 'cfd'),
+    eq(notifications.sourceEntityType, 'alert'),
+    ne(notifications.status, 'unread'),
+  ];
 
-  if (filters.corporateId) conditions.push(eq(alerts.corporateId, filters.corporateId));
-  if (filters.severity) conditions.push(eq(alerts.severity, filters.severity));
+  if (filters.recipientUserId) {
+    conditions.push(eq(notifications.recipientUserId, filters.recipientUserId));
+  }
 
-  const limit = filters.limit ?? 50;
-  const offset = filters.offset ?? 0;
+  if (filters.corporateId) conditions.push(sql`${notifications.payload} ->> 'corporateId' = ${filters.corporateId}`);
+  if (filters.severity) conditions.push(eq(notifications.severity, filters.severity));
 
-  const rows = await db
-    .select()
-    .from(alerts)
+  const rows = await db.select().from(notifications)
     .where(and(...conditions))
-    .orderBy(desc(alerts.createdAt))
-    .limit(limit)
-    .offset(offset);
+    .orderBy(desc(notifications.createdAt))
+    .limit(filters.limit ?? 50)
+    .offset(filters.offset ?? 0);
 
-  return rows.map(mapRowToAlert);
+  return rows.map(mapNotificationToAlert);
 }
 

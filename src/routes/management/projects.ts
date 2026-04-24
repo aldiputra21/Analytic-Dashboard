@@ -2,12 +2,15 @@
 // Requirements: 7.2, 7.7, 7.10
 
 import { Router, Request, Response } from 'express';
+import { requirePermission } from '../../middleware/rbac';
 import {
   getProjectsByDepartment,
+  getAllProjects,
   getProjectById,
   createProject,
   updateProject,
   deleteProject,
+  getActiveProjects,
   Project,
 } from '../../services/mafinda/projectService.js';
 import { ConflictError, NotFoundError } from '../../services/mafinda/departmentService.js';
@@ -19,65 +22,39 @@ import { asc, eq } from 'drizzle-orm';
 export function createProjectRouter(): Router {
   const router = Router();
 
-  // GET /api/projects — list projects, optionally filtered by departmentId
-  router.get('/', async (req: Request, res: Response): Promise<void> => {
-    const { departmentId } = req.query as Record<string, string>;
+  // GET /api/projects — list projects
+  router.get('/', requirePermission('public.projects.read'), async (req: Request, res: Response): Promise<void> => {
+    const { corporateId, departmentId, search, page, pageSize } = req.query as Record<string, string>;
 
     try {
-      let result: Project[];
-      if (departmentId) {
-        result = await getProjectsByDepartment(departmentId);
-      } else {
-        // Return all projects across all departments
-        const rows = await db.select({
-          id: projects.id,
-          departmentId: projects.departmentId,
-          departmentName: departments.name,
-          code: projects.code,
-          name: projects.name,
-          description: projects.description,
-          sourceType: projects.sourceType,
-          sourceId: projects.sourceId,
-          status: projects.status,
-          startDate: projects.startDate,
-          endDate: projects.endDate,
-          isActive: projects.isActive,
-          createdBy: projects.createdBy,
-          createdAt: projects.createdAt,
-          updatedBy: projects.updatedBy,
-          updatedAt: projects.updatedAt,
-        })
-          .from(projects)
-          .leftJoin(departments, eq(departments.id, projects.departmentId))
-          .orderBy(asc(projects.name));
-
-        result = rows.map((row) => ({
-          id: row.id,
-          departmentId: row.departmentId,
-          departmentName: row.departmentName ?? undefined,
-          code: row.code,
-          name: row.name,
-          description: row.description ?? undefined,
-          sourceType: row.sourceType ?? undefined,
-          sourceId: row.sourceId ?? undefined,
-          status: row.status ?? undefined,
-          startDate: row.startDate?.toISOString().slice(0, 10),
-          endDate: row.endDate?.toISOString().slice(0, 10),
-          isActive: row.isActive ?? true,
-          createdBy: row.createdBy,
-          createdAt: row.createdAt.toISOString(),
-          updatedBy: row.updatedBy ?? undefined,
-          updatedAt: row.updatedAt?.toISOString(),
-        }));
-      }
+      const result = await getAllProjects({
+        corporateId,
+        departmentId,
+        search,
+        page: page ? parseInt(page) : 1,
+        pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 100, // Changed default to 100 for dropdowns
+      });
       res.json(result);
-    } catch {
+    } catch (err) {
+      console.error('[GET /projects] Error:', err);
+      res.status(500).json({ error: 'Terjadi kesalahan server' });
+    }
+  });
+
+  // GET /api/projects/dropdown-items — list all active projects for dropdowns
+  router.get('/dropdown-items', requirePermission('public.projects.read'), async (req: Request, res: Response): Promise<void> => {
+    const { corporateId } = req.query as Record<string, string>;
+    try {
+      const result = await getActiveProjects(corporateId);
+      res.json(result);
+    } catch (err) {
+      console.error('[GET /projects/dropdown-items] Error:', err);
       res.status(500).json({ error: 'Terjadi kesalahan server' });
     }
   });
 
   // POST /api/projects — create new project
-  router.post('/', async (req: Request, res: Response): Promise<void> => {
+  router.post('/', requirePermission('public.projects.write'), async (req: Request, res: Response): Promise<void> => {
     const { departmentId, code, name, description, startDate, endDate } = req.body ?? {};
 
     if (!departmentId?.trim()) {
@@ -93,7 +70,8 @@ export function createProjectRouter(): Router {
       return;
     }
 
-    const createdBy = (req as any).user?.username ?? 'system';
+    const userId = req.user!.userId;
+    const context = { ip: req.ip, userAgent: req.headers['user-agent'] };
 
     try {
       const project = await createProject({
@@ -103,7 +81,7 @@ export function createProjectRouter(): Router {
         description,
         startDate,
         endDate,
-      }, createdBy);
+      }, userId, context);
       res.status(201).json(project);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -119,7 +97,7 @@ export function createProjectRouter(): Router {
   });
 
   // PUT /api/projects/:id — update project
-  router.put('/:id', async (req: Request, res: Response): Promise<void> => {
+  router.put('/:id', requirePermission('public.projects.write'), async (req: Request, res: Response): Promise<void> => {
     const { name, code, description, startDate, endDate, isActive, status } = req.body ?? {};
 
     if (name !== undefined && !name?.trim()) {
@@ -127,7 +105,8 @@ export function createProjectRouter(): Router {
       return;
     }
 
-    const updatedBy = (req as any).user?.username ?? 'system';
+    const userId = req.user!.userId;
+    const context = { ip: req.ip, userAgent: req.headers['user-agent'] };
 
     try {
       const project = await updateProject(req.params.id, {
@@ -138,7 +117,7 @@ export function createProjectRouter(): Router {
         endDate,
         isActive,
         status,
-      }, updatedBy);
+      }, userId, context);
       res.json(project);
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -154,9 +133,11 @@ export function createProjectRouter(): Router {
   });
 
   // DELETE /api/projects/:id — delete project
-  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+  router.delete('/:id', requirePermission('public.projects.delete'), async (req: Request, res: Response): Promise<void> => {
     try {
-      const result = await deleteProject(req.params.id);
+      const userId = req.user!.userId;
+      const context = { ip: req.ip, userAgent: req.headers['user-agent'] };
+      const result = await deleteProject(req.params.id, userId, context);
       res.json(result);
     } catch (err) {
       if (err instanceof NotFoundError) {

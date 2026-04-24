@@ -13,3 +13,19 @@ export function formatNumber(value: number): string {
 export function formatPercentage(value: number, decimals: number = 1): string {
   return `${value.toFixed(decimals)}%`;
 }
+
+export function formatPeriod(periodStr: string | null | undefined, language: string = 'id'): string {
+  if (!periodStr) return '—';
+  const [year, month] = periodStr.split('-');
+  if (!year || !month) return periodStr;
+  
+  try {
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    return new Intl.DateTimeFormat(language === 'id' ? 'id-ID' : 'en-US', {
+      month: 'long',
+      year: 'numeric'
+    }).format(date);
+  } catch (e) {
+    return periodStr;
+  }
+}

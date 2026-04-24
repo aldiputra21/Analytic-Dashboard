@@ -2,8 +2,7 @@
 // Requirements: 7.1, 7.3, 7.4, 7.5, 7.7, 10.1, 10.3, 10.4, 10.5, 10.6, 10.8
 
 import { Router, Request, Response } from 'express';
-import { requireFRSAuth } from '../../middleware/frsAuth';
-import { authorize } from '../../middleware/frsRbac';
+import { requirePermission } from '../../middleware/rbac';
 import { generateConsolidatedReport } from '../../services/financial/reportGenerator';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../services/financial/exportService';
 import {
@@ -18,14 +17,13 @@ import { eq, and, sql as sqlTag } from 'drizzle-orm';
 
 export function createReportsRouter(): Router {
   const router = Router();
-  router.use(requireFRSAuth);
 
   /**
    * GET /api/frs/reports/consolidated
    * Generate a consolidated report for a given period.
    * Requirements: 7.1, 7.3, 7.4, 7.5, 7.7
    */
-  router.get('/consolidated', authorize('reports', 'read'), async (req: Request, res: Response) => {
+  router.get('/consolidated', requirePermission('cfd.reports.read'), async (req: Request, res: Response) => {
     const { period } = req.query as Record<string, string>;
 
     if (!period) {
@@ -50,7 +48,7 @@ export function createReportsRouter(): Router {
    * Export financial ratio data in CSV, Excel, or PDF format.
    * Requirements: 10.1, 10.3, 10.4, 10.8
    */
-  router.get('/export', authorize('reports', 'export'), async (req: Request, res: Response) => {
+  router.get('/export', requirePermission('cfd.reports.export'), async (req: Request, res: Response) => {
     const { format, corporateId, startDate, endDate } = req.query as Record<string, string>;
 
     if (!format || !['csv', 'excel', 'pdf'].includes(format)) {
@@ -67,11 +65,11 @@ export function createReportsRouter(): Router {
 
     // Access control: subsidiary_manager can only export their corporates
     let allowedCorporateIds: string[] | null = null;
-    if (req.frsUser!.role === 'subsidiary_manager') {
+    if (req.user!.role === 'subsidiary_manager') {
       const accessRows = await db
         .select({ corporateId: userCorporateAccesses.corporateId })
         .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
+        .where(eq(userCorporateAccesses.userId, req.user!.userId));
       allowedCorporateIds = accessRows.map((r) => r.corporateId);
     }
 
@@ -111,12 +109,12 @@ export function createReportsRouter(): Router {
     const metadata = {
       exportDate: new Date().toISOString(),
       periodRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All periods',
-      exportedBy: (req as any).frsUser?.username ?? 'system',
+      exportedBy: req.user?.username ?? 'system',
     };
 
     // Log export to audit log (Req 10.7)
     await createFRSAuditLog({
-      userId: req.frsUser!.userId,
+      userId: req.user!.userId,
       action: 'export',
       entityType: 'financial_ratios',
       newValues: { format, corporateId, startDate, endDate },
@@ -131,7 +129,7 @@ export function createReportsRouter(): Router {
         res.setHeader('Content-Disposition', `attachment; filename="financial-ratios-${Date.now()}.csv"`);
         res.send(csv);
       } else if (format === 'excel') {
-        const buffer = exportToExcel(rows, metadata);
+        const buffer = await exportToExcel(rows, metadata);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="financial-ratios-${Date.now()}.xlsx"`);
         res.send(buffer);
@@ -158,7 +156,7 @@ export function createReportsRouter(): Router {
    * Create a scheduled report.
    * Requirements: 10.5
    */
-  router.post('/schedule', authorize('reports', 'schedule'), async (req: Request, res: Response) => {
+  router.post('/schedule', requirePermission('cfd.reports.schedule'), async (req: Request, res: Response) => {
     const { name, reportType, corporateIds, periodType, format, scheduleFrequency, scheduleDay, recipients } = req.body;
 
     if (!name || !reportType || !periodType || !format || !scheduleFrequency || !scheduleDay || !recipients) {
@@ -182,7 +180,7 @@ export function createReportsRouter(): Router {
       scheduleFrequency,
       scheduleDay,
       recipients: Array.isArray(recipients) ? recipients : [recipients],
-    }, req.frsUser!.userId);
+    }, req.user!.userId);
 
     if (result.error) {
       res.status(400).json({
@@ -199,7 +197,7 @@ export function createReportsRouter(): Router {
    * List all scheduled reports.
    * Requirements: 10.5
    */
-  router.get('/scheduled', authorize('reports', 'read'), async (_req: Request, res: Response) => {
+  router.get('/scheduled', requirePermission('cfd.reports.read'), async (_req: Request, res: Response) => {
     const reports = await listScheduledReports();
     res.json(reports);
   });
@@ -209,7 +207,7 @@ export function createReportsRouter(): Router {
    * Delete a scheduled report.
    * Requirements: 10.5
    */
-  router.delete('/schedule/:id', authorize('reports', 'schedule'), async (req: Request, res: Response) => {
+  router.delete('/schedule/:id', requirePermission('cfd.reports.schedule'), async (req: Request, res: Response) => {
     const result = await deleteScheduledReport(req.params.id);
     if (!result.success) {
       res.status(404).json({

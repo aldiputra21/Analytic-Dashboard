@@ -1,8 +1,6 @@
 // Export Service - CSV, Excel, PDF
 // Requirements: 10.1, 10.3, 10.4, 10.8
 
-import * as XLSX from 'xlsx';
-
 export interface ExportMetadata {
   exportDate: string;
   periodRange: string;
@@ -83,29 +81,29 @@ export function exportToCSV(rows: any[], metadata: ExportMetadata): string {
  * Exports ratio data to Excel format with metadata sheet.
  * Requirements: 10.1, 10.4
  */
-export function exportToExcel(rows: any[], metadata: ExportMetadata): Buffer {
-  const wb = XLSX.utils.book_new();
+export async function exportToExcel(rows: any[], metadata: ExportMetadata): Promise<Buffer> {
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
 
-  // Metadata sheet (Req 10.4)
-  const metaData = [
-    ['Export Date', metadata.exportDate],
-    ['Period Range', metadata.periodRange],
-    ['Exported By', metadata.exportedBy],
-  ];
-  const metaSheet = XLSX.utils.aoa_to_sheet(metaData);
-  XLSX.utils.book_append_sheet(wb, metaSheet, 'Metadata');
+  const metadataSheet = workbook.addWorksheet('Metadata');
+  metadataSheet.addRow(['Export Date', metadata.exportDate]);
+  metadataSheet.addRow(['Period Range', metadata.periodRange]);
+  metadataSheet.addRow(['Exported By', metadata.exportedBy]);
 
-  // Data sheet
-  const dataRows = [RATIO_HEADERS, ...rows.map(rowToArray)];
-  const dataSheet = XLSX.utils.aoa_to_sheet(dataRows);
+  const dataSheet = workbook.addWorksheet('Financial Ratios');
+  dataSheet.addRow(RATIO_HEADERS);
+  for (const row of rows) {
+    dataSheet.addRow(rowToArray(row));
+  }
 
-  // Auto-width columns
-  const colWidths = RATIO_HEADERS.map((h) => ({ wch: Math.max(h.length, 12) }));
-  dataSheet['!cols'] = colWidths;
+  dataSheet.columns = RATIO_HEADERS.map((header) => ({
+    header,
+    key: header,
+    width: Math.max(header.length + 2, 12),
+  }));
 
-  XLSX.utils.book_append_sheet(wb, dataSheet, 'Financial Ratios');
-
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  const arrayBuffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(arrayBuffer as ArrayBuffer);
 }
 
 /**

@@ -4,14 +4,15 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { eq, and, or } from 'drizzle-orm';
+import { asc, eq, and, or } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { users } from '../../db/schema/index.js';
+import { roles, userCorporateAccesses, users } from '../../db/schema/index.js';
 import { JWTPayload, FRSUser, UserRole } from '../../types/financial/user';
 import { sendPasswordResetEmail } from './emailService';
+import { getEffectivePermissions } from './permissionService';
 
 const JWT_SECRET = process.env.FRS_JWT_SECRET || 'frs-dev-secret-change-in-production';
-const JWT_EXPIRES_IN = '30m';
+const JWT_EXPIRES_IN = process.env.FRS_JWT_EXPIRES_IN || '30m';
 const BCRYPT_ROUNDS = 10;
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -45,18 +46,38 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function issueToken(payload: JWTPayload): string {
-  return jwt.sign(
-    { userId: payload.userId, username: payload.username, role: payload.role },
+  const token = jwt.sign(
+    {
+      userId: payload.userId,
+      username: payload.username,
+      role: payload.role,
+      roleName: payload.roleName,
+      roleDescription: payload.roleDescription,
+      authzVersion: payload.authzVersion ?? 1,
+    },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN },
+    { expiresIn: JWT_EXPIRES_IN as any },
   );
+
+  return token;
 }
 
 export function verifyToken(token: string): JWTPayload | null {
-  if (tokenBlacklist.has(token)) return null;
+  if (tokenBlacklist.has(token)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[AuthService] Token is blacklisted');
+    }
+    return null;
+  }
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload;
-  } catch {
+    return jwt.verify(token, JWT_SECRET, { clockTolerance: 10 }) as JWTPayload;
+  } catch (err: any) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthService] Token verification failed:', err.message, { 
+        name: err.name,
+        expiredAt: err.expiredAt 
+      });
+    }
     return null;
   }
 }
@@ -105,7 +126,7 @@ export async function requestPasswordReset(identifier: string, appUrl: string): 
       passwordResetTokenHash: resetTokenHash,
       passwordResetExpiresAt: resetExpiresAt,
       updatedAt: new Date(),
-      updatedBy: row.email,
+      updatedBy: row.id,
     })
     .where(eq(users.id, row.id));
 
@@ -141,7 +162,7 @@ export async function resetPasswordWithToken(token: string, newPassword: string)
       passwordResetTokenHash: null,
       passwordResetExpiresAt: null,
       updatedAt: new Date(),
-      updatedBy: row.email,
+      updatedBy: row.id,
     })
     .where(eq(users.id, row.id));
 
@@ -173,8 +194,15 @@ export async function authenticateUser(
   // Update last login
   await db.update(users).set({ lastLogin: new Date() }).where(eq(users.id, row.id));
 
-  const user = mapRowToUser(row);
-  const token = issueToken({ userId: user.id, username: user.username ?? user.email, role: user.role });
+  const user = await mapRowToUser(row);
+  const token = issueToken({
+    userId: user.id,
+    username: user.username ?? user.email,
+    role: user.role,
+    roleName: user.roleName,
+    roleDescription: user.roleDescription,
+    authzVersion: user.authzVersion,
+  });
 
   return { user, token };
 }
@@ -189,18 +217,71 @@ export async function getUserById(userId: string): Promise<FRSUser | null> {
   return row ? mapRowToUser(row) : null;
 }
 
-export function mapRowToUser(row: typeof users.$inferSelect): FRSUser {
+async function resolvePrimaryRole(userId: string): Promise<{ role: UserRole; name: string; description: string | null }> {
+  const rows = await db.select({
+    roleName: roles.name,
+    scope: userCorporateAccesses.scope,
+    description: roles.description
+  })
+    .from(userCorporateAccesses)
+    .innerJoin(roles, eq(roles.id, userCorporateAccesses.roleId))
+    .where(eq(userCorporateAccesses.userId, userId))
+    .orderBy(asc(userCorporateAccesses.scope));
+
+  const prioritizedRoles: UserRole[] = ['owner', 'bod', 'subsidiary_manager'];
+  for (const roleId of prioritizedRoles) {
+    const matched = rows.find((row) => row.roleName === roleId);
+    if (matched) {
+      return {
+        role: roleId as UserRole,
+        name: matched.roleName,
+        description: matched.description
+      };
+    }
+  }
+
+  const defaultRow = rows[0];
+  return {
+    role: (defaultRow?.roleName as UserRole) || 'subsidiary_manager',
+    name: defaultRow?.roleName || 'subsidiary_manager',
+    description: defaultRow?.description || 'Subsidiary Manager'
+  };
+}
+
+export async function mapRowToUser(row: typeof users.$inferSelect): Promise<FRSUser> {
+  const [roleInfo, permissions, corporateAccess] = await Promise.all([
+    resolvePrimaryRole(row.id),
+    getEffectivePermissions(row.id),
+    db.select({ corporateId: userCorporateAccesses.corporateId })
+      .from(userCorporateAccesses)
+      .where(eq(userCorporateAccesses.userId, row.id)),
+  ]);
+
+  // Get primary corporateId (first one with 'corporate' or 'department' scope)
+  const primaryAccess = corporateAccess.find(a => a.corporateId) || null;
+  const subsidiaryIds = corporateAccess
+    .filter(a => a.corporateId)
+    .map(a => a.corporateId as string);
+  const hasFullCorporateAccess = corporateAccess.some(a => a.corporateId === null);
+
   return {
     id: row.id,
     username: row.username ?? row.email,
     email: row.email,
-    role: 'owner' as UserRole, // role resolved via user_corporate_accesses at runtime
+    role: roleInfo.role,
+    roleName: roleInfo.name,
+    roleDescription: roleInfo.description ?? undefined,
+    permissions,
+    authzVersion: row.authzVersion,
     fullName: row.fullName,
     isActive: row.isActive,
     lastLogin: row.lastLogin ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? row.createdAt,
     createdBy: row.createdBy,
+    corporateId: primaryAccess?.corporateId ?? undefined,
+    subsidiaryIds: subsidiaryIds.length > 0 ? subsidiaryIds : undefined,
+    hasFullCorporateAccess,
   };
 }
 

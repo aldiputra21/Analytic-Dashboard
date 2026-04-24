@@ -12,14 +12,31 @@ import {
   unique,
   uuid,
   varchar,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { corporates, departments, projects, users } from './public';
+import { corporates, departments, projects } from './public';
 
 // ============================================================================
 // cfd schema — 8 tables
 // ============================================================================
 
 export const cfdSchema = pgSchema('cfd');
+
+// --- 0. cost_centers --------------------------------------------------------
+
+export const costCenters = cfdSchema.table('cost_centers', {
+  id: uuid().primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').references((): AnyPgColumn => costCenters.id),
+  category: varchar({ length: 50 }).notNull(),
+  name: varchar({ length: 100 }).notNull(),
+  code: varchar({ length: 20 }).notNull().unique(),
+  description: text(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+});
 
 // --- 1. target_headers (master) ---------------------------------------------
 
@@ -28,15 +45,13 @@ export const targetHeaders = cfdSchema.table('target_headers', {
   departmentId: uuid('department_id').notNull().references(() => departments.id),
   projectId: uuid('project_id').references(() => projects.id),
   fiscalYear: integer('fiscal_year').notNull(),
-  fiscalMonth: integer('fiscal_month').notNull(),
   notes: text(),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
-  unique('uq_target_header').on(table.departmentId, table.projectId, table.fiscalYear, table.fiscalMonth),
-  check('fiscal_month_check', sql`${table.fiscalMonth} >= 1 AND ${table.fiscalMonth} <= 12`),
+  unique('uq_target_header').on(table.departmentId, table.projectId, table.fiscalYear),
 ]);
 
 // --- 2. target_details (detail) ---------------------------------------------
@@ -45,18 +60,20 @@ export const targetDetails = cfdSchema.table('target_details', {
   id: uuid().primaryKey().defaultRandom(),
   targetHeaderId: uuid('target_header_id').notNull().references(() => targetHeaders.id, { onDelete: 'cascade' }),
   targetType: varchar('target_type', { length: 20 }).notNull(),
+  month: integer('month').notNull(),
   costCenter: varchar('cost_center', { length: 100 }),
   amount: numeric({ precision: 18, scale: 2 }).notNull(),
   notes: text(),
 }, (table) => [
-  unique('uq_target_detail').on(table.targetHeaderId, table.targetType, table.costCenter),
+  unique('uq_target_detail').on(table.targetHeaderId, table.targetType, table.costCenter, table.month),
+  check('detail_month_check', sql`${table.month} >= 1 AND ${table.month} <= 12`),
 ]);
 
 // --- 3. weekly_cash_flows ---------------------------------------------------
 
 export const weeklyCashFlows = cfdSchema.table('weekly_cash_flows', {
   id: uuid().primaryKey().defaultRandom(),
-  departmentId: uuid('department_id').notNull().references(() => departments.id),
+  corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
   entityType: varchar('entity_type', { length: 20 }).notNull(),
   entityId: uuid('entity_id').notNull(),
   period: varchar({ length: 7 }).notNull(),
@@ -68,21 +85,21 @@ export const weeklyCashFlows = cfdSchema.table('weekly_cash_flows', {
   financingCashIn: numeric('financing_cash_in', { precision: 18, scale: 2 }).notNull().default('0'),
   financingCashOut: numeric('financing_cash_out', { precision: 18, scale: 2 }).notNull().default('0'),
   notes: text(),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
   unique('uq_cash_flow_entity_period_week').on(table.entityType, table.entityId, table.period, table.week),
   check('week_check', sql`${table.week} IN ('W1', 'W2', 'W3', 'W4', 'W5')`),
-  check('entity_type_check', sql`${table.entityType} IN ('department', 'project')`),
+  check('entity_type_check', sql`${table.entityType} IN ('corporate', 'project')`),
 ]);
 
 // --- 4. balance_sheets ------------------------------------------------------
 
 export const balanceSheets = cfdSchema.table('balance_sheets', {
   id: uuid().primaryKey().defaultRandom(),
-  departmentId: uuid('department_id').notNull().references(() => departments.id),
+  corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
   period: varchar({ length: 7 }).notNull(),
 
   // Aktiva Lancar (Current Assets)
@@ -115,19 +132,19 @@ export const balanceSheets = cfdSchema.table('balance_sheets', {
   dividends: numeric({ precision: 18, scale: 2 }).notNull().default('0'),
 
   notes: text(),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
-  unique('uq_balance_sheet_dept_period').on(table.departmentId, table.period),
+  unique('uq_balance_sheet_corp_period').on(table.corporateId, table.period),
 ]);
 
 // --- 5. income_statements ---------------------------------------------------
 
 export const incomeStatements = cfdSchema.table('income_statements', {
   id: uuid().primaryKey().defaultRandom(),
-  departmentId: uuid('department_id').notNull().references(() => departments.id),
+  corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
   period: varchar({ length: 7 }).notNull(),
   revenue: numeric({ precision: 18, scale: 2 }).notNull().default('0'),
   cogs: numeric({ precision: 18, scale: 2 }).notNull().default('0'),
@@ -135,12 +152,12 @@ export const incomeStatements = cfdSchema.table('income_statements', {
   interestExpense: numeric('interest_expense', { precision: 18, scale: 2 }).notNull().default('0'),
   taxExpense: numeric('tax_expense', { precision: 18, scale: 2 }).notNull().default('0'),
   notes: text(),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
-  unique('uq_income_stmt_dept_period').on(table.departmentId, table.period),
+  unique('uq_income_stmt_corp_period').on(table.corporateId, table.period),
 ]);
 
 // --- 6. thresholds ----------------------------------------------------------
@@ -160,28 +177,11 @@ export const thresholds = cfdSchema.table('thresholds', {
   ratioName: varchar('ratio_name', { length: 50 }).notNull(),
   thresholds: jsonb().notNull().$type<ThresholdValues>(),
   isDefault: boolean('is_default').notNull().default(false),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
   unique('uq_threshold_corporate_ratio').on(table.corporateId, table.ratioName),
 ]);
 
-// --- 7. alerts --------------------------------------------------------------
-
-export const alerts = cfdSchema.table('alerts', {
-  id: uuid().primaryKey().defaultRandom(),
-  corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
-  departmentId: uuid('department_id').references(() => departments.id),
-  ratioName: varchar('ratio_name', { length: 50 }).notNull(),
-  severity: varchar({ length: 20 }).notNull(),
-  currentValue: numeric('current_value', { precision: 10, scale: 4 }).notNull(),
-  thresholdValue: numeric('threshold_value', { precision: 10, scale: 4 }).notNull(),
-  message: text().notNull(),
-  status: varchar({ length: 20 }).notNull().default('active'),
-  acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
-  acknowledgedBy: uuid('acknowledged_by').references(() => users.id),
-  period: varchar({ length: 7 }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});

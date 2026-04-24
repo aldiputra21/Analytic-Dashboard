@@ -2,7 +2,7 @@
 // Requirements: 9.1, 9.5
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSubsidiaries } from '../../../hooks/financial/useSubsidiaries';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { FRSUser, UserRole } from '../../../types/financial/user';
 
 const API_BASE = '/api/frs';
@@ -10,12 +10,6 @@ const API_BASE = '/api/frs';
 function getToken(): string {
   return localStorage.getItem('frs_token') ?? '';
 }
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  owner: 'Owner',
-  bod: 'Board of Directors',
-  subsidiary_manager: 'Subsidiary Manager',
-};
 
 const ROLE_COLORS: Record<UserRole, string> = {
   owner: 'bg-purple-100 text-purple-700',
@@ -29,6 +23,7 @@ interface UserFormData {
   password: string;
   role: UserRole;
   fullName: string;
+  subsidiaryIds: string[];
 }
 
 const emptyForm: UserFormData = {
@@ -37,6 +32,7 @@ const emptyForm: UserFormData = {
   password: '',
   role: 'bod',
   fullName: '',
+  subsidiaryIds: [],
 };
 
 export const UserManager: React.FC = () => {
@@ -52,7 +48,7 @@ export const UserManager: React.FC = () => {
   const [selectedSubsidiaryIds, setSelectedSubsidiaryIds] = useState<string[]>([]);
   const [accessSaving, setAccessSaving] = useState(false);
 
-  const { subsidiaries } = useSubsidiaries();
+  const { corporates: subsidiaries } = useCorporates();
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -80,13 +76,27 @@ export const UserManager: React.FC = () => {
     setShowForm(true);
   }
 
-  function openEdit(user: FRSUser) {
+  async function openEdit(user: FRSUser) {
+    let scopeIds: string[] = [];
+    try {
+      const res = await fetch(`${API_BASE}/users/${user.id}/subsidiary-access`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (res.ok) {
+        const accessRows = await res.json() as Array<{ subsidiaryId: string }>;
+        scopeIds = accessRows.map((row) => row.subsidiaryId).filter(Boolean);
+      }
+    } catch {
+      scopeIds = [];
+    }
+
     setForm({
       username: user.username,
       email: user.email,
       password: '',
       role: user.role,
       fullName: user.fullName,
+      subsidiaryIds: scopeIds,
     });
     setEditingId(user.id);
     setFormError(null);
@@ -103,6 +113,7 @@ export const UserManager: React.FC = () => {
       const method = editingId ? 'PUT' : 'POST';
       const body: any = { ...form };
       if (editingId && !body.password) delete body.password;
+      if (form.role === 'owner') body.subsidiaryIds = [];
 
       const res = await fetch(url, {
         method,
@@ -146,9 +157,22 @@ export const UserManager: React.FC = () => {
     }
   }
 
-  function openAccessManager(user: FRSUser) {
+  async function openAccessManager(user: FRSUser) {
     setAccessUserId(user.id);
-    setSelectedSubsidiaryIds([]);
+    try {
+      const res = await fetch(`${API_BASE}/users/${user.id}/subsidiary-access`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to load existing subsidiary access');
+      }
+
+      const accessRows = await res.json() as Array<{ subsidiaryId: string }>;
+      setSelectedSubsidiaryIds(accessRows.map((row) => row.subsidiaryId).filter(Boolean));
+    } catch {
+      setSelectedSubsidiaryIds([]);
+    }
   }
 
   async function handleSaveAccess() {
@@ -161,7 +185,7 @@ export const UserManager: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({ subsidiaryIds: selectedSubsidiaryIds }),
+        body: JSON.stringify({ subsidiaryIds: selectedSubsidiaryIds, replace: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message ?? 'Failed to assign access');
@@ -221,7 +245,7 @@ export const UserManager: React.FC = () => {
                   <td className="px-4 py-3 text-slate-600">{user.email}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role]}`}>
-                      {ROLE_LABELS[user.role]}
+                      {user.roleDescription || user.role}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -239,7 +263,7 @@ export const UserManager: React.FC = () => {
                       >
                         Edit
                       </button>
-                      {user.role === 'subsidiary_manager' && (
+                      {(user.role === 'subsidiary_manager' || user.role === 'bod') && (
                         <button
                           onClick={() => openAccessManager(user)}
                           className="text-xs text-blue-600 hover:text-blue-800 font-medium"
@@ -339,6 +363,36 @@ export const UserManager: React.FC = () => {
                   placeholder="Min 12 chars, upper/lower/number/special"
                 />
               </div>
+
+              {form.role !== 'owner' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-2">
+                    Subsidiary Access {editingId ? '' : '*'}
+                  </label>
+                  <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                    {subsidiaries.map((sub) => (
+                      <label key={sub.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.subsidiaryIds.includes(sub.id)}
+                          onChange={(e) => {
+                            setForm((current) => ({
+                              ...current,
+                              subsidiaryIds: e.target.checked
+                                ? [...current.subsidiaryIds, sub.id]
+                                : current.subsidiaryIds.filter((id) => id !== sub.id),
+                            }));
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-slate-700">{sub.name}</span>
+                        <span className="text-xs text-slate-400">({sub.industrySector})</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">Non-owner users need at least one subsidiary scope.</p>
+                </div>
+              )}
 
               {formError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">

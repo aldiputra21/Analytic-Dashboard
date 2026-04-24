@@ -1,4 +1,4 @@
-﻿// Service Layer Tests — MAFINDA Dashboard Enhancement
+// Service Layer Tests — MAFINDA Dashboard Enhancement
 // Covers: departmentService, projectService, targetService,
 //         financialStatementService, dashboardService
 //
@@ -157,9 +157,9 @@ describe('departmentService', () => {
       },
     ]);
 
-    const result = await getAllDepartments('corp-1');
+    const result = await getAllDepartments({ corporateId: 'corp-1' });
 
-    expect(result.map((item) => item.name)).toEqual(['Accounting', 'Engineering']);
+    expect(result.records.map((item) => item.name)).toEqual(['Accounting', 'Engineering']);
   });
 
   test('getDepartmentById — returns null for unknown id', async () => {
@@ -620,7 +620,7 @@ describe('financialStatementService', () => {
     }]);
 
     const result = await saveBalanceSheet({
-      departmentId: 'dept-1',
+      corporateId: 'corp-1',
       period: '2025-01',
       cashAndBank: '1000',
       accountsReceivable: '500',
@@ -692,7 +692,7 @@ describe('financialStatementService', () => {
     }]);
 
     const result = await saveBalanceSheet({
-      departmentId: 'dept-1',
+      corporateId: 'corp-1',
       period: '2025-01',
       cashAndBank: '1200',
       notes: 'revised',
@@ -704,7 +704,7 @@ describe('financialStatementService', () => {
   });
   test('saveBalanceSheet — throws ValidationError for negative values', async () => {
     await expect(saveBalanceSheet({
-      departmentId: 'dept-1',
+      corporateId: 'corp-1',
       period: '2025-01',
       cashAndBank: '-1',
     }, 'tester')).rejects.toBeInstanceOf(ValidationError);
@@ -740,7 +740,7 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getBalanceSheets();
+    const result = await getBalanceSheets('tester');
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('bs-1');
@@ -776,7 +776,7 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getBalanceSheets({ period: '2025-02' });
+    const result = await getBalanceSheets('tester', { period: '2025-02' });
 
     expect(result).toHaveLength(1);
     expect(result[0].period).toBe('2025-02');
@@ -800,7 +800,7 @@ describe('financialStatementService', () => {
     }]);
 
     const result = await saveIncomeStatement({
-      departmentId: 'dept-1',
+      corporateId: 'corp-1',
       period: '2025-01',
       revenue: '3000',
       cogs: '1200',
@@ -843,7 +843,7 @@ describe('financialStatementService', () => {
     }]);
 
     const result = await saveIncomeStatement({
-      departmentId: 'dept-1',
+      corporateId: 'corp-1',
       period: '2025-01',
       revenue: '3200',
       notes: 'revised',
@@ -855,7 +855,7 @@ describe('financialStatementService', () => {
   });
   test('saveIncomeStatement — throws ValidationError for negative values', async () => {
     await expect(saveIncomeStatement({
-      departmentId: 'dept-1',
+      corporateId: 'corp-1',
       period: '2025-01',
       revenue: '-100',
     }, 'tester')).rejects.toBeInstanceOf(ValidationError);
@@ -877,7 +877,7 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getIncomeStatements();
+    const result = await getIncomeStatements('tester');
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('is-1');
@@ -905,9 +905,9 @@ describe('financialStatementService', () => {
     }]);
 
     const result = await saveCashFlow({
-      departmentId: 'dept-1',
-      entityType: 'department',
-      entityId: 'dept-1',
+      corporateId: 'corp-1',
+      entityType: 'corporate',
+      entityId: 'corp-1',
       period: '2025-01',
       week: 'W1',
       operatingCashIn: '1000',
@@ -958,9 +958,9 @@ describe('financialStatementService', () => {
     }]);
 
     const result = await saveCashFlow({
-      departmentId: 'dept-1',
-      entityType: 'department',
-      entityId: 'dept-1',
+      corporateId: 'corp-1',
+      entityType: 'corporate',
+      entityId: 'corp-1',
       period: '2025-01',
       week: 'W1',
       operatingCashIn: '1300',
@@ -973,9 +973,9 @@ describe('financialStatementService', () => {
   });
   test('saveCashFlow — throws ValidationError for negative values', async () => {
     await expect(saveCashFlow({
-      departmentId: 'dept-1',
-      entityType: 'department',
-      entityId: 'dept-1',
+      corporateId: 'corp-1',
+      entityType: 'corporate',
+      entityId: 'corp-1',
       period: '2025-01',
       week: 'W1',
       operatingCashIn: '-50',
@@ -1002,7 +1002,7 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getCashFlows({ period: '2025-02' });
+    const result = await getCashFlows('tester', { period: '2025-02' });
 
     expect(result).toHaveLength(1);
     expect(result[0].period).toBe('2025-02');

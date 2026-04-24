@@ -7,8 +7,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticateUser, invalidateToken, getUserById, requestPasswordReset, resetPasswordWithToken } from '../../services/financial/authService';
-import { requireFRSAuth } from '../../middleware/frsAuth';
-import { createFRSAuditLog } from '../../services/financial/auditLogService.js';
+import { authenticate } from '../../middleware/auth';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 
 const forgotPasswordSchema = z.object({
   identifier: z.string().trim().min(1),
@@ -21,6 +21,16 @@ const resetPasswordSchema = z.object({
 
 export function createFRSAuthRouter(): Router {
   const router = Router();
+
+  /**
+   * GET /api/frs/auth/config
+   * Public configuration for the frontend
+   */
+  router.get('/config', (_req: Request, res: Response) => {
+    res.json({
+      keepAliveIntervalMs: Number(process.env.FRS_KEEP_ALIVE_INTERVAL_MS || 0),
+    });
+  });
 
   /**
    * POST /api/frs/auth/login
@@ -48,7 +58,7 @@ export function createFRSAuthRouter(): Router {
       if (!result) {
         // Log failed login attempt
         await createFRSAuditLog({
-          userId: 'unknown',
+          userId: undefined,
           action: 'login',
           entityType: 'auth',
           newValues: { username, success: false },
@@ -84,7 +94,14 @@ export function createFRSAuthRouter(): Router {
           username: result.user.username,
           email: result.user.email,
           role: result.user.role,
+          permissions: result.user.permissions ?? [],
+          authzVersion: result.user.authzVersion ?? 1,
           fullName: result.user.fullName,
+          corporateId: result.user.corporateId,
+          subsidiaryIds: result.user.subsidiaryIds,
+          hasFullCorporateAccess: result.user.hasFullCorporateAccess,
+          roleName: result.user.roleName,
+          roleDescription: result.user.roleDescription,
         },
       });
     } catch (err) {
@@ -193,12 +210,12 @@ export function createFRSAuthRouter(): Router {
    * POST /api/frs/auth/logout
    * Invalidates the current JWT token.
    */
-  router.post('/logout', requireFRSAuth, async (req: Request, res: Response) => {
+  router.post('/logout', authenticate, async (req: Request, res: Response) => {
     const token = req.headers.authorization?.slice(7) ?? '';
     invalidateToken(token);
 
     await createFRSAuditLog({
-      userId: req.frsUser!.userId,
+      userId: req.user!.userId,
       action: 'logout',
       entityType: 'auth',
       ipAddress: req.ip,
@@ -212,8 +229,8 @@ export function createFRSAuthRouter(): Router {
    * GET /api/frs/auth/me
    * Returns the current authenticated user.
    */
-  router.get('/me', requireFRSAuth, async (req: Request, res: Response) => {
-    const user = await getUserById(req.frsUser!.userId);
+  router.get('/me', authenticate, async (req: Request, res: Response) => {
+    const user = await getUserById(req.user!.userId);
     if (!user) {
       res.status(404).json({
         error: { code: 'FRS_USER_NOT_FOUND', message: 'User not found', timestamp: new Date().toISOString(), requestId: '' },
@@ -226,8 +243,15 @@ export function createFRSAuthRouter(): Router {
       username: user.username,
       email: user.email,
       role: user.role,
+      permissions: user.permissions ?? [],
+      authzVersion: user.authzVersion ?? 1,
       fullName: user.fullName,
       lastLogin: user.lastLogin,
+      corporateId: user.corporateId,
+      subsidiaryIds: user.subsidiaryIds,
+      hasFullCorporateAccess: user.hasFullCorporateAccess,
+      roleName: user.roleName,
+      roleDescription: user.roleDescription,
     });
   });
 

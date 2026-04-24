@@ -1,0 +1,51 @@
+## Tasks
+
+- [x] **Task 0: Database Migration & Schema Changes**
+  - [x] Update `target_headers` (remove `fiscalMonth`, adjust unique constraint).
+  - [x] Update `target_details` (add `month`, adjust unique constraint).
+  - [x] Add seed data for `system_configs` (`corporate_sectors`, `currencies`, `cost_center_categories`).
+  - [x] Generate new Drizzle migration.
+  - [x] Reset database, re-migrate, and re-seed all data.`0001_cfd_views_and_function.sql`
+- [x] Task 1: Perusahaan
+  - [x] 1.a Implement skeleton saat loading datatables
+  - [x] 1.b Implement animate presence di datatables dan form dialog
+  - [x] 1.c Tambah action view di datatables
+  - [x] 1.d Field sektor simpan dalam bentuk kode, integrasi `system_configs`
+  - [x] 1.e Integrasi currency dari `system_configs`
+  - [x] 1.f Upload logo tersimpan ke DB & filesystem (nama = ID corporate)
+  - [x] 1.g Form layout: kode & sektor (40/60), chevron diperbaiki, config dropdown, translation bulan, status slider
+  - [x] 1.h Dialog hapus data: tombol cancel & styling
+  - [x] 1.i Status di datatables: konfirmasi dialog, hint tooltip
+  - [x] 1.j Mode read-only untuk view
+- [ ] Task 2: Cost Center
+  - [x] 2.a Datatables: hapus refresh, tombol filter, view, footer paging, kategori integrasi config, perbaikan hapus/status
+  - [ ] 2.b Form layout: hilangkan header, 2 kolom 50%, chevron, kategori dari config
+  - [ ] 2.c Mode read-only untuk view
+- [ ] Task 3: Department
+  - [x] 3.a Datatables: perbaiki 0 records (backend/frontend), hapus refresh, tombol filter, view, footer paging, perbaikan hapus/status
+  - [ ] 3.b Form layout: hilangkan header, 2 kolom 50%, chevron, dropdown dari user_corporate_accesses
+  - [ ] 3.c Mode read-only untuk view
+- [ ] Task 4: Proyek
+  - [x] 4.a Datatables: hapus refresh, tombol filter, view, footer paging, perbaikan hapus
+  - [ ] 4.b Form layout: SearchableSelect department, chevron status, status dropdown (no slider)
+  - [ ] 4.c Mode read-only untuk view
+- [ ] Task 5: Target (Master-Detail Form)
+  - [x] 5.a Datatables: hapus refresh, tombol filter, view, footer paging, perbaikan hapus
+  - [ ] 5.b Form Header: Department (SearchableSelect, 70%), Tahun (30%), Terkait Proyek? (Slider), Proyek (Conditional SearchableSelect)
+  - [ ] 5.c Form Detail (Revenue): Tabel dinamis (add/remove), input month & amount & notes, deduplikasi per month
+  - [ ] 5.d Form Detail (Cost): Tabel dinamis (add/remove), input month & cost center & amount & notes, deduplikasi per month & cost center
+  - [ ] 5.e API / Service: Sesuaikan logic save target dengan skema baru (bulk insert target_details)
+  - [ ] 5.f Lain-lain: Chevron tahun, border notes eye-catching, scroll to alert jika error
+  - [ ] 5.g Mode read-only untuk view
+- [x] Task 6: Migrasi Notifikasi ke Sonner (Toast)
+  - [x] 6.a Hapus scroll-to-alert dan legacy Alert UI.
+  - [x] 6.b Implementasi `onInvalid` untuk toast error field mandatory.
+  - [x] 6.c Gunakan translation keys untuk labels ('apply', 'clear', 'errorRequired').
+  - [x] 6.d Gunakan posisi bottom-right dan closeable toasts.
+
+Catatan:
+- Gunakan translation
+- Jangan bold font di input & dropdown
+- Hand cursor untuk dropdown dan tombol
+- Alert closeable
+- Referensi layout dari menu neraca

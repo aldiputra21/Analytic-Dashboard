@@ -1,89 +1,105 @@
 // Target Management Routes — MAFINDA Dashboard Enhancement
-// Requirements: 7.3, 7.4, 7.8
-
 import { Router, Request, Response } from 'express';
+import { requirePermission } from '../../middleware/rbac';
 import {
-  getTargets,
-  upsertTarget,
-  deleteTarget,
-} from '../../services/mafinda/targetService.js';
-import { NotFoundError } from '../../services/mafinda/departmentService.js';
+  getAnnualTargets,
+  getAnnualTargetDetails,
+  saveAnnualTarget,
+  deleteAnnualTarget,
+} from '../../services/mafinda/targetService';
 
 export function createTargetRouter(): Router {
   const router = Router();
 
-  // GET /api/targets — list targets with optional filters
-  // Query params: departmentId, projectId, fiscalYear, fiscalMonth
-  router.get('/', async (req: Request, res: Response): Promise<void> => {
-    const { departmentId, projectId, fiscalYear, fiscalMonth } = req.query as Record<string, string>;
-
+  // GET /api/targets — list annual targets summary
+  router.get('/', requirePermission('public.targets.read'), async (req: Request, res: Response) => {
+    const { search, page, pageSize, departmentId, projectId } = req.query as Record<string, string>;
     try {
-      const targets = await getTargets({
+      const result = await getAnnualTargets({
+        search,
         departmentId,
         projectId,
-        fiscalYear: fiscalYear ? Number(fiscalYear) : undefined,
-        fiscalMonth: fiscalMonth ? Number(fiscalMonth) : undefined,
+        page: page ? parseInt(page) : 1,
+        pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 10,
       });
-      res.json(targets);
-    } catch {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
-
-  // POST /api/targets — upsert target
-  router.post('/', async (req: Request, res: Response): Promise<void> => {
-    const { departmentId, projectId, fiscalYear, fiscalMonth, notes, details } = req.body ?? {};
-
-    if (!departmentId?.trim()) {
-      res.status(400).json({ error: 'Field "departmentId" wajib diisi' });
-      return;
-    }
-    if (!fiscalYear || isNaN(Number(fiscalYear))) {
-      res.status(400).json({ error: 'Field "fiscalYear" wajib diisi dan harus berupa angka' });
-      return;
-    }
-    if (!fiscalMonth || isNaN(Number(fiscalMonth)) || Number(fiscalMonth) < 1 || Number(fiscalMonth) > 12) {
-      res.status(400).json({ error: 'Field "fiscalMonth" wajib diisi (1-12)' });
-      return;
-    }
-    if (!Array.isArray(details) || details.length === 0) {
-      res.status(400).json({ error: 'Field "details" wajib berisi array minimal 1 item' });
-      return;
-    }
-
-    const createdBy = (req as any).user?.username ?? 'system';
-
-    try {
-      const target = await upsertTarget({
-        departmentId: departmentId.trim(),
-        projectId: projectId?.trim() || undefined,
-        fiscalYear: Number(fiscalYear),
-        fiscalMonth: Number(fiscalMonth),
-        notes,
-        details: details.map((d: any) => ({
-          targetType: d.targetType,
-          costCenter: d.costCenter,
-          amount: String(d.amount),
-          notes: d.notes,
-        })),
-      }, createdBy);
-      res.status(201).json(target);
-    } catch {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
-
-  // DELETE /api/targets/:id — delete target
-  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
-    try {
-      const result = await deleteTarget(req.params.id);
       res.json(result);
-    } catch (err) {
-      if (err instanceof NotFoundError) {
-        res.status(404).json({ error: err.message });
-        return;
-      }
+    } catch (err: any) {
+      console.error('[GET /targets] Error:', err);
       res.status(500).json({ error: 'Terjadi kesalahan server' });
+    }
+  });
+
+  // GET /api/targets/details — get detailed monthly targets for an entity/year
+  router.get('/details', requirePermission('public.targets.read'), async (req: Request, res: Response) => {
+    const { departmentId, projectId, fiscalYear } = req.query as Record<string, string>;
+    if (!departmentId || !fiscalYear) {
+      return res.status(400).json({ error: 'departmentId and fiscalYear are required' });
+    }
+    try {
+      const details = await getAnnualTargetDetails(departmentId, projectId || null, Number(fiscalYear));
+      res.json(details);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/targets/batch — batch upsert annual targets (now supports Master-Detail)
+  router.post('/batch', requirePermission('public.targets.write'), async (req: Request, res: Response) => {
+    const { departmentId, projectId, fiscalYear, revenueDetails, costDetails, notes, months } = req.body;
+    
+    // Support legacy "months" format by converting it if needed, or handle new separate tables
+    let finalRevenue = revenueDetails || [];
+    let finalCost = costDetails || [];
+    
+    if (months && Array.isArray(months) && finalRevenue.length === 0 && finalCost.length === 0) {
+      finalRevenue = months.map((m: any) => ({ month: m.fiscalMonth, amount: m.revenue, notes: m.notes }));
+      finalCost = months.map((m: any) => ({ month: m.fiscalMonth, amount: m.cost, notes: m.notes }));
+    }
+
+    const userId = req.user!.userId;
+    const context = {
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    };
+
+    try {
+      const result = await saveAnnualTarget({ 
+        departmentId, 
+        projectId, 
+        fiscalYear: Number(fiscalYear), 
+        revenueDetails: finalRevenue,
+        costDetails: finalCost,
+        notes
+      }, userId, context);
+      res.json(result);
+    } catch (err: any) {
+      if (err.message === 'TARGET_DELETED') {
+        return res.json({ success: true, message: 'All targets cleared and header deleted' });
+      }
+      console.error('[POST /targets/batch] Error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // DELETE /api/targets — delete an annual target
+  router.delete('/', requirePermission('public.targets.delete'), async (req: Request, res: Response) => {
+    const { departmentId, projectId, fiscalYear } = req.query as Record<string, string>;
+    if (!departmentId || !fiscalYear) {
+      return res.status(400).json({ error: 'departmentId and fiscalYear are required' });
+    }
+
+    const userId = req.user!.userId;
+    const context = {
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    };
+
+    try {
+      await deleteAnnualTarget(departmentId, projectId || null, Number(fiscalYear), userId, context);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error('[DELETE /targets] Error:', err);
+      res.status(500).json({ error: err.message });
     }
   });
 

@@ -1,11 +1,22 @@
 // User Management Service
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, asc, or } from 'drizzle-orm';
+import { and, eq, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { users, userCorporateAccesses, roles, corporates } from '../../db/schema/index.js';
 import { FRSUser, CreateUserInput, UpdateUserInput, UserSubsidiaryAccess } from '../../types/financial/user';
 import { hashPassword, validatePasswordStrength, mapRowToUser } from './authService';
+import { invalidatePermissionCache } from './permissionService';
+
+async function getAssignedRoleId(userId: string): Promise<string | null> {
+  const [roleAccess] = await db
+    .select({ roleId: userCorporateAccesses.roleId })
+    .from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.userId, userId))
+    .limit(1);
+
+  return roleAccess?.roleId ?? null;
+}
 
 /**
  * Creates a new user with strong password validation.
@@ -38,15 +49,55 @@ export async function createUser(
 
   const passwordHash = await hashPassword(input.password);
 
-  const [inserted] = await db.insert(users).values({
-    username: input.username ?? null,
-    email: input.email,
-    passwordHash,
-    fullName: input.fullName,
-    createdBy,
-  }).returning();
+  const [selectedRole] = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(eq(roles.name, input.role))
+    .limit(1);
 
-  return { user: mapRowToUser(inserted) };
+  if (!selectedRole) {
+    return { error: 'Selected role not found' };
+  }
+
+  if (input.role !== 'owner' && (!input.subsidiaryIds || input.subsidiaryIds.length === 0)) {
+    return { error: 'At least one subsidiary must be assigned for non-owner users' };
+  }
+
+  const inserted = await db.transaction(async (tx) => {
+    const [createdUser] = await tx.insert(users).values({
+      username: input.username ?? null,
+      email: input.email,
+      passwordHash,
+      fullName: input.fullName,
+      createdBy,
+    }).returning();
+
+    if (input.role === 'owner') {
+      await tx.insert(userCorporateAccesses).values({
+        userId: createdUser.id,
+        roleId: selectedRole.id,
+        scope: 'system',
+        grantedBy: createdBy,
+      }).onConflictDoNothing();
+    } else {
+      for (const corporateId of input.subsidiaryIds ?? []) {
+        const [corp] = await tx.select({ id: corporates.id }).from(corporates).where(eq(corporates.id, corporateId)).limit(1);
+        if (!corp) throw new Error(`Corporate ${corporateId} not found`);
+
+        await tx.insert(userCorporateAccesses).values({
+          userId: createdUser.id,
+          roleId: selectedRole.id,
+          scope: 'corporate',
+          corporateId,
+          grantedBy: createdBy,
+        }).onConflictDoNothing();
+      }
+    }
+
+    return createdUser;
+  });
+
+  return { user: await mapRowToUser(inserted) };
 }
 
 /**
@@ -54,7 +105,7 @@ export async function createUser(
  */
 export async function listUsers(): Promise<FRSUser[]> {
   const rows = await db.select().from(users).orderBy(asc(users.createdAt));
-  return rows.map(mapRowToUser);
+  return Promise.all(rows.map((row) => mapRowToUser(row)));
 }
 
 /**
@@ -71,6 +122,7 @@ export async function getUserById(id: string): Promise<FRSUser | null> {
 export async function updateUser(
   id: string,
   input: UpdateUserInput,
+  updatedBy: string,
 ): Promise<FRSUser | null> {
   const [existing] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!existing) return null;
@@ -87,14 +139,72 @@ export async function updateUser(
     }
   }
 
-  const [updated] = await db.update(users).set({
-    username: input.username !== undefined ? (input.username ?? null) : existing.username,
-    email: input.email ?? existing.email,
-    fullName: input.fullName ?? existing.fullName,
-    updatedAt: new Date(),
-  }).where(eq(users.id, id)).returning();
+  const updatedUser = await db.transaction(async (tx) => {
+    if (input.role) {
+      const [selectedRole] = await tx
+        .select({ id: roles.id })
+        .from(roles)
+        .where(eq(roles.name, input.role))
+        .limit(1);
 
-  return mapRowToUser(updated);
+      if (!selectedRole) {
+        throw new Error('Selected role not found');
+      }
+
+      await tx.delete(userCorporateAccesses).where(eq(userCorporateAccesses.userId, id));
+
+      if (input.role === 'owner') {
+        await tx.insert(userCorporateAccesses).values({
+          userId: id,
+          roleId: selectedRole.id,
+          scope: 'system',
+          grantedBy: updatedBy,
+        });
+      } else {
+        const subsidiaryIds = input.subsidiaryIds ?? [];
+        if (subsidiaryIds.length === 0) {
+          throw new Error('At least one subsidiary must be assigned for non-owner users');
+        }
+
+        for (const corporateId of subsidiaryIds) {
+          const [corp] = await tx
+            .select({ id: corporates.id })
+            .from(corporates)
+            .where(eq(corporates.id, corporateId))
+            .limit(1);
+
+          if (!corp) {
+            throw new Error(`Corporate ${corporateId} not found`);
+          }
+
+          await tx.insert(userCorporateAccesses).values({
+            userId: id,
+            roleId: selectedRole.id,
+            scope: 'corporate',
+            corporateId,
+            grantedBy: updatedBy,
+          }).onConflictDoNothing();
+        }
+      }
+    }
+
+    const [updated] = await tx.update(users).set({
+      username: input.username !== undefined ? (input.username ?? null) : existing.username,
+      email: input.email ?? existing.email,
+      fullName: input.fullName ?? existing.fullName,
+      authzVersion: input.role ? sql`${users.authzVersion} + 1` : users.authzVersion,
+      updatedBy,
+      updatedAt: new Date(),
+    }).where(eq(users.id, id)).returning();
+
+    return updated;
+  });
+
+  if (input.role) {
+    invalidatePermissionCache(id);
+  }
+
+  return mapRowToUser(updatedUser);
 }
 
 /**
@@ -103,14 +213,19 @@ export async function updateUser(
 export async function setUserStatus(
   id: string,
   isActive: boolean,
+  updatedBy: string,
 ): Promise<FRSUser | null> {
   const [existing] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!existing) return null;
 
   const [updated] = await db.update(users).set({
     isActive,
+    authzVersion: sql`${users.authzVersion} + 1`,
+    updatedBy,
     updatedAt: new Date(),
   }).where(eq(users.id, id)).returning();
+
+  invalidatePermissionCache(id);
 
   return mapRowToUser(updated);
 }
@@ -123,29 +238,56 @@ export async function assignSubsidiaryAccess(
   userId: string,
   subsidiaryIds: string[],
   grantedBy: string,
+  options?: { replace?: boolean },
 ): Promise<{ success: boolean; error?: string }> {
   const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
   if (!user) return { success: false, error: 'User not found' };
 
-  // Get default role (e.g., first role or 'subsidiary_manager')
-  const [defaultRole] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, 'subsidiary_manager')).limit(1);
-  if (!defaultRole) return { success: false, error: 'Default role not found' };
+  const assignedRoleId = await getAssignedRoleId(userId);
+  if (!assignedRoleId) return { success: false, error: 'User role assignment not found' };
+
+  const [assignedRole] = await db
+    .select({ name: roles.name })
+    .from(roles)
+    .where(eq(roles.id, assignedRoleId))
+    .limit(1);
+
+  if (assignedRole?.name === 'owner') {
+    return { success: false, error: 'Owner users do not support subsidiary-scoped access assignments' };
+  }
 
   try {
     await db.transaction(async (tx) => {
+      if (options?.replace) {
+        await tx
+          .delete(userCorporateAccesses)
+          .where(and(
+            eq(userCorporateAccesses.userId, userId),
+            eq(userCorporateAccesses.scope, 'corporate'),
+          ));
+      }
+
       for (const corporateId of subsidiaryIds) {
         const [corp] = await tx.select({ id: corporates.id }).from(corporates).where(eq(corporates.id, corporateId)).limit(1);
         if (!corp) throw new Error(`Corporate ${corporateId} not found`);
 
         await tx.insert(userCorporateAccesses).values({
           userId,
-          roleId: defaultRole.id,
+          roleId: assignedRoleId,
           scope: 'corporate',
           corporateId,
           grantedBy,
         }).onConflictDoNothing();
       }
+
+      await tx.update(users).set({
+        authzVersion: sql`${users.authzVersion} + 1`,
+        updatedBy: grantedBy,
+        updatedAt: new Date(),
+      }).where(eq(users.id, userId));
     });
+
+    invalidatePermissionCache(userId);
     return { success: true };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -159,7 +301,10 @@ export async function getUserSubsidiaryAccess(userId: string): Promise<UserSubsi
   const rows = await db
     .select()
     .from(userCorporateAccesses)
-    .where(eq(userCorporateAccesses.userId, userId));
+    .where(and(
+      eq(userCorporateAccesses.userId, userId),
+      eq(userCorporateAccesses.scope, 'corporate'),
+    ));
 
   return rows.map((row) => ({
     id: row.id,

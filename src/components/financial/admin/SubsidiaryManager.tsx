@@ -2,7 +2,7 @@
 // Requirements: 1.1, 1.2, 9.1
 
 import React, { useState } from 'react';
-import { useSubsidiaries } from '../../../hooks/financial/useSubsidiaries';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { Subsidiary, CreateSubsidiaryInput } from '../../../types/financial/subsidiary';
 
 const INDUSTRY_SECTORS = [
@@ -32,7 +32,7 @@ const emptyForm: CreateSubsidiaryInput = {
 };
 
 export const SubsidiaryManager: React.FC = () => {
-  const { subsidiaries, isLoading, error, refetch } = useSubsidiaries();
+  const { corporates: subsidiaries, isLoading, error, refetch } = useCorporates();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CreateSubsidiaryInput>(emptyForm);

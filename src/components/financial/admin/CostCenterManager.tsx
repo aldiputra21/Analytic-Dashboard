@@ -1,0 +1,797 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Plus, Search, Edit2, Trash2, Eye,
+  ChevronLeft, ChevronRight, Hash, X, AlertCircle, CheckCircle2,
+  RefreshCw, Layers, Info, Tag, ChevronDown,
+  FilterX
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { apiFetch } from '../../../services/financial/apiFetch';
+import { cn } from '../../../utils/cn';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel
+} from '../../ui/alert-dialog';
+import { costCenterI18n } from '../../../i18n/cost-center';
+
+interface CostCenter {
+  id: string;
+  parentId: string | null;
+  parentName?: string;
+  code: string;
+  name: string;
+  category: string;
+  description: string | null;
+  isActive: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
+const CATEGORIES = ['General', 'Operation', 'Support', 'Sales', 'Marketing', 'Production'];
+
+// --- Shared Components ---
+
+const Modal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  size?: 'md' | 'lg' | 'xl';
+}> = ({ isOpen, onClose, title, children, size = 'lg' }) => {
+  if (!isOpen) return null;
+
+  const sizeClasses = {
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl'
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[90vh]", sizeClasses[size])}
+      >
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
+              <Layers size={18} />
+            </div>
+            {title}
+          </h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+            <X size={20} className="text-slate-500" />
+          </button>
+        </div>
+        <div className="p-1">
+          <div className="overflow-y-auto p-5 max-h-[calc(90vh-64px)]">
+            {children}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const FormField: React.FC<{
+  label: string;
+  error?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}> = ({ label, error, required, children }) => (
+  <div className="space-y-1.5">
+    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    {children}
+    {error && <p className="text-[10px] text-red-500 font-medium ml-1 flex items-center gap-1">
+      <AlertCircle size={10} /> {error}
+    </p>}
+  </div>
+);
+
+const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: string }> = ({ title, icon, color }) => (
+  <div className={cn("flex items-center gap-2 mb-4 pb-2 border-b-2", color)}>
+    <div className="p-1.5 rounded-lg bg-white shadow-sm border border-slate-100">
+      {icon}
+    </div>
+    <h4 className="font-bold text-sm text-slate-700 tracking-tight text-[10px] uppercase">{title}</h4>
+  </div>
+);
+
+// --- Main Component ---
+
+export const CostCenterManager: React.FC = () => {
+  const { hasPermission, language } = useAuth();
+  const t = costCenterI18n[language];
+
+  const canWrite = hasPermission('cfd.cost_centers.write');
+  const canDelete = hasPermission('cfd.cost_centers.delete');
+
+  // State
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [allCostCenters, setAllCostCenters] = useState<CostCenter[]>([]); // For parent selection
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({ search: '' });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isViewOnly, setIsViewOnly] = useState(false);
+  const [costCenterCategories, setCostCenterCategories] = useState<{ code: string; label: any }[]>([]);
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCC, setEditingCC] = useState<CostCenter | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Delete State
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    parentId: '',
+    category: '',
+    name: '',
+    code: '',
+    description: '',
+    isActive: true
+  });
+
+  const fetchConfigs = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/system-configs?key=cost_center_categories');
+      if (res.ok) {
+        const data = await res.json();
+        const config = data.find((c: any) => c.key === 'cost_center_categories');
+        if (config && Array.isArray(config.value)) {
+          setCostCenterCategories(config.value.map((v: any) => ({
+            code: v.code || v,
+            label: v.label || v.code || v,
+          })));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch cost center categories:', err);
+    }
+  }, []);
+
+  const fetchCostCenters = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
+    else setIsRefreshing(true);
+    setError(null);
+
+    try {
+      const query = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        search: appliedFilters.search.trim(),
+      });
+
+      const res = await apiFetch(`/api/cost-centers?${query.toString()}`);
+      if (!res.ok) throw new Error(t.alerts.errorFetch);
+
+      const data = await res.json();
+      setCostCenters(data.records);
+      setTotalCount(data.totalCount);
+
+      // Also fetch all active ones for parent selection if we haven't or if needed
+      // Fetching without pageSize to get all for dropdown
+      const allRes = await apiFetch(`/api/cost-centers?pageSize=0&activeOnly=true`);
+      if (allRes.ok) {
+        const allData = await allRes.json();
+        setAllCostCenters(allData.records);
+      }
+    } catch (err: any) {
+      setError(err.message || t.alerts.errorFetch);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [page, pageSize, appliedFilters, t.alerts.errorFetch]);
+
+  useEffect(() => {
+    fetchConfigs();
+  }, [fetchConfigs]);
+
+  useEffect(() => {
+    fetchCostCenters();
+  }, [fetchCostCenters]);
+
+  const handleApplyFilter = () => {
+    setPage(1);
+    setAppliedFilters({ search: search });
+  };
+
+  const handleClearFilter = () => {
+    setSearch('');
+    setAppliedFilters({ search: '' });
+    setPage(1);
+  };
+
+  const handleOpenModal = (cc?: CostCenter, viewOnly = false) => {
+    setIsViewOnly(viewOnly);
+    if (cc) {
+      setEditingCC(cc);
+      setFormData({
+        parentId: cc.parentId || '',
+        category: cc.category,
+        name: cc.name,
+        code: cc.code,
+        description: cc.description || '',
+        isActive: cc.isActive
+      });
+    } else {
+      setEditingCC(null);
+      setFormData({
+        parentId: '',
+        category: costCenterCategories[0]?.code || '',
+        name: '',
+        code: '',
+        description: '',
+        isActive: true
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    if (isSaving) return;
+    setIsModalOpen(false);
+    setEditingCC(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.code || !formData.category) {
+      toast.error('Name, Code, and Category are required');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const url = editingCC ? `/api/cost-centers/${editingCC.id}` : '/api/cost-centers';
+      const method = editingCC ? 'PUT' : 'POST';
+
+      // Map empty string parentId to null for API
+      const payload = {
+        ...formData,
+        parentId: formData.parentId || null
+      };
+
+      const res = await apiFetch(url, {
+        method,
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || t.alerts.errorSave);
+      }
+
+      toast.success(editingCC ? t.alerts.successUpdate : t.alerts.successSave);
+      setIsModalOpen(false);
+      fetchCostCenters(true);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setIsDeleting(true);
+
+    try {
+      const res = await apiFetch(`/api/cost-centers/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        toast.success(t.alerts.successDelete);
+        setDeleteConfirmId(null);
+        fetchCostCenters(true);
+      } else {
+        const errorData = await res.json();
+        toast.error(errorData.error || t.alerts.errorDelete);
+        setDeleteConfirmId(null);
+      }
+    } catch {
+      toast.error(t.alerts.errorNetwork);
+      setDeleteConfirmId(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Pagination Helpers
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const showingTo = Math.min(page * pageSize, totalCount);
+
+  return (
+    <div className="space-y-6">
+      {/* Header section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
+              <Layers size={24} />
+            </div>
+            {t.title}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
+            <Info size={14} className="text-indigo-400" />
+            {t.subtitle}
+          </p>
+        </div>
+
+        {canWrite && (
+          <button
+            onClick={() => handleOpenModal()}
+            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+          >
+            <Plus size={18} />
+            {t.addNew}
+          </button>
+        )}
+      </div>
+
+      {/* Filters Bar */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+        <div className="flex-1 min-w-[240px] relative group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+          <input
+            type="text"
+            placeholder={t.searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleApplyFilter}
+            className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            {t.apply}
+          </button>
+          <button
+            onClick={handleClearFilter}
+            className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
+          >
+            <FilterX size={14} />
+            {t.clear}
+          </button>
+        </div>
+      </div>
+
+      {/* Datatable section */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.code}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.name}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.parent}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.category}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              <AnimatePresence>
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <motion.tr
+                      key={`skeleton-${i}`}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="animate-pulse"
+                    >
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-lg w-16" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-32" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-28" /></td>
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-full w-20" /></td>
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-full w-20" /></td>
+                      <td className="px-6 py-4"><div className="h-8 bg-slate-100 rounded-lg w-24 ml-auto" /></td>
+                    </motion.tr>
+                  ))
+                ) : costCenters.length === 0 ? (
+                  <motion.tr
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={6}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-slate-50 rounded-full text-slate-300">
+                          <Layers size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{t.status.empty}</p>
+                          <p className="text-slate-500 text-sm mt-1">{t.status.emptyDesc}</p>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ) : (
+                  costCenters.map((cc, idx) => (
+                    <motion.tr
+                      key={cc.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: idx * 0.03 }}
+                      className="hover:bg-slate-50/50 transition-colors group font-bold"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-black inline-block border border-indigo-100/50 font-mono">
+                          {cc.code}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm tracking-tight">{cc.name}</p>
+                          {cc.description && (
+                            <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{cc.description}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {cc.parentId ? (
+                          <div className="flex items-center gap-2">
+                            <Layers size={12} className="text-slate-400" />
+                            <span className="text-xs font-semibold text-slate-500 italic">
+                              {cc.parentName || 'Parent Sub-Level'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{t.modal.none}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5">
+                          <Tag size={12} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-600 uppercase">
+                            {cc.category}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase border",
+                          cc.isActive
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            : "bg-slate-50 text-slate-500 border-slate-100"
+                        )}>
+                          <div className={cn("w-1.5 h-1.5 rounded-full", cc.isActive ? "bg-emerald-500" : "bg-slate-400")} />
+                          {cc.isActive ? t.status.active : t.status.inactive}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleOpenModal(cc, true)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          {canWrite && (
+                            <button
+                              onClick={() => handleOpenModal(cc)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                              title="Edit Cost Center"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => setDeleteConfirmId(cc.id)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                              title="Delete Cost Center"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
+              </AnimatePresence>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Info */}
+        {!loading && totalCount > 0 && (
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-bold text-slate-500">
+                {t.pagination.showing} <span className="text-slate-800 mx-0.5">{showingFrom}</span> - <span className="text-slate-800 mx-0.5">{showingTo}</span> {t.pagination.of} <span className="text-slate-800 mx-0.5">{totalCount}</span> {t.pagination.entries}
+              </span>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  {t.pagination.rowsPerPage}
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all cursor-pointer shadow-sm hover:border-slate-300"
+                >
+                  {[10, 25, 50, 100].map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className={cn(
+                  "p-2 rounded-lg transition-all",
+                  page === 1 ? "text-slate-300 cursor-not-allowed" : "text-slate-600 hover:bg-white hover:shadow-sm active:scale-90 cursor-pointer"
+                )}
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum = i + 1;
+                  if (totalPages > 5 && page > 3) {
+                    pageNum = page - 2 + i;
+                    if (pageNum + (4 - i) > totalPages) pageNum = totalPages - 4 + i;
+                  }
+
+                  if (pageNum > 0 && pageNum <= totalPages) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={cn(
+                          "w-8 h-8 flex items-center justify-center rounded-lg text-xs font-black transition-all cursor-pointer",
+                          page === pageNum
+                            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110"
+                            : "bg-white text-slate-600 border border-slate-200 hover:border-indigo-300"
+                        )}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className={cn(
+                  "p-2 rounded-lg transition-all",
+                  page === totalPages ? "text-slate-300 cursor-not-allowed" : "text-slate-600 hover:bg-white hover:shadow-sm active:scale-90 cursor-pointer"
+                )}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* CRUD Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <Modal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            title={isViewOnly ? t.modal.viewTitle : (editingCC ? t.modal.editTitle : t.modal.createTitle)}
+            size="lg"
+          >
+            <form onSubmit={handleSubmit} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-6">
+
+              <div className="space-y-6">
+                <SectionHeader
+                  title="Identitas & Detail Cost Center"
+                  icon={<Hash size={14} className="text-indigo-600" />}
+                  color="border-indigo-200"
+                />
+
+                {/* Row 1: Induk + Kategori */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField label={t.modal.parent}>
+                    <div className="relative">
+                      <select
+                        value={formData.parentId}
+                        onChange={(e) => setFormData({ ...formData, parentId: e.target.value })}
+                        disabled={isViewOnly}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
+                      >
+                        <option value="">{t.modal.none}</option>
+                        {allCostCenters.filter(cc => cc.id !== editingCC?.id).map(cc => (
+                          <option key={cc.id} value={cc.id}>{cc.code} - {cc.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                    </div>
+                    {!formData.parentId && !isViewOnly && (
+                      <p className="text-[10px] text-slate-400 mt-1 pl-1 italic">{t.modal.parentNote}</p>
+                    )}
+                  </FormField>
+
+                  <FormField label={t.modal.category} required>
+                    <div className="relative">
+                      <select
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        disabled={!!formData.parentId || isViewOnly}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
+                      >
+                        {costCenterCategories.map(c => (
+                          <option key={c.code} value={c.code}>
+                            {typeof c.label === 'object' ? (c.label[language] ?? c.code) : (c.label || c.code)}
+                          </option>
+                        ))}
+                        {costCenterCategories.length === 0 && (
+                          <>
+                            <option value="General">General</option>
+                            <option value="Operation">Operation</option>
+                            <option value="Support">Support</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Production">Production</option>
+                          </>
+                        )}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                    </div>
+                  </FormField>
+                </div>
+
+                {/* Row 2: Kode + Nama */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField label={t.modal.code} required>
+                    <input
+                      type="text"
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                      placeholder="CC-001"
+                      disabled={isViewOnly}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                    />
+                  </FormField>
+
+                  <FormField label={t.modal.name} required>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Nama Cost Center"
+                      disabled={isViewOnly}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                    />
+                  </FormField>
+                </div>
+
+                {/* Row 3: Deskripsi + Status */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <FormField label={t.modal.description}>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      rows={3}
+                      placeholder="Gunakan field ini untuk catatan tambahan..."
+                      disabled={isViewOnly}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 resize-none"
+                    />
+                  </FormField>
+
+                  <div className="space-y-1.5 pt-6">
+                    <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</span>
+                      <button
+                        type="button"
+                        disabled={isViewOnly}
+                        onClick={() => setFormData(p => ({ ...p, isActive: !p.isActive }))}
+                        className={cn(
+                          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+                          formData.isActive ? "bg-indigo-600" : "bg-slate-200"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                            formData.isActive ? "translate-x-5" : "translate-x-0"
+                          )}
+                        />
+                      </button>
+                      <span className={cn("text-[10px] font-black uppercase tracking-widest", formData.isActive ? "text-indigo-600" : "text-slate-400")}>
+                        {formData.isActive ? t.status.active : t.status.inactive}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-8 py-3 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                >
+                  {isViewOnly ? 'Tutup' : t.modal.cancel}
+                </button>
+                {!isViewOnly && (
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
+                  >
+                    {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                    {isSaving ? t.status.submitting : t.modal.submit}
+                  </button>
+                )}
+              </div>
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation */}
+      <AlertDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-black text-slate-800">{t.alerts.deleteTitle}</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500 font-medium pt-2">
+              {t.alerts.deleteDesc}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-6 gap-3">
+            <AlertDialogCancel
+              onClick={() => setDeleteConfirmId(null)}
+              className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
+              {t.alerts.deleteCancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
+            >
+              {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};

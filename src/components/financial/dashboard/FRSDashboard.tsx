@@ -1,7 +1,7 @@
 // FRSDashboard.tsx - Main dashboard page wiring all components together
 // Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 13.1, 13.2, 13.4, 13.6
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { format, subYears } from 'date-fns';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { CompanySelector, getSubsidiaryColor } from './CompanySelector';
@@ -11,7 +11,7 @@ import { RatioCard } from './RatioCard';
 import { TrendChart, calculateYoY, TrendDataPoint, TrendSeries } from './TrendChart';
 import { ComparisonChart, ComparisonDataPoint } from './ComparisonChart';
 import { AlertPanel } from './AlertPanel';
-import { useSubsidiaries } from '../../../hooks/financial/useSubsidiaries';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { useLatestRatios, useRatios } from '../../../hooks/financial/useRatios';
 import { useAlerts } from '../../../hooks/financial/useAlerts';
 import { RatioName } from '../../../types/financial/ratio';
@@ -40,12 +40,13 @@ export const FRSDashboard: React.FC = () => {
   const [period, setPeriod] = useState<PeriodRange>('1y');
   const [comparisonRatio, setComparisonRatio] = useState<RatioName>('roa');
 
-  const { subsidiaries, isLoading: subsLoading, refetch: refetchSubs } = useSubsidiaries(true);
+  const { corporates: subsidiariesData, isLoading: subsLoading, refetch: refetchSubs } = useCorporates();
+  const subsidiaries = Array.isArray(subsidiariesData) ? subsidiariesData : [];
   const { ratios: latestRatios, isLoading: ratiosLoading, refetch: refetchRatios } = useLatestRatios();
-  const { alerts, isLoading: alertsLoading, refetch: refetchAlerts, acknowledge } = useAlerts({ status: 'active' });
+  const { alerts, acknowledge: acknowledgeAlert } = useAlerts();
 
-  // Period-filtered ratios for trend chart
-  const startDate = format(getPeriodStartDate(period), 'yyyy-MM-dd');
+  // Period-filtered ratios for trend chart — memoize startDate to prevent infinite re-renders
+  const startDate = useMemo(() => format(getPeriodStartDate(period), 'yyyy-MM-dd'), [period]);
   const { ratios: trendRatios } = useRatios({
     subsidiaryId: selectedCompany !== 'all' ? selectedCompany : undefined,
     startDate,
@@ -66,17 +67,30 @@ export const FRSDashboard: React.FC = () => {
   const [cashFlowDeptId, setCashFlowDeptId] = useState('');
   const [cashFlowProjectId, setCashFlowProjectId] = useState('');
 
-  const mainFilters: DashboardFilters = { period: mafindaPeriod, periodType: mafindaPeriodType, historicalMonths: mafindaHistoricalMonths };
-  const mafindaMain = useDashboard(mainFilters);
-  const mafindaRevCost = useDashboard({ ...mainFilters, departmentId: revenueDeptId || undefined });
-  const mafindaCashFlow = useDashboard({ ...mainFilters, departmentId: cashFlowDeptId || undefined, projectId: cashFlowProjectId || undefined });
-  const { departments, projects } = useManagement();
-
-  // Build subsidiary map for alerts
-  const subsidiaryMap = useMemo(
-    () => Object.fromEntries(subsidiaries.map((s) => [s.id, s.name])),
-    [subsidiaries]
+  const mainFilters: DashboardFilters = useMemo(
+    () => ({
+      period: mafindaPeriod,
+      periodType: mafindaPeriodType,
+      historicalMonths: mafindaHistoricalMonths,
+      corporateId: selectedCompany !== 'all' ? selectedCompany : undefined,
+    }),
+    [mafindaPeriod, mafindaPeriodType, mafindaHistoricalMonths, selectedCompany]
   );
+  const mafindaRevCostFilters = useMemo(
+    () => ({ ...mainFilters, departmentId: revenueDeptId || undefined }),
+    [mainFilters, revenueDeptId]
+  );
+  const mafindaCashFlowFilters = useMemo(
+    () => ({ ...mainFilters, departmentId: cashFlowDeptId || undefined, projectId: cashFlowProjectId || undefined }),
+    [mainFilters, cashFlowDeptId, cashFlowProjectId]
+  );
+
+  const mafindaMain = useDashboard(mainFilters);
+  const mafindaRevCost = useDashboard(mafindaRevCostFilters);
+  const mafindaCashFlow = useDashboard(mafindaCashFlowFilters);
+  const { departments: deptsData, projects: projsData } = useManagement();
+  const departments = Array.isArray(deptsData) ? deptsData : [];
+  const projects = Array.isArray(projsData) ? projsData : [];
 
   // Filter latest ratios by selected company
   const displayedRatios = useMemo(() => {
@@ -106,6 +120,12 @@ export const FRSDashboard: React.FC = () => {
     }),
     [latestRatios, subsidiaries]
   );
+
+  const subsidiaryNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    subsidiaries.forEach((s) => { map[s.id] = s.name; });
+    return map;
+  }, [subsidiaries]);
 
   // Build trend chart data from trendRatios
   const trendChartData: TrendDataPoint[] = useMemo(() => {
@@ -163,11 +183,10 @@ export const FRSDashboard: React.FC = () => {
     ];
   }, [displayedRatios, trendRatios]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     refetchSubs();
     refetchRatios();
-    refetchAlerts();
-  };
+  }, [refetchSubs, refetchRatios]);
 
   if (isLoading && subsidiaries.length === 0) {
     return (
@@ -182,6 +201,13 @@ export const FRSDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {/* Alerts */}
+      <AlertPanel
+        alerts={alerts}
+        subsidiaryMap={subsidiaryNames}
+        onAcknowledge={acknowledgeAlert}
+      />
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <CompanySelector
@@ -198,15 +224,6 @@ export const FRSDashboard: React.FC = () => {
           Refresh
         </button>
       </div>
-
-      {/* Alert Panel */}
-      {alerts.length > 0 && (
-        <AlertPanel
-          alerts={alerts}
-          subsidiaryMap={subsidiaryMap}
-          onAcknowledge={acknowledge}
-        />
-      )}
 
       {/* Health Score Gauges - responsive grid */}
       {displayedRatios.length > 0 && (

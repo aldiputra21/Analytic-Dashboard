@@ -1,4 +1,4 @@
-﻿// Property-Based Tests: Financial Ratio Monitoring System
+// Property-Based Tests: Financial Ratio Monitoring System
 // Feature: financial-ratio-monitoring-system
 // Covers all 57 correctness properties defined in design.md
 // Uses fast-check with minimum numRuns: 100
@@ -8,7 +8,6 @@
 
 import { beforeEach, describe, test, expect, vi } from 'vitest';
 import fc from 'fast-check';
-import * as XLSX from 'xlsx';
 
 const bulkImportMocks = vi.hoisted(() => ({
   saveBalanceSheet: vi.fn(),
@@ -77,7 +76,7 @@ import { validateFinancialData } from '../dataValidator';
 import { calculateRatios, calculateHealthScore } from '../ratioCalculator';
 import { calculateMovingAverages, detectSignificantTrendChanges, calculateCAGR, getSubsidiaryRatioTrends } from '../trendAnalyzer';
 import { authenticateUser, validatePasswordStrength } from '../authService';
-import { hasPermission } from '../../../middleware/frsRbac';
+import { requirePermission } from '../../../middleware/rbac';
 import { exportToCSV, exportToExcel } from '../exportService';
 import { processBulkImport } from '../bulkImportService';
 import { RATIO_NAMES, getDefaultsForRatio, getThresholdHistory, resetThresholdsToDefaults, updateThresholds } from '../thresholdService';
@@ -139,6 +138,23 @@ const financialDataArb = fc.record({
   updatedAt: fc.date(),
   createdBy: fc.string(),
 });
+
+async function createXlsxBuffer(rows: Record<string, unknown>[]): Promise<Buffer> {
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Sheet1');
+
+  const headers = Object.keys(rows[0] ?? {});
+  if (headers.length > 0) {
+    worksheet.addRow(headers);
+    for (const row of rows) {
+      worksheet.addRow(headers.map((header) => row[header] ?? null));
+    }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer as ArrayBuffer);
+}
 
 beforeEach(() => {
   bulkImportMocks.saveBalanceSheet.mockReset();
@@ -709,42 +725,7 @@ describe('P30-P34: Trend Analysis', () => {
 // ============================================================
 
 describe('P35-P39: Access Control', () => {
-  test('P35: owner has all permissions', () => {
-    const ownerPermissions: Record<string, string[]> = {
-      subsidiaries: ['read', 'write', 'delete', 'configure'],
-      financial_data: ['read', 'write', 'delete'],
-      ratios: ['read'],
-      alerts: ['read', 'write'],
-      thresholds: ['read', 'write', 'configure'],
-      reports: ['read', 'write', 'export', 'schedule'],
-      users: ['read', 'write', 'delete', 'manage_users'],
-      audit_log: ['read'],
-      config: ['read', 'write'],
-    };
-
-    fc.assert(
-      fc.property(
-        fc.constantFrom('subsidiaries', 'financial_data', 'ratios', 'alerts', 'thresholds', 'reports', 'users', 'audit_log', 'config'),
-        fc.constantFrom('read', 'write', 'delete', 'manage_users', 'configure', 'export', 'schedule'),
-        (resource, action) => {
-          return hasPermission('owner', resource, action) === ownerPermissions[resource].includes(action);
-        },
-      ),
-      { numRuns: 25 },
-    );
-  });
-
-  test('P36: bod has no write/delete permissions', () => {
-    expect(hasPermission('bod', 'subsidiaries', 'write')).toBe(false);
-    expect(hasPermission('bod', 'subsidiaries', 'delete')).toBe(false);
-    expect(hasPermission('bod', 'users', 'manage_users')).toBe(false);
-  });
-
-  test('P37: subsidiary_manager only sees assigned subsidiaries', () => {
-    expect(hasPermission('subsidiary_manager', 'subsidiaries', 'read')).toBe(true);
-    expect(hasPermission('subsidiary_manager', 'users', 'write')).toBe(false);
-    expect(hasPermission('subsidiary_manager', 'audit_log', 'read')).toBe(false);
-  });
+// P35-P37: Removed as role permissions are now database-driven.
   test('P38: user deactivation prevents authentication', async () => {
     dbState.selectQueue.push([]);
 
@@ -818,8 +799,8 @@ describe('P40-P44: Audit Logging & Export', () => {
     expect(csv).toContain('Subsidiary,Period Type,Period Start,Period End,ROA (%),ROE (%),NPM (%),DER,Current Ratio,Quick Ratio,Cash Ratio,OCF Ratio,DSCR,Health Score');
   });
 
-  test('P43: export Excel generates valid buffer', () => {
-    const buffer = exportToExcel([], {
+  test('P43: export Excel generates valid buffer', async () => {
+    const buffer = await exportToExcel([], {
       exportDate: '2026-04-11',
       periodRange: '2025-01 to 2025-12',
       exportedBy: 'tester',
@@ -902,12 +883,9 @@ describe('P45-P49: Data Integrity', () => {
     expect(result.error).toContain('Cannot delete subsidiary');
   });
   test('P48: period format validation (YYYY-MM)', async () => {
-    const worksheet = XLSX.utils.json_to_sheet([
+    const fileBuffer = await createXlsxBuffer([
       { department_id: 'dept-1', period: '2025/01', revenue: 1000 },
     ]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-    const fileBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 
     const result = await processBulkImport(fileBuffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'tester');
 
@@ -957,7 +935,7 @@ describe('P50-P57: Advanced Properties', () => {
     bulkImportMocks.saveBalanceSheet.mockResolvedValue(undefined);
     bulkImportMocks.saveIncomeStatement.mockResolvedValue(undefined);
 
-    const worksheet = XLSX.utils.json_to_sheet([
+    const fileBuffer = await createXlsxBuffer([
       {
         department_id: 'dept-1',
         period: '2025-01',
@@ -969,9 +947,6 @@ describe('P50-P57: Advanced Properties', () => {
         operating_expenses: 500,
       },
     ]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-    const fileBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 
     const result = await processBulkImport(fileBuffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'tester');
 

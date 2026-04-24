@@ -35,6 +35,8 @@ const configSchema = z.object({
   CACHE_TTL: z.coerce.number().int().min(0).default(300000),
 
   // Rate limiting
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(900000), // 15 minutes default
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(20),
 });
 

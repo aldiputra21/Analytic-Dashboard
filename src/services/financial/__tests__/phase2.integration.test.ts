@@ -1,4 +1,4 @@
-﻿// Phase 2 Integration Tests
+// Phase 2 Integration Tests
 // Validates subsidiary, financial data, and user management end-to-end
 //
 // NOTE: All tests require PostgreSQL test database infrastructure.
@@ -400,7 +400,7 @@ describe('User Management', () => {
       createdBy: 'tester',
     }]);
 
-    const result = await setUserStatus('user-1', false);
+    const result = await setUserStatus('user-1', false, 'actor-1');
 
     expect(result?.isActive).toBe(false);
   });
@@ -439,7 +439,7 @@ describe('Financial Data CRUD', () => {
       updatedAt: null,
     }]);
 
-    const result = await saveBalanceSheet({ departmentId: 'dept-1', period: '2025-01', cashAndBank: '1000' }, 'tester');
+    const result = await saveBalanceSheet({ corporateId: 'corp-1', period: '2025-01', cashAndBank: '1000' }, 'tester');
 
     expect(result.id).toBe('bs-1');
     expect(result.cashAndBank).toBe('1000');

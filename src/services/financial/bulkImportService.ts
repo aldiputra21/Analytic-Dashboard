@@ -1,7 +1,6 @@
 // Bulk Import Service (CSV/Excel)
 // Drizzle ORM PostgreSQL implementation — imports balance sheets & income statements
 
-import * as XLSX from 'xlsx';
 import {
   saveBalanceSheet,
   saveIncomeStatement,
@@ -23,8 +22,8 @@ export interface BulkImportResult {
 
 // Column mapping: CSV/Excel header → { target: 'bs' | 'is', field }
 const COLUMN_MAP: Record<string, { target: 'bs' | 'is' | 'meta'; field: string }> = {
-  department_id:            { target: 'meta', field: 'departmentId' },
-  departmentid:             { target: 'meta', field: 'departmentId' },
+  corporate_id:             { target: 'meta', field: 'corporateId' },
+  corporateid:              { target: 'meta', field: 'corporateId' },
   period:                   { target: 'meta', field: 'period' },
   // Balance sheet fields
   cash_and_bank:            { target: 'bs', field: 'cashAndBank' },
@@ -76,19 +75,120 @@ function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]/g, '');
 }
 
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  cells.push(current);
+  return cells;
+}
+
+function parseCsvRows(fileBuffer: Buffer): Record<string, unknown>[] {
+  const text = fileBuffer.toString('utf8').replace(/^\uFEFF/, '');
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return [];
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+  const rows: Record<string, unknown>[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCsvLine(lines[i]);
+    const row: Record<string, unknown> = {};
+
+    headers.forEach((header, index) => {
+      const rawValue = values[index] ?? null;
+      row[header] = rawValue === '' ? null : rawValue;
+    });
+
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+async function parseExcelRows(fileBuffer: Buffer): Promise<Record<string, unknown>[]> {
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(fileBuffer);
+
+  const sheet = workbook.worksheets[0];
+  if (!sheet) return [];
+
+  const headerRow = sheet.getRow(1);
+  const headers = Array.from({ length: headerRow.cellCount }, (_, index) => {
+    const value = headerRow.getCell(index + 1).value;
+    return String(value ?? '').trim();
+  });
+
+  const rows: Record<string, unknown>[] = [];
+  for (let rowIndex = 2; rowIndex <= sheet.rowCount; rowIndex++) {
+    const row = sheet.getRow(rowIndex);
+    const parsed: Record<string, unknown> = {};
+    let hasValue = false;
+
+    headers.forEach((header, headerIndex) => {
+      if (!header) return;
+      const cellValue = row.getCell(headerIndex + 1).value;
+      let value: unknown = cellValue;
+
+      if (cellValue && typeof cellValue === 'object') {
+        if ('result' in cellValue) {
+          value = cellValue.result;
+        } else if ('text' in cellValue) {
+          value = cellValue.text;
+        }
+      }
+
+      if (value !== null && value !== undefined && String(value).trim() !== '') {
+        hasValue = true;
+      }
+
+      parsed[header] = value ?? null;
+    });
+
+    if (hasValue) {
+      rows.push(parsed);
+    }
+  }
+
+  return rows;
+}
+
 /**
  * Processes a bulk import file (CSV or Excel buffer).
  * Each row is split into a balance sheet record and an income statement record.
  */
 export async function processBulkImport(
   fileBuffer: Buffer,
-  _mimeType: string,
+  mimeType: string,
   createdBy: string,
 ): Promise<BulkImportResult> {
-  const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+  const isCsv = /csv|text\/plain|application\/vnd\.ms-excel/i.test(mimeType);
+  const rawRows = isCsv
+    ? parseCsvRows(fileBuffer)
+    : await parseExcelRows(fileBuffer);
 
   const allErrors: BulkImportError[] = [];
   let successCount = 0;
@@ -121,8 +221,8 @@ export async function processBulkImport(
       }
     }
 
-    if (!meta.departmentId) {
-      rowErrors.push({ rowNumber, field: 'departmentId', message: 'departmentId is required' });
+    if (!meta.corporateId) {
+      rowErrors.push({ rowNumber, field: 'corporateId', message: 'corporateId is required' });
     }
     if (!meta.period || !/^\d{4}-\d{2}$/.test(meta.period)) {
       rowErrors.push({ rowNumber, field: 'period', message: 'period must be in YYYY-MM format' });
@@ -137,7 +237,7 @@ export async function processBulkImport(
       // Save balance sheet if any BS fields are present
       if (Object.keys(bsFields).length > 0) {
         const bsInput: BalanceSheetInput = {
-          departmentId: meta.departmentId,
+          corporateId: meta.corporateId,
           period: meta.period,
           ...bsFields,
         };
@@ -147,7 +247,7 @@ export async function processBulkImport(
       // Save income statement if any IS fields are present
       if (Object.keys(isFields).length > 0) {
         const isInput: IncomeStatementInput = {
-          departmentId: meta.departmentId,
+          corporateId: meta.corporateId,
           period: meta.period,
           ...isFields,
         };

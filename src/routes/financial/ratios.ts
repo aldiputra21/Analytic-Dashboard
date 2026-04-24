@@ -2,8 +2,7 @@
 // Requirements: 12.2, 12.4, 8.1, 8.2, 6.1, 6.4, 6.5, 6.6, 6.7
 
 import { Router, Request, Response } from 'express';
-import { requireFRSAuth } from '../../middleware/frsAuth';
-import { authorize } from '../../middleware/frsRbac';
+import { requirePermission } from '../../middleware/rbac';
 import { mapRowToRatios } from '../../services/financial/ratioCalculator';
 import {
   getSubsidiaryRatioTrends,
@@ -54,7 +53,6 @@ export function invalidateRatiosCache(corporateId?: string): void {
 
 export function createRatiosRouter(): Router {
   const router = Router();
-  router.use(requireFRSAuth);
 
   /**
    * GET /api/frs/ratios
@@ -62,7 +60,7 @@ export function createRatiosRouter(): Router {
    * Implements 5-minute in-memory cache.
    * Requirements: 12.2, 12.4
    */
-  router.get('/', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
     const { corporateId, departmentId, startDate, endDate, limit } = req.query as Record<string, string>;
 
     const cacheKey = `ratios:${corporateId ?? 'all'}:${departmentId ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}:${limit ?? ''}`;
@@ -83,11 +81,11 @@ export function createRatiosRouter(): Router {
     }
 
     // subsidiary_manager: restrict to their corporates
-    if (req.frsUser!.role === 'subsidiary_manager') {
+    if (req.user!.role === 'subsidiary_manager') {
       const accessRows = await db
         .select({ corporateId: userCorporateAccesses.corporateId })
         .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
+        .where(eq(userCorporateAccesses.userId, req.user!.userId));
       if (accessRows.length === 0) {
         res.json([]);
         return;
@@ -115,7 +113,6 @@ export function createRatiosRouter(): Router {
 
     const result = rows.map((row: any) => ({
       ...mapRowToRatios(row),
-      departmentId: row.department_id,
       corporateId: row.corporate_id,
       period: row.period,
     }));
@@ -129,8 +126,8 @@ export function createRatiosRouter(): Router {
    * GET /api/frs/ratios/latest
    * Get the most recent ratio for each active corporate.
    */
-  router.get('/latest', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
-    const cacheKey = `ratios:latest:${req.frsUser!.userId}`;
+  router.get('/latest', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+    const cacheKey = `ratios:latest:${req.user!.userId}`;
     const cached = getCached<any[]>(cacheKey);
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -153,7 +150,6 @@ export function createRatiosRouter(): Router {
 
     const result = rows.map((row: any) => ({
       ...mapRowToRatios(row),
-      departmentId: row.department_id,
       corporateId: row.corporate_id,
       period: row.period,
     }));
@@ -169,7 +165,7 @@ export function createRatiosRouter(): Router {
    * Supports time period filtering: 3m, 6m, 1y, 3y, 5y
    * Requirements: 8.1, 8.2
    */
-  router.get('/trends', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+  router.get('/trends', requirePermission('cfd.trends.read'), async (req: Request, res: Response) => {
     const { corporateId, ratioName, period } = req.query as Record<string, string>;
 
     // Resolve date range from period shorthand
@@ -188,7 +184,7 @@ export function createRatiosRouter(): Router {
     }
 
     // Determine which corporates to query
-    let corporateIds: string[] = [];
+    let corporateIds: string[];
     if (corporateId) {
       corporateIds = [corporateId];
     } else {
@@ -200,11 +196,11 @@ export function createRatiosRouter(): Router {
     }
 
     // Restrict subsidiary_manager to their assigned corporates
-    if (req.frsUser!.role === 'subsidiary_manager') {
+    if (req.user!.role === 'subsidiary_manager') {
       const accessRows = await db
         .select({ corporateId: userCorporateAccesses.corporateId })
         .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.frsUser!.userId));
+        .where(eq(userCorporateAccesses.userId, req.user!.userId));
       const allowed = new Set(accessRows.map((r) => r.corporateId));
       corporateIds = corporateIds.filter((id) => allowed.has(id));
     }
@@ -240,7 +236,7 @@ export function createRatiosRouter(): Router {
    * Returns benchmarking data: rankings, portfolio averages, gaps.
    * Requirements: 6.1, 6.4, 6.5, 6.6, 6.7
    */
-  router.get('/benchmark', authorize('financial_data', 'read'), async (req: Request, res: Response) => {
+  router.get('/benchmark', requirePermission('cfd.benchmarking.read'), async (req: Request, res: Response) => {
     const cacheKey = `benchmark:all`;
     const cached = getCached<any>(cacheKey);
     if (cached) {

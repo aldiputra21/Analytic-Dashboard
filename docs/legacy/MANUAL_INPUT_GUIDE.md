@@ -124,7 +124,7 @@ Form input dengan grouping detail:
 - Color-coded borders (blue untuk operasi, purple untuk investasi, emerald untuk pendanaan, slate untuk ringkasan)
 
 ### 5. Upload File Option
-- Support untuk Excel (.xlsx, .xls) dan CSV
+- Support untuk Excel (.xlsx) dan CSV
 - Fitur ini akan segera tersedia untuk parsing otomatis
 
 ## Cara Penggunaan

@@ -70,7 +70,7 @@ export const RevenueCostCards: React.FC<RevenueCostCardsProps> = ({
           className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         >
           <option value="">Semua Departemen</option>
-          {departments.map((d) => (
+          {(Array.isArray(departments) ? departments : []).map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
         </select>

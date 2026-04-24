@@ -1,22 +1,25 @@
 // DashboardLayout.tsx - Main layout with sidebar navigation and header
 // Requirements: 4.2, 9.1
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   LayoutDashboard, BarChart3, TrendingUp, FileText, Settings,
   Users, Upload, Bell, LogOut, Building2, ChevronLeft, ChevronRight,
   Shield, Menu, Target, Database, UserSquare2, FolderKanban,
-  CheckCircle, Receipt, ChevronDown,
+  CheckCircle, Receipt, ChevronDown, Scale, FileBarChart, ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { UserRole } from '../../../types/financial/user';
+import { balanceSheetI18n } from '../../../i18n/balance-sheet';
+import { incomeStatementI18n } from '../../../i18n/income-statement';
+import { weeklyCashFlowI18n } from '../../../i18n/weekly-cash-flow';
 
 export type FRSPage =
   | 'dashboard' | 'benchmarking' | 'trends' | 'reports' | 'alerts'
-  | 'data-entry' | 'bulk-import'
-  | 'subsidiaries' | 'users' | 'thresholds' | 'audit-log'
-  | 'mafinda-management' | 'mafinda-data-entry'
+  | 'corporates' | 'cost-centers' | 'departments' | 'projects' | 'targets'
+  | 'users' | 'thresholds' | 'audit-log'
+  | 'cfd-balance-sheets' | 'cfd-income-statements' | 'cfd-weekly-cash-flows'
   // CRM sub-pages
   | 'crm-dashboard' | 'crm-opportunities' | 'crm-customers'
   | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse';
@@ -25,54 +28,18 @@ interface NavChild {
   id: FRSPage;
   label: string;
   icon: React.ElementType;
-  allowedRoles?: UserRole[];
+  requiredPermissions: string[];
 }
 
 interface NavItem {
   id: FRSPage;
   label: string;
   icon: React.ElementType;
-  allowedRoles?: UserRole[];
+  requiredPermissions: string[];
   badge?: number;
-  group: 'main' | 'data' | 'mafinda' | 'crm' | 'admin';
+  group: 'main' | 'data' | 'corporate-management' | 'crm' | 'admin';
   children?: NavChild[];
 }
-
-const NAV_ITEMS: NavItem[] = [
-  // Main
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'main' },
-  { id: 'benchmarking', label: 'Benchmarking', icon: BarChart3, group: 'main' },
-  { id: 'trends', label: 'Trend Analysis', icon: TrendingUp, group: 'main' },
-  { id: 'reports', label: 'Reports', icon: FileText, group: 'main' },
-  { id: 'alerts', label: 'Alerts', icon: Bell, group: 'main' },
-  // Data
-  { id: 'data-entry', label: 'Data Entry', icon: Upload, allowedRoles: ['owner', 'bod'], group: 'data' },
-  { id: 'mafinda-data-entry', label: 'Input Keuangan', icon: Database, allowedRoles: ['owner', 'bod'], group: 'data' },
-  // MAFINDA
-  { id: 'mafinda-management', label: 'Manajemen', icon: Target, allowedRoles: ['owner', 'bod'], group: 'mafinda' },
-  // CRM — tree with children
-  {
-    id: 'crm-dashboard',
-    label: 'CRM',
-    icon: UserSquare2,
-    allowedRoles: ['owner', 'bod', 'subsidiary_manager'],
-    group: 'crm',
-    children: [
-      { id: 'crm-dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { id: 'crm-opportunities', label: 'Opportunities', icon: FolderKanban },
-      { id: 'crm-customers', label: 'Customers', icon: Users },
-      { id: 'crm-proposals', label: 'Proposals', icon: FileText },
-      { id: 'crm-contracts', label: 'Contracts', icon: TrendingUp },
-      { id: 'crm-approvals', label: 'Approvals', icon: CheckCircle },
-      { id: 'crm-reimburse', label: 'Reimburse', icon: Receipt },
-    ],
-  },
-  // Admin
-  { id: 'subsidiaries', label: 'Subsidiaries', icon: Building2, allowedRoles: ['owner'], group: 'admin' },
-  { id: 'users', label: 'Users', icon: Users, allowedRoles: ['owner'], group: 'admin' },
-  { id: 'thresholds', label: 'Thresholds', icon: Settings, allowedRoles: ['owner'], group: 'admin' },
-  { id: 'audit-log', label: 'Audit Log', icon: Shield, allowedRoles: ['owner'], group: 'admin' },
-];
 
 const CRM_PAGES: FRSPage[] = ['crm-dashboard', 'crm-opportunities', 'crm-customers', 'crm-proposals', 'crm-contracts', 'crm-approvals', 'crm-reimburse'];
 
@@ -86,38 +53,95 @@ interface DashboardLayoutProps {
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children, currentPage, onNavigate, alertCount = 0,
 }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission, language, setLanguage } = useAuth();
+  
+  const navItems = useMemo(() => {
+    const items: NavItem[] = [
+      // Main
+      { id: 'dashboard', label: language === 'id' ? 'Dashboard' : 'Dashboard', icon: LayoutDashboard, group: 'main', requiredPermissions: ['cfd.dashboard.read'] },
+      { id: 'benchmarking', label: language === 'id' ? 'Benchmarking' : 'Benchmarking', icon: BarChart3, group: 'main', requiredPermissions: ['cfd.benchmarking.read'] },
+      { id: 'trends', label: language === 'id' ? 'Analisis Tren' : 'Trend Analysis', icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
+      { id: 'reports', label: language === 'id' ? 'Laporan' : 'Reports', icon: FileText, group: 'main', requiredPermissions: ['cfd.reports.read'] },
+      { id: 'alerts', label: language === 'id' ? 'Pemberitahuan' : 'Alerts', icon: Bell, group: 'main', requiredPermissions: ['cfd.alerts.read'] },
+      // Data
+      { id: 'cfd-balance-sheets', label: balanceSheetI18n[language].title, icon: Scale, requiredPermissions: ['cfd.balance_sheets.read'], group: 'data' },
+      { id: 'cfd-income-statements', label: incomeStatementI18n[language].title, icon: FileBarChart, requiredPermissions: ['cfd.income_statements.read'], group: 'data' },
+      { id: 'cfd-weekly-cash-flows', label: weeklyCashFlowI18n[language].title, icon: ArrowLeftRight, requiredPermissions: ['cfd.weekly_cash_flows.read'], group: 'data' },
+      // Corporate Management
+      { id: 'corporates', label: language === 'id' ? 'Perusahaan' : 'Corporates', icon: Building2, requiredPermissions: ['cfd.corporates.read'], group: 'corporate-management' },
+      { id: 'cost-centers', label: language === 'id' ? 'Cost Center' : 'Cost Center', icon: Target, requiredPermissions: ['cfd.cost_centers.read'], group: 'corporate-management' },
+      { id: 'departments', label: language === 'id' ? 'Departemen' : 'Departments', icon: Building2, requiredPermissions: ['public.departments.read'], group: 'corporate-management' },
+      { id: 'projects', label: language === 'id' ? 'Proyek' : 'Projects', icon: FolderKanban, requiredPermissions: ['public.projects.read'], group: 'corporate-management' },
+      { id: 'targets', label: language === 'id' ? 'Target' : 'Targets', icon: Target, requiredPermissions: ['public.targets.read'], group: 'corporate-management' },
+      // CRM — tree with children
+      {
+        id: 'crm-dashboard',
+        label: 'CRM',
+        icon: UserSquare2,
+        requiredPermissions: ['crm.dashboard.read'],
+        group: 'crm',
+        children: [
+          { id: 'crm-dashboard', label: language === 'id' ? 'Dashboard' : 'Dashboard', icon: LayoutDashboard, requiredPermissions: ['crm.dashboard.read'] },
+          { id: 'crm-opportunities', label: language === 'id' ? 'Peluang' : 'Opportunities', icon: FolderKanban, requiredPermissions: ['crm.opportunities.read'] },
+          { id: 'crm-customers', label: language === 'id' ? 'Pelanggan' : 'Customers', icon: Users, requiredPermissions: ['crm.customers.read'] },
+          { id: 'crm-proposals', label: language === 'id' ? 'Proposal' : 'Proposals', icon: FileText, requiredPermissions: ['crm.proposals.read'] },
+          { id: 'crm-contracts', label: language === 'id' ? 'Kontrak' : 'Contracts', icon: TrendingUp, requiredPermissions: ['crm.contracts.read'] },
+          { id: 'crm-approvals', label: language === 'id' ? 'Persetujuan' : 'Approvals', icon: CheckCircle, requiredPermissions: ['approvals.read'] },
+          { id: 'crm-reimburse', label: language === 'id' ? 'Reimburse' : 'Reimburse', icon: Receipt, requiredPermissions: ['crm.reimburse.read'] },
+        ],
+      },
+      // Admin
+      { id: 'users', label: language === 'id' ? 'Pengguna' : 'Users', icon: Users, requiredPermissions: ['cfd.users.read'], group: 'admin' },
+      { id: 'thresholds', label: language === 'id' ? 'Ambang Batas' : 'Thresholds', icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'admin' },
+      { id: 'audit-log', label: language === 'id' ? 'Log Audit' : 'Audit Log', icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'admin' },
+    ];
+    return items;
+  }, [language]);
+
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   // CRM tree open by default if on a CRM page
   const [crmOpen, setCrmOpen] = useState(() => CRM_PAGES.includes(currentPage));
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.allowedRoles || (user && item.allowedRoles.includes(user.role))
-  );
+  const canAccessItem = (item: Pick<NavItem, 'requiredPermissions'>) => {
+    if (!user) return false;
 
-  const groups: { key: NavItem['group']; label: string }[] = [
-    { key: 'main', label: 'Analitik' },
-    { key: 'data', label: 'Input Data' },
-    { key: 'mafinda', label: 'CFD' },
-    { key: 'crm', label: 'CRM' },
-    { key: 'admin', label: 'Admin' },
-  ];
-
-  const roleLabel: Record<UserRole, string> = {
-    owner: 'Owner',
-    bod: 'Board of Directors',
-    subsidiary_manager: 'Subsidiary Manager',
+    return item.requiredPermissions.some((permission) => hasPermission(permission));
   };
+
+  const visibleItems = useMemo(() => navItems.filter((item) => {
+    if (!canAccessItem(item)) return false;
+    if (!item.children?.length) return true;
+    return item.children.some((child) => canAccessItem(child));
+  }), [navItems, user?.id, user?.permissions]);
+
+  const groups: { key: NavItem['group']; label: string }[] = useMemo(() => {
+    return language === 'id' ? [
+      { key: 'main', label: 'Analitik' },
+      { key: 'data', label: 'Input Data' },
+      { key: 'corporate-management', label: 'Pengelolaan Perusahaan' },
+      { key: 'crm', label: 'CRM' },
+      { key: 'admin', label: 'Admin' },
+    ] : [
+      { key: 'main', label: 'Analytics' },
+      { key: 'data', label: 'Data Entry' },
+      { key: 'corporate-management', label: 'Corporate Management' },
+      { key: 'crm', label: 'CRM' },
+      { key: 'admin', label: 'Admin' },
+    ];
+  }, [language]);
+
+  // User role label from database
+  const userRoleLabel = user?.roleDescription || (user?.role === 'owner' ? 'Owner' : user?.role === 'bod' ? 'Board of Directors' : 'Subsidiary Manager');
 
   // Find label for header
   const getPageLabel = (): string => {
     if (CRM_PAGES.includes(currentPage)) {
-      const crmItem = NAV_ITEMS.find(n => n.id === 'crm-dashboard');
+      const crmItem = navItems.find(n => n.id === 'crm-dashboard');
       const child = crmItem?.children?.find(c => c.id === currentPage);
       return child ? `CRM › ${child.label}` : 'CRM';
     }
-    return NAV_ITEMS.find(n => n.id === currentPage)?.label ?? 'Dashboard';
+    return navItems.find(n => n.id === currentPage)?.label ?? 'Dashboard';
   };
 
   const SidebarContent = () => (
@@ -187,7 +211,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                       {/* CRM children */}
                       {!collapsed && crmOpen && (
                         <div className="ml-3 mt-0.5 pl-3 border-l border-slate-700 space-y-0.5">
-                          {item.children!.map(child => {
+                          {item.children!.filter((child) => canAccessItem(child)).map(child => {
                             const ChildIcon = child.icon;
                             const isChildActive = currentPage === child.id;
                             return (
@@ -250,7 +274,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         {!collapsed && user && (
           <div className="mb-2 px-2">
             <p className="text-white text-xs font-semibold truncate">{user.fullName}</p>
-            <p className="text-slate-400 text-[10px] truncate">{roleLabel[user.role]}</p>
+            <p className="text-slate-400 text-[10px] truncate">{userRoleLabel}</p>
           </div>
         )}
         <button
@@ -300,6 +324,29 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <div className="flex-1">
             <h1 className="text-base font-semibold text-slate-900">{getPageLabel()}</h1>
           </div>
+          
+          {/* Language Switcher */}
+          <div className="flex bg-slate-100 p-1 rounded-xl items-center">
+            <button 
+              onClick={() => setLanguage('id')}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-black uppercase transition-all",
+                language === 'id' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              ID
+            </button>
+            <button 
+              onClick={() => setLanguage('en')}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-black uppercase transition-all",
+                language === 'en' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              EN
+            </button>
+          </div>
+
           {alertCount > 0 && (
             <button onClick={() => onNavigate('alerts')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors">

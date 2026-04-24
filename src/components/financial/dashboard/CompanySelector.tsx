@@ -49,12 +49,12 @@ export const CompanySelector: React.FC<CompanySelectorProps> = ({
   const selectedLabel =
     selectedId === 'all'
       ? 'All Companies'
-      : subsidiaries.find((s) => s.id === selectedId)?.name ?? 'Select Company';
+      : (Array.isArray(subsidiaries) ? subsidiaries : []).find((s) => s.id === selectedId)?.name ?? 'Select Company';
 
   const selectedColor =
     selectedId === 'all'
       ? '#6366f1'
-      : getSubsidiaryColor(subsidiaries.findIndex((s) => s.id === selectedId));
+      : getSubsidiaryColor((Array.isArray(subsidiaries) ? subsidiaries : []).findIndex((s) => s.id === selectedId));
 
   return (
     <div ref={ref} className={cn('relative', className)}>

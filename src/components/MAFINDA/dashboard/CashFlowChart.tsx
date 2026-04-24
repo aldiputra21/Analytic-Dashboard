@@ -54,11 +54,13 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
   onProjectChange,
   isLoading,
 }) => {
-  const filteredProjects = projects.filter(
+  const safeProjects = Array.isArray(projects) ? projects : [];
+  const filteredProjects = safeProjects.filter(
     (p) => p.departmentId === selectedDepartmentId && p.isActive
   );
 
-  const totalNetCashFlow = data.reduce((sum, d) => sum + d.netCashFlow, 0);
+  const safeData = Array.isArray(data) ? data : [];
+  const totalNetCashFlow = safeData.reduce((sum, d) => sum + (d.netCashFlow || 0), 0);
 
   if (isLoading) {
     return (
@@ -84,7 +86,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
             className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option value="">Semua Departemen</option>
-            {departments.map((d) => (
+            {(Array.isArray(departments) ? departments : []).map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
@@ -103,14 +105,14 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
         </div>
       </div>
 
-      {data.length === 0 ? (
+      {safeData.length === 0 ? (
         <div className="flex items-center justify-center h-48 text-sm text-slate-400">
           Tidak ada data arus kas untuk filter yang dipilih.
         </div>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
+            <AreaChart data={safeData} margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
               <defs>
                 <linearGradient id="cashInGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />

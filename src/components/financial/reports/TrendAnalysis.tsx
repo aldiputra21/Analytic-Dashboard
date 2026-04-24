@@ -16,7 +16,7 @@ import { TrendingUp, AlertTriangle } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { RatioName } from '../../../types/financial/ratio';
 import { useTrends, TrendPeriodFilter } from '../../../hooks/financial/useTrends';
-import { useSubsidiaries } from '../../../hooks/financial/useSubsidiaries';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 
 const RATIO_LABELS: Record<RatioName, string> = {
   roa: 'ROA (%)',
@@ -69,7 +69,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<TrendPeriodFilter>('1y');
   const [showMovingAvg, setShowMovingAvg] = useState(false);
 
-  const { subsidiaries } = useSubsidiaries();
+  const { corporates: subsidiaries } = useCorporates();
   const { trends, isLoading, error } = useTrends({
     ratioName: selectedRatio,
     period: selectedPeriod,

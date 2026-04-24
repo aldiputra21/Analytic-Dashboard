@@ -6,6 +6,11 @@ import { db } from '../../db/connection';
 import { auditLogs } from '../../db/schema/index.js';
 import { CreateAuditLogInput, AuditLogEntry } from '../../types/financial/user';
 
+export interface RequestContext {
+  ip?: string;
+  userAgent?: string;
+}
+
 type AuditLogRow = typeof auditLogs.$inferSelect;
 
 function mapRowToAuditLog(row: AuditLogRow): AuditLogEntry {

@@ -1,0 +1,846 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Plus, Search, Edit2, Trash2,
+  ChevronLeft, ChevronRight, Building2, X, AlertCircle, CheckCircle2,
+  RefreshCw, FilterX, Upload, DollarSign, Percent, Eye,
+  Info
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { apiFetch } from '../../../services/financial/apiFetch';
+import { cn } from '../../../utils/cn';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogHeader
+} from '../../ui/alert-dialog';
+import { corporateI18n } from '../../../i18n/corporate';
+import { Corporate } from '../../../types/financial/corporate';
+
+const getMonths = (lang: 'id' | 'en') => {
+  if (lang === 'id') {
+    return ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  }
+  return ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+};
+
+// --- Components ---
+
+const Modal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  size?: 'md' | 'lg' | 'xl';
+}> = ({ isOpen, onClose, title, children, size = 'lg' }) => {
+  if (!isOpen) return null;
+
+  const sizeClasses = {
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl'
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[90vh]", sizeClasses[size])}
+      >
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
+              <Building2 size={18} />
+            </div>
+            {title}
+          </h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
+            <X size={20} className="text-slate-500" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {children}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: string }> = ({ title, icon, color }) => (
+  <div className={cn("flex items-center gap-2 mb-4 pb-2 border-b-2", color)}>
+    <div className="p-1.5 rounded-lg bg-white shadow-sm border border-slate-100">
+      {icon}
+    </div>
+    <h4 className="font-black text-xs text-slate-700 tracking-wider uppercase">{title}</h4>
+  </div>
+);
+
+// --- Main Component ---
+
+export const CorporateManager: React.FC = () => {
+  const { hasPermission, language } = useAuth();
+  const t = corporateI18n[language];
+
+  const canWrite = hasPermission('cfd.corporates.write');
+  const canDelete = hasPermission('cfd.corporates.delete');
+
+  const [data, setData] = useState<Corporate[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Filters
+  const [filterSearch, setFilterSearch] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({ search: '' });
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const isReadOnly = modalMode === 'view';
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Configuration State from system_configs
+  const [sectors, setSectors] = useState<any[]>([]);
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [maxLogoSize, setMaxLogoSize] = useState<number>(2 * 1024 * 1024);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    sector: 'technology',
+    fiscalMonth: 1,
+    currency: 'IDR',
+    taxRate: 22,
+    code: '',
+    isActive: true
+  });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+
+
+  useEffect(() => {
+    fetchConfigs();
+  }, []);
+
+  const fetchConfigs = async () => {
+    try {
+      const res = await apiFetch('/api/system-configs');
+      if (res.ok) {
+        const d = await res.json();
+        const sectorConfig = d.find((c: any) => c.key === 'corporate_sectors');
+        if (sectorConfig) setSectors(sectorConfig.value);
+
+        const currConfig = d.find((c: any) => c.key === 'currencies');
+        if (currConfig) setCurrencies(currConfig.value);
+
+        const sizeConfig = d.find((c: any) => c.key === 'max_logo_size');
+        if (sizeConfig) setMaxLogoSize(sizeConfig.value);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const getSectorLabel = (code: string) => {
+    const s = sectors.find(s => s.code === code);
+    if (!s) return code;
+    return language === 'id' ? s.label.id : s.label.en;
+  };
+
+  const getCurrencyLabel = (code: string) => {
+    const c = currencies.find(c => c.code === code);
+    return c ? c.label : code;
+  };
+
+
+
+  useEffect(() => {
+    fetchData();
+  }, [currentPage, pageSize, appliedFilters]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const queryParams = new URLSearchParams();
+      if (appliedFilters.search) queryParams.set('search', appliedFilters.search);
+      queryParams.set('page', currentPage.toString());
+      queryParams.set('pageSize', pageSize.toString());
+
+      const res = await apiFetch(`/api/frs/corporates?${queryParams.toString()}`);
+      if (res.ok) {
+        const d = await res.json();
+        setData(d.records || []);
+        setTotalCount(d.totalCount || 0);
+      }
+    } catch (err) {
+      toast.error(t.alerts.errorFetch);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleApplyFilter = () => {
+    setAppliedFilters({ search: filterSearch });
+    setCurrentPage(1);
+  };
+
+  const handleClearFilter = () => {
+    setFilterSearch('');
+    setAppliedFilters({ search: '' });
+    setCurrentPage(1);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Strict client-side validation
+      const allowedExts = ['.jpg', '.jpeg', '.png', '.webp'];
+      const fileName = file.name.toLowerCase();
+      const isValid = allowedExts.some(ext => fileName.endsWith(ext));
+
+      if (!isValid) {
+        toast.error(t.alerts.invalidFileType);
+        e.target.value = '';
+        return;
+      }
+
+      if (file.size > maxLogoSize) {
+        toast.error(language === 'id'
+            ? `Ukuran logo maksimal adalah ${Math.round(maxLogoSize / 1024 / 1024)}MB.`
+            : `Maximum logo size is ${Math.round(maxLogoSize / 1024 / 1024)}MB.`);
+        e.target.value = '';
+        return;
+      }
+
+      setLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const openModal = (mode: 'create' | 'edit' | 'view', item?: Corporate) => {
+    setModalMode(mode);
+    setLogoFile(null);
+    if (item) {
+      setEditingId(item.id);
+      setFormData({
+        name: item.name,
+        sector: item.industrySector,
+        fiscalMonth: item.fiscalYearStartMonth,
+        currency: item.currency,
+        taxRate: item.taxRate,
+        code: item.code,
+        isActive: item.isActive
+      });
+      setLogoPreview(item.logo ? item.logo : null);
+    } else {
+      setEditingId(null);
+      setFormData({
+        name: '',
+        sector: sectors.length > 0 ? sectors[0].code : 'technology',
+        fiscalMonth: 1,
+        currency: currencies.length > 0 ? currencies[0].code : 'IDR',
+        taxRate: 22,
+        code: '',
+        isActive: true
+      });
+      setLogoPreview(null);
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSaving) return;
+
+    setIsSaving(true);
+    try {
+      // 1. Create/Update Corporate Profile
+      const payload = {
+        name: formData.name,
+        code: formData.code || formData.name.substring(0, 3).toUpperCase(),
+        industrySector: formData.sector,
+        fiscalYearStartMonth: formData.fiscalMonth,
+        currency: formData.currency,
+        taxRate: formData.taxRate,
+        isActive: formData.isActive
+      };
+
+      const url = editingId ? `/api/frs/corporates/${editingId}` : '/api/frs/corporates';
+      const method = editingId ? 'PUT' : 'POST';
+
+      const res = await apiFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const corp = await res.json();
+        const corpId = editingId || corp.id;
+
+        // 2. Upload Logo if needed
+        if (logoFile) {
+          const form = new FormData();
+          form.append('logo', logoFile);
+          const logoRes = await apiFetch(`/api/frs/corporates/${corpId}/logo`, {
+            method: 'POST',
+            body: form,
+          });
+          if (!logoRes.ok) {
+            console.error('Logo upload failed');
+          }
+        }
+
+        toast.success(modalMode === 'create' ? t.alerts.successSave : t.alerts.successUpdate);
+        setIsModalOpen(false);
+        fetchData();
+      } else {
+        const errData = await res.json();
+        toast.error(errData.error?.message || t.alerts.errorSave);
+      }
+    } catch (err) {
+      toast.error(t.alerts.errorNetwork);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleStatus = async (corp: Corporate) => {
+    try {
+      const res = await apiFetch(`/api/frs/corporates/${corp.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !corp.isActive }),
+      });
+      if (res.ok) {
+        toast.success(t.alerts.successStatus);
+        fetchData();
+      }
+    } catch (err) {
+      toast.error(t.alerts.errorNetwork);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setIsDeleting(true);
+    try {
+      const res = await apiFetch(`/api/frs/corporates/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success(t.alerts.successDelete);
+        setDeleteConfirmId(null);
+        fetchData();
+      } else {
+        const d = await res.json();
+        toast.error(d.error || t.alerts.errorDelete);
+        setDeleteConfirmId(null);
+      }
+    } catch {
+      toast.error(t.alerts.errorNetwork);
+      setDeleteConfirmId(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const totalPages = Math.ceil(totalCount / pageSize);
+
+  return (
+    <div className="space-y-6">
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
+              <Building2 size={24} />
+            </div>
+            {t.title}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
+            <Info size={14} className="text-indigo-400" />
+            {t.subtitle}
+          </p>
+        </div>
+
+        {canWrite && (
+          <button
+            onClick={() => openModal('create')}
+            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+          >
+            <Plus size={18} />
+            {t.addNew}
+          </button>
+        )}
+      </div>
+
+      {/* Filters Bar */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+        <div className="flex-1 min-w-[240px] relative group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+          <input
+            type="text"
+            placeholder={t.searchPlaceholder}
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleApplyFilter}
+            className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
+          >
+            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+            {t.apply}
+          </button>
+          <button
+            onClick={handleClearFilter}
+            className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
+          >
+            <FilterX size={14} />
+            {t.clear}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.logo}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.name}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.sector}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.currency}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.fiscalYear}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              <AnimatePresence>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <motion.tr
+                      key={`skeleton-${i}`}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="animate-pulse"
+                    >
+                      <td className="px-6 py-4"><div className="w-12 h-12 bg-slate-200 animate-pulse rounded-xl" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-200 animate-pulse rounded w-24 mb-2" /><div className="h-3 bg-slate-200 animate-pulse rounded w-16" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-200 animate-pulse rounded w-20" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-200 animate-pulse rounded w-12" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-200 animate-pulse rounded w-16" /></td>
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-200 animate-pulse rounded-full w-20" /></td>
+                      <td className="px-6 py-4"><div className="h-8 bg-slate-200 animate-pulse rounded w-20 ml-auto" /></td>
+                    </motion.tr>
+                  ))
+                ) : data.length === 0 ? (
+                  <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <td colSpan={7}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-slate-50 rounded-full text-slate-300">
+                          <Building2 size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{t.status.empty}</p>
+                          <p className="text-slate-500 text-sm mt-1">{t.status.emptyDesc}</p>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ) : (
+                  data.map((corp, idx) => (
+                    <motion.tr
+                      key={corp.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: idx * 0.03 }}
+                      className="hover:bg-slate-50/50 transition-colors group font-bold"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="w-12 h-12 rounded-xl border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden shadow-sm">
+                          {corp.logo ? (
+                            <img src={corp.logo} alt={corp.name} className="w-full h-full object-contain" />
+                          ) : (
+                            <div className="w-full h-full bg-slate-50 flex items-center justify-center text-slate-400 text-xs">
+                              {corp.name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-800">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black">{corp.name}</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{t.modal.code}: {corp.code}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 text-xs uppercase tracking-tight">{getSectorLabel(corp.industrySector)}</td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">{getCurrencyLabel(corp.currency)}</td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">{getMonths(language)[corp.fiscalYearStartMonth - 1]}</td>
+                      <td className="px-6 py-4">
+                        <div
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase border",
+                            corp.isActive
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                              : "bg-slate-50 text-slate-500 border-slate-100"
+                          )}
+                        >
+                          <div className={cn("w-1.5 h-1.5 rounded-full", corp.isActive ? "bg-emerald-500" : "bg-slate-400")} />
+                          {corp.isActive ? t.status.active : t.status.inactive}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => openModal('view', corp)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          {canWrite && (
+                            <button
+                              onClick={() => openModal('edit', corp)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                              title="Edit Corporate"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => setDeleteConfirmId(corp.id)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                              title="Delete Corporate"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
+              </AnimatePresence>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Info */}
+        {!isLoading && totalCount > 0 && (
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-bold text-slate-500">
+                {t.pagination.showing} <span className="text-slate-800 mx-0.5">{Math.min(totalCount, (currentPage - 1) * pageSize + 1)}</span> - <span className="text-slate-800 mx-0.5">{Math.min(totalCount, currentPage * pageSize)}</span> {t.pagination.of} <span className="text-slate-800 mx-0.5">{totalCount}</span> {t.pagination.entries}
+              </span>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  {t.pagination.rowsPerPage}
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all cursor-pointer shadow-sm hover:border-slate-300"
+                >
+                  {[10, 25, 50, 100].map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className={cn(
+                  "p-2 rounded-lg transition-all",
+                  currentPage === 1 ? "text-slate-300 cursor-not-allowed" : "text-slate-600 hover:bg-white hover:shadow-sm active:scale-90 cursor-pointer"
+                )}
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum = i + 1;
+                  if (totalPages > 5 && currentPage > 3) {
+                    pageNum = currentPage - 2 + i;
+                    if (pageNum + (4 - i) > totalPages) pageNum = totalPages - 4 + i;
+                  }
+
+                  if (pageNum > 0 && pageNum <= totalPages) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={cn(
+                          "w-8 h-8 flex items-center justify-center rounded-lg text-xs font-black transition-all",
+                          currentPage === pageNum
+                            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110 cursor-pointer"
+                            : "bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 cursor-pointer"
+                        )}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className={cn(
+                  "p-2 rounded-lg transition-all",
+                  currentPage === totalPages ? "text-slate-300 cursor-not-allowed" : "text-slate-600 hover:bg-white hover:shadow-sm active:scale-90 cursor-pointer"
+                )}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- CRUD MODAL --- */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <Modal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : 'View Corporate'}
+          >
+            <div className="flex-1 overflow-y-auto p-6">
+              <form onSubmit={handleSave} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-8">
+                <div className="flex items-start gap-8">
+                  <div className="flex flex-col items-center gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.modal.logo}</label>
+                    <div className="relative group">
+                      <div className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-200 bg-white flex items-center justify-center overflow-hidden transition-all group-hover:border-indigo-500/50 shadow-inner">
+                        {logoPreview ? (
+                          <img src={logoPreview} alt="Preview" className="w-full h-full object-contain p-2" />
+                        ) : (
+                          <div className="text-center p-4">
+                            <Upload className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{t.modal.dropOrClick}</p>
+                          </div>
+                        )}
+                      </div>
+                      <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" disabled={isReadOnly} />
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-medium text-center whitespace-pre-line">{t.modal.logoHint}</p>
+                  </div>
+
+                  <div className="flex-1 space-y-6">
+                    <SectionHeader title={t.modal.basicInfo} icon={<Building2 size={14} className="text-blue-500" />} color="border-blue-500" />
+                    <div className="grid grid-cols-12 gap-4">
+                      <div className="col-span-5 space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.code} *</label>
+                        <input
+                          type="text"
+                          value={formData.code}
+                          onChange={(e) => setFormData(p => ({ ...p, code: e.target.value.toUpperCase() }))}
+                          required
+                          disabled={isReadOnly}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm uppercase disabled:opacity-70 disabled:cursor-not-allowed"
+                          placeholder="EXMP"
+                          maxLength={10}
+                        />
+                      </div>
+                      <div className="col-span-7 space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.sector} *</label>
+                        <div className="relative group/select">
+                          <select
+                            value={formData.sector}
+                            onChange={(e) => setFormData(p => ({ ...p, sector: e.target.value }))}
+                            disabled={isReadOnly}
+                            className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
+                          >
+                            {sectors.map(s => <option key={s.code} value={s.code}>{language === 'id' ? s.label.id : s.label.en}</option>)}
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover/select:text-indigo-500 transition-colors pointer-events-none">
+                            <ChevronRight size={14} className="rotate-90" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-span-12 space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.name} *</label>
+                        <input
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                          required
+                          disabled={isReadOnly}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                          placeholder="e.g. PT Example Indonesia"
+                        />
+                      </div>
+                      {/* Status Toggle - dibawah nama */}
+                      <div className="col-span-12">
+                        <div className="flex items-center gap-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 w-fit">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</span>
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            onClick={() => setFormData(p => ({ ...p, isActive: !p.isActive }))}
+                            className={cn(
+                              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+                              formData.isActive ? "bg-indigo-600" : "bg-slate-200"
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                formData.isActive ? "translate-x-5" : "translate-x-0"
+                              )}
+                            />
+                          </button>
+                          <span className={cn("text-[10px] font-black uppercase tracking-widest", formData.isActive ? "text-indigo-600" : "text-slate-400")}>
+                            {formData.isActive ? t.status.active : t.status.inactive}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <SectionHeader title={t.modal.financialConfig} icon={<DollarSign size={14} className="text-emerald-500" />} color="border-emerald-500" />
+                  <div className="grid grid-cols-12 gap-4">
+                    {/* Mata Uang — 5/12 */}
+                    <div className="col-span-5 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap">{t.modal.currency}</label>
+                      <div className="relative group/select">
+                        <select
+                          value={formData.currency}
+                          onChange={(e) => setFormData(p => ({ ...p, currency: e.target.value }))}
+                          disabled={isReadOnly}
+                          className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm cursor-pointer appearance-none"
+                        >
+                          {currencies.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover/select:text-emerald-500 transition-colors pointer-events-none">
+                          <ChevronRight size={14} className="rotate-90" />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Tarif Pajak — 3/12 */}
+                    <div className="col-span-3 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap">{t.modal.taxRate}</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0} max={100} step={0.1}
+                          value={formData.taxRate}
+                          onChange={(e) => setFormData(p => ({ ...p, taxRate: parseFloat(e.target.value) }))}
+                          disabled={isReadOnly}
+                          className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm"
+                        />
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                          <Percent size={14} />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Bulan Awal Tahun Fiskal — 4/12 */}
+                    <div className="col-span-4 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap">{t.modal.fiscalYear}</label>
+                      <div className="relative group/select">
+                        <select
+                          value={formData.fiscalMonth}
+                          onChange={(e) => setFormData(p => ({ ...p, fiscalMonth: parseInt(e.target.value) }))}
+                          disabled={isReadOnly}
+                          className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm cursor-pointer appearance-none"
+                        >
+                          {getMonths(language).map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover/select:text-emerald-500 transition-colors pointer-events-none">
+                          <ChevronRight size={14} className="rotate-90" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    disabled={isSaving}
+                    className="px-8 py-3 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                  >
+                    {isReadOnly ? 'Close' : t.modal.cancel}
+                  </button>
+                  {!isReadOnly && (
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
+                    >
+                      {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                      {isSaving ? t.status.submitting : t.modal.submit}
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation */}
+      <AlertDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-black text-slate-800">{t.alerts.deleteTitle}</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500 font-medium pt-2">
+              {t.alerts.deleteDesc}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-6 gap-3">
+            <AlertDialogCancel
+              onClick={() => setDeleteConfirmId(null)}
+              className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
+              {t.alerts.deleteCancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
+            >
+              {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+

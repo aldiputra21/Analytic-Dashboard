@@ -1,7 +1,7 @@
 // Financial Statement Service — MAFINDA Dashboard Enhancement
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql, count, gte, lte } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema/index.js';
 
@@ -27,7 +27,8 @@ export class NotFoundError extends Error {
 
 export interface BalanceSheet {
   id: string;
-  departmentId: string;
+  corporateId: string;
+  corporateName?: string;
   period: string;
   // Aktiva Lancar
   cashAndBank: string;
@@ -61,7 +62,8 @@ export interface BalanceSheet {
 }
 
 export interface BalanceSheetInput {
-  departmentId: string;
+  id?: string;
+  corporateId: string;
   period: string;
   cashAndBank?: string;
   accountsReceivable?: string;
@@ -75,6 +77,7 @@ export interface BalanceSheetInput {
   accountsPayable?: string;
   bankLoanCurrent?: string;
   otherCurrentLiabilities?: string;
+  padding?: string; // Add if needed, or ignore
   bankLoanLongTerm?: string;
   otherLongTermLiabilities?: string;
   shareholderLoan?: string;
@@ -87,7 +90,8 @@ export interface BalanceSheetInput {
 
 export interface IncomeStatement {
   id: string;
-  departmentId: string;
+  corporateId: string;
+  corporateName?: string;
   period: string;
   revenue: string;
   cogs: string;
@@ -102,7 +106,8 @@ export interface IncomeStatement {
 }
 
 export interface IncomeStatementInput {
-  departmentId: string;
+  id?: string;
+  corporateId: string;
   period: string;
   revenue?: string;
   cogs?: string;
@@ -114,9 +119,11 @@ export interface IncomeStatementInput {
 
 export interface CashFlow {
   id: string;
-  departmentId: string;
-  entityType: string;
+  corporateId: string;
+  corporateName?: string;
+  entityType: 'corporate' | 'project';
   entityId: string;
+  entityName?: string;
   period: string;
   week: string;
   operatingCashIn: string;
@@ -133,8 +140,9 @@ export interface CashFlow {
 }
 
 export interface CashFlowInput {
-  departmentId: string;
-  entityType: string;
+  id?: string;
+  corporateId: string;
+  entityType: 'corporate' | 'project';
   entityId: string;
   period: string;
   week: string;
@@ -160,10 +168,11 @@ function assertNonNegative(fields: Record<string, string | undefined>): void {
 
 // ─── Balance Sheet ────────────────────────────────────────────────────────────
 
-function mapBalanceSheetRow(row: typeof balanceSheets.$inferSelect): BalanceSheet {
+function mapBalanceSheetRow(row: typeof balanceSheets.$inferSelect & { corporateName?: string }): BalanceSheet {
   return {
     id: row.id,
-    departmentId: row.departmentId,
+    corporateId: row.corporateId,
+    corporateName: row.corporateName,
     period: row.period,
     cashAndBank: row.cashAndBank,
     accountsReceivable: row.accountsReceivable,
@@ -193,54 +202,69 @@ function mapBalanceSheetRow(row: typeof balanceSheets.$inferSelect): BalanceShee
 }
 
 /**
- * Saves a balance sheet record. If a record for the (departmentId, period)
- * already exists, it is updated.
+ * Saves a balance sheet record.
+ * Throws ValidationError if a record for the (corporateId, period) already exists
+ * for a different ID (deduplication check).
  */
-export async function saveBalanceSheet(input: BalanceSheetInput, createdBy: string): Promise<BalanceSheet> {
+export async function saveBalanceSheet(input: BalanceSheetInput, userId: string): Promise<BalanceSheet> {
   assertNonNegative({
     cashAndBank: input.cashAndBank,
     accountsReceivable: input.accountsReceivable,
     inventory: input.inventory,
   });
 
+  // Check for deduplication: same corporate and period
   const [existing] = await db.select().from(balanceSheets)
     .where(and(
-      eq(balanceSheets.departmentId, input.departmentId),
+      eq(balanceSheets.corporateId, input.corporateId),
       eq(balanceSheets.period, input.period),
     ))
     .limit(1);
 
-  if (existing) {
+  if (existing && existing.id !== input.id) {
+    throw new ValidationError(`Data Neraca untuk perusahaan ini pada periode ${input.period} sudah ada.`);
+  }
+
+  // If input.id is provided, check if it exists for explicit update
+  const effectiveId = input.id;
+  
+  if (effectiveId) {
+    const [target] = await db.select().from(balanceSheets).where(eq(balanceSheets.id, effectiveId)).limit(1);
+    if (!target) throw new NotFoundError('Data neraca tidak ditemukan');
+
     const [updated] = await db.update(balanceSheets).set({
-      cashAndBank: input.cashAndBank ?? existing.cashAndBank,
-      accountsReceivable: input.accountsReceivable ?? existing.accountsReceivable,
-      workInProgress: input.workInProgress ?? existing.workInProgress,
-      inventory: input.inventory ?? existing.inventory,
-      prepaidExpenses: input.prepaidExpenses ?? existing.prepaidExpenses,
-      land: input.land ?? existing.land,
-      building: input.building ?? existing.building,
-      equipment: input.equipment ?? existing.equipment,
-      otherFixedAssets: input.otherFixedAssets ?? existing.otherFixedAssets,
-      accountsPayable: input.accountsPayable ?? existing.accountsPayable,
-      bankLoanCurrent: input.bankLoanCurrent ?? existing.bankLoanCurrent,
-      otherCurrentLiabilities: input.otherCurrentLiabilities ?? existing.otherCurrentLiabilities,
-      bankLoanLongTerm: input.bankLoanLongTerm ?? existing.bankLoanLongTerm,
-      otherLongTermLiabilities: input.otherLongTermLiabilities ?? existing.otherLongTermLiabilities,
-      shareholderLoan: input.shareholderLoan ?? existing.shareholderLoan,
-      capital: input.capital ?? existing.capital,
-      earningsAfterTax: input.earningsAfterTax ?? existing.earningsAfterTax,
-      retainedEarnings: input.retainedEarnings ?? existing.retainedEarnings,
-      dividends: input.dividends ?? existing.dividends,
-      notes: input.notes !== undefined ? input.notes : existing.notes,
-      updatedBy: createdBy,
+      corporateId: input.corporateId, // Allow changing corporate if needed, though usually fixed
+      period: input.period,
+      cashAndBank: input.cashAndBank ?? target.cashAndBank,
+      accountsReceivable: input.accountsReceivable ?? target.accountsReceivable,
+      workInProgress: input.workInProgress ?? target.workInProgress,
+      inventory: input.inventory ?? target.inventory,
+      prepaidExpenses: input.prepaidExpenses ?? target.prepaidExpenses,
+      land: input.land ?? target.land,
+      building: input.building ?? target.building,
+      equipment: input.equipment ?? target.equipment,
+      otherFixedAssets: input.otherFixedAssets ?? target.otherFixedAssets,
+      accountsPayable: input.accountsPayable ?? target.accountsPayable,
+      bankLoanCurrent: input.bankLoanCurrent ?? target.bankLoanCurrent,
+      otherCurrentLiabilities: input.otherCurrentLiabilities ?? target.otherCurrentLiabilities,
+      bankLoanLongTerm: input.bankLoanLongTerm ?? target.bankLoanLongTerm,
+      otherLongTermLiabilities: input.otherLongTermLiabilities ?? target.otherLongTermLiabilities,
+      shareholderLoan: input.shareholderLoan ?? target.shareholderLoan,
+      capital: input.capital ?? target.capital,
+      earningsAfterTax: input.earningsAfterTax ?? target.earningsAfterTax,
+      retainedEarnings: input.retainedEarnings ?? target.retainedEarnings,
+      dividends: input.dividends ?? target.dividends,
+      notes: input.notes !== undefined ? input.notes : target.notes,
+      updatedBy: userId,
       updatedAt: new Date(),
-    }).where(eq(balanceSheets.id, existing.id)).returning();
+    }).where(eq(balanceSheets.id, target.id)).returning();
 
     return mapBalanceSheetRow(updated);
   }
 
+  // Insert new record
   const [inserted] = await db.insert(balanceSheets).values({
-    departmentId: input.departmentId,
+    corporateId: input.corporateId,
     period: input.period,
     cashAndBank: input.cashAndBank ?? '0',
     accountsReceivable: input.accountsReceivable ?? '0',
@@ -262,35 +286,96 @@ export async function saveBalanceSheet(input: BalanceSheetInput, createdBy: stri
     retainedEarnings: input.retainedEarnings ?? '0',
     dividends: input.dividends ?? '0',
     notes: input.notes,
-    createdBy,
+    createdBy: userId,
   }).returning();
 
   return mapBalanceSheetRow(inserted);
 }
 
 /**
- * Returns balance sheets, optionally filtered by departmentId and/or period.
+ * Returns balance sheets, optionally filtered by corporateId and/or period.
+ * Results are restricted based on user's corporate access.
  */
 export async function getBalanceSheets(
-  filter?: { departmentId?: string; period?: string },
-): Promise<BalanceSheet[]> {
+  userId: string,
+  filter?: { 
+    corporateId?: string; 
+    period?: string; 
+    periodStart?: string; 
+    periodEnd?: string; 
+    page?: number; 
+    pageSize?: number 
+  },
+): Promise<{ data: BalanceSheet[]; totalCount: number }> {
+  const { corporates, userCorporateAccesses } = await import('../../db/schema/public.js');
+  const { inArray } = await import('drizzle-orm');
+
+  // 1. Get user corporate access
+  const accessRows = await db.select({ corporateId: userCorporateAccesses.corporateId })
+    .from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.userId, userId));
+
+  const hasFullAccess = accessRows.some(a => a.corporateId === null);
+  const allowedCorpIds = accessRows.map(a => a.corporateId).filter((id): id is string => id !== null);
+
   const conditions = [];
-  if (filter?.departmentId) conditions.push(eq(balanceSheets.departmentId, filter.departmentId));
+
+  // Apply corporate filter with respect to user access
+  if (filter?.corporateId) {
+    if (hasFullAccess || allowedCorpIds.includes(filter.corporateId)) {
+      conditions.push(eq(balanceSheets.corporateId, filter.corporateId));
+    } else {
+      return { data: [], totalCount: 0 };
+    }
+  } else if (!hasFullAccess) {
+    if (allowedCorpIds.length === 0) return { data: [], totalCount: 0 };
+    conditions.push(inArray(balanceSheets.corporateId, allowedCorpIds));
+  }
+
   if (filter?.period) conditions.push(eq(balanceSheets.period, filter.period));
+  if (filter?.periodStart) conditions.push(gte(balanceSheets.period, filter.periodStart));
+  if (filter?.periodEnd) conditions.push(lte(balanceSheets.period, filter.periodEnd));
 
-  const rows = await db.select().from(balanceSheets)
+  const page = filter?.page ?? 1;
+  const pageSize = filter?.pageSize ?? 10;
+  const offset = (page - 1) * pageSize;
+
+  // 1. Get total count
+  const [totalRes] = await db.select({ total: count() })
+    .from(balanceSheets)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  
+  const totalCount = Number(totalRes?.total ?? 0);
+
+  // 2. Get paginated results
+  const rows = await db.select({
+    data: balanceSheets,
+    corporateName: corporates.name,
+  }).from(balanceSheets)
+    .leftJoin(corporates, eq(corporates.id, balanceSheets.corporateId))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(balanceSheets.period));
+    .orderBy(desc(balanceSheets.period))
+    .limit(pageSize)
+    .offset(offset);
 
-  return rows.map(mapBalanceSheetRow);
+  return {
+    data: rows.map(r => mapBalanceSheetRow({ ...r.data, corporateName: r.corporateName ?? undefined })),
+    totalCount
+  };
+}
+
+/** Deletes a balance sheet by ID. */
+export async function deleteBalanceSheet(id: string): Promise<void> {
+  await db.delete(balanceSheets).where(eq(balanceSheets.id, id));
 }
 
 // ─── Income Statement ─────────────────────────────────────────────────────────
 
-function mapIncomeStatementRow(row: typeof incomeStatements.$inferSelect): IncomeStatement {
+function mapIncomeStatementRow(row: typeof incomeStatements.$inferSelect & { corporateName?: string }): IncomeStatement {
   return {
     id: row.id,
-    departmentId: row.departmentId,
+    corporateId: row.corporateId,
+    corporateName: row.corporateName,
     period: row.period,
     revenue: row.revenue,
     cogs: row.cogs,
@@ -306,12 +391,13 @@ function mapIncomeStatementRow(row: typeof incomeStatements.$inferSelect): Incom
 }
 
 /**
- * Saves an income statement record. If a record for the (departmentId, period)
- * already exists, it is updated.
+ * Saves an income statement record.
+ * Throws ValidationError if a record for the (corporateId, period) already exists
+ * for a different ID (deduplication check).
  */
 export async function saveIncomeStatement(
   input: IncomeStatementInput,
-  createdBy: string,
+  userId: string,
 ): Promise<IncomeStatement> {
   assertNonNegative({
     revenue: input.revenue,
@@ -321,30 +407,40 @@ export async function saveIncomeStatement(
     taxExpense: input.taxExpense,
   });
 
+  // Check for deduplication
   const [existing] = await db.select().from(incomeStatements)
     .where(and(
-      eq(incomeStatements.departmentId, input.departmentId),
+      eq(incomeStatements.corporateId, input.corporateId),
       eq(incomeStatements.period, input.period),
     ))
     .limit(1);
 
-  if (existing) {
+  if (existing && existing.id !== input.id) {
+    throw new ValidationError(`Data Laba Rugi untuk perusahaan ini pada periode ${input.period} sudah ada.`);
+  }
+
+  if (input.id) {
+    const [target] = await db.select().from(incomeStatements).where(eq(incomeStatements.id, input.id)).limit(1);
+    if (!target) throw new NotFoundError('Data laba rugi tidak ditemukan');
+
     const [updated] = await db.update(incomeStatements).set({
-      revenue: input.revenue ?? existing.revenue,
-      cogs: input.cogs ?? existing.cogs,
-      operatingExpenses: input.operatingExpenses ?? existing.operatingExpenses,
-      interestExpense: input.interestExpense ?? existing.interestExpense,
-      taxExpense: input.taxExpense ?? existing.taxExpense,
-      notes: input.notes !== undefined ? input.notes : existing.notes,
-      updatedBy: createdBy,
+      corporateId: input.corporateId,
+      period: input.period,
+      revenue: input.revenue ?? target.revenue,
+      cogs: input.cogs ?? target.cogs,
+      operatingExpenses: input.operatingExpenses ?? target.operatingExpenses,
+      interestExpense: input.interestExpense ?? target.interestExpense,
+      taxExpense: input.taxExpense ?? target.taxExpense,
+      notes: input.notes !== undefined ? input.notes : target.notes,
+      updatedBy: userId,
       updatedAt: new Date(),
-    }).where(eq(incomeStatements.id, existing.id)).returning();
+    }).where(eq(incomeStatements.id, input.id)).returning();
 
     return mapIncomeStatementRow(updated);
   }
 
   const [inserted] = await db.insert(incomeStatements).values({
-    departmentId: input.departmentId,
+    corporateId: input.corporateId,
     period: input.period,
     revenue: input.revenue ?? '0',
     cogs: input.cogs ?? '0',
@@ -352,37 +448,99 @@ export async function saveIncomeStatement(
     interestExpense: input.interestExpense ?? '0',
     taxExpense: input.taxExpense ?? '0',
     notes: input.notes,
-    createdBy,
+    createdBy: userId,
   }).returning();
 
   return mapIncomeStatementRow(inserted);
 }
 
 /**
- * Returns income statements, optionally filtered by departmentId and/or period.
+ * Returns income statements, optionally filtered by corporateId and/or period.
+ * Results are restricted based on user's corporate access.
  */
 export async function getIncomeStatements(
-  filter?: { departmentId?: string; period?: string },
-): Promise<IncomeStatement[]> {
+  userId: string,
+  filter?: { 
+    corporateId?: string; 
+    period?: string; 
+    periodStart?: string; 
+    periodEnd?: string; 
+    page?: number; 
+    pageSize?: number 
+  },
+): Promise<{ data: IncomeStatement[]; totalCount: number }> {
+  const { corporates, userCorporateAccesses } = await import('../../db/schema/public.js');
+  const { inArray } = await import('drizzle-orm');
+
+  // 1. Get user corporate access
+  const accessRows = await db.select({ corporateId: userCorporateAccesses.corporateId })
+    .from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.userId, userId));
+
+  const hasFullAccess = accessRows.some(a => a.corporateId === null);
+  const allowedCorpIds = accessRows.map(a => a.corporateId).filter((id): id is string => id !== null);
+
   const conditions = [];
-  if (filter?.departmentId) conditions.push(eq(incomeStatements.departmentId, filter.departmentId));
+
+  // Apply corporate filter with respect to user access
+  if (filter?.corporateId) {
+    if (hasFullAccess || allowedCorpIds.includes(filter.corporateId)) {
+      conditions.push(eq(incomeStatements.corporateId, filter.corporateId));
+    } else {
+      return { data: [], totalCount: 0 };
+    }
+  } else if (!hasFullAccess) {
+    if (allowedCorpIds.length === 0) return { data: [], totalCount: 0 };
+    conditions.push(inArray(incomeStatements.corporateId, allowedCorpIds));
+  }
+
   if (filter?.period) conditions.push(eq(incomeStatements.period, filter.period));
+  if (filter?.periodStart) conditions.push(gte(incomeStatements.period, filter.periodStart));
+  if (filter?.periodEnd) conditions.push(lte(incomeStatements.period, filter.periodEnd));
 
-  const rows = await db.select().from(incomeStatements)
+  const page = filter?.page ?? 1;
+  const pageSize = filter?.pageSize ?? 10;
+  const offset = (page - 1) * pageSize;
+
+  // 1. Get total count
+  const [totalRes] = await db.select({ total: count() })
+    .from(incomeStatements)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  
+  const totalCount = Number(totalRes?.total ?? 0);
+
+  // 2. Get paginated results
+  const rows = await db.select({
+    data: incomeStatements,
+    corporateName: corporates.name,
+  }).from(incomeStatements)
+    .leftJoin(corporates, eq(corporates.id, incomeStatements.corporateId))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(incomeStatements.period));
+    .orderBy(desc(incomeStatements.period))
+    .limit(pageSize)
+    .offset(offset);
 
-  return rows.map(mapIncomeStatementRow);
+  return {
+    data: rows.map(r => mapIncomeStatementRow({ ...r.data, corporateName: r.corporateName ?? undefined })),
+    totalCount
+  };
+}
+
+/** Deletes an income statement by ID. */
+export async function deleteIncomeStatement(id: string): Promise<void> {
+  await db.delete(incomeStatements).where(eq(incomeStatements.id, id));
 }
 
 // ─── Cash Flow (Weekly) ─────────────────────────────────────────────────────
 
-function mapCashFlowRow(row: typeof weeklyCashFlows.$inferSelect): CashFlow {
+function mapCashFlowRow(row: typeof weeklyCashFlows.$inferSelect & { corporateName?: string; entityName?: string }): CashFlow {
   return {
     id: row.id,
-    departmentId: row.departmentId,
-    entityType: row.entityType,
+    corporateId: row.corporateId,
+    corporateName: row.corporateName,
+    entityType: row.entityType as 'corporate' | 'project',
     entityId: row.entityId,
+    entityName: row.entityName,
     period: row.period,
     week: row.week,
     operatingCashIn: row.operatingCashIn,
@@ -400,10 +558,11 @@ function mapCashFlowRow(row: typeof weeklyCashFlows.$inferSelect): CashFlow {
 }
 
 /**
- * Saves a cash flow record. If a record for the same (entityType, entityId, period, week)
- * already exists, it is updated.
+ * Saves a cash flow record.
+ * Throws ValidationError if a record for the same (entityType, entityId, period, week)
+ * already exists for a different ID (deduplication check).
  */
-export async function saveCashFlow(input: CashFlowInput, createdBy: string): Promise<CashFlow> {
+export async function saveCashFlow(input: CashFlowInput, userId: string): Promise<CashFlow> {
   assertNonNegative({
     operatingCashIn: input.operatingCashIn,
     operatingCashOut: input.operatingCashOut,
@@ -413,6 +572,7 @@ export async function saveCashFlow(input: CashFlowInput, createdBy: string): Pro
     financingCashOut: input.financingCashOut,
   });
 
+  // Check for deduplication
   const [existing] = await db.select().from(weeklyCashFlows)
     .where(and(
       eq(weeklyCashFlows.entityType, input.entityType),
@@ -422,24 +582,36 @@ export async function saveCashFlow(input: CashFlowInput, createdBy: string): Pro
     ))
     .limit(1);
 
-  if (existing) {
+  if (existing && existing.id !== input.id) {
+    throw new ValidationError(`Data Arus Kas untuk entitas ini pada periode ${input.period} ${input.week} sudah ada.`);
+  }
+
+  if (input.id) {
+    const [target] = await db.select().from(weeklyCashFlows).where(eq(weeklyCashFlows.id, input.id)).limit(1);
+    if (!target) throw new NotFoundError('Data arus kas tidak ditemukan');
+
     const [updated] = await db.update(weeklyCashFlows).set({
-      operatingCashIn: input.operatingCashIn ?? existing.operatingCashIn,
-      operatingCashOut: input.operatingCashOut ?? existing.operatingCashOut,
-      investingCashIn: input.investingCashIn ?? existing.investingCashIn,
-      investingCashOut: input.investingCashOut ?? existing.investingCashOut,
-      financingCashIn: input.financingCashIn ?? existing.financingCashIn,
-      financingCashOut: input.financingCashOut ?? existing.financingCashOut,
-      notes: input.notes !== undefined ? input.notes : existing.notes,
-      updatedBy: createdBy,
+      corporateId: input.corporateId,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      period: input.period,
+      week: input.week,
+      operatingCashIn: input.operatingCashIn ?? target.operatingCashIn,
+      operatingCashOut: input.operatingCashOut ?? target.operatingCashOut,
+      investingCashIn: input.investingCashIn ?? target.investingCashIn,
+      investingCashOut: input.investingCashOut ?? target.investingCashOut,
+      financingCashIn: input.financingCashIn ?? target.financingCashIn,
+      financingCashOut: input.financingCashOut ?? target.financingCashOut,
+      notes: input.notes !== undefined ? input.notes : target.notes,
+      updatedBy: userId,
       updatedAt: new Date(),
-    }).where(eq(weeklyCashFlows.id, existing.id)).returning();
+    }).where(eq(weeklyCashFlows.id, target.id)).returning();
 
     return mapCashFlowRow(updated);
   }
 
   const [inserted] = await db.insert(weeklyCashFlows).values({
-    departmentId: input.departmentId,
+    corporateId: input.corporateId,
     entityType: input.entityType,
     entityId: input.entityId,
     period: input.period,
@@ -451,7 +623,7 @@ export async function saveCashFlow(input: CashFlowInput, createdBy: string): Pro
     financingCashIn: input.financingCashIn ?? '0',
     financingCashOut: input.financingCashOut ?? '0',
     notes: input.notes,
-    createdBy,
+    createdBy: userId,
   }).returning();
 
   return mapCashFlowRow(inserted);
@@ -459,20 +631,112 @@ export async function saveCashFlow(input: CashFlowInput, createdBy: string): Pro
 
 /**
  * Returns cash flow records, optionally filtered.
+ * Results are restricted based on user's corporate access.
  */
 export async function getCashFlows(
-  filter?: { departmentId?: string; entityType?: string; entityId?: string; period?: string },
-): Promise<CashFlow[]> {
+  userId: string,
+  filter?: { 
+    corporateId?: string; 
+    entityType?: string; 
+    entityId?: string; 
+    period?: string; 
+    periodStart?: string; 
+    periodEnd?: string; 
+    search?: string;
+    page?: number; 
+    pageSize?: number 
+  },
+): Promise<{ data: CashFlow[]; totalCount: number }> {
+  const { corporates, userCorporateAccesses, projects } = await import('../../db/schema/public.js');
+  const { inArray, or } = await import('drizzle-orm');
+
+  // 1. Get user corporate access
+  const accessRows = await db.select({ corporateId: userCorporateAccesses.corporateId })
+    .from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.userId, userId));
+
+  const hasFullAccess = accessRows.some(a => a.corporateId === null);
+  const allowedCorpIds = accessRows.map(a => a.corporateId).filter((id): id is string => id !== null);
+
   const conditions = [];
-  if (filter?.departmentId) conditions.push(eq(weeklyCashFlows.departmentId, filter.departmentId));
+
+  // Apply corporate filter with respect to user access
+  if (filter?.corporateId) {
+    if (hasFullAccess || allowedCorpIds.includes(filter.corporateId)) {
+      conditions.push(eq(weeklyCashFlows.corporateId, filter.corporateId));
+    } else {
+      return { data: [], totalCount: 0 };
+    }
+  } else if (!hasFullAccess) {
+    if (allowedCorpIds.length === 0) return { data: [], totalCount: 0 };
+    conditions.push(inArray(weeklyCashFlows.corporateId, allowedCorpIds));
+  }
+
   if (filter?.entityType) conditions.push(eq(weeklyCashFlows.entityType, filter.entityType));
   if (filter?.entityId) conditions.push(eq(weeklyCashFlows.entityId, filter.entityId));
   if (filter?.period) conditions.push(eq(weeklyCashFlows.period, filter.period));
+  if (filter?.periodStart) conditions.push(gte(weeklyCashFlows.period, filter.periodStart));
+  if (filter?.periodEnd) conditions.push(lte(weeklyCashFlows.period, filter.periodEnd));
 
-  const rows = await db.select().from(weeklyCashFlows)
+  const { ilike } = await import('drizzle-orm');
+  if (filter?.search) {
+    conditions.push(or(
+      ilike(projects.name, `%${filter.search}%`),
+      ilike(projects.description, `%${filter.search}%`)
+    ));
+  }
+
+  const page = filter?.page ?? 1;
+  const pageSize = filter?.pageSize ?? 10;
+  const offset = (page - 1) * pageSize;
+
+  // 1. Get total count
+  let countQuery = db.select({ total: count() }).from(weeklyCashFlows);
+  
+  if (filter?.search) {
+    // Join projects for search logic in count
+    countQuery = countQuery.leftJoin(
+      projects, 
+      and(eq(weeklyCashFlows.entityType, 'project'), eq(projects.id, weeklyCashFlows.entityId))
+    ) as any;
+  }
+
+  const [totalRes] = await countQuery
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  
+  const totalCount = Number(totalRes?.total ?? 0);
+
+  // 2. Get paginated results
+  const rows = await db.select({
+    data: weeklyCashFlows,
+    corporateName: corporates.name,
+    projectName: projects.name,
+    entityCorpName: corporates.name, 
+  }).from(weeklyCashFlows)
+    .leftJoin(corporates, eq(corporates.id, weeklyCashFlows.corporateId))
+    .leftJoin(projects, and(eq(weeklyCashFlows.entityType, 'project'), eq(projects.id, weeklyCashFlows.entityId)))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(weeklyCashFlows.period));
+    .orderBy(desc(weeklyCashFlows.period))
+    .limit(pageSize)
+    .offset(offset);
 
-  return rows.map(mapCashFlowRow);
+  const data = rows.map(r => {
+    let entityName = 'N/A';
+    if (r.data.entityType === 'project') entityName = r.projectName ?? 'Unknown Project';
+    else if (r.data.entityType === 'corporate') entityName = r.corporateName ?? 'Unknown Corporate';
+    
+    return mapCashFlowRow({ 
+      ...r.data, 
+      corporateName: r.corporateName ?? undefined,
+      entityName,
+    });
+  });
+
+  return { data, totalCount };
+}
+
+/** Deletes a cash flow record by ID. */
+export async function deleteCashFlow(id: string): Promise<void> {
+  await db.delete(weeklyCashFlows).where(eq(weeklyCashFlows.id, id));
 }
 

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireCRMPermission } from '../../middleware/crmRbac';
+import { requirePermission } from '../../middleware/rbac';
 import { logCreate } from '../../helpers/crmAuditLog';
 import { CreateInteractionInput } from '../../types/crm';
 import { db } from '../../db/connection';
@@ -17,9 +17,9 @@ export function createInteractionRouter(): Router {
   // POST /api/crm/interactions - Log a new interaction
   router.post(
     '/',
-    requireCRMPermission('crm:write:interaction', 'crm:write:all'),
+    requirePermission('crm.interactions.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const body = req.body as CreateInteractionInput;
 
       // Validate required fields (Req 1.6, 1.7)
@@ -93,7 +93,7 @@ export function createInteractionRouter(): Router {
   // GET /api/crm/interactions - List interactions with filters
   router.get(
     '/',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.interactions.read'),
     async (req: Request, res: Response): Promise<void> => {
       const { entityId, entityType, type } = req.query;
 

@@ -1,10 +1,9 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { checkSubsidiaryAccess } from '../../../middleware/rbac';
 
 const accessDbState = vi.hoisted(() => ({
   rows: [] as any[],
 }));
-
-import { hasPermission, checkSubsidiaryAccess } from '../../../middleware/frsRbac';
 
 // Mock the DB connection — checkSubsidiaryAccess uses the singleton db internally
 vi.mock('../../../db/connection', () => ({
@@ -21,31 +20,6 @@ vi.mock('../../../db/connection', () => ({
 
 beforeEach(() => {
   accessDbState.rows = [];
-});
-
-describe('hasPermission', () => {
-  it('owner has full access to all resources', () => {
-    expect(hasPermission('owner', 'subsidiaries', 'read')).toBe(true);
-    expect(hasPermission('owner', 'subsidiaries', 'write')).toBe(true);
-    expect(hasPermission('owner', 'subsidiaries', 'delete')).toBe(true);
-    expect(hasPermission('owner', 'users', 'manage_users')).toBe(true);
-    expect(hasPermission('owner', 'thresholds', 'configure')).toBe(true);
-  });
-
-  it('bod has read-only access, no user management', () => {
-    expect(hasPermission('bod', 'subsidiaries', 'read')).toBe(true);
-    expect(hasPermission('bod', 'financial_data', 'read')).toBe(true);
-    expect(hasPermission('bod', 'users', 'manage_users')).toBe(false);
-    expect(hasPermission('bod', 'thresholds', 'configure')).toBe(false);
-    expect(hasPermission('bod', 'subsidiaries', 'delete')).toBe(false);
-  });
-
-  it('subsidiary_manager has limited access', () => {
-    expect(hasPermission('subsidiary_manager', 'financial_data', 'read')).toBe(true);
-    expect(hasPermission('subsidiary_manager', 'financial_data', 'write')).toBe(true);
-    expect(hasPermission('subsidiary_manager', 'users', 'manage_users')).toBe(false);
-    expect(hasPermission('subsidiary_manager', 'subsidiaries', 'delete')).toBe(false);
-  });
 });
 
 describe('checkSubsidiaryAccess', () => {

@@ -2,15 +2,19 @@
 // Requirements: 8.7, 8.8, 8.9, 8.10
 
 import { Router, Request, Response } from 'express';
+import { requirePermission } from '../../middleware/rbac';
 import {
   saveBalanceSheet,
   getBalanceSheets,
+  deleteBalanceSheet,
   saveIncomeStatement,
   getIncomeStatements,
+  deleteIncomeStatement,
   saveCashFlow,
   getCashFlows,
+  deleteCashFlow,
   ValidationError,
-} from '../../services/mafinda/financialStatementService.js';
+} from '../../services/mafinda/financialStatementService';
 
 export function createFinancialStatementRouter(): Router {
   const router = Router();
@@ -18,20 +22,39 @@ export function createFinancialStatementRouter(): Router {
   // ─── Balance Sheet ──────────────────────────────────────────────────────────
 
   // GET /api/financial-statements/balance-sheet
-  router.get('/balance-sheet', async (req: Request, res: Response): Promise<void> => {
-    const { period, departmentId } = req.query as Record<string, string>;
+  router.get('/balance-sheet', requirePermission('cfd.balance_sheets.read'), async (req: Request, res: Response): Promise<void> => {
+    const { period, periodStart, periodEnd, corporateId, page, pageSize } = req.query as Record<string, string>;
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
     try {
-      const data = await getBalanceSheets({ period, departmentId });
-      res.json(data);
-    } catch {
+      const p = parseInt(page ?? '1', 10);
+      const ps = parseInt(pageSize ?? '10', 10);
+      const { data, totalCount } = await getBalanceSheets(userId, { 
+        period, 
+        periodStart,
+        periodEnd,
+        corporateId, 
+        page: p, 
+        pageSize: ps 
+      });
+      res.json({
+        records: data,
+        totalCount,
+        totalPages: Math.ceil(totalCount / ps)
+      });
+    } catch (err) {
+      console.error('[BalanceSheet] GET error:', err);
       res.status(500).json({ error: 'Terjadi kesalahan server' });
     }
   });
 
   // POST /api/financial-statements/balance-sheet
-  router.post('/balance-sheet', async (req: Request, res: Response): Promise<void> => {
+  router.post('/balance-sheet', requirePermission('cfd.balance_sheets.write'), async (req: Request, res: Response): Promise<void> => {
     const {
-      departmentId,
+      corporateId,
       period,
       cashAndBank,
       accountsReceivable,
@@ -55,8 +78,8 @@ export function createFinancialStatementRouter(): Router {
       notes,
     } = req.body ?? {};
 
-    if (!departmentId?.trim()) {
-      res.status(400).json({ error: 'Field "departmentId" wajib diisi' });
+    if (!corporateId?.trim()) {
+      res.status(400).json({ error: 'Field "corporateId" wajib diisi' });
       return;
     }
     if (!period?.trim()) {
@@ -64,11 +87,16 @@ export function createFinancialStatementRouter(): Router {
       return;
     }
 
-    const createdBy = (req as any).user?.username ?? 'system';
+    const { userId } = req.user ?? {};
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
     try {
       const saved = await saveBalanceSheet({
-        departmentId: departmentId.trim(),
+        id: req.body.id,
+        corporateId: corporateId.trim(),
         period: period.trim(),
         cashAndBank: cashAndBank != null ? String(cashAndBank) : undefined,
         accountsReceivable: accountsReceivable != null ? String(accountsReceivable) : undefined,
@@ -90,9 +118,10 @@ export function createFinancialStatementRouter(): Router {
         retainedEarnings: retainedEarnings != null ? String(retainedEarnings) : undefined,
         dividends: dividends != null ? String(dividends) : undefined,
         notes,
-      }, createdBy);
+      }, userId);
       res.status(201).json(saved);
     } catch (err) {
+      console.error('[BalanceSheet] POST error:', err);
       if (err instanceof ValidationError) {
         res.status(400).json({ error: err.message });
         return;
@@ -101,23 +130,51 @@ export function createFinancialStatementRouter(): Router {
     }
   });
 
+  // DELETE /api/financial-statements/balance-sheet/:id
+  router.delete('/balance-sheet/:id', requirePermission('cfd.balance_sheets.delete'), async (req: Request, res: Response): Promise<void> => {
+    try {
+      await deleteBalanceSheet(req.params.id);
+      res.status(200).json({ message: 'Data neraca berhasil dihapus' });
+    } catch {
+      res.status(500).json({ error: 'Terjadi kesalahan server' });
+    }
+  });
+
   // ─── Income Statement ───────────────────────────────────────────────────────
 
   // GET /api/financial-statements/income-statement
-  router.get('/income-statement', async (req: Request, res: Response): Promise<void> => {
-    const { period, departmentId } = req.query as Record<string, string>;
+  router.get('/income-statement', requirePermission('cfd.income_statements.read'), async (req: Request, res: Response): Promise<void> => {
+    const { period, periodStart, periodEnd, corporateId, page, pageSize } = req.query as Record<string, string>;
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
     try {
-      const data = await getIncomeStatements({ period, departmentId });
-      res.json(data);
+      const p = parseInt(page ?? '1', 10);
+      const ps = parseInt(pageSize ?? '10', 10);
+      const { data, totalCount } = await getIncomeStatements(userId, { 
+        period, 
+        periodStart,
+        periodEnd,
+        corporateId, 
+        page: p, 
+        pageSize: ps 
+      });
+      res.json({
+        records: data,
+        totalCount,
+        totalPages: Math.ceil(totalCount / ps)
+      });
     } catch {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
     }
   });
 
   // POST /api/financial-statements/income-statement
-  router.post('/income-statement', async (req: Request, res: Response): Promise<void> => {
+  router.post('/income-statement', requirePermission('cfd.income_statements.write'), async (req: Request, res: Response): Promise<void> => {
     const {
-      departmentId,
+      corporateId,
       period,
       revenue,
       cogs,
@@ -127,8 +184,8 @@ export function createFinancialStatementRouter(): Router {
       notes,
     } = req.body ?? {};
 
-    if (!departmentId?.trim()) {
-      res.status(400).json({ error: 'Field "departmentId" wajib diisi' });
+    if (!corporateId?.trim()) {
+      res.status(400).json({ error: 'Field "corporateId" wajib diisi' });
       return;
     }
     if (!period?.trim()) {
@@ -136,11 +193,16 @@ export function createFinancialStatementRouter(): Router {
       return;
     }
 
-    const createdBy = (req as any).user?.username ?? 'system';
+    const { userId } = req.user ?? {};
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
     try {
       const saved = await saveIncomeStatement({
-        departmentId: departmentId.trim(),
+        id: req.body.id,
+        corporateId: corporateId.trim(),
         period: period.trim(),
         revenue: revenue != null ? String(revenue) : undefined,
         cogs: cogs != null ? String(cogs) : undefined,
@@ -148,9 +210,10 @@ export function createFinancialStatementRouter(): Router {
         interestExpense: interestExpense != null ? String(interestExpense) : undefined,
         taxExpense: taxExpense != null ? String(taxExpense) : undefined,
         notes,
-      }, createdBy);
+      }, userId);
       res.status(201).json(saved);
     } catch (err) {
+      console.error('[IncomeStatement] POST error:', err);
       if (err instanceof ValidationError) {
         res.status(400).json({ error: err.message });
         return;
@@ -159,23 +222,54 @@ export function createFinancialStatementRouter(): Router {
     }
   });
 
+  // DELETE /api/financial-statements/income-statement/:id
+  router.delete('/income-statement/:id', requirePermission('cfd.income_statements.delete'), async (req: Request, res: Response): Promise<void> => {
+    try {
+      await deleteIncomeStatement(req.params.id);
+      res.status(200).json({ message: 'Data laba rugi berhasil dihapus' });
+    } catch {
+      res.status(500).json({ error: 'Terjadi kesalahan server' });
+    }
+  });
+
   // ─── Cash Flow ──────────────────────────────────────────────────────────────
 
   // GET /api/financial-statements/cash-flow
-  router.get('/cash-flow', async (req: Request, res: Response): Promise<void> => {
-    const { period, departmentId, entityType, entityId } = req.query as Record<string, string>;
+  router.get('/cash-flow', requirePermission('cfd.weekly_cash_flows.read'), async (req: Request, res: Response): Promise<void> => {
+    const { period, periodStart, periodEnd, corporateId, entityType, entityId, search, page, pageSize } = req.query as Record<string, string>;
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
     try {
-      const data = await getCashFlows({ period, departmentId, entityType, entityId });
-      res.json(data);
+      const p = parseInt(page ?? '1', 10);
+      const ps = parseInt(pageSize ?? '10', 10);
+      const { data, totalCount } = await getCashFlows(userId, { 
+        period, 
+        periodStart,
+        periodEnd,
+        corporateId, 
+        entityType, 
+        entityId, 
+        search,
+        page: p, 
+        pageSize: ps 
+      });
+      res.json({
+        records: data,
+        totalCount,
+        totalPages: Math.ceil(totalCount / ps)
+      });
     } catch {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
     }
   });
 
   // POST /api/financial-statements/cash-flow
-  router.post('/cash-flow', async (req: Request, res: Response): Promise<void> => {
+  router.post('/cash-flow', requirePermission('cfd.weekly_cash_flows.write'), async (req: Request, res: Response): Promise<void> => {
     const {
-      departmentId,
+      corporateId,
       entityType,
       entityId,
       period,
@@ -189,8 +283,8 @@ export function createFinancialStatementRouter(): Router {
       notes,
     } = req.body ?? {};
 
-    if (!departmentId?.trim()) {
-      res.status(400).json({ error: 'Field "departmentId" wajib diisi' });
+    if (!corporateId?.trim()) {
+      res.status(400).json({ error: 'Field "corporateId" wajib diisi' });
       return;
     }
     if (!entityType?.trim()) {
@@ -210,11 +304,16 @@ export function createFinancialStatementRouter(): Router {
       return;
     }
 
-    const createdBy = (req as any).user?.username ?? 'system';
+    const { userId } = req.user ?? {};
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
     try {
       const saved = await saveCashFlow({
-        departmentId: departmentId.trim(),
+        id: req.body.id,
+        corporateId: corporateId.trim(),
         entityType: entityType.trim(),
         entityId: entityId.trim(),
         period: period.trim(),
@@ -226,13 +325,24 @@ export function createFinancialStatementRouter(): Router {
         financingCashIn: financingCashIn != null ? String(financingCashIn) : undefined,
         financingCashOut: financingCashOut != null ? String(financingCashOut) : undefined,
         notes,
-      }, createdBy);
+      }, userId);
       res.status(201).json(saved);
     } catch (err) {
+      console.error('[WeeklyCashFlow] POST error:', err);
       if (err instanceof ValidationError) {
         res.status(400).json({ error: err.message });
         return;
       }
+      res.status(500).json({ error: 'Terjadi kesalahan server' });
+    }
+  });
+
+  // DELETE /api/financial-statements/cash-flow/:id
+  router.delete('/cash-flow/:id', requirePermission('cfd.weekly_cash_flows.delete'), async (req: Request, res: Response): Promise<void> => {
+    try {
+      await deleteCashFlow(req.params.id);
+      res.status(200).json({ message: 'Data arus kas berhasil dihapus' });
+    } catch {
       res.status(500).json({ error: 'Terjadi kesalahan server' });
     }
   });

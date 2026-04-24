@@ -6,6 +6,14 @@
 
 Full-stack financial dashboard & CRM for PT Titian Servis Indonesia. Built with React 19, Express 4, PostgreSQL (Neon), and Drizzle ORM.
 
+## Latest Implementation Notes
+
+- Excel import/export implementation uses `exceljs`.
+- FRS bulk import supports `.csv` and `.xlsx` formats (`.xls` is not supported).
+- FRS notifications use per-user inbox with SSE stream and polling fallback.
+- Permissions are normalized via `permissions` and `role_permissions`, with session invalidation using `authz_version`.
+- Detailed change log: `docs/changelog/2026-04-17-security-notification-permission-refactor.md`.
+
 ## Run Locally
 
 **Prerequisites:** Node.js 20+, PostgreSQL database (or Neon account)

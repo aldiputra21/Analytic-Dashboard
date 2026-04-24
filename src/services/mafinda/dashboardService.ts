@@ -3,7 +3,7 @@
 
 import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { departments } from '../../db/schema/public';
+import { departments, corporates } from '../../db/schema/public';
 import {
   balanceSheets,
   incomeStatements,
@@ -30,6 +30,8 @@ export interface DeptRevenueTargetResult {
 
 export interface RevenueCostSummary {
   period: string;
+  corporateId?: string;
+  corporateName?: string;
   departmentId?: string;
   departmentName?: string;
   revenue: number;
@@ -47,6 +49,7 @@ export interface CashFlowDataPoint {
 
 export interface CashFlowResult {
   data: CashFlowDataPoint[];
+  corporateId?: string;
   departmentId?: string;
   entityType?: string;
   entityId?: string;
@@ -177,13 +180,20 @@ function n(value: string | null | undefined): number {
  */
 export async function getDeptRevenueTarget(
   period: string,
-  corporateId: string,
+  corporateId?: string,
 ): Promise<DeptRevenueTargetResult> {
   const { year, month } = parsePeriod(period);
 
-  const depts = await db.select({ id: departments.id, name: departments.name })
+  const conditions = [eq(departments.isActive, true)];
+  if (corporateId) conditions.push(eq(departments.corporateId, corporateId));
+
+  const depts = await db.select({ 
+    id: departments.id, 
+    name: departments.name,
+    corporateId: departments.corporateId
+  })
     .from(departments)
-    .where(and(eq(departments.corporateId, corporateId), eq(departments.isActive, true)))
+    .where(and(...conditions))
     .orderBy(asc(departments.name));
 
   const items: DeptRevenueTargetItem[] = [];
@@ -196,17 +206,17 @@ export async function getDeptRevenueTarget(
       .where(and(
         eq(targetHeaders.departmentId, dept.id),
         eq(targetHeaders.fiscalYear, year),
-        eq(targetHeaders.fiscalMonth, month),
+        // eq(targetHeaders.fiscalMonth, month),
         eq(targetDetails.targetType, 'revenue'),
       ))
       .limit(1);
 
-    // Get realization from income_statements
+    // Get realization from income_statements — Note: income_statements is corporate level
     const [realizationRow] = await db
       .select({ revenue: incomeStatements.revenue })
       .from(incomeStatements)
       .where(and(
-        eq(incomeStatements.departmentId, dept.id),
+        eq(incomeStatements.corporateId, dept.corporateId),
         eq(incomeStatements.period, period),
       ))
       .limit(1);
@@ -232,26 +242,26 @@ export async function getDeptRevenueTarget(
  */
 export async function getRevenueCostSummary(
   period: string,
-  departmentId?: string,
+  corporateId?: string,
 ): Promise<RevenueCostSummary> {
   const prevPeriod = previousPeriod(period);
 
-  if (departmentId) {
-    const [dept] = await db.select({ id: departments.id, name: departments.name })
-      .from(departments)
-      .where(eq(departments.id, departmentId))
+  if (corporateId) {
+    const [corp] = await db.select({ id: corporates.id, name: corporates.name })
+      .from(corporates)
+      .where(eq(corporates.id, corporateId))
       .limit(1);
 
     const [current] = await db
       .select({ revenue: incomeStatements.revenue, opex: incomeStatements.operatingExpenses })
       .from(incomeStatements)
-      .where(and(eq(incomeStatements.departmentId, departmentId), eq(incomeStatements.period, period)))
+      .where(and(eq(incomeStatements.corporateId, corporateId), eq(incomeStatements.period, period)))
       .limit(1);
 
     const [previous] = await db
       .select({ revenue: incomeStatements.revenue, opex: incomeStatements.operatingExpenses })
       .from(incomeStatements)
-      .where(and(eq(incomeStatements.departmentId, departmentId), eq(incomeStatements.period, prevPeriod)))
+      .where(and(eq(incomeStatements.corporateId, corporateId), eq(incomeStatements.period, prevPeriod)))
       .limit(1);
 
     const revenue = n(current?.revenue);
@@ -261,8 +271,8 @@ export async function getRevenueCostSummary(
 
     return {
       period,
-      departmentId,
-      departmentName: dept?.name,
+      corporateId,
+      corporateName: corp?.name,
       revenue,
       revenueChange: percentChange(revenue, prevRevenue),
       operationalCost,
@@ -309,7 +319,7 @@ export async function getRevenueCostSummary(
 export async function getCashFlowData(
   period: string,
   months = 6,
-  departmentId?: string,
+  corporateId?: string,
   entityType?: string,
   entityId?: string,
 ): Promise<CashFlowResult> {
@@ -323,7 +333,7 @@ export async function getCashFlowData(
   }
 
   const conditions = [inArray(weeklyCashFlows.period, periods)];
-  if (departmentId) conditions.push(eq(weeklyCashFlows.departmentId, departmentId));
+  if (corporateId) conditions.push(eq(weeklyCashFlows.corporateId, corporateId));
   if (entityType) conditions.push(eq(weeklyCashFlows.entityType, entityType));
   if (entityId) conditions.push(eq(weeklyCashFlows.entityId, entityId));
 
@@ -361,7 +371,7 @@ export async function getCashFlowData(
     };
   });
 
-  return { data, departmentId, entityType, entityId };
+  return { data, corporateId, entityType, entityId };
 }
 
 /**
@@ -371,10 +381,10 @@ export async function getCashFlowData(
  */
 export async function getAssetComposition(
   period: string,
-  departmentId?: string,
+  corporateId?: string,
 ): Promise<AssetComposition | null> {
   const conditions = [eq(balanceSheets.period, period)];
-  if (departmentId) conditions.push(eq(balanceSheets.departmentId, departmentId));
+  if (corporateId) conditions.push(eq(balanceSheets.corporateId, corporateId));
 
   const [row] = await db
     .select({
@@ -403,10 +413,10 @@ export async function getAssetComposition(
  */
 export async function getEquityLiabilityComposition(
   period: string,
-  departmentId?: string,
+  corporateId?: string,
 ): Promise<EquityLiabilityComposition | null> {
   const conditions = [eq(balanceSheets.period, period)];
-  if (departmentId) conditions.push(eq(balanceSheets.departmentId, departmentId));
+  if (corporateId) conditions.push(eq(balanceSheets.corporateId, corporateId));
 
   const [row] = await db
     .select({
@@ -450,9 +460,9 @@ export async function getEquityLiabilityComposition(
  */
 export async function getHistoricalData(
   months: number,
-  departmentId?: string,
+  corporateId?: string,
 ): Promise<HistoricalDataPoint[]> {
-  const conditions = departmentId ? [eq(incomeStatements.departmentId, departmentId)] : [];
+  const conditions = corporateId ? [eq(incomeStatements.corporateId, corporateId)] : [];
 
   const rows = await db
     .select({
@@ -493,8 +503,8 @@ export async function getHistoricalData(
         })
         .from(balanceSheets)
         .where(
-          departmentId
-            ? and(inArray(balanceSheets.period, periodsInResult), eq(balanceSheets.departmentId, departmentId))
+          corporateId
+            ? and(inArray(balanceSheets.period, periodsInResult), eq(balanceSheets.corporateId, corporateId))
             : inArray(balanceSheets.period, periodsInResult),
         )
         .groupBy(balanceSheets.period)

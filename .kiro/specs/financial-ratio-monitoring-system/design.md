@@ -31,7 +31,7 @@ The Financial Ratio Monitoring System is a comprehensive web-based platform desi
 **Additional Libraries:**
 - Zod for runtime validation
 - date-fns for date manipulation
-- xlsx for Excel import/export
+- exceljs for Excel import/export
 - jsPDF for PDF generation
 
 

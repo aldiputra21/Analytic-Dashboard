@@ -98,7 +98,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
                 className="appearance-none pl-3 pr-8 py-1.5 text-xs font-medium border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 cursor-pointer"
               >
                 <option value="all">Semua Departemen</option>
-                {allDepartments.map(d => (
+                {(Array.isArray(allDepartments) ? allDepartments : []).map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>

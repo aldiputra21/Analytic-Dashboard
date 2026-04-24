@@ -7,16 +7,16 @@ import { UserRole } from '../../../types/financial/user';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: UserRole[];
+  allowedPermissions?: string[];
   fallback?: React.ReactNode;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  allowedRoles,
+  allowedPermissions,
   fallback,
 }) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, hasPermission } = useAuth();
 
   if (isLoading) {
     return (
@@ -41,7 +41,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  const hasRequiredPermissions = !allowedPermissions || allowedPermissions.length === 0
+    ? true
+    : allowedPermissions.some((permission) => hasPermission(permission));
+
+  if (!hasRequiredPermissions) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center">

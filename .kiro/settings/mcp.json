@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+		"neondb-titian": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"mcp-postgres-server@0.1.3"
+			],
+			"env": {
+				"PG_HOST": "ep-snowy-unit-a10jussp-pooler.ap-southeast-1.aws.neon.tech",
+				"PG_PORT": "5432",
+				"PG_USER": "neondb_owner",
+				"PG_PASSWORD": "npg_T9Hge1VCEpMB",
+				"PG_DATABASE": "neondb"
+			}
+		}
+  }
+}

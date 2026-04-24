@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1775910686011,
-      "tag": "0000_eminent_colossus",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1776128249968,
-      "tag": "0001_pale_ozymandias",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1776138867156,
-      "tag": "0002_regular_supreme_intelligence",
+      "when": 1776835197830,
+      "tag": "0000_uneven_mach_iv",
       "breakpoints": true
     }
   ]

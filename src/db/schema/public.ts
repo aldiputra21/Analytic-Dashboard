@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  index,
   inet,
   integer,
   jsonb,
@@ -16,7 +17,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 // ============================================================================
-// public schema — 12 tables
+// public schema — 15 tables
 // ============================================================================
 
 // --- 1. roles ---------------------------------------------------------------
@@ -25,12 +26,26 @@ export const roles = pgTable('roles', {
   id: uuid().primaryKey().defaultRandom(),
   name: varchar({ length: 50 }).notNull().unique(),
   scope: varchar({ length: 20 }).notNull(),
-  permissions: jsonb().notNull().$type<string[]>(),
   description: text(),
   isActive: boolean('is_active').notNull().default(true),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+});
+
+// --- 1b. permissions -------------------------------------------------------
+
+export const permissions = pgTable('permissions', {
+  id: uuid().primaryKey().defaultRandom(),
+  key: varchar({ length: 120 }).notNull().unique(),
+  module: varchar({ length: 50 }).notNull(),
+  description: text(),
+  metadata: jsonb(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 });
 
@@ -41,6 +56,7 @@ export const users = pgTable('users', {
   username: varchar({ length: 50 }).unique(),
   email: varchar({ length: 255 }).notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  authzVersion: integer('authz_version').notNull().default(1),
   passwordResetTokenHash: text('password_reset_token_hash'),
   passwordResetExpiresAt: timestamp('password_reset_expires_at', { withTimezone: true }),
   fullName: varchar('full_name', { length: 100 }).notNull(),
@@ -68,9 +84,9 @@ export const corporates = pgTable('corporates', {
   currency: varchar({ length: 10 }).notNull().default('IDR'),
   taxRate: numeric('tax_rate', { precision: 5, scale: 2 }),
   isActive: boolean('is_active').notNull().default(true),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
   check('fiscal_month_check', sql`${table.fiscalYearStartMonth} >= 1 AND ${table.fiscalYearStartMonth} <= 12`),
@@ -86,9 +102,9 @@ export const departments = pgTable('departments', {
   description: text(),
   headName: varchar('head_name', { length: 100 }),
   isActive: boolean('is_active').notNull().default(true),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
   unique('uq_dept_corporate_code').on(table.corporateId, table.code),
@@ -108,9 +124,9 @@ export const projects = pgTable('projects', {
   startDate: timestamp('start_date', { mode: 'date' }),
   endDate: timestamp('end_date', { mode: 'date' }),
   isActive: boolean('is_active').notNull().default(true),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
   unique('uq_project_dept_code').on(table.departmentId, table.code),
@@ -141,6 +157,20 @@ export const userCorporateAccesses = pgTable('user_corporate_accesses', {
     .where(sql`${table.scope} = 'system'`),
 ]);
 
+// --- 6b. role_permissions ---------------------------------------------------
+
+export const rolePermissions = pgTable('role_permissions', {
+  id: uuid().primaryKey().defaultRandom(),
+  roleId: uuid('role_id').notNull().references(() => roles.id),
+  permissionId: uuid('permission_id').notNull().references(() => permissions.id),
+  grantedBy: uuid('granted_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique('uq_role_permissions_role_permission').on(table.roleId, table.permissionId),
+  index('idx_role_permissions_role').on(table.roleId),
+  index('idx_role_permissions_permission').on(table.permissionId),
+]);
+
 // --- 7. audit_logs ----------------------------------------------------------
 
 export const auditLogs = pgTable('audit_logs', {
@@ -165,9 +195,9 @@ export const systemConfigs = pgTable('system_configs', {
   key: varchar({ length: 100 }).primaryKey(),
   value: jsonb().notNull(),
   description: text(),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 });
 
@@ -182,9 +212,9 @@ export const approvalWorkflows = pgTable('approval_workflows', {
   description: text(),
   callbackHandler: varchar('callback_handler', { length: 100 }).notNull(),
   isActive: boolean('is_active').notNull().default(true),
-  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
   unique('uq_workflow_module_entity_action').on(table.module, table.entityType, table.action),
@@ -237,3 +267,39 @@ export const approvalHistories = pgTable('approval_histories', {
   comments: text(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// --- 13. notifications -----------------------------------------------------
+
+export const notifications = pgTable('notifications', {
+  id: uuid().primaryKey().defaultRandom(),
+  sourceModule: varchar('source_module', { length: 50 }).notNull(),
+  sourceEntityType: varchar('source_entity_type', { length: 50 }).notNull(),
+  sourceEntityId: uuid('source_entity_id').notNull(),
+  recipientUserId: uuid('recipient_user_id').notNull().references(() => users.id),
+  recipientRoleId: uuid('recipient_role_id').references(() => roles.id),
+  category: varchar({ length: 50 }).notNull(),
+  templateKey: varchar('template_key', { length: 120 }).notNull(),
+  templateVars: jsonb('template_vars').notNull().$type<Record<string, unknown>>().default({}),
+  payload: jsonb().notNull().$type<Record<string, unknown>>().default({}),
+  severity: varchar({ length: 20 }).notNull().default('medium'),
+  status: varchar({ length: 20 }).notNull().default('unread'),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  readBy: uuid('read_by').references(() => users.id),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  unique('uq_notifications_source_recipient_template').on(
+    table.sourceModule,
+    table.sourceEntityType,
+    table.sourceEntityId,
+    table.recipientUserId,
+    table.templateKey,
+  ),
+  index('idx_notifications_recipient_status_created').on(table.recipientUserId, table.status, table.createdAt),
+  index('idx_notifications_source_entity').on(table.sourceModule, table.sourceEntityType, table.sourceEntityId),
+  index('idx_notifications_severity').on(table.severity),
+  check('chk_notifications_status', sql`${table.status} IN ('unread', 'read', 'archived', 'dismissed')`),
+  check('chk_notifications_severity', sql`${table.severity} IN ('low', 'medium', 'high')`),
+]);

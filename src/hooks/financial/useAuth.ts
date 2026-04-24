@@ -1,8 +1,10 @@
 // useAuth.ts - Authentication hook for Financial Ratio Monitoring System
 // Requirements: 9.6, 9.7, 9.8
 
-import { useState, useEffect, useCallback } from 'react';
+/// <reference types="vite/client" />
+import { useState, useEffect, useCallback, SetStateAction } from 'react';
 import { FRSUser as User } from '../../types/financial/user';
+import { apiFetch } from '../../services/financial/apiFetch';
 
 const API_BASE = '/api/frs';
 const TOKEN_KEY = 'frs_token';
@@ -13,6 +15,7 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   error: string | null;
+  language: 'id' | 'en';
 }
 
 interface LoginInput {
@@ -30,71 +33,280 @@ interface ResetPasswordInput {
 }
 
 // ── Singleton store so all useAuth() instances share the same state ──────────
-let _state: AuthState = { user: null, token: null, isLoading: true, error: null };
-const _listeners = new Set<(s: AuthState) => void>();
+let _state: AuthState = { user: null, token: null, isLoading: true, error: null, language: 'id' };
+let _config: { keepAliveIntervalMs: number } | null | undefined = undefined;
+let _keepAliveInterval: any = null;
+const _listeners = new Set<(state: AuthState) => void>();
+let _refreshPromise: Promise<void> | null = null;
+let _initialized = false;
+let _unauthorizedHandler: (() => void) | null = null;
 
 function setState(next: AuthState | ((prev: AuthState) => AuthState)) {
   _state = typeof next === 'function' ? next(_state) : next;
   _listeners.forEach((fn) => fn(_state));
 }
 
-// Initialise from localStorage once at module load
-(function init() {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const userJson = localStorage.getItem(USER_KEY);
-  if (token && userJson) {
-    try {
-      const user = JSON.parse(userJson) as User;
-      _state = { user, token, isLoading: false, error: null };
-    } catch {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
-      _state = { user: null, token: null, isLoading: false, error: null };
-    }
-  } else {
-    _state = { ..._state, isLoading: false };
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    // Expired if current time + 10s buffer > exp
+    return (payload.exp * 1000) < (Date.now() + 10000);
+  } catch {
+    return true;
   }
-})();
+}
 
-// Listen for 401 events dispatched by apiFetch
-window.addEventListener('frs:unauthorized', () => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  setState({ user: null, token: null, isLoading: false, error: 'SESSION_EXPIRED' });
-});
+// Initialize state from localStorage (only once, deferred to first hook call)
+function initializeState() {
+  if (_initialized) return;
+  _initialized = true;
+
+  try {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const userJson = localStorage.getItem(USER_KEY);
+
+    // Check if token exists AND is NOT expired
+    if (token && userJson && !isTokenExpired(token)) {
+      try {
+        const user = JSON.parse(userJson) as User;
+        _state = { ..._state, user, token, isLoading: false, error: null };
+      } catch {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        _state = { ..._state, user: null, token: null, isLoading: false, error: null };
+      }
+    } else {
+      // Clear expired or missing session
+      if (token) {
+        if (process.env.NODE_ENV === 'development') console.warn('[Auth] Clearing expired token on startup');
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      }
+      _state = { ..._state, user: null, token: null, isLoading: false, error: null };
+    }
+
+    // Load language preference
+    const lang = localStorage.getItem('frs_lang');
+    if (lang === 'en' || lang === 'id') {
+      _state.language = lang;
+    }
+  } catch {
+    // localStorage access restricted (e.g., iframe, private browsing)
+    _state = { ..._state, user: null, token: null, isLoading: false, error: null };
+  }
+}
+
+// Event listener for 401s (will be registered/unregistered in useEffect)
+function handleUnauthorized() {
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('[Auth] handleUnauthorized triggered. Clearing session state.');
+  }
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch {
+    // localStorage access restricted
+  }
+  _state = { ..._state, user: null, token: null, isLoading: false, error: 'SESSION_EXPIRED' };
+  _listeners.forEach(fn => fn(_state));
+}
+
+// ── Activity Tracking for active keep-alive ─────────────────────────────────
+let _lastActivity = Date.now();
+
+function updateActivity() {
+  _lastActivity = Date.now();
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('mousedown', updateActivity);
+  window.addEventListener('keydown', updateActivity);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function refreshSessionFromServer(): Promise<void> {
+  if (_refreshPromise) {
+    return _refreshPromise;
+  }
+
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    return;
+  }
+
+  _refreshPromise = (async () => {
+    const shouldSetLoading = !_state.user;
+    if (shouldSetLoading) setState((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Auth] Refreshing session...');
+      }
+
+      const res = await apiFetch(`${API_BASE}/auth/me`);
+
+      const latestToken = localStorage.getItem(TOKEN_KEY);
+      if (token !== latestToken) return;
+
+      if (res.ok) {
+        const user = await res.json() as User;
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        setState(s => ({ ...s, user, token: token || s.token, isLoading: false, error: null }));
+        return;
+      }
+
+      if (res.status !== 401 && _state.user) {
+        setState((prev) => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      if (!_state.user || res.status === 401) {
+        if (token === latestToken) {
+          console.warn('[Auth] Session expired');
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
+          setState(s => ({ ...s, user: null, token: null, isLoading: false, error: 'SESSION_EXPIRED' }));
+        } else {
+          setState((prev) => ({ ...prev, isLoading: false }));
+        }
+      }
+    } catch (err) {
+      setState((prev) => ({ ...prev, isLoading: false }));
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useAuth() {
   const [state, setLocalState] = useState<AuthState>(_state);
 
   useEffect(() => {
-    // Sync with singleton on mount (in case it changed before this component mounted)
+    // Initialize state from localStorage on first mount of any useAuth instance
+    initializeState();
+
+    // Sync with singleton on mount
     setLocalState(_state);
     _listeners.add(setLocalState);
-    return () => { _listeners.delete(setLocalState); };
+
+    // Register 401 event listener in this component's lifecycle
+    if (!_unauthorizedHandler) {
+      _unauthorizedHandler = handleUnauthorized;
+      window.addEventListener('frs:unauthorized', _unauthorizedHandler);
+    }
+
+    const handleTokenRefreshed = (e: any) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Auth] Token refreshed successfully');
+      }
+      setState(s => ({ ...s, token: e.detail }));
+    };
+
+    // Fetch config and setup keep-alive
+    const setupKeepAlive = async () => {
+      try {
+        if (_config === undefined) {
+          _config = null; // Mark as fetching
+          const res = await fetch(`${API_BASE}/auth/config`);
+          if (res.ok) {
+            _config = await res.json();
+          } else {
+            _config = undefined; // Reset for retry
+            return;
+          }
+        }
+
+        // Wait if currently being fetched by another instance
+        if (_config === null) return;
+
+        if (_config && _config.keepAliveIntervalMs > 0 && !_keepAliveInterval) {
+          const intervalMs = _config.keepAliveIntervalMs;
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Auth] Keep-Alive polling enabled (${intervalMs}ms)`);
+          }
+          _keepAliveInterval = setInterval(() => {
+            const now = Date.now();
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (token && (now - _lastActivity < intervalMs * 2)) {
+              void refreshSessionFromServer();
+            }
+          }, intervalMs);
+        }
+      } catch (err) {
+        console.error('[Auth] Failed to load config:', err);
+        _config = undefined;
+      }
+    };
+
+    setupKeepAlive();
+
+    return () => {
+      _listeners.delete(setLocalState);
+      window.removeEventListener('frs:token-refreshed', handleTokenRefreshed);
+      // We don't clear the global _keepAliveInterval here.
+      // It stays active for the app session since it uses localStorage directly.
+
+      if (_listeners.size === 0 && _unauthorizedHandler) {
+        window.removeEventListener('frs:unauthorized', _unauthorizedHandler);
+        _unauthorizedHandler = null;
+      }
+    };
   }, []);
+
+  // Only refresh session once on mount if token exists
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token && _initialized) {
+      void refreshSessionFromServer();
+    }
+  }, []); // Empty deps - only run on mount
 
   const login = useCallback(async (input: LoginInput) => {
     setState((s) => ({ ...s, isLoading: true, error: null }));
-    try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setState((s) => ({ ...s, isLoading: false, error: data.error?.code || 'FRS_LOGIN_FAILED' }));
-        return false;
+
+    let lastError: unknown;
+    const maxRetries = 1;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          // Don't retry on client errors (400, 401, etc)
+          setState((s) => ({ ...s, isLoading: false, error: data.error?.code || 'FRS_LOGIN_FAILED' }));
+          return false;
+        }
+
+        // Success
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        setState(s => ({ ...s, user: data.user, token: data.token, isLoading: false, error: null }));
+        return true;
+      } catch (error) {
+        lastError = error;
+
+        // Network error - retry with backoff
+        if (attempt < maxRetries) {
+          const delayMs = 500 * Math.pow(2, attempt); // 500ms, 1s
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
       }
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setState({ user: data.user, token: data.token, isLoading: false, error: null });
-      return true;
-    } catch {
-      setState((s) => ({ ...s, isLoading: false, error: 'NETWORK_ERROR' }));
-      return false;
     }
+
+    // All retries exhausted
+    setState((s) => ({ ...s, isLoading: false, error: 'NETWORK_ERROR' }));
+    return false;
   }, []);
 
   const logout = useCallback(async () => {
@@ -111,7 +323,7 @@ export function useAuth() {
     }
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    setState({ user: null, token: null, isLoading: false, error: null });
+    setState(s => ({ ...s, user: null, token: null, isLoading: false, error: null }));
   }, []);
 
   const forgotPassword = useCallback(async (input: ForgotPasswordInput) => {
@@ -151,14 +363,23 @@ export function useAuth() {
   return {
     user: state.user,
     token: state.token,
+    permissions: state.user?.permissions ?? [],
     isLoading: state.isLoading,
     error: state.error,
     login,
     forgotPassword,
     resetPassword,
     logout,
+    hasPermission: (permission: string) => (state.user?.permissions ?? []).includes(permission),
     isOwner: state.user?.role === 'owner',
     isBOD: state.user?.role === 'bod',
     isSubsidiaryManager: state.user?.role === 'subsidiary_manager',
+    hasFullCorporateAccess: !!state.user?.hasFullCorporateAccess,
+    subsidiaryIds: state.user?.subsidiaryIds ?? [],
+    language: state.language,
+    setLanguage: (lang: 'id' | 'en') => {
+      localStorage.setItem('frs_lang', lang);
+      setState(s => ({ ...s, language: lang }));
+    }
   };
 }

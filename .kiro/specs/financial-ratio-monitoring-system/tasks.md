@@ -139,7 +139,7 @@ Implementasi sistem monitoring rasio keuangan untuk perusahaan holding menggunak
     - **Validates: Requirements 11.3, 11.4, 11.5, 11.6**
 
   - [x] 2.11 Implement bulk import (CSV/Excel) via POST /api/financial-data/bulk
-    - Parse CSV and Excel files using xlsx library
+    - Parse CSV and Excel files using exceljs library
     - Validate each row against financial data rules
     - Generate error report identifying specific rows and fields with issues
     - Process valid rows and skip invalid ones
@@ -368,7 +368,7 @@ Implementasi sistem monitoring rasio keuangan untuk perusahaan holding menggunak
     - **Validates: Requirements 7.1, 7.3, 7.4, 7.5, 7.7**
 
   - [x] 5.11 Implement export functionality (CSV, Excel, PDF)
-    - Export financial ratio data in CSV and Excel formats using xlsx library
+    - Export financial ratio data in CSV and Excel formats using exceljs library
     - Generate PDF reports using jsPDF with company branding
     - Include metadata in all exports: export date, period range, exporting user
     - Apply access control permissions to export (users can only export permitted data)

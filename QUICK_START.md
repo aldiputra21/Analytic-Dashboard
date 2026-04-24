@@ -47,6 +47,14 @@ Buka browser: **http://localhost:5000**
 - **CRM Pipeline**: Lead → Qualification → Tender → Proposal → Negotiation → Contract
 - **Reports**: Trend analysis, consolidated reports, Excel/PDF export
 
+## 🆕 Implementation Notes
+
+- Excel processing now uses `exceljs`.
+- Bulk import accepts `.csv` and `.xlsx` files (`.xls` is not supported).
+- Notification inbox supports realtime via SSE with polling fallback.
+- Permission checks use normalized permission mapping and `authz_version`-based session invalidation.
+- Detail referensi: `docs/changelog/2026-04-17-security-notification-permission-refactor.md`.
+
 ## 🆘 Troubleshooting
 
 **Server won't start?**

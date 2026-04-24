@@ -1,7 +1,7 @@
 // useRatios.ts - Hook for fetching calculated ratios
 // Requirements: 12.2, 12.4
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { CalculatedRatios } from '../../types/financial/ratio';
 import { PeriodType } from '../../types/financial/financialData';
 import { apiFetch } from '../../services/financial/apiFetch';
@@ -60,7 +60,11 @@ export function useRatios(options: UseRatiosOptions = {}): UseRatiosResult {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const cacheKey = `ratios:${subsidiaryId ?? 'all'}:${periodType ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}:${limit ?? ''}`;
+  // Memoize cacheKey to prevent string recreation on every render
+  const cacheKey = useMemo(
+    () => `ratios:${subsidiaryId ?? 'all'}:${periodType ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}:${limit ?? ''}`,
+    [subsidiaryId, periodType, startDate, endDate, limit]
+  );
 
   const fetchRatios = useCallback(async () => {
     if (!enabled) return;
@@ -101,7 +105,7 @@ export function useRatios(options: UseRatiosOptions = {}): UseRatiosResult {
     } finally {
       setIsLoading(false);
     }
-  }, [cacheKey, enabled, subsidiaryId, periodType, startDate, endDate, limit]);
+  }, [cacheKey, enabled]);
 
   useEffect(() => {
     fetchRatios();

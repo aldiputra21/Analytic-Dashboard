@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireCRMPermission } from '../../middleware/crmRbac';
+import { requirePermission } from '../../middleware/rbac';
 import { logCreate, logUpdate } from '../../helpers/crmAuditLog';
 import { CreateCustomerInput, CreateContactInput } from '../../types/crm';
 import { db } from '../../db/connection';
@@ -17,9 +17,9 @@ export function createCustomerRouter(): Router {
   // POST /api/crm/customers - Create new customer
   router.post(
     '/',
-    requireCRMPermission('crm:write:customer', 'crm:write:all'),
+    requirePermission('crm.customers.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const body = req.body as CreateCustomerInput;
 
       // Validate required fields (Req 1.4, 1.5)
@@ -138,7 +138,7 @@ export function createCustomerRouter(): Router {
   // GET /api/crm/customers - List customers with search
   router.get(
     '/',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.customers.read'),
     async (req: Request, res: Response): Promise<void> => {
       const { search, status } = req.query;
 
@@ -176,7 +176,7 @@ export function createCustomerRouter(): Router {
   // GET /api/crm/customers/:id - Get customer detail
   router.get(
     '/:id',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.customers.read'),
     async (req: Request, res: Response): Promise<void> => {
       const [customer] = (await db.execute(sql`
         SELECT c.*, p.company_name AS parent_company_name
@@ -223,9 +223,9 @@ export function createCustomerRouter(): Router {
   // PUT /api/crm/customers/:id - Update customer
   router.put(
     '/:id',
-    requireCRMPermission('crm:write:customer', 'crm:write:all'),
+    requirePermission('crm.customers.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const [customer] = await db
         .select()
         .from(customers)
@@ -367,7 +367,7 @@ export function createCustomerRouter(): Router {
   // GET /api/crm/customers/:id/interactions - Get customer interactions
   router.get(
     '/:id/interactions',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.customers.read'),
     async (req: Request, res: Response): Promise<void> => {
       const [customer] = await db
         .select({ id: customers.id })
@@ -410,9 +410,9 @@ export function createContactRouter(): Router {
   // POST /api/crm/customers/:customerId/contacts
   router.post(
     '/',
-    requireCRMPermission('crm:write:customer', 'crm:write:all'),
+    requirePermission('crm.customers.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const { customerId } = req.params;
 
       const [customer] = await db
@@ -470,9 +470,9 @@ export function createContactStandaloneRouter(): Router {
   // PUT /api/crm/contacts/:id
   router.put(
     '/:id',
-    requireCRMPermission('crm:write:customer', 'crm:write:all'),
+    requirePermission('crm.customers.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const [contact] = await db
         .select()
         .from(contacts)
@@ -507,9 +507,9 @@ export function createContactStandaloneRouter(): Router {
   // DELETE /api/crm/contacts/:id
   router.delete(
     '/:id',
-    requireCRMPermission('crm:write:customer', 'crm:write:all'),
+    requirePermission('crm.customers.delete'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const [contact] = await db
         .select()
         .from(contacts)

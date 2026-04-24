@@ -5,23 +5,38 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { createFRSAuthRouter } from './auth';
-import { createSubsidiariesRouter } from './subsidiaries';
+import { createCorporatesRouter } from './corporates';
 import { createFinancialDataRouter } from './financialData';
 import { createUsersRouter } from './users';
 import { createRatiosRouter } from './ratios';
 import { createThresholdsRouter } from './thresholds';
 import { createAlertsRouter } from './alerts';
+import { createNotificationsRouter } from './notifications';
 import { createReportsRouter } from './reports';
 import { createAuditLogRouter } from './auditLog';
 import { createBackupRouter } from './backup';
+import { authenticate } from '../../middleware/auth';
+
+import { getFRSConfig } from '../../config/frsConfig';
+
+// Load config for rate limits
+const config = getFRSConfig();
 
 // Rate limiter for auth endpoints (prevent brute force)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
+  windowMs: config.RATE_LIMIT_WINDOW_MS, 
+  max: config.RATE_LIMIT_AUTH_MAX,
   message: { error: { code: 'FRS_RATE_LIMIT', message: 'Too many requests, please try again later' } },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for essential polling:
+    // 1. Session keep-alive (GET /auth/me)
+    // 2. Notification polling/stream (GET /notifications*)
+    const isKeepAlive = req.originalUrl.endsWith('/auth/me') && req.method === 'GET';
+    const isNotification = req.originalUrl.includes('/notifications') && req.method === 'GET';
+    return isKeepAlive || isNotification;
+  },
 });
 
 /**
@@ -42,8 +57,11 @@ export function createFRSRouter(): Router {
   // Auth routes (rate limited)
   router.use('/auth', authLimiter, createFRSAuthRouter());
 
-  // Subsidiary management
-  router.use('/subsidiaries', createSubsidiariesRouter());
+  // Protect all following FRS routes
+  router.use(authenticate);
+
+  // Corporate management
+  router.use('/corporates', createCorporatesRouter());
 
   // Financial data management (bulk must be registered before /:id routes)
   router.use('/financial-data', createFinancialDataRouter());
@@ -59,6 +77,9 @@ export function createFRSRouter(): Router {
 
   // Alert management
   router.use('/alerts', createAlertsRouter());
+
+  // Common notification inbox (SSE + polling fallback)
+  router.use('/notifications', createNotificationsRouter());
 
   // Reports and export
   router.use('/reports', createReportsRouter());

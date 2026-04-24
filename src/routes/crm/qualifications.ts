@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireCRMPermission, hasCRMRole } from '../../middleware/crmRbac';
+import { requirePermission } from '../../middleware/rbac';
 import { logCreate, logApprove, logReject } from '../../helpers/crmAuditLog';
 import { CreateQualificationInput, ResourcePlanItem } from '../../types/crm';
 import { calculateFeasibility, FEASIBILITY_THRESHOLDS } from '../../services/crm/feasibilityCalculator';
@@ -19,9 +19,9 @@ export function createQualificationRouter(): Router {
   // Create or update qualification (creates new version each time)
   router.post(
     '/',
-    requireCRMPermission('crm:write:qualification', 'crm:write:all'),
+    requirePermission('crm.qualifications.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const opportunityId = req.params.id;
 
       const [opp] = await db
@@ -80,7 +80,7 @@ export function createQualificationRouter(): Router {
   // Get latest qualification for an opportunity
   router.get(
     '/',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.qualifications.read'),
     async (req: Request, res: Response): Promise<void> => {
       const opportunityId = req.params.id;
 
@@ -119,21 +119,10 @@ export function createQualificationRouter(): Router {
   // BD_Manager approves the latest qualification (Req 3.6)
   router.post(
     '/approve',
-    requireCRMPermission('crm:approve:qualification', 'crm:write:all'),
+    requirePermission('crm.qualifications.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const opportunityId = req.params.id;
-
-      // Only BD_Manager can approve (Req 3.6, 9.4)
-      if (!hasCRMRole(req, 'BD_Manager') && !hasCRMRole(req, 'Sales_Manager')) {
-        res.status(403).json({
-          error: {
-            code: 'CRM_FORBIDDEN',
-            message: 'Hanya BD_Manager atau Sales_Manager yang dapat menyetujui kualifikasi.',
-          },
-        });
-        return;
-      }
 
       const [qual] = await db
         .select()
@@ -180,7 +169,7 @@ export function createQualificationRouter(): Router {
   // Get all versions of qualification for an opportunity (Req 3.7)
   router.get(
     '/history',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.qualifications.read'),
     async (req: Request, res: Response): Promise<void> => {
       const opportunityId = req.params.id;
 

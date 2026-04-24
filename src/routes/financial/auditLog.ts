@@ -2,13 +2,11 @@
 // Requirements: 10.7, 11.7
 
 import { Router, Request, Response } from 'express';
-import { requireFRSAuth } from '../../middleware/frsAuth';
-import { authorize } from '../../middleware/frsRbac';
+import { requirePermission } from '../../middleware/rbac';
 import { getFRSAuditLog } from '../../services/financial/auditLogService';
 
 export function createAuditLogRouter(): Router {
   const router = Router();
-  router.use(requireFRSAuth);
 
   /**
    * GET /api/frs/audit-log
@@ -16,7 +14,7 @@ export function createAuditLogRouter(): Router {
    * Supports filtering by action='export' for export history (Req 10.7).
    * Requirements: 10.7, 11.7
    */
-  router.get('/', authorize('audit_log', 'read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.audit_log.read'), async (req: Request, res: Response) => {
     const {
       userId,
       departmentId,

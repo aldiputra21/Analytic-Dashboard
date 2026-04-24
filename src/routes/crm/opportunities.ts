@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireCRMPermission, canAccessOpportunity } from '../../middleware/crmRbac';
+import { requirePermission } from '../../middleware/rbac';
 import { logCreate, logUpdate, logTransition } from '../../helpers/crmAuditLog';
 import {
   CreateOpportunityInput,
@@ -35,9 +35,9 @@ export function createOpportunityRouter(): Router {
   // POST /api/crm/opportunities - Create new opportunity
   router.post(
     '/',
-    requireCRMPermission('crm:write:lead', 'crm:write:all'),
+    requirePermission('crm.opportunities.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const body = req.body as CreateOpportunityInput;
 
       const errors: Record<string, string[]> = {};
@@ -114,16 +114,18 @@ export function createOpportunityRouter(): Router {
   // GET /api/crm/opportunities - List opportunities
   router.get(
     '/',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.opportunities.read'),
     async (req: Request, res: Response): Promise<void> => {
       const { stage, status, assignedTo, search } = req.query;
-      const userPerms = req.crmPermissions ?? [];
+      const userId = req.user!.userId;
+      const role = req.user!.role;
 
       const conditions = [sql`1=1`];
 
-      // Sales_Executive can only see their own (Req 2.10)
-      if (!userPerms.includes('crm:read:all')) {
-        conditions.push(sql`o.assigned_to = ${req.userId}`);
+      // For now, simplify filtering: non-owner/bod/managers see only their own if not explicitly searching others
+      // In a real system, this would be driven by a specific 'crm.opportunities.read_all' permission
+      if (role !== 'owner' && role !== 'bod' && role !== 'subsidiary_manager') {
+        conditions.push(sql`o.assigned_to = ${userId}`);
       } else if (assignedTo) {
         conditions.push(sql`o.assigned_to = ${assignedTo as string}`);
       }
@@ -157,7 +159,7 @@ export function createOpportunityRouter(): Router {
   // GET /api/crm/opportunities/:id - Get opportunity detail
   router.get(
     '/:id',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.opportunities.read'),
     async (req: Request, res: Response): Promise<void> => {
       const [opp] = (await db.execute(sql`
         SELECT o.*, c.company_name,
@@ -172,16 +174,6 @@ export function createOpportunityRouter(): Router {
       if (!opp) {
         res.status(404).json({
           error: { code: 'NOT_FOUND', message: 'Opportunity tidak ditemukan' },
-        });
-        return;
-      }
-
-      if (!canAccessOpportunity(req, opp.assigned_to as string)) {
-        res.status(403).json({
-          error: {
-            code: 'CRM_FORBIDDEN',
-            message: 'Akses ditolak. Anda hanya dapat mengakses opportunity yang ditugaskan kepada Anda.',
-          },
         });
         return;
       }
@@ -211,9 +203,9 @@ export function createOpportunityRouter(): Router {
   // PUT /api/crm/opportunities/:id - Update opportunity
   router.put(
     '/:id',
-    requireCRMPermission('crm:write:opportunity:own', 'crm:write:all'),
+    requirePermission('crm.opportunities.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const [opp] = await db
         .select()
         .from(opportunities)
@@ -223,16 +215,6 @@ export function createOpportunityRouter(): Router {
       if (!opp) {
         res.status(404).json({
           error: { code: 'NOT_FOUND', message: 'Opportunity tidak ditemukan' },
-        });
-        return;
-      }
-
-      if (!canAccessOpportunity(req, opp.assignedTo)) {
-        res.status(403).json({
-          error: {
-            code: 'CRM_FORBIDDEN',
-            message: 'Akses ditolak.',
-          },
         });
         return;
       }
@@ -282,9 +264,9 @@ export function createOpportunityRouter(): Router {
   // POST /api/crm/opportunities/:id/transition - Transition stage
   router.post(
     '/:id/transition',
-    requireCRMPermission('crm:write:opportunity:own', 'crm:write:all'),
+    requirePermission('crm.opportunities.write'),
     async (req: Request, res: Response): Promise<void> => {
-      const userId = req.userId!;
+      const userId = req.user!.userId;
       const body = req.body as TransitionStageInput;
 
       const [opp] = await db
@@ -296,13 +278,6 @@ export function createOpportunityRouter(): Router {
       if (!opp) {
         res.status(404).json({
           error: { code: 'NOT_FOUND', message: 'Opportunity tidak ditemukan' },
-        });
-        return;
-      }
-
-      if (!canAccessOpportunity(req, opp.assignedTo)) {
-        res.status(403).json({
-          error: { code: 'CRM_FORBIDDEN', message: 'Akses ditolak.' },
         });
         return;
       }
@@ -384,16 +359,16 @@ export function createPipelineRouter(): Router {
   // GET /api/crm/pipeline/kanban - Kanban board data (Req 2.7)
   router.get(
     '/kanban',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.pipeline.read'),
     async (req: Request, res: Response): Promise<void> => {
-      const userPerms = req.crmPermissions ?? [];
+      const userId = req.user!.userId;
+      const role = req.user!.role;
       const { assignedTo, corporateId } = req.query;
 
       const filters: { assignedTo?: string; corporateId?: string } = {};
 
-      // Sales_Executive sees only their own (Req 2.10)
-      if (!userPerms.includes('crm:read:all')) {
-        filters.assignedTo = req.userId;
+      if (role !== 'owner' && role !== 'bod' && role !== 'subsidiary_manager') {
+        filters.assignedTo = userId;
       } else if (assignedTo) {
         filters.assignedTo = assignedTo as string;
       }
@@ -408,15 +383,16 @@ export function createPipelineRouter(): Router {
   // GET /api/crm/pipeline/funnel - Funnel chart data
   router.get(
     '/funnel',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.pipeline.read'),
     async (req: Request, res: Response): Promise<void> => {
-      const userPerms = req.crmPermissions ?? [];
+      const userId = req.user!.userId;
+      const role = req.user!.role;
       const { assignedTo, corporateId } = req.query;
 
       const filters: { assignedTo?: string; corporateId?: string } = {};
 
-      if (!userPerms.includes('crm:read:all')) {
-        filters.assignedTo = req.userId;
+      if (role !== 'owner' && role !== 'bod' && role !== 'subsidiary_manager') {
+        filters.assignedTo = userId;
       } else if (assignedTo) {
         filters.assignedTo = assignedTo as string;
       }
@@ -431,15 +407,16 @@ export function createPipelineRouter(): Router {
   // GET /api/crm/pipeline/forecast - Sales forecast (Req 2.8)
   router.get(
     '/forecast',
-    requireCRMPermission('crm:read:all', 'crm:read:own'),
+    requirePermission('crm.pipeline.read'),
     async (req: Request, res: Response): Promise<void> => {
-      const userPerms = req.crmPermissions ?? [];
+      const userId = req.user!.userId;
+      const role = req.user!.role;
       const { assignedTo, corporateId, period } = req.query;
 
       const filters: { assignedTo?: string; corporateId?: string; period?: string } = {};
 
-      if (!userPerms.includes('crm:read:all')) {
-        filters.assignedTo = req.userId;
+      if (role !== 'owner' && role !== 'bod' && role !== 'subsidiary_manager') {
+        filters.assignedTo = userId;
       } else if (assignedTo) {
         filters.assignedTo = assignedTo as string;
       }

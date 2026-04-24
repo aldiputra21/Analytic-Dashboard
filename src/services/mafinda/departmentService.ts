@@ -1,9 +1,11 @@
 // Department Service — MAFINDA Dashboard Enhancement
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, and, ne, asc } from 'drizzle-orm';
+import { eq, and, ne, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments, projects } from '../../db/schema/index.js';
+import { createFRSAuditLog } from '../financial/auditLogService';
+import { RequestContext } from '../financial/auditLogService';
 
 export interface Department {
   id: string;
@@ -57,10 +59,44 @@ function mapRow(row: typeof departments.$inferSelect): Department {
   };
 }
 
-/** Returns all departments for a corporate, ordered by name. */
-export async function getAllDepartments(corporateId: string): Promise<Department[]> {
+/** Returns departments for a corporate with pagination and search. */
+export async function getAllDepartments(options: {
+  corporateId: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ records: Department[]; totalCount: number }> {
+  const { corporateId, search, page = 1, pageSize = 0 } = options;
+
+  const conditions = [eq(departments.corporateId, corporateId)];
+
+  if (search) {
+    conditions.push(sql`(${departments.name} ILIKE ${'%' + search + '%'} OR ${departments.code} ILIKE ${'%' + search + '%'})`);
+  }
+
+  let baseQuery = db.select().from(departments).where(and(...conditions)).$dynamic();
+  let countQuery = db.select({ count: sql<number>`count(*)` }).from(departments).where(and(...conditions));
+
+  // Get total count
+  const [countResult] = await countQuery;
+  const totalCount = Number(countResult.count);
+
+  let finalQuery = baseQuery.orderBy(asc(departments.name));
+  if (pageSize > 0) {
+    finalQuery = finalQuery.limit(pageSize).offset((page - 1) * pageSize) as any;
+  }
+
+  const rows = await finalQuery;
+  return {
+    records: rows.map(mapRow),
+    totalCount,
+  };
+}
+
+/** Returns all active departments for dropdowns. No pagination — select all active. */
+export async function getActiveDepartments(): Promise<Department[]> {
   const rows = await db.select().from(departments)
-    .where(eq(departments.corporateId, corporateId))
+    .where(eq(departments.isActive, true))
     .orderBy(asc(departments.name));
   return rows.map(mapRow);
 }
@@ -78,8 +114,9 @@ export async function getDepartmentById(id: string): Promise<Department | null> 
  * Throws ConflictError if code already exists in the same corporate.
  */
 export async function createDepartment(
-  data: { corporateId: string; name: string; code: string; description?: string; headName?: string },
+  data: { corporateId: string; name: string; code: string; description?: string; headName?: string; isActive?: boolean },
   createdBy: string,
+  context?: RequestContext,
 ): Promise<Department> {
   const [existing] = await db.select({ id: departments.id }).from(departments)
     .where(and(eq(departments.corporateId, data.corporateId), eq(departments.code, data.code)))
@@ -95,10 +132,24 @@ export async function createDepartment(
     code: data.code,
     description: data.description,
     headName: data.headName,
+    isActive: data.isActive ?? true,
     createdBy,
+    updatedBy: createdBy,
   }).returning();
 
-  return mapRow(inserted);
+  const department = mapRow(inserted);
+
+  await createFRSAuditLog({
+    userId: createdBy,
+    action: 'create',
+    entityType: 'department',
+    entityId: department.id,
+    newValues: JSON.parse(JSON.stringify(department)),
+    ipAddress: context?.ip,
+    userAgent: context?.userAgent,
+  });
+
+  return department;
 }
 
 /**
@@ -110,6 +161,7 @@ export async function updateDepartment(
   id: string,
   data: { name?: string; code?: string; description?: string; headName?: string; isActive?: boolean },
   updatedBy: string,
+  context?: RequestContext,
 ): Promise<Department> {
   const [existing] = await db.select().from(departments)
     .where(eq(departments.id, id))
@@ -133,11 +185,25 @@ export async function updateDepartment(
     description: data.description !== undefined ? data.description : existing.description,
     headName: data.headName !== undefined ? data.headName : existing.headName,
     isActive: data.isActive !== undefined ? data.isActive : existing.isActive,
-    updatedBy,
+    updatedBy: updatedBy,
     updatedAt: new Date(),
   }).where(eq(departments.id, id)).returning();
 
-  return mapRow(updated);
+  const department = mapRow(updated);
+  const oldValues = mapRow(existing);
+
+  await createFRSAuditLog({
+    userId: updatedBy,
+    action: 'update',
+    entityType: 'department',
+    entityId: id,
+    oldValues: JSON.parse(JSON.stringify(oldValues)),
+    newValues: JSON.parse(JSON.stringify(department)),
+    ipAddress: context?.ip,
+    userAgent: context?.userAgent,
+  });
+
+  return department;
 }
 
 /**
@@ -147,6 +213,8 @@ export async function updateDepartment(
  */
 export async function deleteDepartment(
   id: string,
+  deletedBy?: string,
+  context?: RequestContext,
 ): Promise<{ success: boolean; affectedProjects: ActiveProject[] }> {
   const [existing] = await db.select().from(departments)
     .where(eq(departments.id, id))
@@ -168,7 +236,19 @@ export async function deleteDepartment(
 
   // Remove child projects first to satisfy FK constraint
   await db.delete(projects).where(eq(projects.departmentId, id));
-  await db.delete(departments).where(eq(departments.id, id));
+  const result = await db.delete(departments).where(eq(departments.id, id)).returning();
+
+  if (result.length > 0) {
+    await createFRSAuditLog({
+      userId: deletedBy || '',
+      action: 'delete',
+      entityType: 'department',
+      entityId: id,
+      oldValues: JSON.parse(JSON.stringify(mapRow(existing))),
+      ipAddress: context?.ip,
+      userAgent: context?.userAgent,
+    });
+  }
 
   return { success: true, affectedProjects };
 }
