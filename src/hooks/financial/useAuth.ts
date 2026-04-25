@@ -61,6 +61,9 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+// FIX: Run initialization immediately to prevent stale _state during first render
+initializeState();
+
 // Initialize state from localStorage (only once, deferred to first hook call)
 function initializeState() {
   if (_initialized) return;
@@ -193,9 +196,6 @@ export function useAuth() {
   const [state, setLocalState] = useState<AuthState>(_state);
 
   useEffect(() => {
-    // Initialize state from localStorage on first mount of any useAuth instance
-    initializeState();
-
     // Sync with singleton on mount
     setLocalState(_state);
     _listeners.add(setLocalState);
@@ -309,7 +309,16 @@ export function useAuth() {
         // Success
         localStorage.setItem(TOKEN_KEY, data.token);
         localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-        setState(s => ({ ...s, user: data.user, token: data.token, isLoading: false, error: null }));
+        
+        // Update singleton and notify all listeners immediately
+        setState({ 
+          user: data.user, 
+          token: data.token, 
+          isLoading: false, 
+          error: null,
+          language: _state.language 
+        });
+        
         return true;
       } catch (error) {
         lastError = error;

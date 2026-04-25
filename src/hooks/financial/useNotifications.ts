@@ -149,8 +149,22 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
       schedulePolling();
     };
 
+    const isTokenValid = (t: string) => {
+      try {
+        const parts = t.split('.');
+        if (parts.length !== 3) return false;
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        return (payload.exp * 1000) > Date.now();
+      } catch {
+        return false;
+      }
+    };
+
     if (typeof window !== 'undefined' && 'EventSource' in window) {
-      if (!token) {
+      if (!token || !isTokenValid(token)) {
+        if (process.env.NODE_ENV === 'development' && token) {
+          console.warn('[Notifications] SSE skipped: Token expired or invalid');
+        }
         startPollingFallback();
         return undefined;
       }
