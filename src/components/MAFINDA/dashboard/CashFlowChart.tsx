@@ -15,6 +15,8 @@ import {
 import { formatRupiah } from '../../../utils/format';
 import type { CashFlowDataPoint } from '../../../services/mafinda/dashboardService';
 import type { Department, Project } from '../../../hooks/mafinda/useManagement';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface CashFlowChartProps {
   data: CashFlowDataPoint[];
@@ -27,7 +29,7 @@ interface CashFlowChartProps {
   isLoading: boolean;
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, t }: any) => {
   if (!active || !payload?.length) return null;
   const cashIn = payload.find((p: any) => p.dataKey === 'cashIn')?.value ?? 0;
   const cashOut = payload.find((p: any) => p.dataKey === 'cashOut')?.value ?? 0;
@@ -35,10 +37,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-xs">
       <p className="font-semibold text-slate-700 mb-2">{label}</p>
-      <p className="text-emerald-600">Cash In: <span className="font-medium">{formatRupiah(cashIn)}</span></p>
-      <p className="text-red-500">Cash Out: <span className="font-medium">{formatRupiah(cashOut)}</span></p>
+      <p className="text-emerald-600">{t.cashIn}: <span className="font-medium">{formatRupiah(cashIn)}</span></p>
+      <p className="text-red-500">{t.cashOut}: <span className="font-medium">{formatRupiah(cashOut)}</span></p>
       <p className={`mt-1 font-semibold ${net >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-        Net: {formatRupiah(net)}
+        {t.net}: {formatRupiah(net)}
       </p>
     </div>
   );
@@ -54,6 +56,9 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
   onProjectChange,
   isLoading,
 }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard.cashFlow;
+  const common = mafindaI18n[language].dashboard;
   const safeProjects = Array.isArray(projects) ? projects : [];
   const filteredProjects = safeProjects.filter(
     (p) => p.departmentId === selectedDepartmentId && p.isActive
@@ -75,7 +80,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       {/* Header + filters */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h3 className="text-sm font-semibold text-slate-800">Arus Kas (Cash Flow)</h3>
+        <h3 className="text-sm font-semibold text-slate-800">{t.title}</h3>
         <div className="flex items-center gap-2">
           <select
             value={selectedDepartmentId}
@@ -85,7 +90,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
             }}
             className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="">Semua Departemen</option>
+            <option value="">{common.allDepartments}</option>
             {(Array.isArray(departments) ? departments : []).map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -96,7 +101,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
               onChange={(e) => onProjectChange(e.target.value)}
               className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              <option value="">Semua Proyek</option>
+              <option value="">{common.allProjects}</option>
               {filteredProjects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -107,7 +112,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
 
       {safeData.length === 0 ? (
         <div className="flex items-center justify-center h-48 text-sm text-slate-400">
-          Tidak ada data arus kas untuk filter yang dipilih.
+          {t.empty}
         </div>
       ) : (
         <>
@@ -132,8 +137,8 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
                 tickLine={false}
                 width={80}
               />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => v === 'cashIn' ? 'Cash In' : 'Cash Out'} />
+              <Tooltip content={<CustomTooltip t={t} />} />
+              <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => v === 'cashIn' ? t.cashIn : t.cashOut} />
               <Area
                 type="monotone"
                 dataKey="cashIn"
@@ -155,7 +160,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
 
           {/* Net cash flow summary */}
           <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-xs text-slate-500">Net Cash Flow (total periode)</span>
+            <span className="text-xs text-slate-500">{t.totalNet}</span>
             <span className={`text-sm font-bold ${totalNetCashFlow >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
               {totalNetCashFlow >= 0 ? '+' : ''}{formatRupiah(totalNetCashFlow)}
             </span>

@@ -1,6 +1,8 @@
-// IncomeStatementForm.tsx — Compact full-width layout
 import React, { useState } from 'react';
 import { useToast } from '../../financial/shared/Toast';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../i18n/commons';
+import { incomeStatementI18n } from '../../../i18n/income-statement';
 
 interface IncomeStatementFormProps {
   existingPeriods?: string[];
@@ -49,6 +51,9 @@ function Total({ label, value, color }: { label: string; value: number; color: s
 }
 
 export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({ existingPeriods = [], onSaved }) => {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
+  const ti = incomeStatementI18n[language];
   const { showSuccess, showError } = useToast();
   const [form, setForm] = useState<F>(empty);
   const [saving, setSaving] = useState(false);
@@ -81,11 +86,11 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({ existi
         }),
       });
       const data = await res.json();
-      if (!res.ok) { showError(data.error ?? 'Gagal menyimpan'); return; }
-      showSuccess(`Laba Rugi ${form.period} disimpan`);
+      if (!res.ok) { showError(data.error ?? t.errorSave); return; }
+      showSuccess(ti.modal.saveSuccess.replace('{period}', form.period));
       setForm(empty);
       onSaved?.();
-    } catch { showError('Kesalahan jaringan'); }
+    } catch { showError(ti.alerts.errorNetwork); }
     finally { setSaving(false); setConfirm(false); }
   }
 
@@ -100,7 +105,7 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({ existi
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       {/* Header */}
       <div className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-white">Laba Rugi (Income Statement)</h3>
+        <h3 className="text-sm font-bold text-white">{ti.title}</h3>
         <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${laba_setelah_pajak >= 0 ? 'bg-emerald-400 text-white' : 'bg-red-400 text-white'}`}>
           Net: {rp(laba_setelah_pajak)}
         </div>
@@ -109,7 +114,7 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({ existi
       <form onSubmit={submit} className="p-4">
         {/* Periode */}
         <div className="mb-3">
-          <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Periode *</label>
+          <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{ti.modal.period} *</label>
           <input type="month" value={form.period} onChange={(e) => set('period', e.target.value)} required
             className="mt-0.5 w-full px-2 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
         </div>
@@ -118,45 +123,45 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({ existi
         <div className="grid grid-cols-3 gap-3">
           {/* Col 1: Pendapatan & HPP */}
           <div className="space-y-2">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Pendapatan & HPP</p>
-            <Inp label="Pendapatan" value={form.pendapatan} onChange={(v) => set('pendapatan', v)} />
-            <Inp label="HPP" value={form.hpp} onChange={(v) => set('hpp', v)} />
-            <Total label="Laba Kotor" value={laba_kotor} color="green" />
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">{ti.modal.revenueAndCogs}</p>
+            <Inp label={ti.fields.revenue} value={form.pendapatan} onChange={(v) => set('pendapatan', v)} />
+            <Inp label={ti.fields.cogs} value={form.hpp} onChange={(v) => set('hpp', v)} />
+            <Total label={ti.modal.grossProfit} value={laba_kotor} color="green" />
           </div>
 
           {/* Col 2: Beban & Lain-lain */}
           <div className="space-y-2">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Beban & Lain-lain</p>
-            <Inp label="Beban Adm" value={form.beban_adm} onChange={(v) => set('beban_adm', v)} />
-            <Total label="Laba Usaha" value={laba_usaha} color="blue" />
-            <Inp label="Pendapatan Lain" value={form.pendapatan_lain} onChange={(v) => set('pendapatan_lain', v)} />
-            <Inp label="Beban Lain" value={form.beban_lain} onChange={(v) => set('beban_lain', v)} />
-            <Total label="Pend. & Beban Lain" value={pb_lain} color="purple" />
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">{ti.modal.expensesAndOthers}</p>
+            <Inp label={ti.fields.operatingExpenses} value={form.beban_adm} onChange={(v) => set('beban_adm', v)} />
+            <Total label={ti.modal.ebit} value={laba_usaha} color="blue" />
+            <Inp label={ti.modal.otherIncome} value={form.pendapatan_lain} onChange={(v) => set('pendapatan_lain', v)} />
+            <Inp label={ti.fields.interest} value={form.beban_lain} onChange={(v) => set('beban_lain', v)} />
+            <Total label={ti.modal.otherIncExp} value={pb_lain} color="purple" />
           </div>
 
           {/* Col 3: Pajak & Hasil */}
           <div className="space-y-2">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Pajak & Hasil</p>
-            <Total label="Laba Sblm Pajak" value={laba_sebelum_pajak} color="indigo" />
-            <Inp label="Pajak Penghasilan" value={form.pajak_penghasilan} onChange={(v) => set('pajak_penghasilan', v)} />
-            <Total label="Laba Stlh Pajak" value={laba_setelah_pajak} color={laba_setelah_pajak >= 0 ? 'emerald' : 'red'} />
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">{ti.modal.taxAndResult}</p>
+            <Total label={ti.modal.ebt} value={laba_sebelum_pajak} color="indigo" />
+            <Inp label={ti.fields.tax} value={form.pajak_penghasilan} onChange={(v) => set('pajak_penghasilan', v)} />
+            <Total label={ti.modal.netProfit} value={laba_setelah_pajak} color={laba_setelah_pajak >= 0 ? 'emerald' : 'red'} />
           </div>
         </div>
 
         <button type="submit" disabled={saving || !form.period.trim()}
           className="mt-4 w-full py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-          {saving ? 'Menyimpan...' : 'Simpan Laba Rugi'}
+          {saving ? t.saving : ti.modal.saveBtn}
         </button>
       </form>
 
       {confirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-xs p-5 space-y-3">
-            <p className="text-sm font-semibold text-slate-900">Timpa data periode <strong>{form.period}</strong>?</p>
+            <p className="text-sm font-semibold text-slate-900">{ti.modal.overwriteConfirm.replace('{period}', form.period)}</p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirm(false)} className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50">Batal</button>
+              <button onClick={() => setConfirm(false)} className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50">{t.cancel}</button>
               <button onClick={doSave} disabled={saving} className="flex-1 py-1.5 text-xs text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
-                {saving ? '...' : 'Timpa'}
+                {saving ? '...' : ti.modal.overwrite}
               </button>
             </div>
           </div>

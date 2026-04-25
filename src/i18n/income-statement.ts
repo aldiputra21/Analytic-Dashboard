@@ -1,5 +1,5 @@
 // i18n/income-statement.ts
-export type Locale = 'id' | 'en';
+import { Locale } from './commons';
 
 export interface IncomeStatementCopy {
   title: string;
@@ -54,6 +54,13 @@ export interface IncomeStatementCopy {
     submit: string;
     month: string;
     year: string;
+    expensesAndOthers: string;
+    otherIncome: string;
+    otherIncExp: string;
+    taxAndResult: string;
+    overwriteConfirm: string;
+    overwrite: string;
+    saveBtn: string;
   };
   fields: {
     revenue: string;
@@ -141,6 +148,13 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       submit: 'Simpan',
       month: 'Bulan',
       year: 'Tahun',
+      expensesAndOthers: 'Beban & Lain-lain',
+      otherIncome: 'Pendapatan Lain',
+      otherIncExp: 'Pend. & Beban Lain',
+      taxAndResult: 'Pajak & Hasil',
+      overwriteConfirm: 'Timpa data periode {period}?',
+      overwrite: 'Timpa',
+      saveBtn: 'Simpan Laba Rugi',
     },
     fields: {
       revenue: 'Pendapatan (Revenue)',
@@ -226,6 +240,13 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       submit: 'Save',
       month: 'Month',
       year: 'Year',
+      expensesAndOthers: 'Expenses & Others',
+      otherIncome: 'Other Income',
+      otherIncExp: 'Other Inc. & Exp.',
+      taxAndResult: 'Tax & Result',
+      overwriteConfirm: 'Overwrite data for period {period}?',
+      overwrite: 'Overwrite',
+      saveBtn: 'Save Income Statement',
     },
     fields: {
       revenue: 'Revenue',

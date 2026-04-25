@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 import { formatRupiah, formatPercentage } from '../../../utils/format';
 import type { AssetComposition, EquityLiabilityComposition } from '../../../services/mafinda/dashboardService';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface Props {
   assetData: AssetComposition | null;
@@ -67,7 +69,7 @@ const render3DActiveShape = (props: any) => {
   );
 };
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload, t }: any) => {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
@@ -77,7 +79,7 @@ const CustomTooltip = ({ active, payload }: any) => {
         <span className="font-semibold text-slate-800">{item.name}</span>
       </div>
       <div className="text-slate-700 font-bold">{formatRupiah(item.value, false)}</div>
-      <div className="text-slate-400 mt-0.5">{item.pct?.toFixed(1)}% dari total</div>
+      <div className="text-slate-400 mt-0.5">{t.fromTotal.replace('{pct}', item.pct?.toFixed(1))}</div>
     </div>
   );
 };
@@ -90,7 +92,7 @@ interface PieSection {
   colors: string[];
 }
 
-function Pie3DChart({ section }: { section: PieSection }) {
+function Pie3DChart({ section, t }: { section: PieSection; t: any }) {
   const [, setActiveIndex] = useState<number | undefined>(undefined);
 
   return (
@@ -122,7 +124,7 @@ function Pie3DChart({ section }: { section: PieSection }) {
                 <Cell key={i} fill={section.colors[i % section.colors.length]} />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip t={t} />} />
           </PieChart>
         </ResponsiveContainer>
 
@@ -162,6 +164,9 @@ function Pie3DChart({ section }: { section: PieSection }) {
 }
 
 export const CompositionPie3D: React.FC<Props> = ({ assetData, equityData, isLoading }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -179,14 +184,14 @@ export const CompositionPie3D: React.FC<Props> = ({ assetData, equityData, isLoa
   }
 
   const assetSection: PieSection = {
-    title: 'Komposisi Aset (3D)',
-    subtitle: `Total Aset: ${formatRupiah(assetData?.totalAssets ?? 0, false)} · ${assetData?.period ?? '—'}`,
+    title: t.assetComposition + ' (3D)',
+    subtitle: `${t.fields.totalAssets}: ${formatRupiah(assetData?.totalAssets ?? 0, false)} · ${assetData?.period ?? '—'}`,
     total: assetData?.totalAssets ?? 0,
     colors: ASSET_COLORS,
     data: assetData ? [
-      { name: 'Aset Lancar', value: assetData.currentAssets, pct: assetData.totalAssets > 0 ? (assetData.currentAssets / assetData.totalAssets) * 100 : 0 },
-      { name: 'Aset Tetap', value: assetData.fixedAssets, pct: assetData.totalAssets > 0 ? (assetData.fixedAssets / assetData.totalAssets) * 100 : 0 },
-      { name: 'Aset Lainnya', value: assetData.otherAssets, pct: assetData.totalAssets > 0 ? (assetData.otherAssets / assetData.totalAssets) * 100 : 0 },
+      { name: t.assetLabels.current, value: assetData.currentAssets, pct: assetData.totalAssets > 0 ? (assetData.currentAssets / assetData.totalAssets) * 100 : 0 },
+      { name: t.assetLabels.fixed, value: assetData.fixedAssets, pct: assetData.totalAssets > 0 ? (assetData.fixedAssets / assetData.totalAssets) * 100 : 0 },
+      { name: t.assetLabels.other, value: assetData.otherAssets, pct: assetData.totalAssets > 0 ? (assetData.otherAssets / assetData.totalAssets) * 100 : 0 },
     ].filter(d => d.value > 0) : [],
   };
 
@@ -195,23 +200,23 @@ export const CompositionPie3D: React.FC<Props> = ({ assetData, equityData, isLoa
   const grandTotal = equityTotal + liabTotal;
 
   const equitySection: PieSection = {
-    title: 'Komposisi Ekuitas & Liabilitas (3D)',
-    subtitle: `Total Pasiva: ${formatRupiah(grandTotal, false)} · ${equityData?.period ?? '—'}`,
+    title: t.equityLiabilityComposition + ' (3D)',
+    subtitle: `${t.totalLiabilities} + ${t.totalEquity}: ${formatRupiah(grandTotal, false)} · ${equityData?.period ?? '—'}`,
     total: grandTotal,
     colors: EQUITY_COLORS,
     data: equityData ? [
-      { name: 'Modal Disetor', value: equityData.paidInCapital, pct: grandTotal > 0 ? (equityData.paidInCapital / grandTotal) * 100 : 0 },
-      { name: 'Laba Ditahan', value: equityData.retainedEarnings, pct: grandTotal > 0 ? (equityData.retainedEarnings / grandTotal) * 100 : 0 },
-      { name: 'Ekuitas Lainnya', value: equityData.otherEquity, pct: grandTotal > 0 ? (equityData.otherEquity / grandTotal) * 100 : 0 },
-      { name: 'Liabilitas Jangka Pendek', value: equityData.shortTermLiabilities, pct: grandTotal > 0 ? (equityData.shortTermLiabilities / grandTotal) * 100 : 0 },
-      { name: 'Liabilitas Jangka Panjang', value: equityData.longTermLiabilities, pct: grandTotal > 0 ? (equityData.longTermLiabilities / grandTotal) * 100 : 0 },
+      { name: t.equityComponentLabels.paidInCapital, value: equityData.paidInCapital, pct: grandTotal > 0 ? (equityData.paidInCapital / grandTotal) * 100 : 0 },
+      { name: t.equityComponentLabels.retainedEarnings, value: equityData.retainedEarnings, pct: grandTotal > 0 ? (equityData.retainedEarnings / grandTotal) * 100 : 0 },
+      { name: t.equityComponentLabels.other, value: equityData.otherEquity, pct: grandTotal > 0 ? (equityData.otherEquity / grandTotal) * 100 : 0 },
+      { name: t.liabilityComponentLabels.shortTerm, value: equityData.shortTermLiabilities, pct: grandTotal > 0 ? (equityData.shortTermLiabilities / grandTotal) * 100 : 0 },
+      { name: t.liabilityComponentLabels.longTerm, value: equityData.longTermLiabilities, pct: grandTotal > 0 ? (equityData.longTermLiabilities / grandTotal) * 100 : 0 },
     ].filter(d => d.value > 0) : [],
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Pie3DChart section={assetSection} />
-      <Pie3DChart section={equitySection} />
+      <Pie3DChart section={assetSection} t={t.fields} />
+      <Pie3DChart section={equitySection} t={t.fields} />
     </div>
   );
 };

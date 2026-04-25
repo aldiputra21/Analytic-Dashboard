@@ -1,5 +1,5 @@
 // i18n/project.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface ProjectCopy {
   title: string;

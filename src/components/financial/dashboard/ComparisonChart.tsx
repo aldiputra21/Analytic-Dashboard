@@ -16,7 +16,10 @@ import {
 import { RefreshCw } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { RatioName } from '../../../types/financial/ratio';
-import { RATIO_META } from './RatioCard';
+import { RATIO_KEYS } from './RatioCard';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { ratiosI18n } from '../../../i18n/ratios';
+import { dashboardI18n } from '../../../i18n/dashboard';
 
 export interface ComparisonDataPoint {
   subsidiaryId: string;
@@ -57,7 +60,18 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = React.memo(({
   isRefreshing = false,
   className,
 }) => {
-  const meta = React.useMemo(() => RATIO_META.find((m) => m.key === selectedRatio), [selectedRatio]);
+  const { language } = useAuth();
+  const tRatios = ratiosI18n[language];
+  const tDash = dashboardI18n[language];
+
+  const ratioMeta = React.useMemo(() => 
+    RATIO_KEYS.map(key => ({
+      key,
+      ...tRatios[key]
+    })), [tRatios]
+  );
+
+  const meta = React.useMemo(() => ratioMeta.find((m) => m.key === selectedRatio), [ratioMeta, selectedRatio]);
 
   // Build chart data: one bar per subsidiary
   const chartData = React.useMemo(() => data.map((d) => ({
@@ -71,7 +85,7 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = React.memo(({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">Subsidiary Comparison</h3>
+          <h3 className="text-sm font-semibold text-slate-900">{tDash.comparison}</h3>
           {isRefreshing && (
             <RefreshCw className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
           )}
@@ -80,7 +94,7 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = React.memo(({
 
       {/* Ratio selector tabs */}
       <div className="flex flex-wrap gap-1 mb-4">
-        {RATIO_META.map((m) => (
+        {ratioMeta.map((m) => (
           <button
             key={m.key}
             onClick={() => onRatioChange(m.key)}
@@ -99,7 +113,7 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = React.memo(({
       {/* Chart */}
       {data.length === 0 ? (
         <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">
-          No data available
+          {tDash.noData}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>

@@ -15,6 +15,7 @@ import { UserRole } from '../../../types/financial/user';
 import { balanceSheetI18n } from '../../../i18n/balance-sheet';
 import { incomeStatementI18n } from '../../../i18n/income-statement';
 import { weeklyCashFlowI18n } from '../../../i18n/weekly-cash-flow';
+import { navigationI18n } from '../../../i18n/navigation';
 import { useNetworkResilience } from '../../../hooks/financial/useNetworkResilience';
 
 export type FRSPage =
@@ -62,51 +63,52 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   useNetworkResilience();
   
   const navItems = useMemo(() => {
+    const t = navigationI18n[language];
     const items: NavItem[] = [
       // Main
-      { id: 'dashboard', label: language === 'id' ? 'Dashboard' : 'Dashboard', icon: LayoutDashboard, group: 'main', requiredPermissions: ['cfd.dashboard.read'] },
-      { id: 'benchmarking', label: language === 'id' ? 'Benchmarking' : 'Benchmarking', icon: BarChart3, group: 'main', requiredPermissions: ['cfd.benchmarking.read'] },
-      { id: 'trends', label: language === 'id' ? 'Analisis Tren' : 'Trend Analysis', icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
-      { id: 'reports', label: language === 'id' ? 'Laporan' : 'Reports', icon: FileText, group: 'main', requiredPermissions: ['cfd.reports.read'] },
-      { id: 'alerts', label: language === 'id' ? 'Pemberitahuan' : 'Alerts', icon: Bell, group: 'main', requiredPermissions: ['cfd.alerts.read'] },
+      { id: 'dashboard', label: t.menus.dashboard, icon: LayoutDashboard, group: 'main', requiredPermissions: ['cfd.dashboard.read'] },
+      { id: 'benchmarking', label: t.menus.benchmarking, icon: BarChart3, group: 'main', requiredPermissions: ['cfd.benchmarking.read'] },
+      { id: 'trends', label: t.menus.trends, icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
+      { id: 'reports', label: t.menus.reports, icon: FileText, group: 'main', requiredPermissions: ['cfd.reports.read'] },
+      { id: 'alerts', label: t.menus.alerts, icon: Bell, group: 'main', requiredPermissions: ['cfd.alerts.read'] },
       // Data
       { id: 'cfd-balance-sheets', label: balanceSheetI18n[language].title, icon: Scale, requiredPermissions: ['cfd.balance_sheets.read'], group: 'data' },
       { id: 'cfd-income-statements', label: incomeStatementI18n[language].title, icon: FileBarChart, requiredPermissions: ['cfd.income_statements.read'], group: 'data' },
       { id: 'cfd-weekly-cash-flows', label: weeklyCashFlowI18n[language].title, icon: ArrowLeftRight, requiredPermissions: ['cfd.weekly_cash_flows.read'], group: 'data' },
-      { id: 'cfd-realizations', label: language === 'id' ? 'Realisasi' : 'Realizations', icon: ClipboardList, requiredPermissions: ['cfd.realizations.read'], group: 'data' },
-      { id: 'cfd-bank-loans', label: language === 'id' ? 'Pinjaman Bank' : 'Bank Loans', icon: Landmark, requiredPermissions: ['cfd.bank_loans.read'], group: 'data' },
+      { id: 'cfd-realizations', label: t.menus.realizations, icon: ClipboardList, requiredPermissions: ['cfd.realizations.read'], group: 'data' },
+      { id: 'cfd-bank-loans', label: t.menus.bankLoans, icon: Landmark, requiredPermissions: ['cfd.bank_loans.read'], group: 'data' },
       // Corporate Management
-      { id: 'corporates', label: language === 'id' ? 'Perusahaan' : 'Corporates', icon: Building2, requiredPermissions: ['cfd.corporates.read'], group: 'corporate-management' },
-      { id: 'cost-centers', label: language === 'id' ? 'Cost Center' : 'Cost Center', icon: Target, requiredPermissions: ['cfd.cost_centers.read'], group: 'corporate-management' },
-      { id: 'departments', label: language === 'id' ? 'Departemen' : 'Departments', icon: Building2, requiredPermissions: ['public.departments.read'], group: 'corporate-management' },
-      { id: 'projects', label: language === 'id' ? 'Proyek' : 'Projects', icon: FolderKanban, requiredPermissions: ['public.projects.read'], group: 'corporate-management' },
-      { id: 'targets', label: language === 'id' ? 'Target' : 'Targets', icon: Target, requiredPermissions: ['public.targets.read'], group: 'corporate-management' },
+      { id: 'corporates', label: t.menus.corporates, icon: Building2, requiredPermissions: ['cfd.corporates.read'], group: 'corporate-management' },
+      { id: 'cost-centers', label: t.menus.costCenters, icon: Target, requiredPermissions: ['cfd.cost_centers.read'], group: 'corporate-management' },
+      { id: 'departments', label: t.menus.departments, icon: Building2, requiredPermissions: ['public.departments.read'], group: 'corporate-management' },
+      { id: 'projects', label: t.menus.projects, icon: FolderKanban, requiredPermissions: ['public.projects.read'], group: 'corporate-management' },
+      { id: 'targets', label: t.menus.targets, icon: Target, requiredPermissions: ['public.targets.read'], group: 'corporate-management' },
       // CRM — tree with children
       {
         id: 'crm-dashboard',
-        label: 'CRM',
+        label: t.menus.crm.dashboard,
         icon: UserSquare2,
         requiredPermissions: ['crm.dashboard.read'],
         group: 'crm',
         children: [
-          { id: 'crm-dashboard', label: language === 'id' ? 'Dashboard' : 'Dashboard', icon: LayoutDashboard, requiredPermissions: ['crm.dashboard.read'] },
-          { id: 'crm-opportunities', label: language === 'id' ? 'Peluang' : 'Opportunities', icon: FolderKanban, requiredPermissions: ['crm.opportunities.read'] },
-          { id: 'crm-customers', label: language === 'id' ? 'Pelanggan' : 'Customers', icon: Users, requiredPermissions: ['crm.customers.read'] },
-          { id: 'crm-proposals', label: language === 'id' ? 'Proposal' : 'Proposals', icon: FileText, requiredPermissions: ['crm.proposals.read'] },
-          { id: 'crm-contracts', label: language === 'id' ? 'Kontrak' : 'Contracts', icon: TrendingUp, requiredPermissions: ['crm.contracts.read'] },
-          { id: 'crm-approvals', label: language === 'id' ? 'Persetujuan' : 'Approvals', icon: CheckCircle, requiredPermissions: ['approvals.read'] },
-          { id: 'crm-reimburse', label: language === 'id' ? 'Reimburse' : 'Reimburse', icon: Receipt, requiredPermissions: ['crm.reimburse.read'] },
+          { id: 'crm-dashboard', label: t.menus.crm.dashboard, icon: LayoutDashboard, requiredPermissions: ['crm.dashboard.read'] },
+          { id: 'crm-opportunities', label: t.menus.crm.opportunities, icon: FolderKanban, requiredPermissions: ['crm.opportunities.read'] },
+          { id: 'crm-customers', label: t.menus.crm.customers, icon: Users, requiredPermissions: ['crm.customers.read'] },
+          { id: 'crm-proposals', label: t.menus.crm.proposals, icon: FileText, requiredPermissions: ['crm.proposals.read'] },
+          { id: 'crm-contracts', label: t.menus.crm.contracts, icon: TrendingUp, requiredPermissions: ['crm.contracts.read'] },
+          { id: 'crm-approvals', label: t.menus.crm.approvals, icon: CheckCircle, requiredPermissions: ['approvals.read'] },
+          { id: 'crm-reimburse', label: t.menus.crm.reimburse, icon: Receipt, requiredPermissions: ['crm.reimburse.read'] },
         ],
       },
       // Admin
-      { id: 'users', label: language === 'id' ? 'Pengguna' : 'Users', icon: Users, requiredPermissions: ['cfd.users.read'], group: 'admin' },
-      { id: 'thresholds', label: language === 'id' ? 'Ambang Batas' : 'Thresholds', icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'admin' },
-      { id: 'audit-log', label: language === 'id' ? 'Log Audit' : 'Audit Log', icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'admin' },
-      { id: 'bank-manager', label: language === 'id' ? 'Master Bank' : 'Master Bank', icon: Building2, requiredPermissions: ['public.banks.read'], group: 'admin' },
-      { id: 'corporate-sectors-manager', label: language === 'id' ? 'Sektor Perusahaan' : 'Corporate Sectors', icon: Building2, requiredPermissions: ['public.corporate_sectors.read'], group: 'admin' },
-      { id: 'currencies-manager', label: language === 'id' ? 'Mata Uang' : 'Currencies', icon: DollarSign, requiredPermissions: ['public.currencies.read'], group: 'admin' },
-      { id: 'cost-center-categories-manager', label: language === 'id' ? 'Kategori Cost Center' : 'Cost Center Categories', icon: Layers, requiredPermissions: ['public.cost_center_categories.read'], group: 'admin' },
-      { id: 'notification-configs-manager', label: language === 'id' ? 'Konfigurasi Notifikasi' : 'Notification Config', icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'admin' },
+      { id: 'users', label: t.menus.users, icon: Users, requiredPermissions: ['cfd.users.read'], group: 'admin' },
+      { id: 'thresholds', label: t.menus.thresholds, icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'admin' },
+      { id: 'audit-log', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'admin' },
+      { id: 'bank-manager', label: t.menus.masterBank, icon: Building2, requiredPermissions: ['public.banks.read'], group: 'admin' },
+      { id: 'corporate-sectors-manager', label: t.menus.corporateSectors, icon: Building2, requiredPermissions: ['public.corporate_sectors.read'], group: 'admin' },
+      { id: 'currencies-manager', label: t.menus.currencies, icon: DollarSign, requiredPermissions: ['public.currencies.read'], group: 'admin' },
+      { id: 'cost-center-categories-manager', label: t.menus.costCenterCategories, icon: Layers, requiredPermissions: ['public.cost_center_categories.read'], group: 'admin' },
+      { id: 'notification-configs-manager', label: t.menus.notificationConfigs, icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'admin' },
     ];
     return items;
   }, [language]);
@@ -129,18 +131,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }), [navItems, user?.id, user?.permissions]);
 
   const groups: { key: NavItem['group']; label: string }[] = useMemo(() => {
-    return language === 'id' ? [
-      { key: 'main', label: 'Analitik' },
-      { key: 'data', label: 'Input Data' },
-      { key: 'corporate-management', label: 'Pengelolaan Perusahaan' },
-      { key: 'crm', label: 'CRM' },
-      { key: 'admin', label: 'Admin' },
-    ] : [
-      { key: 'main', label: 'Analytics' },
-      { key: 'data', label: 'Data Entry' },
-      { key: 'corporate-management', label: 'Corporate Management' },
-      { key: 'crm', label: 'CRM' },
-      { key: 'admin', label: 'Admin' },
+    const t = navigationI18n[language];
+    return [
+      { key: 'main', label: t.groups.main },
+      { key: 'data', label: t.groups.data },
+      { key: 'corporate-management', label: t.groups.corporateManagement },
+      { key: 'crm', label: t.groups.crm },
+      { key: 'admin', label: t.groups.admin },
     ];
   }, [language]);
 
@@ -149,10 +146,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Find label for header
   const getPageLabel = (): string => {
+    const t = navigationI18n[language];
     if (CRM_PAGES.includes(currentPage)) {
       const crmItem = navItems.find(n => n.id === 'crm-dashboard');
       const child = crmItem?.children?.find(c => c.id === currentPage);
-      return child ? `CRM › ${child.label}` : 'CRM';
+      return child ? t.user.breadcrumbCrm.replace('{page}', child.label) : 'CRM';
     }
     return navItems.find(n => n.id === currentPage)?.label ?? 'Dashboard';
   };
@@ -296,10 +294,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm transition-colors',
             collapsed && 'justify-center px-2'
           )}
-          title={collapsed ? 'Logout' : undefined}
+          title={collapsed ? navigationI18n[language].user.logout : undefined}
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Logout</span>}
+          {!collapsed && <span>{navigationI18n[language].user.logout}</span>}
         </button>
       </div>
     </div>
@@ -364,7 +362,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <button onClick={() => onNavigate('alerts')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors">
               <Bell className="w-3.5 h-3.5" />
-              {alertCount} Alert{alertCount !== 1 ? 's' : ''}
+              {navigationI18n[language].user.alertsHeader.replace('{count}', String(alertCount))}
             </button>
           )}
         </header>

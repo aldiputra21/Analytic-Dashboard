@@ -7,6 +7,9 @@ import { CheckCircle2, AlertCircle, AlertTriangle, Clock } from 'lucide-react';
 import { CalculatedRatios, RatioName } from '../../../types/financial/ratio';
 import { Threshold, ThresholdStatus } from '../../../types/financial/threshold';
 import { cn } from '../../../utils/cn';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { ratiosI18n } from '../../../i18n/ratios';
+import { dashboardI18n } from '../../../i18n/dashboard';
 
 interface RatioMeta {
   key: RatioName;
@@ -16,16 +19,18 @@ interface RatioMeta {
 }
 
 export const RATIO_META: RatioMeta[] = [
-  { key: 'roa',          label: 'ROA',           unit: '%',  description: 'Return on Assets' },
-  { key: 'roe',          label: 'ROE',           unit: '%',  description: 'Return on Equity' },
-  { key: 'npm',          label: 'NPM',           unit: '%',  description: 'Net Profit Margin' },
-  { key: 'der',          label: 'DER',           unit: 'x',  description: 'Debt-to-Equity Ratio' },
-  { key: 'currentRatio', label: 'Current Ratio', unit: 'x',  description: 'Current Assets / Current Liabilities' },
-  { key: 'quickRatio',   label: 'Quick Ratio',   unit: 'x',  description: '(Current Assets - Inventory) / Current Liabilities' },
-  { key: 'cashRatio',    label: 'Cash Ratio',    unit: 'x',  description: 'Cash / Current Liabilities' },
-  { key: 'ocfRatio',     label: 'OCF Ratio',     unit: 'x',  description: 'Operating Cash Flow / Current Liabilities' },
-  { key: 'dscr',         label: 'DSCR',          unit: 'x',  description: 'Debt Service Coverage Ratio' },
+  { key: 'roa', label: 'ROA', unit: '%', description: 'Return on Assets' },
+  { key: 'roe', label: 'ROE', unit: '%', description: 'Return on Equity' },
+  { key: 'npm', label: 'NPM', unit: '%', description: 'Net Profit Margin' },
+  { key: 'der', label: 'DER', unit: 'x', description: 'Debt-to-Equity Ratio' },
+  { key: 'currentRatio', label: 'Current Ratio', unit: 'x', description: 'Current Assets / Current Liabilities' },
+  { key: 'quickRatio', label: 'Quick Ratio', unit: 'x', description: '(Current Assets - Inventory) / Current Liabilities' },
+  { key: 'cashRatio', label: 'Cash Ratio', unit: 'x', description: 'Cash / Current Liabilities' },
+  { key: 'ocfRatio', label: 'OCF Ratio', unit: 'x', description: 'Operating Cash Flow / Current Liabilities' },
+  { key: 'dscr', label: 'DSCR', unit: 'x', description: 'Debt Service Coverage Ratio' },
 ];
+
+export const RATIO_KEYS: RatioName[] = RATIO_META.map(m => m.key);
 
 /**
  * Determines threshold status for a ratio value.
@@ -85,7 +90,7 @@ const RatioItem: React.FC<RatioItemProps> = ({ meta, value, threshold }) => {
         </p>
         {thresholdRef !== undefined && (
           <p className="text-[9px] text-slate-400 mt-0.5">
-            Target: {thresholdRef.toFixed(2)}{meta.unit}
+            {dashboardI18n[useAuth().language].target}: {thresholdRef.toFixed(2)}{meta.unit}
           </p>
         )}
       </div>
@@ -113,6 +118,17 @@ export const RatioCard: React.FC<RatioCardProps> = ({
   lastUpdatedAt,
   className,
 }) => {
+  const { language } = useAuth();
+  const tRatios = ratiosI18n[language];
+  const tDash = dashboardI18n[language];
+
+  const ratioMeta = React.useMemo(() => 
+    RATIO_KEYS.map(key => ({
+      key,
+      ...tRatios[key]
+    })), [tRatios]
+  );
+
   const getThreshold = (ratioName: RatioName) =>
     thresholds.find((t) => t.ratioName === ratioName);
 
@@ -134,7 +150,7 @@ export const RatioCard: React.FC<RatioCardProps> = ({
 
       {/* Health Score */}
       <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-        <span className="text-xs text-slate-500 font-medium">Health Score</span>
+        <span className="text-xs text-slate-500 font-medium">{tDash.healthScore}</span>
         <span
           className="text-sm font-bold"
           style={{
@@ -147,7 +163,7 @@ export const RatioCard: React.FC<RatioCardProps> = ({
 
       {/* Ratio Grid */}
       <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {RATIO_META.map((meta) => (
+        {ratioMeta.map((meta) => (
           <RatioItem
             key={meta.key}
             meta={meta}

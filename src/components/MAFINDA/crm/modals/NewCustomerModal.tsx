@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Search, Building2 } from 'lucide-react';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../../i18n/commons';
+import { crmI18n } from '../../../../i18n/crm';
 
 interface Props { onClose: () => void; }
 
@@ -19,6 +22,9 @@ const EXISTING_CUSTOMERS = [
 interface ContactEntry { name: string; title: string; phone: string; email: string; role: string; isPrimary: boolean; }
 
 export function NewCustomerModal({ onClose }: Props) {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
+  const tc = crmI18n[language];
   const [form, setForm] = useState({
     companyName: '', industry: 'Oil & Gas', address: '', npwp: '',
     website: '', phone: '', email: '', city: '', province: '',
@@ -44,8 +50,8 @@ export function NewCustomerModal({ onClose }: Props) {
       <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-green-50 to-white">
           <div>
-            <h2 className="text-base font-bold text-gray-900">New Customer</h2>
-            <p className="text-xs text-gray-500">Tambah data pelanggan baru</p>
+            <h2 className="text-base font-bold text-gray-900">{tc.modals.customer.createTitle}</h2>
+            <p className="text-xs text-gray-500">{tc.modals.customer.subtitle}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X className="w-5 h-5" /></button>
         </div>
@@ -53,17 +59,17 @@ export function NewCustomerModal({ onClose }: Props) {
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Company Info */}
           <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Informasi Perusahaan</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{tc.modals.customer.companySection}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nama Perusahaan <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.companyName} <span className="text-red-500">*</span></label>
                 <input value={form.companyName} onChange={e => set('companyName', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g. PT Pertamina (Persero)" />
               </div>
               <div className="col-span-2 relative">
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Perusahaan Induk <span className="text-xs font-normal text-gray-400">(opsional)</span>
+                  {tc.modals.customer.parentCompany} <span className="text-xs font-normal text-gray-400">({language === 'id' ? 'opsional' : 'optional'})</span>
                 </label>
                 {form.parentCustomerId ? (
                   <div className="flex items-center gap-2 px-3 py-2 text-sm border border-blue-300 bg-blue-50 rounded-lg">
@@ -83,7 +89,7 @@ export function NewCustomerModal({ onClose }: Props) {
                       onFocus={() => setShowParentDropdown(true)}
                       onBlur={() => setTimeout(() => setShowParentDropdown(false), 200)}
                       className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Cari perusahaan induk..." />
+                      placeholder={language === 'id' ? 'Cari perusahaan induk...' : 'Search parent company...'} />
                     {showParentDropdown && (
                       <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                         {EXISTING_CUSTOMERS
@@ -98,82 +104,82 @@ export function NewCustomerModal({ onClose }: Props) {
                             </button>
                           ))}
                         {EXISTING_CUSTOMERS.filter(c => c.name.toLowerCase().includes(parentSearch.toLowerCase())).length === 0 && (
-                          <div className="px-3 py-2 text-xs text-gray-400">Tidak ada hasil</div>
+                          <div className="px-3 py-2 text-xs text-gray-400">{language === 'id' ? 'Tidak ada hasil' : 'No results found'}</div>
                         )}
                       </div>
                     )}
                   </div>
                 )}
-                <p className="mt-1 text-xs text-gray-400">Pilih jika customer ini merupakan anak perusahaan</p>
+                <p className="mt-1 text-xs text-gray-400">{language === 'id' ? 'Pilih jika customer ini merupakan anak perusahaan' : 'Select if this customer is a subsidiary'}</p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Industri</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.industry}</label>
                 <select value={form.industry} onChange={e => set('industry', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">NPWP</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.npwp}</label>
                 <input value={form.npwp} onChange={e => set('npwp', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="00.000.000.0-000.000" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Phone Kantor</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.phone}</label>
                 <input value={form.phone} onChange={e => set('phone', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="+62 21 ..." />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Email Perusahaan</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.email}</label>
                 <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="info@company.com" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Website</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.website}</label>
                 <input value={form.website} onChange={e => set('website', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="https://www.company.com" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Kota</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.city}</label>
                 <input value={form.city} onChange={e => set('city', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Jakarta Selatan" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Provinsi</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.province}</label>
                 <input value={form.province} onChange={e => set('province', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="DKI Jakarta" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Ukuran Perusahaan</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.size}</label>
                 <select value={form.companySize} onChange={e => set('companySize', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Pilih ukuran...</option>
-                  <option>1-50 karyawan</option>
-                  <option>51-200 karyawan</option>
-                  <option>201-1000 karyawan</option>
-                  <option>1000+ karyawan</option>
+                  <option value="">{language === 'id' ? 'Pilih ukuran...' : 'Select size...'}</option>
+                  <option>{language === 'id' ? '1-50 karyawan' : '1-50 employees'}</option>
+                  <option>{language === 'id' ? '51-200 karyawan' : '51-200 employees'}</option>
+                  <option>{language === 'id' ? '201-1000 karyawan' : '201-1000 employees'}</option>
+                  <option>{language === 'id' ? '1000+ karyawan' : '1000+ employees'}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Estimasi Revenue Tahunan</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.revenue}</label>
                 <select value={form.annualRevenue} onChange={e => set('annualRevenue', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Pilih range...</option>
-                  <option>{'< Rp 10 Miliar'}</option>
-                  <option>Rp 10-50 Miliar</option>
-                  <option>Rp 50-500 Miliar</option>
-                  <option>Rp 500 Miliar - 1 Triliun</option>
-                  <option>{'> Rp 1 Triliun'}</option>
+                  <option value="">{language === 'id' ? 'Pilih range...' : 'Select range...'}</option>
+                  <option>{language === 'id' ? '< Rp 10 Miliar' : '< IDR 10 Billion'}</option>
+                  <option>{language === 'id' ? 'Rp 10-50 Miliar' : 'IDR 10-50 Billion'}</option>
+                  <option>{language === 'id' ? 'Rp 50-500 Miliar' : 'IDR 50-500 Billion'}</option>
+                  <option>{language === 'id' ? 'Rp 500 Miliar - 1 Triliun' : 'IDR 500 Billion - 1 Trillion'}</option>
+                  <option>{language === 'id' ? '> Rp 1 Triliun' : '> IDR 1 Trillion'}</option>
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Alamat Lengkap</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.address}</label>
                 <textarea value={form.address} onChange={e => set('address', e.target.value)} rows={2}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   placeholder="Jl. Medan Merdeka Timur No. 1A, Jakarta Pusat 10110" />
@@ -184,9 +190,9 @@ export function NewCustomerModal({ onClose }: Props) {
           {/* Contacts */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Contact Persons</h3>
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{tc.modals.customer.contactsSection}</h3>
               <button onClick={addContact} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-semibold">
-                <Plus className="w-3.5 h-3.5" />Tambah Contact
+                <Plus className="w-3.5 h-3.5" />{tc.modals.customer.addContact}
               </button>
             </div>
             <div className="space-y-3">
@@ -195,7 +201,7 @@ export function NewCustomerModal({ onClose }: Props) {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-gray-600">Contact {i + 1}</span>
-                      {c.isPrimary && <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">Primary</span>}
+                      {c.isPrimary && <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">{language === 'id' ? 'Utama' : 'Primary'}</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       {!c.isPrimary && (
@@ -208,13 +214,13 @@ export function NewCustomerModal({ onClose }: Props) {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Nama <span className="text-red-500">*</span></label>
+                      <label className="block text-xs text-gray-600 mb-1">{language === 'id' ? 'Nama' : 'Name'} <span className="text-red-500">*</span></label>
                       <input value={c.name} onChange={e => setContact(i, 'name', e.target.value)}
                         className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Nama lengkap" />
+                        placeholder={language === 'id' ? 'Nama lengkap' : 'Full name'} />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Jabatan</label>
+                      <label className="block text-xs text-gray-600 mb-1">{language === 'id' ? 'Jabatan' : 'Position'}</label>
                       <input value={c.title} onChange={e => setContact(i, 'title', e.target.value)}
                         className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="e.g. VP Operations" />
@@ -232,10 +238,16 @@ export function NewCustomerModal({ onClose }: Props) {
                         placeholder="email@company.com" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Role</label>
+                      <label className="block text-xs text-gray-600 mb-1">{language === 'id' ? 'Peran' : 'Role'}</label>
                       <select value={c.role} onChange={e => setContact(i, 'role', e.target.value)}
                         className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        {CONTACT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                        {CONTACT_ROLES.map(r => (
+                          <option key={r} value={r}>
+                            {language === 'id' 
+                              ? (r === 'PIC' ? 'PIC' : r === 'Decision Maker' ? 'Pengambil Keputusan' : r === 'Technical' ? 'Teknis' : r === 'Finance' ? 'Keuangan' : r === 'Procurement' ? 'Pengadaan' : 'Lainnya')
+                              : r}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -246,16 +258,16 @@ export function NewCustomerModal({ onClose }: Props) {
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Catatan</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.customer.notes}</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Catatan tambahan tentang customer ini..." />
+              placeholder={language === 'id' ? 'Catatan tambahan tentang customer ini...' : 'Additional notes about this customer...'} />
           </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2 bg-gray-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Batal</button>
-          <button onClick={onClose} className="px-6 py-2 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700">✓ Simpan Customer</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">{t.cancel}</button>
+          <button onClick={onClose} className="px-6 py-2 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700">✓ {tc.modals.customer.save}</button>
         </div>
       </div>
     </div>

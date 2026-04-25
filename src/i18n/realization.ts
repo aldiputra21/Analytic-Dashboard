@@ -1,5 +1,5 @@
 // i18n/realization.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface RealizationCopy {
   title: string;

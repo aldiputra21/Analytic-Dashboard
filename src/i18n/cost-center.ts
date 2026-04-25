@@ -1,5 +1,5 @@
 // i18n/cost-center.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface CostCenterCopy {
   title: string;

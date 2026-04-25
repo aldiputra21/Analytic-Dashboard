@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Upload } from 'lucide-react';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../../i18n/commons';
+import { crmI18n } from '../../../../i18n/crm';
 
 interface Props { onClose: () => void; }
 
@@ -15,6 +18,9 @@ interface Milestone { milestone: string; pct: number; dueDate: string; }
 interface Deliverable { item: string; }
 
 export function NewContractModal({ onClose }: Props) {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
+  const tc = crmI18n[language];
   const [form, setForm] = useState({
     opportunityId: '', contractNumber: '', title: '',
     contractType: 'Lump Sum', contractValue: '',
@@ -54,8 +60,8 @@ export function NewContractModal({ onClose }: Props) {
       <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-white">
           <div>
-            <h2 className="text-base font-bold text-gray-900">New Contract</h2>
-            <p className="text-xs text-gray-500">Buat kontrak baru dari opportunity yang won</p>
+            <h2 className="text-base font-bold text-gray-900">{tc.modals.contract.createTitle}</h2>
+            <p className="text-xs text-gray-500">{tc.modals.contract.subtitle}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X className="w-5 h-5" /></button>
         </div>
@@ -63,71 +69,71 @@ export function NewContractModal({ onClose }: Props) {
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Basic */}
           <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Informasi Kontrak</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{tc.modals.contract.basicInfo}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Opportunity <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.opportunity} <span className="text-red-500">*</span></label>
                 <select value={form.opportunityId} onChange={e => set('opportunityId', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Pilih opportunity yang won...</option>
+                  <option value="">{language === 'id' ? 'Pilih opportunity yang won...' : 'Select won opportunity...'}</option>
                   {OPPORTUNITIES_WON.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nomor Kontrak</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.contractNumber}</label>
                 <input value={form.contractNumber} onChange={e => set('contractNumber', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g. CON-2026-RU4-0012" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Tipe Kontrak</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.type}</label>
                 <select value={form.contractType} onChange={e => set('contractType', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {CONTRACT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Judul Kontrak <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.title} <span className="text-red-500">*</span></label>
                 <input value={form.title} onChange={e => set('title', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g. Refinery Maintenance Turnaround - RU IV Cilacap" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nilai Kontrak (IDR) <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.value} <span className="text-red-500">*</span></label>
                 <input value={form.contractValue} onChange={e => set('contractValue', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g. 9800000000" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Project Manager</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.pm}</label>
                 <select value={form.projectManager} onChange={e => set('projectManager', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Pilih PM...</option>
+                  <option value="">{language === 'id' ? 'Pilih PM...' : 'Select PM...'}</option>
                   {MANAGERS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Tanggal Efektif</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.effectiveDate}</label>
                 <input type="date" value={form.effectiveDate} onChange={e => set('effectiveDate', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Tanggal Berakhir</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.expiryDate}</label>
                 <input type="date" value={form.expiryDate} onChange={e => set('expiryDate', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Tanggal Tanda Tangan</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.signedDate}</label>
                 <input type="date" value={form.signedDate} onChange={e => set('signedDate', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Tanggal Mobilisasi</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.mobilizationDate}</label>
                 <input type="date" value={form.mobilizationDate} onChange={e => set('mobilizationDate', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Lokasi Proyek</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.location}</label>
                 <input value={form.siteLocation} onChange={e => set('siteLocation', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g. Pertamina RU IV, Cilacap" />
@@ -137,25 +143,25 @@ export function NewContractModal({ onClose }: Props) {
 
           {/* Terms */}
           <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Terms & Conditions</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{tc.modals.contract.termsSection}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Payment Terms</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.paymentTerms}</label>
                 <input value={form.paymentTerms} onChange={e => set('paymentTerms', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Warranty (bulan)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.warranty}</label>
                 <input type="number" min={0} value={form.warrantyMonths} onChange={e => set('warrantyMonths', Number(e.target.value))}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Retention (%)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.retention}</label>
                 <input type="number" min={0} max={20} value={form.retentionPct} onChange={e => set('retentionPct', Number(e.target.value))}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Penalty Cap (%)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.penalty}</label>
                 <input type="number" min={0} max={20} value={form.penaltyCapPct} onChange={e => set('penaltyCapPct', Number(e.target.value))}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
@@ -163,7 +169,7 @@ export function NewContractModal({ onClose }: Props) {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="checkbox" checked={form.performanceBond} onChange={e => set('performanceBond', e.target.checked)}
                     className="w-4 h-4 accent-blue-600" />
-                  <span className="text-sm font-medium text-gray-700">Performance Bond diperlukan</span>
+                  <span className="text-sm font-medium text-gray-700">{tc.modals.contract.perfBond}</span>
                   {form.performanceBond && (
                     <div className="flex items-center gap-2 ml-2">
                       <input type="number" min={0} max={20} value={form.performanceBondPct}
@@ -181,13 +187,13 @@ export function NewContractModal({ onClose }: Props) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Milestones</h3>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{tc.modals.contract.milestoneSection}</h3>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${totalPct === 100 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   Total: {totalPct}%
                 </span>
               </div>
               <button onClick={addMilestone} className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" />Tambah
+                <Plus className="w-3.5 h-3.5" />{t.add}
               </button>
             </div>
             <div className="space-y-2">
@@ -196,14 +202,21 @@ export function NewContractModal({ onClose }: Props) {
                   <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">{i+1}</span>
                   <input value={m.milestone} onChange={e => updateMilestone(i, 'milestone', e.target.value)}
                     className="flex-1 px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Nama milestone" />
+                    placeholder={tc.modals.contract.milestoneLabel} />
                   <div className="flex items-center gap-1 w-20">
                     <input type="number" min={0} max={100} value={m.pct} onChange={e => updateMilestone(i, 'pct', Number(e.target.value))}
                       className="w-14 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" />
                     <span className="text-xs text-gray-500">%</span>
                   </div>
-                  <input type="date" value={m.dueDate} onChange={e => updateMilestone(i, 'dueDate', e.target.value)}
-                    className="w-36 px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <div className="relative w-36 group">
+                    <input type="date" value={m.dueDate} onChange={e => updateMilestone(i, 'dueDate', e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    {!m.dueDate && (
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none group-focus-within:hidden">
+                        {tc.modals.contract.milestoneDate}
+                      </span>
+                    )}
+                  </div>
                   {milestones.length > 1 && (
                     <button onClick={() => removeMilestone(i)} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
                   )}
@@ -215,9 +228,9 @@ export function NewContractModal({ onClose }: Props) {
           {/* Deliverables */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Deliverables</h3>
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{tc.modals.contract.deliverableSection}</h3>
               <button onClick={addDeliverable} className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" />Tambah
+                <Plus className="w-3.5 h-3.5" />{t.add}
               </button>
             </div>
             <div className="space-y-2">
@@ -237,27 +250,27 @@ export function NewContractModal({ onClose }: Props) {
 
           {/* Scope */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Scope of Work</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.contract.scopeSection}</label>
             <textarea value={form.scopeOfWork} onChange={e => set('scopeOfWork', e.target.value)} rows={3}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Deskripsi lingkup pekerjaan..." />
+              placeholder={language === 'id' ? 'Deskripsi lingkup pekerjaan...' : 'Scope of work description...'} />
           </div>
 
           {/* Upload */}
           <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Upload Dokumen Kontrak</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{tc.modals.contract.upload}</h3>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 text-center hover:border-emerald-400 hover:bg-emerald-50 transition-colors cursor-pointer">
               <Upload className="w-7 h-7 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">Upload draft kontrak</p>
-              <p className="text-xs text-gray-400 mt-1">PDF, DOCX — maks 50MB</p>
+              <p className="text-sm text-gray-600">{language === 'id' ? 'Upload draft kontrak' : 'Upload contract draft'}</p>
+              <p className="text-xs text-gray-400 mt-1">{language === 'id' ? 'PDF, DOCX — maks 50MB' : 'PDF, DOCX — max 50MB'}</p>
             </div>
           </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2 bg-gray-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Batal</button>
-          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700">Simpan Draft</button>
-          <button onClick={onClose} className="px-6 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">✓ Buat Kontrak</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">{t.cancel}</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700">{tc.modals.contract.saveDraft}</button>
+          <button onClick={onClose} className="px-6 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">✓ {tc.modals.contract.save}</button>
         </div>
       </div>
     </div>

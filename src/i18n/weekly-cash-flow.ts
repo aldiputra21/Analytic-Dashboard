@@ -1,5 +1,5 @@
 // i18n/weekly-cash-flow.ts
-export type Locale = 'id' | 'en';
+import { Locale } from './commons';
 
 export interface WeeklyCashFlowCopy {
   title: string;

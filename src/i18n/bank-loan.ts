@@ -1,5 +1,5 @@
 // i18n/bank-loan.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface BankLoanCopy {
   title: string;

@@ -21,25 +21,11 @@ import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 
-const RATIO_LABELS: Record<RatioName, string> = {
-  roa: 'ROA (%)',
-  roe: 'ROE (%)',
-  npm: 'NPM (%)',
-  der: 'DER',
-  currentRatio: 'Current Ratio',
-  quickRatio: 'Quick Ratio',
-  cashRatio: 'Cash Ratio',
-  ocfRatio: 'OCF Ratio',
-  dscr: 'DSCR',
-};
+import { reportsI18n } from '../../../i18n/reports';
 
-const PERIOD_OPTIONS: { value: TrendPeriodFilter; label: string }[] = [
-  { value: '3m', label: '3M' },
-  { value: '6m', label: '6M' },
-  { value: '1y', label: '1Y' },
-  { value: '3y', label: '3Y' },
-  { value: '5y', label: '5Y' },
-];
+// Ratio labels are now handled inside the component via reportsI18n
+
+// PERIOD_OPTIONS removed, using t.periods
 
 const SUBSIDIARY_COLORS = [
   '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9', '#ec4899'
@@ -74,6 +60,8 @@ interface TrendAnalysisProps {
 export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
   const { language } = useAuth();
   const common = commonsI18n[language];
+  const t = reportsI18n[language].trends;
+  const ratioLabels = t.ratioLabels;
   
   const [selectedRatio, setSelectedRatio] = useState<RatioName>('roa');
   const [selectedPeriod, setSelectedPeriod] = useState<TrendPeriodFilter>('1y');
@@ -119,8 +107,8 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Trend Analysis</h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-0.5 tracking-tighter">Historical performance visualization</p>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">{t.title}</h3>
+            <p className="text-[10px] font-bold text-slate-400 mt-0.5 tracking-tighter">{t.subtitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -131,7 +119,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
               className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl shadow-sm"
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              {significantChanges} significant change{significantChanges !== 1 ? 's' : ''}
+              {significantChanges} {t.significantChanges}
             </motion.span>
           )}
           <button
@@ -143,7 +131,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
             )}
           >
-            3M MA
+            {t.movingAvg}
           </button>
         </div>
       </div>
@@ -152,7 +140,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
       <div className="px-6 py-3 border-b border-slate-50 flex flex-wrap gap-4 items-center bg-white">
         {/* Ratio selector */}
         <div className="flex flex-wrap gap-2 flex-1">
-          {(Object.keys(RATIO_LABELS) as RatioName[]).map((rn) => (
+          {(Object.keys(ratioLabels) as RatioName[]).map((rn) => (
             <button
               key={rn}
               onClick={() => setSelectedRatio(rn)}
@@ -163,25 +151,25 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
                   : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white hover:border-slate-300'
               )}
             >
-              {RATIO_LABELS[rn]}
+              {ratioLabels[rn]}
             </button>
           ))}
         </div>
 
         {/* Period selector */}
         <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner">
-          {PERIOD_OPTIONS.map((p) => (
+          {(['3m', '6m', '1y', '3y', '5y'] as TrendPeriodFilter[]).map((pv) => (
             <button
-              key={p.value}
-              onClick={() => setSelectedPeriod(p.value)}
+              key={pv}
+              onClick={() => setSelectedPeriod(pv)}
               className={cn(
                 'text-[10px] font-black px-4 py-1.5 rounded-lg transition-all active:scale-95 cursor-pointer',
-                selectedPeriod === p.value
+                selectedPeriod === pv
                   ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'
                   : 'text-slate-400 hover:text-slate-600'
               )}
             >
-              {p.label}
+              {t.periods[pv]}
             </button>
           ))}
         </div>
@@ -199,7 +187,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
               className="absolute inset-0 flex flex-col items-center justify-center text-center bg-white/50 backdrop-blur-[1px] z-10"
             >
               <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-4" />
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Loading trends...</p>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{t.loading}</p>
             </motion.div>
           ) : error ? (
             <motion.div 
@@ -231,8 +219,8 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
               <div className="p-5 bg-slate-50 rounded-3xl text-slate-300 border border-slate-100 mb-4">
                 <TrendingUp size={56} />
               </div>
-              <h4 className="text-slate-800 font-black text-lg">No Trend Data</h4>
-              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">Historical data for {RATIO_LABELS[selectedRatio]} is not available for the selected period.</p>
+              <h4 className="text-slate-800 font-black text-lg">{t.empty}</h4>
+              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">{t.emptyDesc}</p>
             </motion.div>
           ) : (
             <motion.div 
@@ -323,7 +311,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
       <div className="px-6 py-3 border-t border-slate-50 bg-slate-50/30 flex items-center gap-2">
         <Info size={12} className="text-slate-400" />
         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-          Data visualization uses cubic interpolation for smooth trend transitions.
+          {t.footer}
         </p>
       </div>
     </div>

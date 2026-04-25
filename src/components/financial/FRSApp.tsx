@@ -3,8 +3,8 @@
 
 import React, { useState, useRef, useEffect, Suspense, lazy } from 'react';
 import { ArrowLeft, CircleCheckBig, KeyRound, LogIn, Mail } from 'lucide-react';
-import { loginI18n, loginLocales, type LoginLocale } from '../../i18n/login';
-import { commonsI18n } from '../../i18n/commons';
+import { loginI18n, loginLocales } from '../../i18n/login';
+import { commonsI18n, type Locale } from '../../i18n/commons';
 import { DashboardLayout, FRSPage } from './dashboard/DashboardLayout';
 import { ProtectedRoute } from './shared/ProtectedRoute';
 import { QueryProvider } from './shared/QueryProvider';
@@ -103,7 +103,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onForgotPassword, onRese
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [{ view, token }, setAuthState] = useState(getInitialAuthState);
-  const [language, setLanguage] = useState<LoginLocale>('id');
+  const [language, setLanguage] = useState<Locale>('id');
   const [langOpen, setLangOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -615,12 +615,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onForgotPassword, onRese
 };
 
 // Placeholder for pages not yet implemented
-const ComingSoon: React.FC<{ page: string }> = ({ page }) => (
-  <div className="flex flex-col items-center justify-center h-64 text-center">
-    <p className="text-slate-500 font-medium capitalize">{page}</p>
-    <p className="text-sm text-slate-400 mt-1">This section is coming soon</p>
-  </div>
-);
+const ComingSoon: React.FC<{ page: string }> = ({ page }) => {
+  const { language } = useAuth();
+  const common = commonsI18n[language];
+  return (
+    <div className="flex flex-col items-center justify-center h-64 text-center">
+      <p className="text-slate-500 font-medium capitalize">{page}</p>
+      <p className="text-sm text-slate-400 mt-1">{common.comingSoonDesc}</p>
+    </div>
+  );
+};
 
 const AppContent: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<FRSPage>('dashboard');
@@ -833,7 +837,7 @@ export const FRSApp: React.FC = () => {
     const handleRateLimited = (e: any) => {
       const { retryAfter } = e.detail;
       toast.error(
-        `Terlalu banyak permintaan. Silakan tunggu ${retryAfter || 'beberapa'} detik.`,
+        common.rateLimit.replace('{retryAfter}', String(retryAfter || '—')),
         { id: 'rate-limit' }
       );
     };

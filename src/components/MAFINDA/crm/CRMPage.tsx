@@ -8,6 +8,9 @@ import {
   Mail, MapPin, Star, ChevronRight, Tag, Percent, Hash,
   Activity, Shield, Handshake, FileSignature, BarChart2, Trash2, ArrowLeft,
 } from 'lucide-react';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../i18n/commons';
+import { crmI18n } from '../../../i18n/crm';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -329,13 +332,16 @@ const OPPORTUNITIES: Opportunity[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const STAGE_CONFIG: Record<Stage, { color: string; bg: string; border: string; icon: React.ElementType; label: string }> = {
-  Lead:          { color: 'text-slate-700',  bg: 'bg-slate-100',   border: 'border-slate-300',  icon: Target,        label: 'Lead' },
-  Qualification: { color: 'text-blue-700',   bg: 'bg-blue-100',    border: 'border-blue-300',   icon: CheckCircle,   label: 'Qualification' },
-  Proposal:      { color: 'text-purple-700', bg: 'bg-purple-100',  border: 'border-purple-300', icon: FileText,      label: 'Proposal' },
-  Negotiation:   { color: 'text-orange-700', bg: 'bg-orange-100',  border: 'border-orange-300', icon: Handshake,     label: 'Negotiation' },
-  Contract:      { color: 'text-emerald-700',bg: 'bg-emerald-100', border: 'border-emerald-300',icon: FileSignature, label: 'Contract' },
-};
+function getStageConfig(stage: Stage, tc: any): { color: string; bg: string; border: string; icon: React.ElementType; label: string } {
+  const configs: Record<Stage, { color: string; bg: string; border: string; icon: React.ElementType }> = {
+    Lead:          { color: 'text-slate-700',  bg: 'bg-slate-100',   border: 'border-slate-300',  icon: Target },
+    Qualification: { color: 'text-blue-700',   bg: 'bg-blue-100',    border: 'border-blue-300',   icon: CheckCircle },
+    Proposal:      { color: 'text-purple-700', bg: 'bg-purple-100',  border: 'border-purple-300', icon: FileText },
+    Negotiation:   { color: 'text-orange-700', bg: 'bg-orange-100',  border: 'border-orange-300', icon: Handshake },
+    Contract:      { color: 'text-emerald-700',bg: 'bg-emerald-100', border: 'border-emerald-300',icon: FileSignature },
+  };
+  return { ...configs[stage], label: tc.page.stages[stage] };
+}
 
 const PRIORITY_CONFIG: Record<string, string> = {
   Low: 'bg-gray-100 text-gray-600', Medium: 'bg-yellow-100 text-yellow-700',
@@ -351,14 +357,15 @@ function fmt(v: number) {
 }
 
 // ─── Stage Detail Panels ──────────────────────────────────────────────────────
-function LeadPanel({ data }: { data: LeadData }) {
+function LeadPanel({ data, tc }: { data: LeadData; tc: any }) {
+  const temperatures = tc.page.temperatures;
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lead Information</h4>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{tc.page.panels.leadInfo}</h4>
         <div className="flex items-center gap-2">
           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${TEMP_CONFIG[data.leadTemperature]}`}>
-            {data.leadTemperature}
+            {temperatures[data.leadTemperature]}
           </span>
           <span className="text-xs font-bold text-slate-700">Score: {data.leadScore}/100</span>
         </div>
@@ -408,7 +415,7 @@ function LeadPanel({ data }: { data: LeadData }) {
   );
 }
 
-function QualificationPanel({ data }: { data: QualificationData }) {
+function QualificationPanel({ data, tc }: { data: QualificationData; tc: any }) {
   const criteria = [
     { label: 'Budget', confirmed: data.budgetConfirmed },
     { label: 'Authority', confirmed: !!data.authorityContact },
@@ -418,7 +425,7 @@ function QualificationPanel({ data }: { data: QualificationData }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Qualification (BANT)</h4>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{tc.page.panels.qualification}</h4>
         <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${data.goNoGo === 'Go' ? 'bg-green-100 text-green-700' : data.goNoGo === 'No-Go' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
           {data.goNoGo}
         </span>
@@ -474,7 +481,7 @@ function QualificationPanel({ data }: { data: QualificationData }) {
   );
 }
 
-function ProposalPanel({ data }: { data: ProposalData }) {
+function ProposalPanel({ data, tc }: { data: ProposalData; tc: any }) {
   const statusColor: Record<string, string> = {
     'Draft': 'bg-gray-100 text-gray-700', 'Internal Review': 'bg-blue-100 text-blue-700',
     'Submitted': 'bg-purple-100 text-purple-700', 'Under Evaluation': 'bg-yellow-100 text-yellow-700',
@@ -483,7 +490,7 @@ function ProposalPanel({ data }: { data: ProposalData }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Proposal Details</h4>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{tc.page.panels.proposal}</h4>
         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor[data.proposalStatus] ?? 'bg-gray-100 text-gray-700'}`}>
           {data.proposalStatus}
         </span>
@@ -550,7 +557,7 @@ function ProposalPanel({ data }: { data: ProposalData }) {
   );
 }
 
-function NegotiationPanel({ data }: { data: NegotiationData }) {
+function NegotiationPanel({ data, tc }: { data: NegotiationData; tc: any }) {
   const statusColor: Record<string, string> = {
     'Opening': 'bg-blue-100 text-blue-700', 'Active': 'bg-yellow-100 text-yellow-700',
     'Final Round': 'bg-orange-100 text-orange-700', 'Stalled': 'bg-red-100 text-red-700',
@@ -561,7 +568,7 @@ function NegotiationPanel({ data }: { data: NegotiationData }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Negotiation — Round {data.negotiationRound}</h4>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{tc.page.panels.negotiation} — Round {data.negotiationRound}</h4>
         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor[data.negotiationStatus]}`}>{data.negotiationStatus}</span>
       </div>
       {/* Value Comparison */}
@@ -622,7 +629,7 @@ function NegotiationPanel({ data }: { data: NegotiationData }) {
   );
 }
 
-function ContractPanel({ data }: { data: ContractData }) {
+function ContractPanel({ data, tc }: { data: ContractData; tc: any }) {
   const statusColor: Record<string, string> = {
     'Draft': 'bg-gray-100 text-gray-700', 'Internal Approval': 'bg-blue-100 text-blue-700',
     'Client Review': 'bg-yellow-100 text-yellow-700', 'Signed': 'bg-green-100 text-green-700',
@@ -634,7 +641,7 @@ function ContractPanel({ data }: { data: ContractData }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contract Details</h4>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{tc.page.panels.contract}</h4>
         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor[data.contractStatus]}`}>{data.contractStatus}</span>
       </div>
       <div className="grid grid-cols-2 gap-3 text-xs">
@@ -707,16 +714,16 @@ function ContractPanel({ data }: { data: ContractData }) {
 }
 
 // ─── Opportunity Detail Drawer ────────────────────────────────────────────────
-function OpportunityDetailDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => void }) {
+function OpportunityDetailDrawer({ opp, onClose, tc, language }: { opp: Opportunity; onClose: () => void; tc: any; language: string }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'stage' | 'activities' | 'documents'>('overview');
   const stages: Stage[] = ['Lead', 'Qualification', 'Proposal', 'Negotiation', 'Contract'];
   const currentIdx = stages.indexOf(opp.stage);
 
   const activities = [
-    { title: 'Site Visit ke Fasilitas Klien', date: '2026-03-26', user: 'Budi Santoso', type: 'Visit', note: 'Diskusi kebutuhan teknis dan timeline proyek' },
-    { title: 'Follow-up Call', date: '2026-03-24', user: 'Budi Santoso', type: 'Phone', note: 'Konfirmasi deadline submission proposal' },
-    { title: 'Kirim Technical Proposal', date: '2026-03-22', user: 'Budi Santoso', type: 'Email', note: 'Dokumen proposal teknis dikirim via email' },
-    { title: 'Meeting Internal Review', date: '2026-03-20', user: 'Tim BD', type: 'Meeting', note: 'Review internal sebelum submission' },
+    { title: language === 'id' ? 'Site Visit ke Fasilitas Klien' : 'Site Visit to Client Facility', date: '2026-03-26', user: 'Budi Santoso', type: 'Visit', note: language === 'id' ? 'Diskusi kebutuhan teknis dan timeline proyek' : 'Discussion of technical needs and project timeline' },
+    { title: 'Follow-up Call', date: '2026-03-24', user: 'Budi Santoso', type: 'Phone', note: language === 'id' ? 'Konfirmasi deadline submission proposal' : 'Confirm proposal submission deadline' },
+    { title: language === 'id' ? 'Kirim Technical Proposal' : 'Send Technical Proposal', date: '2026-03-22', user: 'Budi Santoso', type: 'Email', note: language === 'id' ? 'Dokumen proposal teknis dikirim via email' : 'Technical proposal document sent via email' },
+    { title: 'Meeting Internal Review', date: '2026-03-20', user: 'Tim BD', type: 'Meeting', note: language === 'id' ? 'Review internal sebelum submission' : 'Internal review before submission' },
   ];
   const docs = [
     { name: 'Technical Proposal v2.1.pdf', size: '4.2 MB', date: '2026-03-22', type: 'pdf' },
@@ -726,15 +733,15 @@ function OpportunityDetailDrawer({ opp, onClose }: { opp: Opportunity; onClose: 
   ];
 
   const stagePanel = () => {
-    if (opp.stage === 'Lead' && opp.leadData) return <LeadPanel data={opp.leadData} />;
-    if (opp.stage === 'Qualification' && opp.qualificationData) return <QualificationPanel data={opp.qualificationData} />;
-    if (opp.stage === 'Proposal' && opp.proposalData) return <ProposalPanel data={opp.proposalData} />;
-    if (opp.stage === 'Negotiation' && opp.negotiationData) return <NegotiationPanel data={opp.negotiationData} />;
-    if (opp.stage === 'Contract' && opp.contractData) return <ContractPanel data={opp.contractData} />;
-    return <div className="text-sm text-gray-400 py-4 text-center">Data stage belum tersedia</div>;
+    if (opp.stage === 'Lead' && opp.leadData) return <LeadPanel data={opp.leadData} tc={tc} />;
+    if (opp.stage === 'Qualification' && opp.qualificationData) return <QualificationPanel data={opp.qualificationData} tc={tc} />;
+    if (opp.stage === 'Proposal' && opp.proposalData) return <ProposalPanel data={opp.proposalData} tc={tc} />;
+    if (opp.stage === 'Negotiation' && opp.negotiationData) return <NegotiationPanel data={opp.negotiationData} tc={tc} />;
+    if (opp.stage === 'Contract' && opp.contractData) return <ContractPanel data={opp.contractData} tc={tc} />;
+    return <div className="text-sm text-gray-400 py-4 text-center">{language === 'id' ? 'Data stage belum tersedia' : 'Stage data not available'}</div>;
   };
 
-  const cfg = STAGE_CONFIG[opp.stage];
+  const cfg = getStageConfig(opp.stage, tc);
   const StageIcon = cfg.icon;
 
   return (
@@ -747,7 +754,7 @@ function OpportunityDetailDrawer({ opp, onClose }: { opp: Opportunity; onClose: 
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${cfg.bg} ${cfg.color}`}>
                 <StageIcon className="w-3 h-3" />{cfg.label}
               </span>
-              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${PRIORITY_CONFIG[opp.priority]}`}>{opp.priority}</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${PRIORITY_CONFIG[opp.priority]}`}>{tc.page.priorities[opp.priority]}</span>
               <span className="text-xs text-gray-400">{opp.id}</span>
             </div>
             <h2 className="text-base font-bold text-gray-900 truncate">{opp.title}</h2>
@@ -764,7 +771,7 @@ function OpportunityDetailDrawer({ opp, onClose }: { opp: Opportunity; onClose: 
         <div className="px-6 py-3 bg-slate-50 border-b border-gray-200">
           <div className="flex justify-between items-center">
             {stages.map((s, i) => {
-              const c = STAGE_CONFIG[s];
+              const c = getStageConfig(s, tc);
               const Icon = c.icon;
               const done = i < currentIdx;
               const current = i === currentIdx;
@@ -773,7 +780,7 @@ function OpportunityDetailDrawer({ opp, onClose }: { opp: Opportunity; onClose: 
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 z-10 border-2 ${done ? 'bg-green-500 border-green-500 text-white' : current ? `${c.bg} ${c.border} ${c.color}` : 'bg-white border-gray-300 text-gray-400'}`}>
                     {done ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-3.5 h-3.5" />}
                   </div>
-                  <div className={`text-[10px] font-medium ${current ? c.color : done ? 'text-green-600' : 'text-gray-400'}`}>{s}</div>
+                  <div className={`text-[10px] font-medium ${current ? c.color : done ? 'text-green-600' : 'text-gray-400'}`}>{c.label}</div>
                   {i < stages.length - 1 && (
                     <div className={`absolute top-4 left-1/2 w-full h-0.5 ${done ? 'bg-green-400' : 'bg-gray-200'}`} style={{ zIndex: 0 }} />
                   )}
@@ -788,7 +795,10 @@ function OpportunityDetailDrawer({ opp, onClose }: { opp: Opportunity; onClose: 
           {(['overview', 'stage', 'activities', 'documents'] as const).map(t => (
             <button key={t} onClick={() => setActiveTab(t)}
               className={`px-4 py-2.5 text-xs font-semibold capitalize border-b-2 transition-colors ${activeTab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-              {t === 'stage' ? `${opp.stage} Details` : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t === 'overview' ? tc.page.panels.overview : 
+               t === 'stage' ? tc.page.panels.stageDetails : 
+               t === 'activities' ? tc.page.panels.activities : 
+               tc.page.panels.documents}
             </button>
           ))}
         </div>
@@ -939,7 +949,7 @@ function OpportunityDetailDrawer({ opp, onClose }: { opp: Opportunity; onClose: 
 }
 
 // ─── Opportunities List ───────────────────────────────────────────────────────
-function Opportunities({ onViewDetail }: { onViewDetail: (o: Opportunity) => void }) {
+function Opportunities({ onViewDetail, tc }: { onViewDetail: (o: Opportunity) => void; tc: any }) {
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState<Stage | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -955,18 +965,18 @@ function Opportunities({ onViewDetail }: { onViewDetail: (o: Opportunity) => voi
 
   const stageStats = (['Lead', 'Qualification', 'Proposal', 'Negotiation', 'Contract'] as Stage[]).map(s => ({
     stage: s, count: OPPORTUNITIES.filter(o => o.stage === s).length,
-    cfg: STAGE_CONFIG[s],
+    cfg: getStageConfig(s, tc),
   }));
 
   return (
     <div className="p-6">
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Opportunities</h2>
-          <p className="text-sm text-gray-500">Pipeline sales dengan detail lengkap per stage</p>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">{tc.page.opportunities.title}</h2>
+          <p className="text-sm text-gray-500">{tc.page.opportunities.subtitle}</p>
         </div>
         <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm">
-          <Plus className="w-4 h-4" />New Opportunity
+          <Plus className="w-4 h-4" />{tc.page.opportunities.addNew}
         </button>
       </div>
       {showNewModal && <NewOpportunityModal onClose={() => setShowNewModal(false)} />}
@@ -982,7 +992,7 @@ function Opportunities({ onViewDetail }: { onViewDetail: (o: Opportunity) => voi
                 <Icon className={`w-4 h-4 ${filterStage === stage ? cfg.color : 'text-gray-400'}`} />
                 <span className={`text-lg font-bold ${filterStage === stage ? cfg.color : 'text-gray-700'}`}>{count}</span>
               </div>
-              <div className={`text-xs font-medium ${filterStage === stage ? cfg.color : 'text-gray-500'}`}>{stage}</div>
+              <div className={`text-xs font-medium ${filterStage === stage ? cfg.color : 'text-gray-500'}`}>{cfg.label}</div>
             </button>
           );
         })}
@@ -1096,15 +1106,15 @@ function Opportunities({ onViewDetail }: { onViewDetail: (o: Opportunity) => voi
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function CRMDashboard() {
+function CRMDashboard({ tc }: { tc: any }) {
   const metrics = [
-    { label: 'Total Pipeline Value', value: 'Rp 109.6 M', change: '+12.5%', icon: DollarSign, color: 'bg-blue-500' },
-    { label: 'Active Opportunities', value: String(OPPORTUNITIES.length), change: '+3', icon: TrendingUp, color: 'bg-green-500' },
-    { label: 'Proposals Submitted', value: '3', change: '+1', icon: FileText, color: 'bg-orange-500' },
-    { label: 'Win Rate', value: '68%', change: '+5%', icon: CheckCircle, color: 'bg-purple-500' },
+    { label: tc.page.stats.totalPipeline, value: 'Rp 109.6 M', change: '+12.5%', icon: DollarSign, color: 'bg-blue-500' },
+    { label: tc.page.stats.activeOpps, value: String(OPPORTUNITIES.length), change: '+3', icon: TrendingUp, color: 'bg-green-500' },
+    { label: tc.page.stats.proposals, value: '3', change: '+1', icon: FileText, color: 'bg-orange-500' },
+    { label: tc.page.stats.winRate, value: '68%', change: '+5%', icon: CheckCircle, color: 'bg-purple-500' },
   ];
   const pipelineData = (['Lead','Qualification','Proposal','Negotiation','Contract'] as Stage[]).map(s => ({
-    stage: s, count: OPPORTUNITIES.filter(o => o.stage === s).length,
+    stage: getStageConfig(s, tc).label, count: OPPORTUNITIES.filter(o => o.stage === s).length,
   }));
   const monthlyData = [
     { month: 'Jan', won: 4, lost: 2 }, { month: 'Feb', won: 5, lost: 1 },
@@ -1119,8 +1129,8 @@ function CRMDashboard() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-1">CRM Dashboard</h2>
-        <p className="text-sm text-gray-600">Overview performa pipeline dan status opportunities</p>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">{tc.page.dashboard.title}</h2>
+        <p className="text-sm text-gray-600">{tc.page.dashboard.subtitle}</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {metrics.map((m, i) => {
@@ -1139,19 +1149,19 @@ function CRMDashboard() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-lg p-5 border border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Pipeline by Stage</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">{tc.page.charts.pipelineByStage}</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={pipelineData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="stage" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#3b82f6" name="Opportunities" radius={[4,4,0,0]} />
+              <Bar dataKey="count" fill="#3b82f6" name={tc.page.stats.activeOpps} radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="bg-white rounded-lg p-5 border border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Opportunity Status</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">{tc.page.charts.opportunityStatus}</h3>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={statusData} cx="50%" cy="50%" outerRadius={90}
@@ -1165,7 +1175,7 @@ function CRMDashboard() {
         </div>
       </div>
       <div className="bg-white rounded-lg p-5 border border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Monthly Performance</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">{tc.page.charts.monthlyPerformance}</h3>
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={monthlyData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -1236,6 +1246,8 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
   onSelectCustomer: (id: string) => void;
   onBack?: () => void;
 }) {
+  const { language } = useAuth();
+  const t = crmI18n[language].page.drawer;
   const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'children'>('overview');
   const [prevCustomerId, setPrevCustomerId] = useState(customer.id);
   if (customer.id !== prevCustomerId) {
@@ -1244,9 +1256,9 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
   }
 
   const tabs: { key: 'overview' | 'contacts' | 'children'; label: string; count?: number }[] = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'contacts', label: 'Kontak', count: customer.contacts?.length ?? 0 },
-    { key: 'children', label: 'Anak Perusahaan', count: customer.children?.length ?? 0 },
+    { key: 'overview', label: t.overview },
+    { key: 'contacts', label: t.contacts, count: customer.contacts?.length ?? 0 },
+    { key: 'children', label: t.children, count: customer.children?.length ?? 0 },
   ];
 
   return (
@@ -1259,7 +1271,7 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
               <button onClick={onBack}
                 className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium mb-2 -ml-0.5 group">
                 <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-                Kembali ke Perusahaan Induk
+                {t.backToParent}
               </button>
             )}
             <div className="flex items-center gap-2 mb-1">
@@ -1279,7 +1291,7 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
             {/* Parent Company Link */}
             {customer.parentId && customer.parentName && (
               <div className="mt-2 flex items-center gap-1.5">
-                <span className="text-xs text-gray-400">Induk:</span>
+                <span className="text-xs text-gray-400">{t.parent}:</span>
                 <button
                   onClick={() => onSelectCustomer(customer.parentId!)}
                   className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-semibold flex items-center gap-1"
@@ -1316,21 +1328,21 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
                 {/* Key Metrics */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <div className="text-xs text-blue-500 mb-1">Active Opportunities</div>
+                    <div className="text-xs text-blue-500 mb-1">{t.activeOpportunities}</div>
                     <div className="text-2xl font-bold text-blue-800">{customer.activeOpportunities}</div>
                   </div>
                   <div className="bg-green-50 rounded-lg p-4 text-center">
-                    <div className="text-xs text-green-500 mb-1">Total Value</div>
+                    <div className="text-xs text-green-500 mb-1">{t.totalValue}</div>
                     <div className="text-sm font-bold text-green-700">{customer.totalValue}</div>
                   </div>
                   <div className="bg-purple-50 rounded-lg p-4 text-center">
-                    <div className="text-xs text-purple-500 mb-1">Anak Perusahaan</div>
+                    <div className="text-xs text-purple-500 mb-1">{t.children}</div>
                     <div className="text-2xl font-bold text-purple-700">{customer.children?.length ?? 0}</div>
                   </div>
                 </div>
                 {/* Company Info */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Informasi Perusahaan</h3>
+                  <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">{t.companyInfo}</h3>
                   <div className="space-y-2.5 text-xs">
                     {customer.address && (
                       <div className="flex items-start gap-2 text-gray-600"><MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" /><span>{customer.address}</span></div>
@@ -1345,7 +1357,7 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
                 {/* Primary Contact */}
                 {customer.contacts && customer.contacts.length > 0 && (
                   <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Primary Contact</h3>
+                    <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">{t.primaryContact}</h3>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                         <User className="w-5 h-5 text-blue-600" />
@@ -1363,14 +1375,14 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Key Information</h3>
                   <div className="space-y-3 text-xs">
-                    <div className="flex justify-between"><span className="text-gray-500">Industry</span><span className="text-gray-900 font-medium">{customer.industry}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Status</span>
+                    <div className="flex justify-between"><span className="text-gray-500">{t.industry}</span><span className="text-gray-900 font-medium">{customer.industry}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">{t.status}</span>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${customer.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{customer.status}</span>
                     </div>
-                    <div className="flex justify-between"><span className="text-gray-500">Last Contact</span><span className="text-gray-900">{customer.lastContact}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">{t.lastContact}</span><span className="text-gray-900">{customer.lastContact}</span></div>
                     {customer.parentName && (
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-500">Perusahaan Induk</span>
+                        <span className="text-gray-500">{t.parentCompany}</span>
                         <button onClick={() => onSelectCustomer(customer.parentId!)} className="text-blue-600 hover:underline font-medium">{customer.parentName}</button>
                       </div>
                     )}
@@ -1395,7 +1407,7 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
                       {customer.children.length > 3 && (
                         <button onClick={() => setActiveTab('children')}
                           className="w-full text-xs text-blue-600 hover:text-blue-700 font-medium py-1">
-                          Lihat semua ({customer.children.length})
+                          {t.viewAll} ({customer.children.length})
                         </button>
                       )}
                     </div>
@@ -1427,7 +1439,7 @@ function CustomerDetailDrawer({ customer, onClose, onSelectCustomer, onBack }: {
                         ct.role === 'Technical' ? 'bg-orange-100 text-orange-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>{ct.role}</span>
-                      {ct.isPrimary && <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full font-medium">Primary</span>}
+                      {ct.isPrimary && <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full font-medium">{t.primary}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-gray-600 ml-11">
@@ -1485,17 +1497,20 @@ function Customers({ onViewDetail }: { onViewDetail: (customer: CustomerData) =>
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const filtered = ALL_CUSTOMERS.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.contact.toLowerCase().includes(search.toLowerCase()));
+  const { language } = useAuth();
+  const t = crmI18n[language].page.customers;
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <div><h2 className="text-lg font-bold text-gray-900 mb-1">Customers</h2><p className="text-sm text-gray-600">Kelola hubungan pelanggan dan kontak</p></div>
-        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />New Customer</button>
+        <div><h2 className="text-lg font-bold text-gray-900 mb-1">{t.title}</h2><p className="text-sm text-gray-600">{t.subtitle}</p></div>
+        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />{t.addNew}</button>
       </div>
       {showNewModal && <NewCustomerModal onClose={() => setShowNewModal(false)} />}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-4 border-b border-gray-200">
           <div className="relative"><Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input type="text" placeholder="Cari customer..." value={search} onChange={e => setSearch(e.target.value)}
+            <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
@@ -1510,7 +1525,7 @@ function Customers({ onViewDetail }: { onViewDetail: (customer: CustomerData) =>
               {c.parentName && (
                 <div className="flex items-center gap-1 mb-2">
                   <Building2 className="w-3 h-3 text-blue-400" />
-                  <span className="text-[10px] text-blue-600 font-medium">Anak perusahaan dari {c.parentName}</span>
+                  <span className="text-[10px] text-blue-600 font-medium">{t.subsidiaryOf} {c.parentName}</span>
                 </div>
               )}
               <div className="space-y-1.5 mb-3 text-xs text-gray-600">
@@ -1519,12 +1534,12 @@ function Customers({ onViewDetail }: { onViewDetail: (customer: CustomerData) =>
                 <div className="flex items-center gap-2"><MapPin className="w-3 h-3 text-gray-400" /><span>{c.location}</span></div>
               </div>
               <div className="pt-3 border-t border-gray-100 text-xs">
-                <div className="flex justify-between mb-1"><span className="text-gray-500">Active Opportunities</span><span className="font-medium text-gray-900">{c.activeOpportunities}</span></div>
-                <div className="flex justify-between mb-2"><span className="text-gray-500">Total Value</span><span className="font-medium text-gray-900">{c.totalValue}</span></div>
-                <div className="text-gray-400">Last contact: {c.lastContact}</div>
+                <div className="flex justify-between mb-1"><span className="text-gray-500">{crmI18n[language].page.drawer.activeOpportunities}</span><span className="font-medium text-gray-900">{c.activeOpportunities}</span></div>
+                <div className="flex justify-between mb-2"><span className="text-gray-500">{crmI18n[language].page.drawer.totalValue}</span><span className="font-medium text-gray-900">{c.totalValue}</span></div>
+                <div className="text-gray-400">{t.lastContact}: {c.lastContact}</div>
               </div>
               <button onClick={() => onViewDetail(c)} className="w-full mt-3 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-xs font-medium flex items-center justify-center gap-1">
-                <Eye className="w-3.5 h-3.5" />View Details
+                <Eye className="w-3.5 h-3.5" />{t.viewDetails}
               </button>
             </div>
           ))}
@@ -1535,7 +1550,7 @@ function Customers({ onViewDetail }: { onViewDetail: (customer: CustomerData) =>
 }
 
 // ─── Proposals ────────────────────────────────────────────────────────────────
-function Proposals() {
+function Proposals({ tc }: { tc: any }) {
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const proposals = [
@@ -1553,20 +1568,29 @@ function Proposals() {
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <div><h2 className="text-lg font-bold text-gray-900 mb-1">Proposals</h2><p className="text-sm text-gray-600">Kelola proposal tender dan penawaran</p></div>
-        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />New Proposal</button>
+        <div><h2 className="text-lg font-bold text-gray-900 mb-1">{tc.page.proposals.title}</h2><p className="text-sm text-gray-600">{tc.page.proposals.subtitle}</p></div>
+        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />{tc.page.proposals.addNew}</button>
       </div>
       {showNewModal && <NewProposalModal onClose={() => setShowNewModal(false)} />}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-4 border-b border-gray-200">
           <div className="relative"><Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input type="text" placeholder="Cari proposal..." value={search} onChange={e => setSearch(e.target.value)}
+            <input type="text" placeholder={tc.page.proposals.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>{['Proposal', 'Customer', 'Value', 'Status', 'Submitted', 'Due Date', 'Version', 'Actions'].map(h => (
+              <tr>{[
+                tc.page.proposals.table.proposal, 
+                tc.page.proposals.table.customer, 
+                tc.page.proposals.table.value, 
+                tc.page.proposals.table.status, 
+                tc.page.proposals.table.submitted, 
+                tc.page.proposals.table.dueDate, 
+                tc.page.proposals.table.version, 
+                tc.page.proposals.table.actions
+              ].map(h => (
                 <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
               ))}</tr>
             </thead>
@@ -1590,7 +1614,11 @@ function Proposals() {
           </table>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-4 p-4 border-t border-gray-200">
-          {[{ label: 'Total Proposals', value: proposals.length, color: 'text-gray-900' }, { label: 'Submitted', value: proposals.filter(p => p.status === 'Submitted').length, color: 'text-blue-600' }, { label: 'Awarded', value: proposals.filter(p => p.status === 'Awarded').length, color: 'text-green-600' }].map((s, i) => (
+          {[
+            { label: tc.page.proposals.total, value: proposals.length, color: 'text-gray-900' }, 
+            { label: tc.page.proposals.submitted, value: proposals.filter(p => p.status === 'Submitted').length, color: 'text-blue-600' }, 
+            { label: tc.page.proposals.awarded, value: proposals.filter(p => p.status === 'Awarded').length, color: 'text-green-600' }
+          ].map((s, i) => (
             <div key={i} className="bg-white border border-gray-200 rounded-lg p-4"><div className="text-xs text-gray-600 mb-1">{s.label}</div><div className={`text-2xl font-bold ${s.color}`}>{s.value}</div></div>
           ))}
         </div>
@@ -1600,7 +1628,7 @@ function Proposals() {
 }
 
 // ─── Contracts ────────────────────────────────────────────────────────────────
-function Contracts() {
+function Contracts({ tc }: { tc: any }) {
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const contracts = [
@@ -1613,17 +1641,17 @@ function Contracts() {
   const statusColors: Record<string, string> = { Active: 'bg-blue-100 text-blue-800', Completed: 'bg-green-100 text-green-800', 'On Hold': 'bg-yellow-100 text-yellow-800' };
   const paymentColors: Record<string, string> = { 'On Track': 'text-green-600', Delayed: 'text-red-600', Completed: 'text-gray-500' };
   const filtered = contracts.filter(c => c.title.toLowerCase().includes(search.toLowerCase()) || c.customer.toLowerCase().includes(search.toLowerCase()));
-  const stats = [
-    { label: 'Active Contracts', value: contracts.filter(c => c.status === 'Active').length, color: 'text-blue-600' },
-    { label: 'Total Value', value: 'Rp 41.8 M', color: 'text-gray-900' },
-    { label: 'Completed', value: contracts.filter(c => c.status === 'Completed').length, color: 'text-green-600' },
-    { label: 'Payment Issues', value: contracts.filter(c => c.payment === 'Delayed').length, color: 'text-red-600' },
-  ];
+    const stats = [
+      { label: tc.page.contracts.active, value: contracts.filter(c => c.status === 'Active').length, color: 'text-blue-600' },
+      { label: tc.page.stats.totalValue, value: 'Rp 41.8 M', color: 'text-gray-900' },
+      { label: tc.page.contracts.completed, value: contracts.filter(c => c.status === 'Completed').length, color: 'text-green-600' },
+      { label: tc.page.contracts.paymentIssues, value: contracts.filter(c => c.payment === 'Delayed').length, color: 'text-red-600' },
+    ];
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <div><h2 className="text-lg font-bold text-gray-900 mb-1">Contracts</h2><p className="text-sm text-gray-600">Kelola kontrak aktif dan perjanjian</p></div>
-        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />New Contract</button>
+        <div><h2 className="text-lg font-bold text-gray-900 mb-1">{tc.page.contracts.title}</h2><p className="text-sm text-gray-600">{tc.page.contracts.subtitle}</p></div>
+        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />{tc.page.contracts.addNew}</button>
       </div>
       {showNewModal && <NewContractModal onClose={() => setShowNewModal(false)} />}
       <div className="grid grid-cols-4 gap-4 mb-6">
@@ -1632,7 +1660,7 @@ function Contracts() {
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-4 border-b border-gray-200">
           <div className="relative"><Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input type="text" placeholder="Cari kontrak..." value={search} onChange={e => setSearch(e.target.value)}
+            <input type="text" placeholder={tc.page.contracts.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
         </div>
         <div className="overflow-x-auto">
@@ -1664,7 +1692,7 @@ function Contracts() {
 }
 
 // ─── Approvals ────────────────────────────────────────────────────────────────
-function Approvals() {
+function Approvals({ tc, language }: { tc: any; language: string }) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const approvals = [
     { id: '1', type: 'proposal', title: 'Technical Proposal - EPC Project Offshore', requestedBy: 'Ahmad Rizki', requestDate: '2026-03-27', amount: '15500000000', description: 'Approval needed for technical proposal submission to PT Pertamina EP', status: 'pending' as const, approver: 'Director of Operations', priority: 'high' as const, documents: 3 },
@@ -1680,9 +1708,9 @@ function Approvals() {
   const fmtAmt = (v: string) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(parseInt(v));
   return (
     <div className="p-6">
-      <div className="mb-6"><h2 className="text-lg font-bold text-gray-900 mb-1">Approval Workflow</h2><p className="text-sm text-gray-600">Review dan approve permintaan yang pending</p></div>
+      <div className="mb-6"><h2 className="text-lg font-bold text-gray-900 mb-1">{tc.page.approvals.title}</h2><p className="text-sm text-gray-600">{tc.page.approvals.subtitle}</p></div>
       <div className="grid grid-cols-4 gap-4 mb-6">
-        {[{ label: 'Total', value: approvals.length, color: 'text-gray-900', f: 'all' as const }, { label: 'Pending', value: approvals.filter(a => a.status === 'pending').length, color: 'text-yellow-600', f: 'pending' as const }, { label: 'Approved', value: approvals.filter(a => a.status === 'approved').length, color: 'text-green-600', f: 'approved' as const }, { label: 'Rejected', value: approvals.filter(a => a.status === 'rejected').length, color: 'text-red-600', f: 'rejected' as const }].map((s, i) => (
+        {[{ label: tc.page.approvals.total, value: approvals.length, color: 'text-gray-900', f: 'all' as const }, { label: tc.page.approvals.pending, value: approvals.filter(a => a.status === 'pending').length, color: 'text-yellow-600', f: 'pending' as const }, { label: tc.page.approvals.approved, value: approvals.filter(a => a.status === 'approved').length, color: 'text-green-600', f: 'approved' as const }, { label: tc.page.approvals.rejected, value: approvals.filter(a => a.status === 'rejected').length, color: 'text-red-600', f: 'rejected' as const }].map((s, i) => (
           <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilter(s.f)}>
             <div className="text-xs text-gray-600 mb-1">{s.label}</div><div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
           </div>
@@ -1737,7 +1765,7 @@ function Approvals() {
 }
 
 // ─── Reimburse ────────────────────────────────────────────────────────────────
-function Reimburse() {
+function Reimburse({ tc }: { tc: any }) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'paid' | 'rejected'>('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const requests = [
@@ -1756,18 +1784,18 @@ function Reimburse() {
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <div><h2 className="text-lg font-bold text-gray-900 mb-1">Reimburse Management</h2><p className="text-sm text-gray-600">Submit dan track permintaan reimbursement</p></div>
-        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />New Request</button>
+        <div><h2 className="text-lg font-bold text-gray-900 mb-1">{tc.page.reimburse.title}</h2><p className="text-sm text-gray-600">{tc.page.reimburse.subtitle}</p></div>
+        <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 text-sm"><Plus className="w-4 h-4" />{tc.page.reimburse.addNew}</button>
       </div>
       {showNewModal && <NewReimburseModal onClose={() => setShowNewModal(false)} />}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
         {[
-          { label: 'Total', value: requests.length, color: 'text-gray-900', f: 'all' as const },
-          { label: 'Pending', value: requests.filter(r => r.status === 'pending').length, color: 'text-yellow-600', f: 'pending' as const },
-          { label: 'Approved', value: requests.filter(r => r.status === 'approved').length, color: 'text-green-600', f: 'approved' as const },
+          { label: tc.page.approvals.total, value: requests.length, color: 'text-gray-900', f: 'all' as const },
+          { label: tc.page.approvals.pending, value: requests.filter(r => r.status === 'pending').length, color: 'text-yellow-600', f: 'pending' as const },
+          { label: tc.page.approvals.approved, value: requests.filter(r => r.status === 'approved').length, color: 'text-green-600', f: 'approved' as const },
           { label: 'Paid', value: requests.filter(r => r.status === 'paid').length, color: 'text-blue-600', f: 'paid' as const },
-          { label: 'Total Amount', value: new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(totalAmt) + ' IDR', color: 'text-gray-900', f: 'all' as const },
-          { label: 'Pending Amount', value: new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(pendingAmt) + ' IDR', color: 'text-yellow-600', f: 'pending' as const },
+          { label: tc.page.reimburse.totalAmount, value: new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(totalAmt) + ' IDR', color: 'text-gray-900', f: 'all' as const },
+          { label: tc.page.reimburse.pendingAmount, value: new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(pendingAmt) + ' IDR', color: 'text-yellow-600', f: 'pending' as const },
         ].map((s, i) => (
           <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilter(s.f)}>
             <div className="text-xs text-gray-600 mb-1">{s.label}</div><div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
@@ -1827,6 +1855,8 @@ interface CRMPageProps {
 }
 
 export const CRMPage: React.FC<CRMPageProps> = ({ activeTab = 'dashboard' }) => {
+  const { language } = useAuth();
+  const tc = crmI18n[language as keyof typeof crmI18n];
   const [selectedOpp, setSelectedOpp] = useState<Opportunity | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null);
   const [customerHistory, setCustomerHistory] = useState<CustomerData[]>([]);
@@ -1856,20 +1886,20 @@ export const CRMPage: React.FC<CRMPageProps> = ({ activeTab = 'dashboard' }) => 
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <CRMDashboard />;
-      case 'opportunities': return <Opportunities onViewDetail={setSelectedOpp} />;
-      case 'customers': return <Customers onViewDetail={setSelectedCustomer} />;
-      case 'proposals': return <Proposals />;
-      case 'contracts': return <Contracts />;
-      case 'approvals': return <Approvals />;
-      case 'reimburse': return <Reimburse />;
+      case 'dashboard': return <CRMDashboard tc={tc} />;
+      case 'opportunities': return <Opportunities onViewDetail={setSelectedOpp} tc={tc} />;
+      case 'customers': return <Customers onViewDetail={setSelectedCustomer} tc={tc} language={language} />;
+      case 'proposals': return <Proposals tc={tc} />;
+      case 'contracts': return <Contracts tc={tc} />;
+      case 'approvals': return <Approvals tc={tc} language={language} />;
+      case 'reimburse': return <Reimburse tc={tc} />;
     }
   };
 
   return (
     <div className="min-h-full">
       {renderContent()}
-      {selectedOpp && <OpportunityDetailDrawer opp={selectedOpp} onClose={() => setSelectedOpp(null)} />}
+      {selectedOpp && <OpportunityDetailDrawer opp={selectedOpp} onClose={() => setSelectedOpp(null)} tc={tc} language={language} />}
       {selectedCustomer && (
         <CustomerDetailDrawer
           customer={selectedCustomer}

@@ -2,10 +2,10 @@
 // Usage: import { loginI18n } from '../i18n/login';
 // Then: const copy = loginI18n[language];
 
-export type LoginLocale = 'id' | 'en';
+import { Locale } from './commons';
 
 export interface LoginCopy {
-  locale: LoginLocale;
+  locale: Locale;
   localeName: string;
   title: string;
   subtitle: string;
@@ -50,7 +50,7 @@ export interface LoginCopy {
   featureTwo: string;
 }
 
-export const loginI18n: Record<LoginLocale, LoginCopy> = {
+export const loginI18n: Record<Locale, LoginCopy> = {
   id: {
     locale: 'id',
     localeName: 'ID',
@@ -143,4 +143,4 @@ export const loginI18n: Record<LoginLocale, LoginCopy> = {
   },
 };
 
-export const loginLocales: LoginLocale[] = ['id', 'en'];
+export const loginLocales: Locale[] = ['id', 'en'];

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { commonsI18n } from '../i18n/commons';
-import { useAuth } from '../hooks/financial/useAuth';
+import { commonsI18n } from '../../i18n/commons';
+import { useAuth } from './useAuth';
 
 export function useNetworkResilience() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);

@@ -1,5 +1,5 @@
 // i18n/balance-sheet.ts
-export type Locale = 'id' | 'en';
+import { Locale } from './commons';
 
 export interface BalanceSheetCopy {
   title: string;
@@ -63,6 +63,12 @@ export interface BalanceSheetCopy {
     submit: string;
     month: string;
     year: string;
+    totalLiab: string;
+    totalLiabEquityCompact: string;
+    overwriteConfirm: string;
+    overwrite: string;
+    saveBtn: string;
+    noData: string;
   };
   fields: {
     cashAndBank: string;
@@ -174,6 +180,12 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       submit: 'Simpan',
       month: 'Bulan',
       year: 'Tahun',
+      totalLiab: 'TOTAL KEWAJIBAN',
+      totalLiabEquityCompact: 'Kwjbn + Ekuitas',
+      overwriteConfirm: 'Timpa data periode {period}?',
+      overwrite: 'Timpa',
+      saveBtn: 'Simpan Neraca',
+      noData: 'Belum ada data',
     },
     fields: {
       cashAndBank: 'Kas & Bank',
@@ -283,6 +295,12 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       submit: 'Save',
       month: 'Month',
       year: 'Year',
+      totalLiab: 'TOTAL LIABILITIES',
+      totalLiabEquityCompact: 'Liab + Equity',
+      overwriteConfirm: 'Overwrite data for period {period}?',
+      overwrite: 'Overwrite',
+      saveBtn: 'Save Balance Sheet',
+      noData: 'No data yet',
     },
     fields: {
       cashAndBank: 'Cash & Bank',

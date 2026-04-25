@@ -111,6 +111,24 @@ updatedAt: timestamp('updated_at', { withTimezone: true }).$onUpdate(() => new D
 ### 5.5 Multi-Language (i18n)
 - **No Hardcoding**: Jangan pernah melakukan hardcode untuk judul, label, placeholder, atau pesan (alerts/toasts) langsung di dalam komponen.
 - **Translation Files**: Wajib menggunakan file translasi yang ada di folder `src/i18n/`. Setiap modul harus merujuk pada file i18n yang relevan.
+- **Centralized Commons**: Gunakan `commonsI18n` dari `src/i18n/commons.ts` untuk elemen UI standar yang digunakan berulang kali:
+  - Tombol: `save`, `cancel`, `retry`, `submit`, `delete`, `edit`, `view`.
+  - Status/Feedback: `loading`, `saving`, `deleting`, `success`, `error`, `networkOnline`, `networkOffline`.
+  - Aksi Umum: `back`, `apply`, `clear`, `search`.
+- **Priority Rule**: Sebelum menambahkan translation baru ke file modul, agen **wajib** memeriksa apakah string tersebut sudah ada di `commonsI18n`. Jika string tersebut bersifat umum dan berpotensi digunakan kembali di modul lain (reuseable), maka **wajib** ditambahkan ke `commonsI18n`, bukan ke file modul.
+- **Module-Specific Only**: File translation modul hanya boleh berisi string yang benar-benar unik untuk fitur tersebut (misal: label field spesifik database, judul modal unik).
+- **Usage Pattern**:
+  ```typescript
+  const { language } = useAuth();
+  const t = moduleI18n[language];
+  const common = commonsI18n[language];
+  
+  // Contoh penggunaan:
+  <button>{common.save}</button>
+  ```
+- **No Ternary in JSX**: Hindari penggunaan ternary operator untuk bahasa di dalam JSX seperti `{language === 'id' ? 'Simpan' : 'Save'}`. Pindahkan semua string ke file i18n.
+- **Dynamic Strings**: Gunakan placeholder untuk string dinamis dan ganti menggunakan `.replace()`. Contoh: `t.saveSuccess.replace('{period}', period)`.
+- **Centralized Ratios**: Gunakan `ratiosI18n` dari `src/i18n/ratios.ts` untuk semua label, unit, dan deskripsi rasio keuangan agar konsisten di seluruh dashboard.
 
 ### 5.6 API Design (Dropdowns)
 - **No Paging**: Endpoint yang digunakan untuk memuat data dropdown/selector **tidak boleh** menggunakan pagination.

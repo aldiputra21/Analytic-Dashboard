@@ -12,6 +12,8 @@ import {
 } from 'recharts';
 import { formatRupiah, formatPercentage } from '../../../utils/format';
 import type { AssetComposition } from '../../../services/mafinda/dashboardService';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface AssetCompositionChartProps {
   data: AssetComposition | null;
@@ -19,7 +21,7 @@ interface AssetCompositionChartProps {
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6'];
-const LABELS = ['Aset Lancar', 'Aset Tetap', 'Aset Lainnya'];
+// Labels are now handled inside the component
 
 const renderActiveShape = (props: any) => {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
@@ -48,6 +50,10 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export const AssetCompositionChart: React.FC<AssetCompositionChartProps> = ({ data, isLoading }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
+  const labels = [t.assetLabels.current, t.assetLabels.fixed, t.assetLabels.other];
+  
   const [, setActiveIndex] = useState<number | undefined>(undefined);
 
   if (isLoading) {
@@ -62,24 +68,24 @@ export const AssetCompositionChart: React.FC<AssetCompositionChartProps> = ({ da
   if (!data || data.totalAssets === 0) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm text-center">
-        <p className="text-sm text-slate-400">Tidak ada data komposisi aset.</p>
+        <p className="text-sm text-slate-400">{t.noData}</p>
       </div>
     );
   }
 
   const chartData = [
-    { name: LABELS[0], value: data.currentAssets, pct: (data.currentAssets / data.totalAssets) * 100 },
-    { name: LABELS[1], value: data.fixedAssets, pct: (data.fixedAssets / data.totalAssets) * 100 },
-    { name: LABELS[2], value: data.otherAssets, pct: (data.otherAssets / data.totalAssets) * 100 },
+    { name: labels[0], value: data.currentAssets, pct: (data.currentAssets / data.totalAssets) * 100 },
+    { name: labels[1], value: data.fixedAssets, pct: (data.fixedAssets / data.totalAssets) * 100 },
+    { name: labels[2], value: data.otherAssets, pct: (data.otherAssets / data.totalAssets) * 100 },
   ].filter((d) => d.value > 0);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-800">Komposisi Aset</h3>
+        <h3 className="text-sm font-semibold text-slate-800">{t.assetComposition}</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Total Aset: <span className="font-medium text-slate-700">{formatRupiah(data.totalAssets, false)}</span>
-          {' · '}Periode: {data.period}
+          {t.fields.totalAssets}: <span className="font-medium text-slate-700">{formatRupiah(data.totalAssets, false)}</span>
+          {' · '}{t.fields.period}: {data.period}
         </p>
       </div>
 

@@ -1,5 +1,5 @@
 // i18n/corporate-sector.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface CorporateSectorCopy {
   title: string;

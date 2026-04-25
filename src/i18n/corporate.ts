@@ -1,5 +1,5 @@
 // i18n/corporate.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface CorporateCopy {
   title: string;

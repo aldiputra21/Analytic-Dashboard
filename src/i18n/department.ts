@@ -1,5 +1,5 @@
 // i18n/department.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface DepartmentCopy {
   title: string;

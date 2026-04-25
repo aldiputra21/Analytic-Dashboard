@@ -4,16 +4,12 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
 import { cn } from '../../../utils/cn';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { dashboardI18n } from '../../../i18n/dashboard';
 
 export type PeriodRange = '3m' | '6m' | '1y' | '3y' | '5y';
 
-export const PERIOD_OPTIONS: { value: PeriodRange; label: string }[] = [
-  { value: '3m', label: '3M' },
-  { value: '6m', label: '6M' },
-  { value: '1y', label: '1Y' },
-  { value: '3y', label: '3Y' },
-  { value: '5y', label: '5Y' },
-];
+// PERIOD_OPTIONS removed, using dashboardI18n
 
 interface PeriodSelectorProps {
   value: PeriodRange;
@@ -22,21 +18,23 @@ interface PeriodSelectorProps {
 }
 
 export const PeriodSelector: React.FC<PeriodSelectorProps> = ({ value, onChange, className }) => {
+  const { language } = useAuth();
+  const t = dashboardI18n[language];
   return (
     <div className={cn('flex items-center gap-1 bg-slate-100 rounded-lg p-1', className)}>
       <Calendar className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
-      {PERIOD_OPTIONS.map((opt) => (
+      {(['3m', '6m', '1y', '3y', '5y'] as PeriodRange[]).map((pv) => (
         <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
+          key={pv}
+          onClick={() => onChange(pv)}
           className={cn(
             'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-            value === opt.value
+            value === pv
               ? 'bg-white text-indigo-600 shadow-sm font-semibold'
               : 'text-slate-500 hover:text-slate-700'
           )}
         >
-          {opt.label}
+          {t.periods[pv]}
         </button>
       ))}
     </div>

@@ -6,6 +6,8 @@ import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatRupiah, formatPercentage } from '../../../utils/format';
 import type { RevenueCostSummary } from '../../../services/mafinda/dashboardService';
 import type { Department } from '../../../hooks/mafinda/useManagement';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface RevenueCostCardsProps {
   summary: RevenueCostSummary | null;
@@ -21,9 +23,10 @@ interface MetricCardProps {
   change: number;
   isLoading: boolean;
   colorClass: string;
+  vsText: string;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({ label, value, change, isLoading, colorClass }) => {
+const MetricCard: React.FC<MetricCardProps> = ({ label, value, change, isLoading, colorClass, vsText }) => {
   const isPositive = change >= 0;
   const TrendIcon = isPositive ? TrendingUp : TrendingDown;
   const trendColor = isPositive ? 'text-green-600' : 'text-red-500';
@@ -44,7 +47,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ label, value, change, isLoading
       <p className={`text-2xl font-bold ${colorClass}`}>{formatRupiah(value, false)}</p>
       <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trendColor}`}>
         <TrendIcon className="w-3.5 h-3.5" />
-        <span>{isPositive ? '+' : ''}{formatPercentage(change)} vs periode sebelumnya</span>
+        <span>{isPositive ? '+' : ''}{formatPercentage(change)} {vsText}</span>
       </div>
     </div>
   );
@@ -57,19 +60,21 @@ export const RevenueCostCards: React.FC<RevenueCostCardsProps> = ({
   onDepartmentChange,
   isLoading,
 }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
   const noData = !isLoading && summary && summary.revenue === 0 && summary.operationalCost === 0;
 
   return (
     <div className="space-y-3">
       {/* Department filter */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-800">Revenue & Biaya Operasional</h3>
+        <h3 className="text-sm font-semibold text-slate-800">{t.revenue} & {t.operationalCost}</h3>
         <select
           value={selectedDepartmentId}
           onChange={(e) => onDepartmentChange(e.target.value)}
           className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         >
-          <option value="">Semua Departemen</option>
+          <option value="">{t.allDepartments}</option>
           {(Array.isArray(departments) ? departments : []).map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
@@ -78,27 +83,26 @@ export const RevenueCostCards: React.FC<RevenueCostCardsProps> = ({
 
       {noData && (
         <p className="text-xs text-slate-400 text-center py-2">
-          Tidak ada data untuk{' '}
-          {selectedDepartmentId
-            ? departments.find((d) => d.id === selectedDepartmentId)?.name ?? 'departemen ini'
-            : 'periode ini'}.
+          {t.noData}
         </p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <MetricCard
-          label="Total Revenue"
+          label={t.revenue}
           value={summary?.revenue ?? 0}
           change={summary?.revenueChange ?? 0}
           isLoading={isLoading}
           colorClass="text-blue-700"
+          vsText={t.vsPrevPeriod}
         />
         <MetricCard
-          label="Biaya Operasional"
+          label={t.operationalCost}
           value={summary?.operationalCost ?? 0}
           change={summary?.operationalCostChange ?? 0}
           isLoading={isLoading}
           colorClass="text-orange-600"
+          vsText={t.vsPrevPeriod}
         />
       </div>
     </div>

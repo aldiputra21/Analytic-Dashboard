@@ -5,25 +5,28 @@ import { useNotifications, type NotificationStatus } from '../../../hooks/financ
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { cn } from '../../../utils/cn';
-import { RATIO_META } from './RatioCard';
-
-const STATUS_OPTIONS: Array<{ key: NotificationStatus; label: string }> = [
-  { key: 'unread', label: 'Unread' },
-  { key: 'read', label: 'Read' },
-  { key: 'archived', label: 'Archived' },
-  { key: 'dismissed', label: 'Dismissed' },
-];
-
-const SEVERITY_STYLES: Record<'high' | 'medium' | 'low', string> = {
-  high: 'bg-red-100 text-red-700 border-red-200',
-  medium: 'bg-amber-100 text-amber-700 border-amber-200',
-  low: 'bg-blue-100 text-blue-700 border-blue-200',
-};
+import { alertsI18n } from '../../../i18n/alerts';
+import { ratiosI18n } from '../../../i18n/ratios';
 
 export const AlertsInbox: React.FC = () => {
-  const { token, user } = useAuth();
+  const { token, user, language } = useAuth();
   const { corporates: subsidiaries } = useCorporates();
   const [status, setStatus] = useState<NotificationStatus>('unread');
+  const t = alertsI18n[language];
+
+  const STATUS_OPTIONS: Array<{ key: NotificationStatus; label: string }> = [
+    { key: 'unread', label: t.status.unread },
+    { key: 'read', label: t.status.read },
+    { key: 'archived', label: t.status.archived },
+    { key: 'dismissed', label: t.status.dismissed },
+  ];
+
+  const SEVERITY_STYLES: Record<'high' | 'medium' | 'low', string> = {
+    high: 'bg-red-100 text-red-700 border-red-200',
+    medium: 'bg-amber-100 text-amber-700 border-amber-200',
+    low: 'bg-blue-100 text-blue-700 border-blue-200',
+  };
+
   const {
     notifications,
     unreadCount,
@@ -45,10 +48,10 @@ export const AlertsInbox: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-slate-600" />
-            <h2 className="text-lg font-semibold text-slate-900">Alerts Inbox</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t.title}</h2>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Realtime CFD alerts delivered through notifications with polling fallback.
+            {t.subtitle}
           </p>
         </div>
 
@@ -62,14 +65,14 @@ export const AlertsInbox: React.FC = () => {
                 : 'border-slate-200 bg-slate-50 text-slate-600',
           )}>
             <Radio className="w-3.5 h-3.5" />
-            {realtimeStatus === 'sse' ? 'Realtime SSE' : realtimeStatus === 'polling' ? 'Polling Fallback' : 'Idle'}
+            {realtimeStatus === 'sse' ? t.realtime.sse : realtimeStatus === 'polling' ? t.realtime.polling : t.realtime.idle}
           </span>
           <button
             onClick={() => void refetch()}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
           >
             <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
-            Refresh
+            {t.actions.refresh}
           </button>
         </div>
       </div>
@@ -95,7 +98,7 @@ export const AlertsInbox: React.FC = () => {
       <div className="space-y-3">
         {notifications.length === 0 && !isLoading && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center text-sm text-slate-500">
-            No alerts in this state.
+            {t.empty}
           </div>
         )}
 
@@ -103,7 +106,6 @@ export const AlertsInbox: React.FC = () => {
           const payload = notification.payload ?? {};
           const corporateId = String(payload.corporateId ?? '');
           const ratioName = String(payload.ratioName ?? notification.category);
-          const ratioMeta = RATIO_META.find((item) => item.key === ratioName);
           const currentValue = Number(payload.currentValue ?? 0);
           const thresholdValue = Number(payload.thresholdValue ?? 0);
           const message = String(payload.message ?? notification.templateKey);
@@ -114,18 +116,20 @@ export const AlertsInbox: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase', SEVERITY_STYLES[notification.severity])}>
-                      {notification.severity}
+                      {t.severity[notification.severity]}
                     </span>
                     <span className="text-sm font-semibold text-slate-900">
                       {(subsidiaryMap[corporateId] ?? corporateId) || 'System'}
                     </span>
                     <span className="text-xs text-slate-400">•</span>
-                    <span className="text-xs text-slate-500">{ratioMeta?.label ?? ratioName}</span>
+                    <span className="text-xs text-slate-500">
+                      {ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]?.label ?? ratioName}
+                    </span>
                   </div>
                   <p className="text-sm text-slate-700">{message}</p>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span>Current: <strong className="text-slate-700">{currentValue.toFixed(2)}</strong></span>
-                    <span>Threshold: <strong className="text-slate-700">{thresholdValue.toFixed(2)}</strong></span>
+                    <span>{t.fields.current}: <strong className="text-slate-700">{currentValue.toFixed(2)}</strong></span>
+                    <span>{t.fields.threshold}: <strong className="text-slate-700">{thresholdValue.toFixed(2)}</strong></span>
                     <span>{format(new Date(notification.createdAt), 'dd MMM yyyy HH:mm')}</span>
                   </div>
                 </div>
@@ -137,7 +141,7 @@ export const AlertsInbox: React.FC = () => {
                       className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
                     >
                       <CheckCheck className="w-4 h-4" />
-                      Mark read
+                      {t.actions.markRead}
                     </button>
                   )}
                   {notification.status !== 'archived' && (
@@ -146,7 +150,7 @@ export const AlertsInbox: React.FC = () => {
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
                     >
                       <Archive className="w-4 h-4" />
-                      Archive
+                      {t.actions.archive}
                     </button>
                   )}
                 </div>

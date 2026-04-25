@@ -12,11 +12,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 import { formatRupiah } from '../../../utils/format';
 
-const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'quarterly', label: 'Quarterly' },
-  { value: 'annual', label: 'Annual' },
-];
+import { reportsI18n } from '../../../i18n/reports';
 
 function formatCurrency(value: number): string {
   if (Math.abs(value) >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
@@ -66,6 +62,13 @@ interface ConsolidatedReportProps {
 export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ className }) => {
   const { language } = useAuth();
   const common = commonsI18n[language];
+  const t = reportsI18n[language].consolidated;
+
+  const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
+    { value: 'monthly', label: t.periods.monthly },
+    { value: 'quarterly', label: t.periods.quarterly },
+    { value: 'annual', label: t.periods.annual },
+  ];
 
   const [periodType, setPeriodType] = useState<PeriodType>('annual');
   const [startDate, setStartDate] = useState('');
@@ -106,8 +109,8 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Consolidated Report</h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-0.5 tracking-tighter">Aggregated performance across all subsidiaries</p>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">{t.title}</h3>
+            <p className="text-[10px] font-bold text-slate-400 mt-0.5 tracking-tighter">{t.subtitle}</p>
           </div>
         </div>
       </div>
@@ -116,7 +119,7 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
       <div className="px-6 py-5 border-b border-slate-50 flex flex-wrap gap-5 bg-white items-end">
         <div className="space-y-1.5 flex-1 min-w-[140px]">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-            <Calendar size={12} /> Period Type
+            <Calendar size={12} /> {t.periodType}
           </label>
           <div className="relative">
             <select
@@ -133,7 +136,7 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
         </div>
 
         <div className="space-y-1.5 flex-1 min-w-[180px]">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.startDate}</label>
           <input
             type="date"
             value={startDate}
@@ -143,7 +146,7 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
         </div>
 
         <div className="space-y-1.5 flex-1 min-w-[180px]">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.endDate}</label>
           <input
             type="date"
             value={endDate}
@@ -158,7 +161,7 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
           className="px-6 py-2.5 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2 cursor-pointer h-[38px]"
         >
           {isLoading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
-          {isLoading ? 'Generating...' : 'Generate Report'}
+          {isLoading ? t.generating : t.generate}
         </button>
       </div>
 
@@ -176,14 +179,14 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
               <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100 mb-4">
                 <AlertCircle size={48} />
               </div>
-              <h4 className="text-slate-800 font-black text-lg">Generation Failed</h4>
+              <h4 className="text-slate-800 font-black text-lg">{t.failed}</h4>
               <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
               <button
                 onClick={fetchReport}
                 className="mt-8 px-8 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
               >
                 <RefreshCw size={14} />
-                Try Again
+                {common.retry}
               </button>
             </motion.div>
           ) : isLoading ? (
@@ -209,8 +212,8 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                   <FileText size={32} />
                 </div>
               </div>
-              <h4 className="text-slate-800 font-black text-lg">Consolidating Data</h4>
-              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">Aggregating financial metrics from all corporate subsidiaries...</p>
+              <h4 className="text-slate-800 font-black text-lg">{t.generating}</h4>
+              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">{t.subtitle}</p>
             </motion.div>
           ) : !report ? (
             <motion.div 
@@ -222,8 +225,8 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
               <div className="p-5 bg-slate-50 rounded-3xl text-slate-300 border border-slate-100 mb-4">
                 <FileText size={64} />
               </div>
-              <h4 className="text-slate-800 font-black text-lg">No Report Generated</h4>
-              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">Select a date range and click generate to build the consolidated group statement.</p>
+              <h4 className="text-slate-800 font-black text-lg">{t.empty}</h4>
+              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">{t.emptyDesc}</p>
             </motion.div>
           ) : (
             <motion.div 
@@ -237,15 +240,15 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                 <div className="flex items-center gap-2 mb-4 ml-1">
                   <Info size={14} className="text-indigo-400" />
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Group Totals — {report.subsidiaryCount} Subsidiaries
+                    {t.groupTotals} — {report.subsidiaryCount} {t.subsidiariesCount}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                  <MetricCard label="Revenue" value={report.consolidated.revenue} color="indigo" />
-                  <MetricCard label="Net Profit" value={report.consolidated.netProfit} color={report.consolidated.netProfit >= 0 ? 'emerald' : 'rose'} />
-                  <MetricCard label="Total Assets" value={report.consolidated.totalAssets} color="slate" />
-                  <MetricCard label="Total Equity" value={report.consolidated.totalEquity} color="slate" />
-                  <MetricCard label="Total Liabilities" value={report.consolidated.totalLiabilities} color="rose" />
+                  <MetricCard label={t.revenue} value={report.consolidated.revenue} color="indigo" />
+                  <MetricCard label={t.netProfit} value={report.consolidated.netProfit} color={report.consolidated.netProfit >= 0 ? 'emerald' : 'rose'} />
+                  <MetricCard label={t.totalAssets} value={report.consolidated.totalAssets} color="slate" />
+                  <MetricCard label={t.totalEquity} value={report.consolidated.totalEquity} color="slate" />
+                  <MetricCard label={t.totalLiabilities} value={report.consolidated.totalLiabilities} color="rose" />
                 </div>
               </section>
 
@@ -254,23 +257,23 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                 <div className="flex items-center gap-2 mb-6">
                   <TrendingUp size={16} className="text-indigo-600" />
                   <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">
-                    Consolidated Ratios
+                    {t.ratios}
                   </h4>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-2">
                   <div className="space-y-1">
-                    <RatioRow label="ROA (%)" value={report.consolidatedRatios.roa} />
-                    <RatioRow label="ROE (%)" value={report.consolidatedRatios.roe} />
-                    <RatioRow label="NPM (%)" value={report.consolidatedRatios.npm} />
-                    <RatioRow label="DER" value={report.consolidatedRatios.der} />
-                    <RatioRow label="Health Score" value={report.consolidatedRatios.healthScore} />
+                    <RatioRow label={t.ratioLabels.roa} value={report.consolidatedRatios.roa} />
+                    <RatioRow label={t.ratioLabels.roe} value={report.consolidatedRatios.roe} />
+                    <RatioRow label={t.ratioLabels.npm} value={report.consolidatedRatios.npm} />
+                    <RatioRow label={t.ratioLabels.der} value={report.consolidatedRatios.der} />
+                    <RatioRow label={t.ratioLabels.healthScore} value={report.consolidatedRatios.healthScore} />
                   </div>
                   <div className="space-y-1">
-                    <RatioRow label="Current Ratio" value={report.consolidatedRatios.currentRatio} />
-                    <RatioRow label="Quick Ratio" value={report.consolidatedRatios.quickRatio} />
-                    <RatioRow label="Cash Ratio" value={report.consolidatedRatios.cashRatio} />
-                    <RatioRow label="OCF Ratio" value={report.consolidatedRatios.ocfRatio} />
-                    <RatioRow label="DSCR" value={report.consolidatedRatios.dscr} />
+                    <RatioRow label={t.ratioLabels.currentRatio} value={report.consolidatedRatios.currentRatio} />
+                    <RatioRow label={t.ratioLabels.quickRatio} value={report.consolidatedRatios.quickRatio} />
+                    <RatioRow label={t.ratioLabels.cashRatio} value={report.consolidatedRatios.cashRatio} />
+                    <RatioRow label={t.ratioLabels.ocfRatio} value={report.consolidatedRatios.ocfRatio} />
+                    <RatioRow label={t.ratioLabels.dscr} value={report.consolidatedRatios.dscr} />
                   </div>
                 </div>
               </section>
@@ -281,7 +284,7 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                   <div className="flex items-center gap-2 mb-5 ml-1">
                     <Layers size={14} className="text-indigo-400" />
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Subsidiary Contributions
+                      {t.contributions}
                     </h4>
                   </div>
                   <div className="grid grid-cols-1 gap-3">
@@ -309,11 +312,11 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                           </div>
                           <div className="hidden sm:flex items-center gap-6">
                             <div className="flex flex-col items-end">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Revenue Contrib.</span>
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{t.revenueContrib}</span>
                               <span className="text-xs font-black text-indigo-600">{contrib.revenueContribution.toFixed(1)}%</span>
                             </div>
                             <div className="flex flex-col items-end">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Profit Contrib.</span>
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{t.profitContrib}</span>
                               <span className={cn("text-xs font-black", contrib.profitContribution >= 0 ? "text-emerald-600" : "text-rose-600")}>
                                 {contrib.profitContribution.toFixed(1)}%
                               </span>
@@ -332,17 +335,17 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                               <div className="px-6 pb-6 pt-2 bg-slate-50/30 border-t border-slate-50">
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mt-4">
                                   <div className="space-y-1">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Revenue</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.revenue}</p>
                                     <p className="text-sm font-black text-slate-800">{formatRupiah(contrib.revenue, false)}</p>
                                   </div>
                                   <div className="space-y-1">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Net Profit</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.netProfit}</p>
                                     <p className={cn('text-sm font-black', contrib.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600')}>
                                       {formatRupiah(contrib.netProfit, false)}
                                     </p>
                                   </div>
                                   <div className="space-y-1">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Assets</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.totalAssets}</p>
                                     <p className="text-sm font-black text-slate-800">{formatRupiah(contrib.totalAssets, false)}</p>
                                   </div>
                                 </div>
@@ -351,7 +354,7 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                                 <div className="mt-8 space-y-4">
                                   <div className="space-y-2">
                                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                      <span>Revenue contribution</span>
+                                      <span>{t.revenueContrib}</span>
                                       <span>{contrib.revenueContribution.toFixed(1)}%</span>
                                     </div>
                                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
@@ -364,7 +367,7 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
                                   </div>
                                   <div className="space-y-2">
                                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                      <span>Profit contribution</span>
+                                      <span>{t.profitContrib}</span>
                                       <span>{contrib.profitContribution.toFixed(1)}%</span>
                                     </div>
                                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">

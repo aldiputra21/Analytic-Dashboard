@@ -16,6 +16,8 @@ import {
 } from 'recharts';
 import { formatRupiah, formatPercentage } from '../../../utils/format';
 import type { DeptRevenueTargetItem } from '../../../services/mafinda/dashboardService';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface RevenueTargetChartProps {
   data: DeptRevenueTargetItem[];
@@ -29,7 +31,7 @@ function achievementColor(rate: number): string {
   return '#ef4444';                  // red
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, t }: any) => {
   if (!active || !payload?.length) return null;
   const target = payload.find((p: any) => p.dataKey === 'target')?.value ?? 0;
   const realization = payload.find((p: any) => p.dataKey === 'realization')?.value ?? 0;
@@ -37,10 +39,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-xs">
       <p className="font-semibold text-slate-800 mb-2">{label}</p>
-      <p className="text-slate-600">Target: <span className="font-medium text-slate-800">{formatRupiah(target)}</span></p>
-      <p className="text-slate-600">Realisasi: <span className="font-medium text-slate-800">{formatRupiah(realization)}</span></p>
+      <p className="text-slate-600">{t.target}: <span className="font-medium text-slate-800">{formatRupiah(target)}</span></p>
+      <p className="text-slate-600">{t.realization}: <span className="font-medium text-slate-800">{formatRupiah(realization)}</span></p>
       <p className="mt-1 font-semibold" style={{ color: achievementColor(rate) }}>
-        Achievement: {formatPercentage(rate)}
+        {t.achievement}: {formatPercentage(rate)}
       </p>
     </div>
   );
@@ -66,6 +68,9 @@ const AchievementLabel = (props: any) => {
 };
 
 export const RevenueTargetChart: React.FC<RevenueTargetChartProps> = ({ data, period, isLoading }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
@@ -78,7 +83,7 @@ export const RevenueTargetChart: React.FC<RevenueTargetChartProps> = ({ data, pe
   if (!data.length) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm text-center">
-        <p className="text-sm text-slate-500">Tidak ada data target & realisasi untuk periode {period}.</p>
+        <p className="text-sm text-slate-500">{t.noData} {t.fields.period} {period}.</p>
       </div>
     );
   }
@@ -93,8 +98,8 @@ export const RevenueTargetChart: React.FC<RevenueTargetChartProps> = ({ data, pe
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-slate-800">Target vs Realisasi Revenue per Departemen</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Periode: {period}</p>
+          <h3 className="text-sm font-semibold text-slate-800">{t.revenueTarget}</h3>
+          <p className="text-xs text-slate-500 mt-0.5">{t.fields.period}: {period}</p>
         </div>
         {/* Legend for achievement colors */}
         <div className="flex items-center gap-3 text-xs text-slate-500">
@@ -120,10 +125,10 @@ export const RevenueTargetChart: React.FC<RevenueTargetChartProps> = ({ data, pe
             tickLine={false}
             width={80}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip t={t.fields} />} />
           <Legend
             wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-            formatter={(value) => value === 'target' ? 'Target' : 'Realisasi'}
+            formatter={(value) => value === 'target' ? t.fields.target : t.fields.realization}
           />
           {/* Target bar — neutral blue */}
           <Bar dataKey="target" name="target" fill="#93c5fd" radius={[4, 4, 0, 0]} maxBarSize={40} />

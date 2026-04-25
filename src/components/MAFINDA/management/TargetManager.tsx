@@ -2,22 +2,18 @@
 // Requirements: 7.3, 7.4
 
 import React, { useState } from 'react';
-import { useToast } from '../../financial/shared/Toast';
-import { formatRupiah } from '../../../utils/format';
-import type { Department, Project, FinancialTarget } from '../../../hooks/mafinda/useManagement';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../i18n/commons';
+import { mafindaI18n } from '../../../i18n/mafinda';
+import { useToast } from '../../../hooks/useToast';
+import { formatRupiah } from '../../../utils/formatters';
+import { FinancialTarget, Project, Department } from '../../../types/financial';
 
 interface Props {
   departments: Department[];
   projects: Project[];
   targets: FinancialTarget[];
-  onUpsertTarget: (data: {
-    entityType: 'department' | 'project';
-    entityId: string;
-    period: string;
-    periodType: 'monthly' | 'quarterly' | 'annual';
-    revenueTarget: number;
-    operationalCostTarget: number;
-  }) => Promise<void>;
+  onUpsertTarget: (data: any) => Promise<void>;
   onDeleteTarget: (id: string) => Promise<void>;
 }
 
@@ -30,27 +26,14 @@ interface FormState {
   operationalCostTarget: string;
 }
 
-function currentPeriod(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function emptyForm(): FormState {
-  return {
-    entityType: 'department',
-    entityId: '',
-    period: currentPeriod(),
-    periodType: 'monthly',
-    revenueTarget: '',
-    operationalCostTarget: '',
-  };
-}
-
-const PERIOD_TYPE_LABELS: Record<string, string> = {
-  monthly: 'Bulanan',
-  quarterly: 'Kuartalan',
-  annual: 'Tahunan',
-};
+const emptyForm = (): FormState => ({
+  entityType: 'department',
+  entityId: '',
+  period: new Date().toISOString().slice(0, 7),
+  periodType: 'monthly',
+  revenueTarget: '',
+  operationalCostTarget: '',
+});
 
 export const TargetManager: React.FC<Props> = ({
   departments,
@@ -59,12 +42,22 @@ export const TargetManager: React.FC<Props> = ({
   onUpsertTarget,
   onDeleteTarget,
 }) => {
+  const { language } = useAuth();
+  const c = commonsI18n[language];
+  const t = mafindaI18n[language].dashboard.targetManager;
   const { showSuccess, showError } = useToast();
+  
   const [showForm, setShowForm] = useState(false);
   const [editingTarget, setEditingTarget] = useState<FinancialTarget | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [filterEntityType, setFilterEntityType] = useState<'all' | 'department' | 'project'>('all');
+
+  const PERIOD_TYPE_LABELS: Record<string, string> = {
+    monthly: t.monthly,
+    quarterly: t.quarterly,
+    annual: t.annual,
+  };
 
   const entityOptions =
     form.entityType === 'department'
@@ -101,11 +94,11 @@ export const TargetManager: React.FC<Props> = ({
     const operationalCostTarget = parseFloat(form.operationalCostTarget);
 
     if (isNaN(revenueTarget) || revenueTarget < 0) {
-      showError('Target revenue harus berupa angka non-negatif');
+      showError(t.revenueError);
       return;
     }
     if (isNaN(operationalCostTarget) || operationalCostTarget < 0) {
-      showError('Target biaya operasional harus berupa angka non-negatif');
+      showError(t.opsCostError);
       return;
     }
 
@@ -119,10 +112,10 @@ export const TargetManager: React.FC<Props> = ({
         revenueTarget,
         operationalCostTarget,
       });
-      showSuccess(editingTarget ? 'Target berhasil diperbarui' : 'Target berhasil disimpan');
+      showSuccess(editingTarget ? t.updateSuccess : t.saveSuccess);
       setShowForm(false);
     } catch (err: any) {
-      showError(err.message ?? 'Gagal menyimpan target');
+      showError(err.message ?? t.saveError);
     } finally {
       setSaving(false);
     }
@@ -131,9 +124,9 @@ export const TargetManager: React.FC<Props> = ({
   async function handleDelete(id: string) {
     try {
       await onDeleteTarget(id);
-      showSuccess('Target berhasil dihapus');
+      showSuccess(t.deleteSuccess);
     } catch (err: any) {
-      showError(err.message ?? 'Gagal menghapus target');
+      showError(err.message ?? t.deleteError);
     }
   }
 
@@ -150,17 +143,17 @@ export const TargetManager: React.FC<Props> = ({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Target Keuangan</h3>
-            <p className="text-xs text-slate-500 mt-0.5">{visibleTargets.length} target</p>
+            <h3 className="text-sm font-semibold text-slate-900">{t.title}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{visibleTargets.length} {t.targetCount}</p>
           </div>
           <select
             value={filterEntityType}
             onChange={(e) => setFilterEntityType(e.target.value as any)}
             className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Semua</option>
-            <option value="department">Departemen</option>
-            <option value="project">Proyek</option>
+            <option value="all">{c.all}</option>
+            <option value="department">{t.department}</option>
+            <option value="project">{t.project}</option>
           </select>
         </div>
         <button
@@ -168,26 +161,26 @@ export const TargetManager: React.FC<Props> = ({
           disabled={departments.length === 0}
           className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          + Tetapkan Target
+          + {t.setTarget}
         </button>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         {visibleTargets.length === 0 ? (
           <div className="flex items-center justify-center h-20 text-sm text-slate-400">
-            Belum ada target. Tetapkan target keuangan pertama.
+            {t.noTargets}. {t.noTargetsDesc}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Entitas</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Tipe</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Periode</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Jenis</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600">Target Revenue</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600">Target Biaya Ops</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600">Aksi</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">{t.entity}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">{t.type}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">{t.period}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">{t.kind}</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600">{t.revenueTarget}</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600">{t.opsCostTarget}</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600">{t.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -200,7 +193,7 @@ export const TargetManager: React.FC<Props> = ({
                         ? 'bg-purple-50 text-purple-700'
                         : 'bg-teal-50 text-teal-700'
                     }`}>
-                      {target.entityType === 'department' ? 'Departemen' : 'Proyek'}
+                      {target.entityType === 'department' ? t.department : t.project}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{target.period}</td>
@@ -217,13 +210,13 @@ export const TargetManager: React.FC<Props> = ({
                         onClick={() => openEdit(target)}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                       >
-                        Edit
+                        {c.edit}
                       </button>
                       <button
                         onClick={() => handleDelete(target.id)}
                         className="text-xs text-red-500 hover:text-red-700 font-medium"
                       >
-                        Hapus
+                        {c.delete}
                       </button>
                     </div>
                   </td>
@@ -240,7 +233,7 @@ export const TargetManager: React.FC<Props> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <h3 className="text-sm font-semibold text-slate-900">
-                {editingTarget ? 'Edit Target' : 'Tetapkan Target'}
+                {editingTarget ? t.editTarget : t.setTarget}
               </h3>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -252,7 +245,7 @@ export const TargetManager: React.FC<Props> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Tipe Entitas <span className="text-red-500">*</span>
+                    {t.entityType} <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={form.entityType}
@@ -262,13 +255,13 @@ export const TargetManager: React.FC<Props> = ({
                     disabled={!!editingTarget}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50"
                   >
-                    <option value="department">Departemen</option>
-                    <option value="project">Proyek</option>
+                    <option value="department">{t.department}</option>
+                    <option value="project">{t.project}</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Entitas <span className="text-red-500">*</span>
+                    {t.entity} <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={form.entityId}
@@ -277,7 +270,7 @@ export const TargetManager: React.FC<Props> = ({
                     disabled={!!editingTarget}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50"
                   >
-                    <option value="">Pilih...</option>
+                    <option value="">{t.selectEntity}</option>
                     {entityOptions.map((opt) => (
                       <option key={opt.id} value={opt.id}>{opt.label}</option>
                     ))}
@@ -288,7 +281,7 @@ export const TargetManager: React.FC<Props> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Periode <span className="text-red-500">*</span>
+                    {t.period} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="month"
@@ -299,22 +292,22 @@ export const TargetManager: React.FC<Props> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Jenis Periode</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t.periodKind}</label>
                   <select
                     value={form.periodType}
                     onChange={(e) => setForm((f) => ({ ...f, periodType: e.target.value as any }))}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="monthly">Bulanan</option>
-                    <option value="quarterly">Kuartalan</option>
-                    <option value="annual">Tahunan</option>
+                    <option value="monthly">{t.monthly}</option>
+                    <option value="quarterly">{t.quarterly}</option>
+                    <option value="annual">{t.annual}</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Target Revenue (Rp) <span className="text-red-500">*</span>
+                  {t.revenueTarget} (Rp) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -330,7 +323,7 @@ export const TargetManager: React.FC<Props> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Target Biaya Operasional (Rp) <span className="text-red-500">*</span>
+                  {t.opsCostTarget} (Rp) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -350,14 +343,14 @@ export const TargetManager: React.FC<Props> = ({
                   onClick={() => setShowForm(false)}
                   className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
-                  Batal
+                  {c.cancel}
                 </button>
                 <button
                   type="submit"
                   disabled={saving || !form.entityId || !form.period}
                   className="flex-1 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {saving ? 'Menyimpan...' : editingTarget ? 'Perbarui' : 'Simpan'}
+                  {saving ? c.saving : editingTarget ? t.update : c.save}
                 </button>
               </div>
             </form>

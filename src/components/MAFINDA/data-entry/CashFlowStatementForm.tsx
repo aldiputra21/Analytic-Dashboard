@@ -3,6 +3,9 @@
 
 import React, { useState } from 'react';
 import { useToast } from '../../financial/shared/Toast';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../i18n/commons';
+import { cashFlowI18n } from '../../../i18n/cash-flow';
 import type { Department, Project } from '../../../hooks/mafinda/useManagement';
 
 interface CashFlowStatementFormProps {
@@ -36,16 +39,7 @@ const emptyForm: FormState = {
   financingCashOut: '',
 };
 
-const cashFieldLabels: Record<string, string> = {
-  operatingCashIn: 'Cash In dari Operasi',
-  operatingCashOut: 'Cash Out dari Operasi',
-  investingCashIn: 'Cash In dari Investasi',
-  investingCashOut: 'Cash Out dari Investasi',
-  financingCashIn: 'Cash In dari Pendanaan',
-  financingCashOut: 'Cash Out dari Pendanaan',
-};
-
-const cashFields = Object.keys(cashFieldLabels) as (keyof FormState)[];
+const cashFields = ['operatingCashIn', 'operatingCashOut', 'investingCashIn', 'investingCashOut', 'financingCashIn', 'financingCashOut'] as const;
 
 function parseNum(val: string): number {
   return parseFloat(val) || 0;
@@ -63,11 +57,23 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
   existingKeys = [],
   onSaved,
 }) => {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
+  const cf = cashFlowI18n[language];
   const { showSuccess, showError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
   const [touched, setTouched] = useState<Partial<Record<keyof FormState, boolean>>>({});
+
+  const cashFieldLabels: Record<string, string> = {
+    operatingCashIn: cf.form.cashInFromOps,
+    operatingCashOut: cf.form.cashOutFromOps,
+    investingCashIn: cf.form.cashInFromInv,
+    investingCashOut: cf.form.cashOutFromInv,
+    financingCashIn: cf.form.cashInFromFin,
+    financingCashOut: cf.form.cashOutFromFin,
+  };
 
   const filteredProjects = form.departmentId
     ? projects.filter((p) => p.departmentId === form.departmentId && p.isActive)
@@ -80,13 +86,13 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
 
   function getFieldError(field: keyof FormState): string | null {
     if (!touched[field]) return null;
-    if (field === 'period') return form.period.trim() ? null : 'Periode wajib diisi';
+    if (field === 'period') return form.period.trim() ? null : cf.validation.periodRequired;
     if (field === 'departmentId' || field === 'projectId') return null;
     const val = form[field];
-    if (val.trim() === '') return `${cashFieldLabels[field]} wajib diisi`;
+    if (val.trim() === '') return cf.validation.fieldRequired.replace('{field}', cashFieldLabels[field]);
     const n = parseFloat(val);
-    if (isNaN(n)) return 'Harus berupa angka valid';
-    if (n < 0) return 'Nilai tidak boleh negatif';
+    if (isNaN(n)) return cf.validation.invalidNumber;
+    if (n < 0) return cf.validation.nonNegative;
     return null;
   }
 
@@ -134,15 +140,15 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
       });
       const data = await res.json();
       if (!res.ok) {
-        showError(data.error ?? 'Gagal menyimpan arus kas');
+        showError(data.error ?? cf.alerts.saveError);
         return;
       }
-      showSuccess(`Arus Kas periode ${form.period} berhasil disimpan`);
+      showSuccess(cf.alerts.saveSuccess.replace('{period}', form.period));
       setForm(emptyForm);
       setTouched({});
       onSaved?.();
     } catch {
-      showError('Terjadi kesalahan jaringan');
+      showError(cf.alerts.networkError);
     } finally {
       setSaving(false);
       setConfirmOverwrite(false);
@@ -165,19 +171,19 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
   }
 
   const cashGroups = [
-    { legend: 'Aktivitas Operasi', fields: ['operatingCashIn', 'operatingCashOut'] as const },
-    { legend: 'Aktivitas Investasi', fields: ['investingCashIn', 'investingCashOut'] as const },
-    { legend: 'Aktivitas Pendanaan', fields: ['financingCashIn', 'financingCashOut'] as const },
+    { legend: cf.form.operatingActivities, fields: ['operatingCashIn', 'operatingCashOut'] as const },
+    { legend: cf.form.investingActivities, fields: ['investingCashIn', 'investingCashOut'] as const },
+    { legend: cf.form.financingActivities, fields: ['financingCashIn', 'financingCashOut'] as const },
   ];
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-6">
-      <h3 className="text-sm font-semibold text-slate-900 mb-4">Input Arus Kas (Cash Flow Statement)</h3>
+      <h3 className="text-sm font-semibold text-slate-900 mb-4">{cf.title}</h3>
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {/* Period */}
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">
-            Periode <span className="text-red-500">*</span>
+            {cf.form.period} <span className="text-red-500">*</span>
           </label>
           <input
             type="month"
@@ -195,14 +201,14 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Departemen <span className="text-slate-400 font-normal">(opsional)</span>
+              {cf.form.department} <span className="text-slate-400 font-normal">({cf.form.optional})</span>
             </label>
             <select
               value={form.departmentId}
               onChange={(e) => handleChange('departmentId', e.target.value)}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              <option value="">— Semua —</option>
+              <option value="">— {t.all} —</option>
               {departments.filter((d) => d.isActive).map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
@@ -210,7 +216,7 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Proyek <span className="text-slate-400 font-normal">(opsional)</span>
+              {cf.form.project} <span className="text-slate-400 font-normal">({cf.form.optional})</span>
             </label>
             <select
               value={form.projectId}
@@ -218,7 +224,7 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
               disabled={!form.departmentId}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50"
             >
-              <option value="">— Semua —</option>
+              <option value="">— {t.all} —</option>
               {filteredProjects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -258,7 +264,7 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
           disabled={saving}
           className="w-full py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {saving ? 'Menyimpan...' : 'Simpan Arus Kas'}
+          {saving ? t.saving : cf.form.saveBtn}
         </button>
       </form>
 
@@ -274,10 +280,9 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
                 </svg>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-slate-900">Data Sudah Ada</h4>
+                <h4 className="text-sm font-semibold text-slate-900">{cf.form.overwriteTitle}</h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  Arus Kas untuk kombinasi periode dan entitas ini sudah ada.
-                  Apakah Anda ingin menimpa data yang ada?
+                  {cf.form.overwriteDesc}
                 </p>
               </div>
             </div>
@@ -286,14 +291,14 @@ export const CashFlowStatementForm: React.FC<CashFlowStatementFormProps> = ({
                 onClick={() => setConfirmOverwrite(false)}
                 className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
               >
-                Batal
+                {t.cancel}
               </button>
               <button
                 onClick={doSave}
                 disabled={saving}
                 className="flex-1 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
               >
-                {saving ? 'Menyimpan...' : 'Timpa Data'}
+                {saving ? '...' : cf.form.overwriteBtn}
               </button>
             </div>
           </div>

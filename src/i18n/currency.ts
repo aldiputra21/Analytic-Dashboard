@@ -1,5 +1,5 @@
 // i18n/currency.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface CurrencyCopy {
   title: string;

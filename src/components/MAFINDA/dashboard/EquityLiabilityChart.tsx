@@ -12,6 +12,8 @@ import {
 } from 'recharts';
 import { formatRupiah, formatPercentage } from '../../../utils/format';
 import type { EquityLiabilityComposition } from '../../../services/mafinda/dashboardService';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface EquityLiabilityChartProps {
   data: EquityLiabilityComposition | null;
@@ -48,6 +50,9 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export const EquityLiabilityChart: React.FC<EquityLiabilityChartProps> = ({ data, isLoading }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
+
   const [, setActiveIndex] = useState<number | undefined>(undefined);
 
   if (isLoading) {
@@ -62,7 +67,7 @@ export const EquityLiabilityChart: React.FC<EquityLiabilityChartProps> = ({ data
   if (!data || data.totalAssets === 0) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm text-center">
-        <p className="text-sm text-slate-400">Tidak ada data komposisi ekuitas & liabilitas.</p>
+        <p className="text-sm text-slate-400">{t.noData}</p>
       </div>
     );
   }
@@ -70,11 +75,11 @@ export const EquityLiabilityChart: React.FC<EquityLiabilityChartProps> = ({ data
   const total = data.totalAssets;
 
   const chartData = [
-    { name: 'Modal Disetor', value: data.paidInCapital, group: 'Ekuitas' },
-    { name: 'Laba Ditahan', value: data.retainedEarnings, group: 'Ekuitas' },
-    { name: 'Ekuitas Lainnya', value: data.otherEquity, group: 'Ekuitas' },
-    { name: 'Liabilitas Jangka Pendek', value: data.shortTermLiabilities, group: 'Liabilitas' },
-    { name: 'Liabilitas Jangka Panjang', value: data.longTermLiabilities, group: 'Liabilitas' },
+    { name: t.equityComponentLabels.paidInCapital, value: data.paidInCapital, group: t.liabilityLabels.equity },
+    { name: t.equityComponentLabels.retainedEarnings, value: data.retainedEarnings, group: t.liabilityLabels.equity },
+    { name: t.equityComponentLabels.other, value: data.otherEquity, group: t.liabilityLabels.equity },
+    { name: t.liabilityComponentLabels.shortTerm, value: data.shortTermLiabilities, group: t.operationalCost },
+    { name: t.liabilityComponentLabels.longTerm, value: data.longTermLiabilities, group: t.operationalCost },
   ]
     .filter((d) => d.value > 0)
     .map((d) => ({ ...d, pct: (d.value / total) * 100 }));
@@ -82,22 +87,22 @@ export const EquityLiabilityChart: React.FC<EquityLiabilityChartProps> = ({ data
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-800">Komposisi Ekuitas & Liabilitas</h3>
+        <h3 className="text-sm font-semibold text-slate-800">{t.equityLiabilityComposition}</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Total Pasiva: <span className="font-medium text-slate-700">{formatRupiah(total, false)}</span>
-          {' · '}Periode: {data.period}
+          {t.totalLiabilities} + {t.totalEquity}: <span className="font-medium text-slate-700">{formatRupiah(total, false)}</span>
+          {' · '}{t.fields.period}: {data.period}
         </p>
       </div>
 
       {/* Summary badges */}
       <div className="flex gap-3 mb-3">
         <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-xs">
-          <p className="text-emerald-600 font-medium">Total Ekuitas</p>
+          <p className="text-emerald-600 font-medium">{t.totalEquity}</p>
           <p className="font-bold text-emerald-800">{formatRupiah(data.totalEquity, false)}</p>
           <p className="text-emerald-500">{formatPercentage((data.totalEquity / total) * 100)}</p>
         </div>
         <div className="flex-1 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 text-xs">
-          <p className="text-orange-600 font-medium">Total Liabilitas</p>
+          <p className="text-orange-600 font-medium">{t.totalLiabilities}</p>
           <p className="font-bold text-orange-800">{formatRupiah(data.totalLiabilities, false)}</p>
           <p className="text-orange-500">{formatPercentage((data.totalLiabilities / total) * 100)}</p>
         </div>
@@ -138,7 +143,7 @@ export const EquityLiabilityChart: React.FC<EquityLiabilityChartProps> = ({ data
               <span className="w-3 h-3 rounded-sm inline-block" style={{ background: COLORS[i % COLORS.length] }} />
               <span className="text-slate-600">{item.name}</span>
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                item.group === 'Ekuitas' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
+                item.group === t.liabilityLabels.equity ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
               }`}>{item.group}</span>
             </div>
             <div className="text-right">

@@ -11,46 +11,31 @@ import { apiFetch } from '../../../services/financial/apiFetch';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 
-const RATIO_LABELS: Record<RatioName, string> = {
-  roa: 'ROA (%)',
-  roe: 'ROE (%)',
-  npm: 'NPM (%)',
-  der: 'DER',
-  currentRatio: 'Current Ratio',
-  quickRatio: 'Quick Ratio',
-  cashRatio: 'Cash Ratio',
-  ocfRatio: 'OCF Ratio',
-  dscr: 'DSCR',
-};
+import { reportsI18n } from '../../../i18n/reports';
 
-const RANK_BADGES: Record<number, { label: string; className: string }> = {
-  1: { label: '1st', className: 'bg-yellow-100 text-yellow-800 border border-yellow-300 shadow-sm shadow-yellow-100' },
-  2: { label: '2nd', className: 'bg-slate-100 text-slate-700 border border-slate-300 shadow-sm shadow-slate-100' },
-  3: { label: '3rd', className: 'bg-orange-100 text-orange-700 border border-orange-300 shadow-sm shadow-orange-100' },
-};
+// Ratio labels are now handled inside the component via reportsI18n
 
-function RankBadge({ rank }: { rank: number }) {
-  const badge = RANK_BADGES[rank];
-  if (badge) {
-    return (
-      <span className={cn('inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight', badge.className)}>
-        {rank === 1 && <Trophy className="w-2.5 h-2.5" />}
-        {badge.label}
-      </span>
-    );
-  }
+function RankBadge({ rank, t }: { rank: number; t: any }) {
+  const badgeClass = rank === 1 ? 'bg-yellow-100 text-yellow-800 border border-yellow-300 shadow-sm shadow-yellow-100' :
+                     rank === 2 ? 'bg-slate-100 text-slate-700 border border-slate-300 shadow-sm shadow-slate-100' :
+                     rank === 3 ? 'bg-orange-100 text-orange-700 border border-orange-300 shadow-sm shadow-orange-100' :
+                     'bg-slate-50 text-slate-500 border border-slate-200';
+  
+  const label = t.ranks[rank] || `${t.ranks.suffix || ''}${rank}${(!t.ranks.suffix && rank > 3) ? 'th' : ''}`;
+
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight bg-slate-50 text-slate-500 border border-slate-200">
-      {rank}th
+    <span className={cn('inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight', badgeClass)}>
+      {rank === 1 && <Trophy className="w-2.5 h-2.5" />}
+      {label}
     </span>
   );
 }
 
-function GapIndicator({ gap }: { gap: number | null }) {
+function GapIndicator({ gap, t }: { gap: number | null; t: any }) {
   if (gap === null) return <span className="text-slate-400 text-xs">—</span>;
   if (Math.abs(gap) < 0.01) return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-black uppercase tracking-tight">
-      Best
+      {t.best}
     </span>
   );
   return (
@@ -67,6 +52,8 @@ interface BenchmarkingTableProps {
 export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className }) => {
   const { language } = useAuth();
   const common = commonsI18n[language];
+  const t = reportsI18n[language].benchmarking;
+  const ratioLabels = t.ratioLabels;
   
   const [benchmarks, setBenchmarks] = useState<BenchmarkResult[]>([]);
   const [industryData, setIndustryData] = useState<IndustryBenchmarkEntry[]>([]);
@@ -109,7 +96,7 @@ export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className 
           <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl shadow-sm">
             <BarChart3 className="w-5 h-5" />
           </div>
-          <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Performance Benchmarking</h3>
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">{t.title}</h3>
         </div>
         <button
           onClick={() => setShowIndustry((v) => !v)}
@@ -120,13 +107,13 @@ export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className 
               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
           )}
         >
-          {showIndustry ? 'Hide Industry' : 'vs Industry'}
+          {showIndustry ? t.hideIndustry : t.vsIndustry}
         </button>
       </div>
 
       {/* Ratio selector */}
       <div className="px-6 py-3 border-b border-slate-50 flex flex-wrap gap-2 bg-white">
-        {(Object.keys(RATIO_LABELS) as RatioName[]).map((rn) => (
+        {(Object.keys(ratioLabels) as RatioName[]).map((rn) => (
           <button
             key={rn}
             onClick={() => setSelectedRatio(rn)}
@@ -137,7 +124,7 @@ export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className 
                 : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white hover:border-slate-300'
             )}
           >
-            {RATIO_LABELS[rn]}
+            {ratioLabels[rn]}
           </button>
         ))}
       </div>
@@ -147,13 +134,13 @@ export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className 
         <table className="w-full text-xs font-bold border-collapse">
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-100 font-black text-[10px] text-slate-400 uppercase tracking-widest">
-              <th className="text-left px-6 py-4">Subsidiary</th>
-              <th className="text-right px-4 py-4">Value</th>
-              <th className="text-center px-4 py-4">Rank</th>
-              <th className="text-right px-4 py-4">Gap from Best</th>
-              <th className="text-right px-4 py-4">vs Portfolio Avg</th>
+              <th className="text-left px-6 py-4">{t.subsidiary}</th>
+              <th className="text-right px-4 py-4">{t.value}</th>
+              <th className="text-center px-4 py-4">{t.rank}</th>
+              <th className="text-right px-4 py-4">{t.gapBest}</th>
+              <th className="text-right px-4 py-4">{t.vsPortfolioAvg}</th>
               {showIndustry && (
-                <th className="text-right px-6 py-4">vs Industry</th>
+                <th className="text-right px-6 py-4">{t.vsIndustryAvg}</th>
               )}
             </tr>
           </thead>
@@ -204,8 +191,8 @@ export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className 
                       <div className="p-4 bg-slate-50 rounded-full text-slate-300">
                         <BarChart3 size={40} />
                       </div>
-                      <p className="text-slate-800 font-black text-lg">No benchmark data available</p>
-                      <p className="text-slate-500 text-sm">Please ensure financial statements are uploaded for the selected period.</p>
+                      <p className="text-slate-800 font-black text-lg">{t.empty}</p>
+                      <p className="text-slate-500 text-sm">{t.emptyDesc}</p>
                     </div>
                   </td>
                 </motion.tr>
@@ -235,10 +222,10 @@ export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className 
                         {sub.value !== null ? sub.value.toFixed(2) : '—'}
                       </td>
                       <td className="px-4 py-4 text-center">
-                        {sub.rank > 0 ? <RankBadge rank={sub.rank} /> : <span className="text-slate-400">—</span>}
+                        {sub.rank > 0 ? <RankBadge rank={sub.rank} t={t} /> : <span className="text-slate-400">—</span>}
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <GapIndicator gap={sub.gapFromBest} />
+                        <GapIndicator gap={sub.gapFromBest} t={t} />
                       </td>
                       <td className="px-4 py-4 text-right">
                         {sub.varianceFromAverage !== null ? (
@@ -271,7 +258,7 @@ export const BenchmarkingTable: React.FC<BenchmarkingTableProps> = ({ className 
           {currentBenchmark?.portfolioAverage !== null && !isLoading && !error && currentBenchmark?.subsidiaries.length > 0 && (
             <tfoot>
               <tr className="bg-slate-50/80 border-t border-slate-200">
-                <td className="px-6 py-4 font-black text-slate-600 text-[10px] uppercase tracking-widest">Portfolio Average</td>
+                <td className="px-6 py-4 font-black text-slate-600 text-[10px] uppercase tracking-widest">{t.portfolioAvg}</td>
                 <td className="px-4 py-4 text-right font-black text-slate-800">
                   {currentBenchmark?.portfolioAverage?.toFixed(2) ?? '—'}
                 </td>

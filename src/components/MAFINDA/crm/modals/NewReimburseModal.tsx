@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { X, Upload, Plus, Trash2, Receipt } from 'lucide-react';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../../i18n/commons';
+import { crmI18n } from '../../../../i18n/crm';
 
 interface Props { onClose: () => void; }
 
@@ -18,6 +21,9 @@ const REQUESTERS = ['Ahmad Rizki', 'Dewi Lestari', 'Budi Santoso', 'Siti Nurhali
 interface ReceiptItem { description: string; amount: string; date: string; }
 
 export function NewReimburseModal({ onClose }: Props) {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
+  const tc = crmI18n[language];
   const [form, setForm] = useState({
     requester: '', category: 'travel', project: '',
     activityDate: '', activityDescription: '',
@@ -43,8 +49,8 @@ export function NewReimburseModal({ onClose }: Props) {
       <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-orange-50 to-white">
           <div>
-            <h2 className="text-base font-bold text-gray-900">New Reimbursement Request</h2>
-            <p className="text-xs text-gray-500">Ajukan permintaan penggantian biaya</p>
+            <h2 className="text-base font-bold text-gray-900">{tc.modals.reimburse.createTitle}</h2>
+            <p className="text-xs text-gray-500">{tc.modals.reimburse.subtitle}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X className="w-5 h-5" /></button>
         </div>
@@ -52,31 +58,31 @@ export function NewReimburseModal({ onClose }: Props) {
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Basic Info */}
           <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Informasi Pengajuan</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{tc.modals.reimburse.basicInfo}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Pemohon <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.requester} <span className="text-red-500">*</span></label>
                 <select value={form.requester} onChange={e => set('requester', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Pilih pemohon...</option>
+                  <option value="">{language === 'id' ? 'Pilih pemohon...' : 'Select requester...'}</option>
                   {REQUESTERS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Proyek / Kegiatan <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.project} <span className="text-red-500">*</span></label>
                 <select value={form.project} onChange={e => set('project', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Pilih proyek...</option>
+                  <option value="">{language === 'id' ? 'Pilih proyek...' : 'Select project...'}</option>
                   {PROJECTS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Tanggal Kegiatan</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.activityDate}</label>
                 <input type="date" value={form.activityDate} onChange={e => set('activityDate', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Approver</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.approver}</label>
                 <input value={form.approver} onChange={e => set('approver', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
@@ -85,12 +91,12 @@ export function NewReimburseModal({ onClose }: Props) {
 
           {/* Category */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-2">Kategori Biaya <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">{tc.modals.reimburse.categorySection} <span className="text-red-500">*</span></label>
             <div className="grid grid-cols-4 gap-2">
               {CATEGORIES.map(c => (
                 <button key={c} onClick={() => set('category', c)}
                   className={`px-2 py-2 text-xs font-medium rounded-lg border-2 transition-colors text-center ${form.category === c ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}>
-                  {CATEGORY_LABELS[c]}
+                  {tc.modals.reimburse.categories[c as keyof typeof tc.modals.reimburse.categories]}
                 </button>
               ))}
             </div>
@@ -98,18 +104,18 @@ export function NewReimburseModal({ onClose }: Props) {
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Deskripsi Kegiatan <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.description} <span className="text-red-500">*</span></label>
             <textarea value={form.activityDescription} onChange={e => set('activityDescription', e.target.value)} rows={2}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Jelaskan kegiatan yang memerlukan penggantian biaya..." />
+              placeholder={language === 'id' ? 'Jelaskan kegiatan yang memerlukan penggantian biaya...' : 'Explain the activity that requires reimbursement...'} />
           </div>
 
           {/* Receipt Items */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Rincian Biaya</h3>
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{tc.modals.reimburse.receiptSection}</h3>
               <button onClick={addReceipt} className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" />Tambah Item
+                <Plus className="w-3.5 h-3.5" />{tc.modals.reimburse.addItem}
               </button>
             </div>
             <div className="space-y-2">
@@ -118,12 +124,12 @@ export function NewReimburseModal({ onClose }: Props) {
                   <Receipt className="w-4 h-4 text-gray-400 shrink-0" />
                   <input value={r.description} onChange={e => updateReceipt(i, 'description', e.target.value)}
                     className="flex-1 px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Deskripsi item" />
+                    placeholder={tc.modals.reimburse.itemDescription} />
                   <input type="date" value={r.date} onChange={e => updateReceipt(i, 'date', e.target.value)}
                     className="w-36 px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <input value={r.amount} onChange={e => updateReceipt(i, 'amount', e.target.value)}
                     className="w-32 px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
-                    placeholder="Jumlah (IDR)" />
+                    placeholder={tc.modals.reimburse.itemAmount} />
                   {receipts.length > 1 && (
                     <button onClick={() => removeReceipt(i)} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
                   )}
@@ -143,48 +149,48 @@ export function NewReimburseModal({ onClose }: Props) {
 
           {/* Bank Info */}
           <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Informasi Rekening</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{tc.modals.reimburse.bankSection}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nama Bank</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.bankName}</label>
                 <select value={form.bankName} onChange={e => set('bankName', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Pilih bank...</option>
+                  <option value="">{language === 'id' ? 'Pilih bank...' : 'Select bank...'}</option>
                   {['BCA', 'BNI', 'BRI', 'Mandiri', 'CIMB Niaga', 'Permata Bank'].map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nomor Rekening</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.bankAccount}</label>
                 <input value={form.bankAccount} onChange={e => set('bankAccount', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nomor rekening" />
+                  placeholder={language === 'id' ? 'Nomor rekening' : 'Account number'} />
               </div>
             </div>
           </div>
 
           {/* Upload Receipts */}
           <div>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Upload Bukti / Kwitansi</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{tc.modals.reimburse.upload}</h3>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 text-center hover:border-orange-400 hover:bg-orange-50 transition-colors cursor-pointer">
               <Upload className="w-7 h-7 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">Upload foto atau scan kwitansi</p>
-              <p className="text-xs text-gray-400 mt-1">JPG, PNG, PDF — maks 10MB per file</p>
+              <p className="text-sm text-gray-600">{language === 'id' ? 'Upload foto atau scan kwitansi' : 'Upload photo or scan of receipts'}</p>
+              <p className="text-xs text-gray-400 mt-1">{language === 'id' ? 'JPG, PNG, PDF — maks 10MB per file' : 'JPG, PNG, PDF — max 10MB per file'}</p>
             </div>
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Catatan Tambahan</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">{tc.modals.reimburse.notes}</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Catatan atau keterangan tambahan..." />
+              placeholder={language === 'id' ? 'Catatan atau keterangan tambahan...' : 'Additional notes or information...'} />
           </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2 bg-gray-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Batal</button>
-          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700">Simpan Draft</button>
-          <button onClick={onClose} className="px-6 py-2 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700">✓ Ajukan Reimburse</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">{t.cancel}</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700">{tc.modals.reimburse.saveDraft}</button>
+          <button onClick={onClose} className="px-6 py-2 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700">✓ {tc.modals.reimburse.save}</button>
         </div>
       </div>
     </div>

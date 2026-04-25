@@ -17,6 +17,8 @@ import { format } from 'date-fns';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { PeriodRange } from './PeriodSelector';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { dashboardI18n } from '../../../i18n/dashboard';
 
 export interface TrendDataPoint {
   date: Date;
@@ -82,13 +84,16 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({
   className,
   formatValue,
 }) => {
+  const { language } = useAuth();
+  const t = dashboardI18n[language];
+
   return (
     <div className={cn('bg-white rounded-xl border border-slate-200 shadow-sm p-4', className)}>
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Period: {period.toUpperCase()}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{t.periodLabel}: {period.toUpperCase()}</p>
         </div>
 
         {/* YoY badges */}
@@ -113,8 +118,8 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({
                   <span>{yoy.label}:</span>
                   <span>
                     {yoy.value !== null
-                      ? `${yoy.value > 0 ? '+' : ''}${yoy.value.toFixed(1)}% YoY`
-                      : 'N/A'}
+                      ? `${yoy.value > 0 ? '+' : ''}${yoy.value.toFixed(1)}% ${t.yoy}`
+                      : t.notAvailable}
                   </span>
                 </div>
               );
@@ -126,7 +131,7 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({
       {/* Chart */}
       {data.length === 0 ? (
         <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">
-          No data available for this period
+          {t.noData}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>

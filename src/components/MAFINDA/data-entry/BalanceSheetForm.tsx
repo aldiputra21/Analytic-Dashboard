@@ -1,6 +1,8 @@
-// BalanceSheetForm.tsx — Compact full-width multi-column layout
 import React, { useState } from 'react';
 import { useToast } from '../../financial/shared/Toast';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../i18n/commons';
+import { balanceSheetI18n } from '../../../i18n/balance-sheet';
 
 interface BalanceSheetFormProps {
   existingPeriods?: string[];
@@ -91,6 +93,9 @@ function ColHeader({ label, color }: { label: string; color: string }) {
 }
 
 export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeriods = [], onSaved }) => {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
+  const tb = balanceSheetI18n[language];
   const { showSuccess, showError } = useToast();
   const [form, setForm] = useState<F>(empty);
   const [saving, setSaving] = useState(false);
@@ -148,11 +153,11 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeri
         }),
       });
       const data = await res.json();
-      if (!res.ok) { showError(data.error ?? 'Gagal menyimpan'); return; }
-      showSuccess(`Neraca ${form.period} disimpan`);
+      if (!res.ok) { showError(data.error ?? t.errorSave); return; }
+      showSuccess(tb.alerts.successSave);
       setForm(empty);
       onSaved?.();
-    } catch { showError('Kesalahan jaringan'); }
+    } catch { showError(tb.alerts.errorNetwork); }
     finally { setSaving(false); setConfirm(false); }
   }
 
@@ -167,9 +172,13 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeri
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       {/* Header */}
       <div className="px-4 py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-white">Neraca (Balance Sheet)</h3>
+        <h3 className="text-sm font-bold text-white">{tb.title}</h3>
         <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${balanced ? 'bg-emerald-400 text-white' : total_aset > 0 ? 'bg-red-400 text-white' : 'bg-slate-600 text-slate-300'}`}>
-          {balanced ? '✓ Seimbang' : total_aset > 0 ? '⚠ Tidak Seimbang' : 'Belum ada data'}
+          {balanced 
+            ? `✓ ${tb.status.balanced}`
+            : total_aset > 0 
+              ? `⚠ ${tb.status.unbalanced}`
+              : tb.modal.noData}
         </div>
       </div>
 
@@ -177,15 +186,15 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeri
         {/* Periode */}
         <div className="mb-3 flex items-center gap-3">
           <div className="flex flex-col gap-0.5 w-48">
-            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Periode *</label>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{tb.modal.period} *</label>
             <input type="month" value={form.period} onChange={(e) => set('period', e.target.value)} required
               className="px-2 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
           </div>
           {total_aset > 0 && (
             <div className="flex gap-3 text-xs">
-              <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold">Aset: {rp(total_aset)}</span>
-              <span className="px-2 py-1 bg-red-50 text-red-700 rounded font-semibold">Kwjbn: {rp(total_kwjbn)}</span>
-              <span className="px-2 py-1 bg-green-50 text-green-700 rounded font-semibold">Ekuitas: {rp(total_ekuitas)}</span>
+              <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold">{tb.modal.totalAssets}: {rp(total_aset)}</span>
+              <span className="px-2 py-1 bg-red-50 text-red-700 rounded font-semibold">{tb.modal.liabilities.slice(0,5)}: {rp(total_kwjbn)}</span>
+              <span className="px-2 py-1 bg-green-50 text-green-700 rounded font-semibold">{tb.modal.equity}: {rp(total_ekuitas)}</span>
             </div>
           )}
         </div>
@@ -195,74 +204,74 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeri
 
           {/* ── COL 1: ASET ── */}
           <div className="space-y-1.5">
-            <ColHeader label="ASET" color="blue" />
+            <ColHeader label={tb.modal.totalAssets} color="blue" />
             <div className="border border-slate-100 rounded-b-lg p-2 space-y-1.5 bg-slate-50">
-              <p className="text-[9px] font-bold text-slate-400 uppercase">Aset Lancar</p>
-              <Inp label="Kas" value={form.kas} onChange={(v) => set('kas', v)} />
-              <Inp label="Deposito" value={form.deposito} onChange={(v) => set('deposito', v)} />
-              <Inp label="Piutang Usaha" value={form.piutang_usaha} onChange={(v) => set('piutang_usaha', v)} />
-              <Inp label="Piutang Lainnya" value={form.piutang_lainnya} onChange={(v) => set('piutang_lainnya', v)} />
-              <Inp label="Uang Muka" value={form.uang_muka} onChange={(v) => set('uang_muka', v)} />
-              <Inp label="Pekerjaan dlm Proses" value={form.pekerjaan_dalam_proses} onChange={(v) => set('pekerjaan_dalam_proses', v)} />
-              <Inp label="Pjk Dibyr Dimuka" value={form.pajak_dibayar_dimuka} onChange={(v) => set('pajak_dibayar_dimuka', v)} />
-              <Inp label="Beban Dibyr Dimuka" value={form.beban_dibayar_dimuka} onChange={(v) => set('beban_dibayar_dimuka', v)} />
-              <SectionTotal label="Aset Lancar" value={aset_lancar} color="indigo" />
+              <p className="text-[9px] font-bold text-slate-400 uppercase">{tb.modal.activa}</p>
+              <Inp label={tb.fields.cashAndBank} value={form.kas} onChange={(v) => set('kas', v)} />
+              <Inp label={language === 'id' ? 'Deposito' : 'Deposits'} value={form.deposito} onChange={(v) => set('deposito', v)} />
+              <Inp label={tb.fields.accountsReceivable} value={form.piutang_usaha} onChange={(v) => set('piutang_usaha', v)} />
+              <Inp label={language === 'id' ? 'Piutang Lainnya' : 'Other Receivables'} value={form.piutang_lainnya} onChange={(v) => set('piutang_lainnya', v)} />
+              <Inp label={language === 'id' ? 'Uang Muka' : 'Advances'} value={form.uang_muka} onChange={(v) => set('uang_muka', v)} />
+              <Inp label={tb.fields.workInProgress} value={form.pekerjaan_dalam_proses} onChange={(v) => set('pekerjaan_dalam_proses', v)} />
+              <Inp label={language === 'id' ? 'Pjk Dibyr Dimuka' : 'Prepaid Tax'} value={form.pajak_dibayar_dimuka} onChange={(v) => set('pajak_dibayar_dimuka', v)} />
+              <Inp label={tb.fields.prepaidExpenses} value={form.beban_dibayar_dimuka} onChange={(v) => set('beban_dibayar_dimuka', v)} />
+              <SectionTotal label={tb.modal.totalActiva} value={aset_lancar} color="indigo" />
 
-              <p className="text-[9px] font-bold text-slate-400 uppercase pt-1">Aset Tidak Lancar</p>
-              <Inp label="Aset Tetap" value={form.aset_tetap} onChange={(v) => set('aset_tetap', v)} />
-              <Inp label="Aset Tak Berwujud" value={form.aset_tak_berwujud} onChange={(v) => set('aset_tak_berwujud', v)} />
-              <Inp label="Aset Lain" value={form.aset_lain} onChange={(v) => set('aset_lain', v)} />
-              <SectionTotal label="Aset Tak Lancar" value={aset_tak_lancar} color="indigo" />
+              <p className="text-[9px] font-bold text-slate-400 uppercase pt-1">{tb.modal.fixedAsset}</p>
+              <Inp label={language === 'id' ? 'Aset Tetap' : 'Fixed Assets'} value={form.aset_tetap} onChange={(v) => set('aset_tetap', v)} />
+              <Inp label={language === 'id' ? 'Aset Tak Berwujud' : 'Intangible Assets'} value={form.aset_tak_berwujud} onChange={(v) => set('aset_tak_berwujud', v)} />
+              <Inp label={language === 'id' ? 'Aset Lain' : 'Other Assets'} value={form.aset_lain} onChange={(v) => set('aset_lain', v)} />
+              <SectionTotal label={tb.modal.totalFixedAsset} value={aset_tak_lancar} color="indigo" />
             </div>
-            <GrandTotal label="TOTAL ASET" value={total_aset} color="indigo" />
+            <GrandTotal label={tb.modal.totalAssets} value={total_aset} color="indigo" />
           </div>
 
           {/* ── COL 2: KEWAJIBAN ── */}
           <div className="space-y-1.5">
-            <ColHeader label="KEWAJIBAN" color="orange" />
+            <ColHeader label={tb.modal.liabilities} color="orange" />
             <div className="border border-slate-100 rounded-b-lg p-2 space-y-1.5 bg-slate-50">
-              <p className="text-[9px] font-bold text-slate-400 uppercase">Jangka Pendek</p>
-              <Inp label="Utang Usaha" value={form.utang_usaha} onChange={(v) => set('utang_usaha', v)} />
-              <Inp label="Utang Pajak" value={form.utang_pajak} onChange={(v) => set('utang_pajak', v)} />
-              <Inp label="Utang Pembiayaan" value={form.utang_pembiayaan_pendek} onChange={(v) => set('utang_pembiayaan_pendek', v)} />
-              <Inp label="Beban YMHD" value={form.beban_ymhd_pendek} onChange={(v) => set('beban_ymhd_pendek', v)} />
-              <Inp label="Utang Bank &lt;1thn" value={form.utang_bank_pendek} onChange={(v) => set('utang_bank_pendek', v)} />
-              <SectionTotal label="Kwjbn J.Pendek" value={kwjbn_pendek} color="orange" />
+              <p className="text-[9px] font-bold text-slate-400 uppercase">{tb.modal.shortTermLiabilities}</p>
+              <Inp label={tb.fields.accountsPayable} value={form.utang_usaha} onChange={(v) => set('utang_usaha', v)} />
+              <Inp label={language === 'id' ? 'Utang Pajak' : 'Tax Payable'} value={form.utang_pajak} onChange={(v) => set('utang_pajak', v)} />
+              <Inp label={language === 'id' ? 'Utang Pembiayaan' : 'Financing Payable'} value={form.utang_pembiayaan_pendek} onChange={(v) => set('utang_pembiayaan_pendek', v)} />
+              <Inp label={language === 'id' ? 'Beban YMHD' : 'Accrued Expenses'} value={form.beban_ymhd_pendek} onChange={(v) => set('beban_ymhd_pendek', v)} />
+              <Inp label={tb.fields.bankLoanCurrent} value={form.utang_bank_pendek} onChange={(v) => set('utang_bank_pendek', v)} />
+              <SectionTotal label={tb.modal.totalShortTermLiabilities} value={kwjbn_pendek} color="orange" />
 
-              <p className="text-[9px] font-bold text-slate-400 uppercase pt-1">Jangka Panjang</p>
-              <Inp label="Utang Pmg Saham" value={form.utang_pemg_saham} onChange={(v) => set('utang_pemg_saham', v)} />
-              <Inp label="Beban YMHD" value={form.beban_ymhd_panjang} onChange={(v) => set('beban_ymhd_panjang', v)} />
-              <Inp label="Utang Bank J.Panjang" value={form.utang_bank_panjang} onChange={(v) => set('utang_bank_panjang', v)} />
-              <Inp label="Utang Pembiayaan" value={form.utang_pembiayaan_panjang} onChange={(v) => set('utang_pembiayaan_panjang', v)} />
-              <Inp label="Utang Lainnya" value={form.utang_lainnya} onChange={(v) => set('utang_lainnya', v)} />
-              <SectionTotal label="Kwjbn J.Panjang" value={kwjbn_panjang} color="red" />
+              <p className="text-[9px] font-bold text-slate-400 uppercase pt-1">{tb.modal.longTermLiabilities}</p>
+              <Inp label={tb.fields.shareholderLoan} value={form.utang_pemg_saham} onChange={(v) => set('utang_pemg_saham', v)} />
+              <Inp label={language === 'id' ? 'Beban YMHD' : 'Accrued Expenses'} value={form.beban_ymhd_panjang} onChange={(v) => set('beban_ymhd_panjang', v)} />
+              <Inp label={tb.fields.bankLoanLongTerm} value={form.utang_bank_panjang} onChange={(v) => set('utang_bank_panjang', v)} />
+              <Inp label={language === 'id' ? 'Utang Pembiayaan' : 'Financing Payable'} value={form.utang_pembiayaan_panjang} onChange={(v) => set('utang_pembiayaan_panjang', v)} />
+              <Inp label={language === 'id' ? 'Utang Lainnya' : 'Other Liabilities'} value={form.utang_lainnya} onChange={(v) => set('utang_lainnya', v)} />
+              <SectionTotal label={tb.modal.totalLongTermLiabilities} value={kwjbn_panjang} color="red" />
             </div>
-            <GrandTotal label="TOTAL KEWAJIBAN" value={total_kwjbn} color="red" />
+            <GrandTotal label={tb.modal.totalLiab} value={total_kwjbn} color="red" />
           </div>
 
           {/* ── COL 3: EKUITAS ── */}
           <div className="space-y-1.5">
-            <ColHeader label="EKUITAS" color="green" />
+            <ColHeader label={tb.modal.equity} color="green" />
             <div className="border border-slate-100 rounded-b-lg p-2 space-y-1.5 bg-slate-50">
-              <Inp label="Modal Saham" value={form.modal_saham} onChange={(v) => set('modal_saham', v)} />
-              <Inp label="Laba Ditahan Ditentukan" value={form.laba_ditahan_ditentukan} onChange={(v) => set('laba_ditahan_ditentukan', v)} />
-              <Inp label="Laba Ditahan Blm Ditentukan" value={form.laba_ditahan_belum_ditentukan} onChange={(v) => set('laba_ditahan_belum_ditentukan', v)} />
-              <Inp label="L/R Tahun Berjalan" value={form.lr_tahun_berjalan} onChange={(v) => set('lr_tahun_berjalan', v)} />
-              <SectionTotal label="Jumlah Ekuitas" value={total_ekuitas} color="green" />
+              <Inp label={tb.fields.capital} value={form.modal_saham} onChange={(v) => set('modal_saham', v)} />
+              <Inp label={language === 'id' ? 'Laba Ditahan Ditentukan' : 'Appropriated Retained Earnings'} value={form.laba_ditahan_ditentukan} onChange={(v) => set('laba_ditahan_ditentukan', v)} />
+              <Inp label={language === 'id' ? 'Laba Ditahan Blm Ditentukan' : 'Unappropriated Retained Earnings'} value={form.laba_ditahan_belum_ditentukan} onChange={(v) => set('laba_ditahan_belum_ditentukan', v)} />
+              <Inp label={tb.fields.earningsAfterTax} value={form.lr_tahun_berjalan} onChange={(v) => set('lr_tahun_berjalan', v)} />
+              <SectionTotal label={tb.modal.totalEquity} value={total_ekuitas} color="green" />
             </div>
-            <GrandTotal label="TOTAL EKUITAS" value={total_ekuitas} color="purple" />
+            <GrandTotal label={tb.modal.totalEquity} value={total_ekuitas} color="purple" />
 
             {/* Balance check */}
             {total_aset > 0 && (
               <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-semibold ${balanced ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-red-50 text-red-800 border border-red-300'}`}>
                 <span>{balanced ? '✓' : '⚠'}</span>
-                <span>{balanced ? 'Neraca seimbang' : `Selisih: ${rp(Math.abs(total_aset - total_kwjbn_ekuitas))}`}</span>
+                <span>{balanced ? tb.status.balanced : `${tb.modal.diff}: ${rp(Math.abs(total_aset - total_kwjbn_ekuitas))}`}</span>
               </div>
             )}
 
             <div className="pt-1 border-t border-slate-100">
               <div className="flex items-center justify-between px-2 py-1 bg-slate-100 rounded text-[9px] font-bold text-slate-600 uppercase">
-                <span>Kwjbn + Ekuitas</span>
+                <span>{tb.modal.totalLiabEquityCompact}</span>
                 <span>{rp(total_kwjbn_ekuitas)}</span>
               </div>
             </div>
@@ -271,18 +280,18 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeri
 
         <button type="submit" disabled={saving || !form.period.trim()}
           className="mt-4 w-full py-2 text-xs font-semibold text-white bg-slate-800 rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors">
-          {saving ? 'Menyimpan...' : 'Simpan Neraca'}
+          {saving ? t.saving : tb.modal.saveBtn}
         </button>
       </form>
 
       {confirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-xs p-5 space-y-3">
-            <p className="text-sm font-semibold text-slate-900">Timpa data periode <strong>{form.period}</strong>?</p>
+            <p className="text-sm font-semibold text-slate-900">{tb.modal.overwriteConfirm.replace('{period}', form.period)}</p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirm(false)} className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50">Batal</button>
+              <button onClick={() => setConfirm(false)} className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50">{t.cancel}</button>
               <button onClick={doSave} disabled={saving} className="flex-1 py-1.5 text-xs text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
-                {saving ? '...' : 'Timpa'}
+                {saving ? '...' : tb.modal.overwrite}
               </button>
             </div>
           </div>

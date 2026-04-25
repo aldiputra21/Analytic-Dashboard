@@ -3,6 +3,8 @@ import React from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { formatRupiah } from '../../../utils/format';
 import type { AssetComposition, EquityLiabilityComposition } from '../../../services/mafinda/dashboardService';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface Props {
   assetData: AssetComposition | null;
@@ -60,6 +62,9 @@ function SkeletonCard() {
 }
 
 export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, isLoading }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
+  
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -77,9 +82,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
 
   const cards: CardProps[] = [
     {
-      label: 'Total Assets',
+      label: t.totalAssets,
       value: totalAssets,
-      subLabel: 'Fixed Assets',
+      subLabel: t.fields.fixedAssets,
       subValue: assetData?.fixedAssets ?? 0,
       color: 'text-blue-700',
       bgColor: 'bg-blue-50',
@@ -87,9 +92,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
       trend: 'up',
     },
     {
-      label: 'Current Assets',
+      label: t.assetLabels.current,
       value: currentAssets,
-      subLabel: 'Other Assets',
+      subLabel: t.fields.otherAssets,
       subValue: assetData?.otherAssets ?? 0,
       color: 'text-sky-700',
       bgColor: 'bg-sky-50',
@@ -97,9 +102,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
       pct: totalAssets > 0 ? (currentAssets / totalAssets) * 100 : 0,
     },
     {
-      label: 'Total Equity',
+      label: t.totalEquity,
       value: totalEquity,
-      subLabel: 'Retained Earnings',
+      subLabel: t.fields.retainedEarnings,
       subValue: equityData?.retainedEarnings ?? 0,
       color: 'text-emerald-700',
       bgColor: 'bg-emerald-50',
@@ -107,9 +112,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
       pct: totalAssets > 0 ? (totalEquity / totalAssets) * 100 : 0,
     },
     {
-      label: 'Current Equity',
+      label: t.equityLabels.current, // Current Equity / Paid in Capital
       value: currentEquity,
-      subLabel: 'Other Equity',
+      subLabel: t.fields.otherEquity,
       subValue: equityData?.otherEquity ?? 0,
       color: 'text-teal-700',
       bgColor: 'bg-teal-50',
@@ -117,9 +122,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
       pct: totalEquity > 0 ? (currentEquity / totalEquity) * 100 : 0,
     },
     {
-      label: 'Total Liabilities',
+      label: t.totalLiabilities,
       value: totalLiabilities,
-      subLabel: 'Long-term',
+      subLabel: t.fields.longTerm,
       subValue: equityData?.longTermLiabilities ?? 0,
       color: 'text-orange-700',
       bgColor: 'bg-orange-50',
@@ -128,9 +133,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
       trend: totalLiabilities > totalEquity ? 'down' : 'neutral',
     },
     {
-      label: 'Current Liabilities',
+      label: t.fields.currentLiabilities,
       value: currentLiabilities,
-      subLabel: 'vs Current Assets',
+      subLabel: t.fields.vsCurrentAssets,
       subValue: currentAssets,
       color: 'text-red-700',
       bgColor: 'bg-red-50',
@@ -143,9 +148,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-slate-800">Ringkasan Posisi Keuangan</h3>
+          <h3 className="text-sm font-semibold text-slate-800">{t.fields.balanceSheetSummary}</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Balance Sheet — Periode: {assetData?.period ?? equityData?.period ?? '—'}
+            Balance Sheet — {t.fields.period}: {assetData?.period ?? equityData?.period ?? '—'}
           </p>
         </div>
         {/* Solvency indicator */}
@@ -156,7 +161,7 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
               : 'bg-red-50 border-red-200 text-red-700'
           }`}>
             {totalEquity > totalLiabilities ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-            {totalEquity > totalLiabilities ? 'Solvent' : 'Leverage Tinggi'}
+            {totalEquity > totalLiabilities ? t.fields.solvent : t.fields.highLeverage}
           </div>
         )}
       </div>
@@ -171,9 +176,9 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
       {totalAssets > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-100">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-            <span>Equity {((totalEquity / totalAssets) * 100).toFixed(1)}%</span>
-            <span className="font-semibold text-slate-700">Total Assets = {formatRupiah(totalAssets, false)}</span>
-            <span>Liabilities {((totalLiabilities / totalAssets) * 100).toFixed(1)}%</span>
+            <span>{t.liabilityLabels.equity} {((totalEquity / totalAssets) * 100).toFixed(1)}%</span>
+            <span className="font-semibold text-slate-700">{t.totalAssets} = {formatRupiah(totalAssets, false)}</span>
+            <span>{t.operationalCost} {((totalLiabilities / totalAssets) * 100).toFixed(1)}%</span>
           </div>
           <div className="w-full h-2.5 rounded-full bg-orange-200 overflow-hidden">
             <div
@@ -182,8 +187,8 @@ export const FinancialSummaryCards: React.FC<Props> = ({ assetData, equityData, 
             />
           </div>
           <div className="flex justify-between text-xs mt-1">
-            <span className="text-emerald-600 font-medium">Equity: {formatRupiah(totalEquity, false)}</span>
-            <span className="text-orange-600 font-medium">Liabilities: {formatRupiah(totalLiabilities, false)}</span>
+            <span className="text-emerald-600 font-medium">{t.liabilityLabels.equity}: {formatRupiah(totalEquity, false)}</span>
+            <span className="text-orange-600 font-medium">{t.operationalCost}: {formatRupiah(totalLiabilities, false)}</span>
           </div>
         </div>
       )}

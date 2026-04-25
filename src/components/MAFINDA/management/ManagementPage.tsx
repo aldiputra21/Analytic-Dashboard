@@ -6,6 +6,8 @@ import { Briefcase, Building2, FolderOpen, Target, Plus, Edit2, Trash2, ChevronR
 import { motion, AnimatePresence } from 'motion/react';
 import { useManagement } from '../../../hooks/mafinda/useManagement';
 import { useToast } from '../../financial/shared/Toast';
+import { useAuth } from '../../financial/useAuth';
+import { commonsI18n } from '../../../i18n/commons';
 import { formatRupiah } from '../../../utils/format';
 import type { Department, Project, FinancialTarget } from '../../../hooks/mafinda/useManagement';
 
@@ -22,6 +24,8 @@ const DepartmentsTab: React.FC<{
   onUpdate: (id: string, d: { name?: string; description?: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }> = ({ departments, projects, onCreate, onUpdate, onDelete }) => {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
   const { showSuccess, showError } = useToast();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -48,14 +52,16 @@ const DepartmentsTab: React.FC<{
     try {
       if (editingId) {
         await onUpdate(editingId, { name: form.name.trim(), description: form.description.trim() || undefined });
-        showSuccess('Departemen berhasil diperbarui');
+        showSuccess(language === 'id' ? 'Departemen berhasil diperbarui' : 'Department updated successfully');
       } else {
         await onCreate({ name: form.name.trim(), description: form.description.trim() || undefined });
-        showSuccess('Departemen berhasil ditambahkan');
+        showSuccess(language === 'id' ? 'Departemen berhasil ditambahkan' : 'Department added successfully');
       }
       setShowForm(false);
     } catch (err: any) {
-      showError(err.status === 409 ? `Nama "${form.name}" sudah digunakan` : (err.message ?? 'Gagal menyimpan'));
+      showError(err.status === 409 
+        ? (language === 'id' ? `Nama "${form.name}" sudah digunakan` : `Name "${form.name}" already in use`) 
+        : (err.message ?? (language === 'id' ? 'Gagal menyimpan' : 'Failed to save')));
     } finally {
       setSaving(false);
     }
@@ -65,9 +71,9 @@ const DepartmentsTab: React.FC<{
     if (!confirmDelete) return;
     try {
       await onDelete(confirmDelete.id);
-      showSuccess(`Departemen "${confirmDelete.name}" dihapus`);
+      showSuccess(language === 'id' ? `Departemen "${confirmDelete.name}" dihapus` : `Department "${confirmDelete.name}" deleted`);
     } catch (err: any) {
-      showError(err.message ?? 'Gagal menghapus');
+      showError(err.message ?? (language === 'id' ? 'Gagal menghapus' : 'Failed to delete'));
     } finally {
       setConfirmDelete(null);
     }
@@ -80,23 +86,23 @@ const DepartmentsTab: React.FC<{
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Departments</h3>
-          <p className="text-xs text-slate-500 mt-0.5">{departments.length} departemen terdaftar</p>
+          <h3 className="text-base font-semibold text-slate-900">{language === 'id' ? 'Departemen' : 'Departments'}</h3>
+          <p className="text-xs text-slate-500 mt-0.5">{departments.length} {language === 'id' ? 'departemen terdaftar' : 'departments registered'}</p>
         </div>
         <button
           onClick={openCreate}
           className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
         >
-          <Plus className="w-4 h-4" /> Add Department
+          <Plus className="w-4 h-4" /> {language === 'id' ? 'Tambah Departemen' : 'Add Department'}
         </button>
       </div>
 
       {departments.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
           <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 text-sm mb-4">Belum ada departemen. Buat departemen pertama.</p>
+          <p className="text-slate-500 text-sm mb-4">{language === 'id' ? 'Belum ada departemen. Buat departemen pertama.' : 'No departments yet. Create your first department.'}</p>
           <button onClick={openCreate} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">
-            Buat Departemen
+            {language === 'id' ? 'Buat Departemen' : 'Create Department'}
           </button>
         </div>
       ) : (
@@ -128,7 +134,7 @@ const DepartmentsTab: React.FC<{
                         <span className="text-xs text-white/50 truncate hidden sm:block">{dept.description}</span>
                       )}
                       <span className="text-xs text-white/60 shrink-0">
-                        ({getProjectCount(dept.id)} proyek, {getActiveProjectCount(dept.id)} aktif)
+                        ({getProjectCount(dept.id)} {language === 'id' ? 'proyek' : 'projects'}, {getActiveProjectCount(dept.id)} {language === 'id' ? 'aktif' : 'active'})
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -161,15 +167,15 @@ const DepartmentsTab: React.FC<{
                     >
                       {deptProjects.length === 0 ? (
                         <div className="px-6 py-4 text-xs text-slate-400 text-center">
-                          Belum ada proyek di departemen ini
+                          {language === 'id' ? 'Belum ada proyek di departemen ini' : 'No projects in this department'}
                         </div>
                       ) : (
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
-                              <th className="text-left px-4 py-2 font-semibold text-slate-500 uppercase tracking-wide">Nama Proyek</th>
-                              <th className="text-left px-4 py-2 font-semibold text-slate-500 uppercase tracking-wide">Mulai</th>
-                              <th className="text-left px-4 py-2 font-semibold text-slate-500 uppercase tracking-wide">Selesai</th>
+                              <th className="text-left px-4 py-2 font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Nama Proyek' : 'Project Name'}</th>
+                              <th className="text-left px-4 py-2 font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Mulai' : 'Start'}</th>
+                              <th className="text-left px-4 py-2 font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Selesai' : 'End'}</th>
                               <th className="text-left px-4 py-2 font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                             </tr>
                           </thead>
@@ -186,7 +192,7 @@ const DepartmentsTab: React.FC<{
                                 <td className="px-4 py-2.5 text-slate-500">{proj.endDate ?? '—'}</td>
                                 <td className="px-4 py-2.5">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${proj.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                    {proj.isActive ? 'Aktif' : 'Nonaktif'}
+                                    {proj.isActive ? (language === 'id' ? 'Aktif' : 'Active') : (language === 'id' ? 'Nonaktif' : 'Inactive')}
                                   </span>
                                 </td>
                               </tr>
@@ -213,21 +219,21 @@ const DepartmentsTab: React.FC<{
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Nama <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Nama' : 'Name'} <span className="text-red-500">*</span></label>
                 <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Contoh: ONM, Engineering, Finance" autoFocus />
+                  placeholder={language === 'id' ? 'Contoh: ONM, Engineering, Finance' : 'Example: ONM, Engineering, Finance'} autoFocus />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Deskripsi</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Deskripsi' : 'Description'}</label>
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                  placeholder="Deskripsi opsional" />
+                  placeholder={language === 'id' ? 'Deskripsi opsional' : 'Optional description'} />
               </div>
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Batal</button>
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">{t.cancel}</button>
                 <button type="submit" disabled={saving || !form.name.trim()} className="flex-1 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-                  {saving ? 'Menyimpan...' : editingId ? 'Perbarui' : 'Tambah'}
+                  {saving ? t.saving : editingId ? (language === 'id' ? 'Perbarui' : 'Update') : (language === 'id' ? 'Tambah' : 'Add')}
                 </button>
               </div>
             </form>
@@ -239,18 +245,18 @@ const DepartmentsTab: React.FC<{
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h4 className="text-sm font-semibold text-slate-900">Hapus Departemen</h4>
+            <h4 className="text-sm font-semibold text-slate-900">{language === 'id' ? 'Hapus Departemen' : 'Delete Department'}</h4>
             <p className="text-xs text-slate-500">
-              Hapus <strong>"{confirmDelete.name}"</strong>?
+              {language === 'id' ? 'Hapus' : 'Delete'} <strong>"{confirmDelete.name}"</strong>?
               {getProjectCount(confirmDelete.id) > 0 && (
                 <span className="block mt-2 text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                  Peringatan: {getProjectCount(confirmDelete.id)} proyek akan ikut terhapus.
+                  {language === 'id' ? 'Peringatan:' : 'Warning:'} {getProjectCount(confirmDelete.id)} {language === 'id' ? 'proyek akan ikut terhapus.' : 'projects will also be deleted.'}
                 </span>
               )}
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Batal</button>
-              <button onClick={handleDelete} className="flex-1 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">Hapus</button>
+              <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">{t.cancel}</button>
+              <button onClick={handleDelete} className="flex-1 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">{t.delete}</button>
             </div>
           </div>
         </div>
@@ -272,6 +278,8 @@ const ProjectsTab: React.FC<{
   onUpdate: (id: string, d: { name?: string; description?: string; startDate?: string; endDate?: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }> = ({ departments, projects, onCreate, onUpdate, onDelete }) => {
+  const { language } = useAuth();
+  const t = commonsI18n[language];
   const { showSuccess, showError } = useToast();
   const [filterDeptId, setFilterDeptId] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -301,14 +309,16 @@ const ProjectsTab: React.FC<{
       const payload = { name: form.name.trim(), description: form.description.trim() || undefined, startDate: form.startDate || undefined, endDate: form.endDate || undefined };
       if (editingId) {
         await onUpdate(editingId, payload);
-        showSuccess('Proyek berhasil diperbarui');
+        showSuccess(language === 'id' ? 'Proyek berhasil diperbarui' : 'Project updated successfully');
       } else {
         await onCreate({ departmentId: form.departmentId, ...payload });
-        showSuccess('Proyek berhasil ditambahkan');
+        showSuccess(language === 'id' ? 'Proyek berhasil ditambahkan' : 'Project added successfully');
       }
       setShowForm(false);
     } catch (err: any) {
-      showError(err.status === 409 ? `Nama "${form.name}" sudah ada di departemen ini` : (err.message ?? 'Gagal menyimpan'));
+      showError(err.status === 409 
+        ? (language === 'id' ? `Nama "${form.name}" sudah ada di departemen ini` : `Name "${form.name}" already in this department`) 
+        : (err.message ?? (language === 'id' ? 'Gagal menyimpan' : 'Failed to save')));
     } finally {
       setSaving(false);
     }
@@ -318,9 +328,9 @@ const ProjectsTab: React.FC<{
     if (!confirmDeleteId) return;
     try {
       await onDelete(confirmDeleteId);
-      showSuccess('Proyek berhasil dihapus');
+      showSuccess(language === 'id' ? 'Proyek berhasil dihapus' : 'Project deleted successfully');
     } catch (err: any) {
-      showError(err.message ?? 'Gagal menghapus');
+      showError(err.message ?? (language === 'id' ? 'Gagal menghapus' : 'Failed to delete'));
     } finally {
       setConfirmDeleteId(null);
     }
@@ -341,12 +351,12 @@ const ProjectsTab: React.FC<{
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Projects</h3>
-            <p className="text-xs text-slate-500 mt-0.5">{visible.length} proyek</p>
+            <h3 className="text-base font-semibold text-slate-900">{language === 'id' ? 'Proyek' : 'Projects'}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{visible.length} {language === 'id' ? 'proyek' : 'projects'}</p>
           </div>
           <select value={filterDeptId} onChange={e => setFilterDeptId(e.target.value)}
             className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-            <option value="">Semua Departemen</option>
+            <option value="">{language === 'id' ? 'Semua Departemen' : 'All Departments'}</option>
             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
@@ -361,19 +371,21 @@ const ProjectsTab: React.FC<{
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <FolderOpen className="w-10 h-10 text-slate-300 mb-3" />
             <p className="text-sm text-slate-400">
-              {departments.length === 0 ? 'Tambahkan departemen terlebih dahulu.' : 'Belum ada proyek.'}
+              {departments.length === 0 
+                ? (language === 'id' ? 'Tambahkan departemen terlebih dahulu.' : 'Add a department first.') 
+                : (language === 'id' ? 'Belum ada proyek.' : 'No projects yet.')}
             </p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Project Code</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Project Name</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Department</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Periode</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Kode Proyek' : 'Project Code'}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Nama Proyek' : 'Project Name'}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Departemen' : 'Department'}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Periode' : 'Period'}</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{language === 'id' ? 'Aksi' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -467,13 +479,13 @@ const ProjectsTab: React.FC<{
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h4 className="text-sm font-semibold text-slate-900">Hapus Proyek</h4>
+            <h4 className="text-sm font-semibold text-slate-900">{language === 'id' ? 'Hapus Proyek' : 'Delete Project'}</h4>
             <p className="text-xs text-slate-500">
-              Yakin hapus <strong>"{projects.find(p => p.id === confirmDeleteId)?.name}"</strong>? Tindakan ini tidak dapat dibatalkan.
+              {language === 'id' ? 'Yakin hapus' : 'Are you sure you want to delete'} <strong>"{projects.find(p => p.id === confirmDeleteId)?.name}"</strong>? {language === 'id' ? 'Tindakan ini tidak dapat dibatalkan.' : 'This action cannot be undone.'}
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Batal</button>
-              <button onClick={handleDelete} className="flex-1 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">Hapus</button>
+              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">{t.cancel}</button>
+              <button onClick={handleDelete} className="flex-1 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">{t.delete}</button>
             </div>
           </div>
         </div>
@@ -498,8 +510,6 @@ function currentPeriod() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const PERIOD_LABELS: Record<string, string> = { monthly: 'Bulanan', quarterly: 'Kuartalan', annual: 'Tahunan' };
-
 const TargetsTab: React.FC<{
   departments: Department[];
   projects: Project[];
@@ -507,12 +517,21 @@ const TargetsTab: React.FC<{
   onUpsert: (d: { entityType: 'department' | 'project'; entityId: string; period: string; periodType: 'monthly' | 'quarterly' | 'annual'; revenueTarget: number; operationalCostTarget: number }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }> = ({ departments, projects, targets, onUpsert, onDelete }) => {
+  const { language } = useAuth();
+  const c = commonsI18n[language];
+  const tm = mafindaI18n[language].dashboard.targetManager;
   const { showSuccess, showError } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingTarget, setEditingTarget] = useState<FinancialTarget | null>(null);
   const [form, setForm] = useState<TargetFormState>({ entityType: 'department', entityId: '', period: currentPeriod(), periodType: 'monthly', revenueTarget: '', operationalCostTarget: '' });
   const [saving, setSaving] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'department' | 'project'>('all');
+
+  const PERIOD_LABELS: Record<string, string> = { 
+    monthly: tm.monthly, 
+    quarterly: tm.quarterly, 
+    annual: tm.annual 
+  };
 
   const visible = filterType === 'all' ? targets : targets.filter(t => t.entityType === filterType);
   const entityOptions = form.entityType === 'department'
@@ -535,15 +554,15 @@ const TargetsTab: React.FC<{
     e.preventDefault();
     const rev = parseFloat(form.revenueTarget);
     const ops = parseFloat(form.operationalCostTarget);
-    if (isNaN(rev) || rev < 0) { showError('Target revenue harus angka non-negatif'); return; }
-    if (isNaN(ops) || ops < 0) { showError('Target biaya harus angka non-negatif'); return; }
+    if (isNaN(rev) || rev < 0) { showError(tm.revenueError); return; }
+    if (isNaN(ops) || ops < 0) { showError(tm.opsCostError); return; }
     setSaving(true);
     try {
       await onUpsert({ entityType: form.entityType, entityId: form.entityId, period: form.period, periodType: form.periodType, revenueTarget: rev, operationalCostTarget: ops });
-      showSuccess(editingTarget ? 'Target diperbarui' : 'Target disimpan');
+      showSuccess(editingTarget ? tm.updateSuccess : tm.saveSuccess);
       setShowForm(false);
     } catch (err: any) {
-      showError(err.message ?? 'Gagal menyimpan target');
+      showError(err.message ?? tm.saveError);
     } finally {
       setSaving(false);
     }
@@ -552,9 +571,9 @@ const TargetsTab: React.FC<{
   async function handleDelete(id: string) {
     try {
       await onDelete(id);
-      showSuccess('Target dihapus');
+      showSuccess(tm.deleteSuccess);
     } catch (err: any) {
-      showError(err.message ?? 'Gagal menghapus');
+      showError(err.message ?? tm.deleteError);
     }
   }
 
@@ -575,19 +594,20 @@ const TargetsTab: React.FC<{
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Targets</h3>
-            <p className="text-xs text-slate-500 mt-0.5">{visible.length} target</p>
+            <h3 className="text-base font-semibold text-slate-900">{tm.title}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{visible.length} {tm.targetCount}</p>
           </div>
           <select value={filterType} onChange={e => setFilterType(e.target.value as any)}
             className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-            <option value="all">Semua</option>
-            <option value="department">Departemen</option>
-            <option value="project">Proyek</option>
+            <option value="all">{c.all}</option>
+            <option value="department">{tm.department}</option>
+            <option value="project">{tm.project}</option>
           </select>
+        </div>
         </div>
         <button onClick={openCreate} disabled={departments.length === 0}
           className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
-          <Plus className="w-4 h-4" /> Set Target
+          <Plus className="w-4 h-4" /> {tm.setTarget}
         </button>
       </div>
 
@@ -595,20 +615,20 @@ const TargetsTab: React.FC<{
         {visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Target className="w-10 h-10 text-slate-300 mb-3" />
-            <p className="text-sm text-slate-400">Belum ada target keuangan.</p>
+            <p className="text-sm text-slate-400">{tm.noTargets}.</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Entitas</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Departemen</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tipe</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Periode</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Jenis</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Target Revenue</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Target Biaya Ops</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.entity}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.department}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.type}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.period}</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.kind}</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.revenueTarget}</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.opsCostTarget}</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{tm.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -618,7 +638,7 @@ const TargetsTab: React.FC<{
                   <td className="px-4 py-3 text-slate-500 text-xs">{getEntityDept(t)}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.entityType === 'department' ? 'bg-purple-50 text-purple-700' : 'bg-teal-50 text-teal-700'}`}>
-                      {t.entityType === 'department' ? 'Dept' : 'Proyek'}
+                      {t.entityType === 'department' ? tm.department.slice(0,4) : tm.project}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{t.period}</td>
@@ -627,10 +647,10 @@ const TargetsTab: React.FC<{
                   <td className="px-4 py-3 text-right text-xs font-semibold text-orange-600">{formatRupiah(t.operationalCostTarget)}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => openEdit(t)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
+                      <button onClick={() => openEdit(t)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title={c.edit}>
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => handleDelete(t.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Hapus">
+                      <button onClick={() => handleDelete(t.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title={c.delete}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -647,59 +667,59 @@ const TargetsTab: React.FC<{
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="text-sm font-semibold text-slate-900">{editingTarget ? 'Edit Target' : 'Tetapkan Target'}</h3>
+              <h3 className="text-sm font-semibold text-slate-900">{editingTarget ? tm.editTarget : tm.setTarget}</h3>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Tipe <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{tm.type} <span className="text-red-500">*</span></label>
                   <select value={form.entityType} onChange={e => setForm(f => ({ ...f, entityType: e.target.value as any, entityId: '' }))} disabled={!!editingTarget}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50">
-                    <option value="department">Departemen</option>
-                    <option value="project">Proyek</option>
+                    <option value="department">{tm.department}</option>
+                    <option value="project">{tm.project}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Entitas <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{tm.entity} <span className="text-red-500">*</span></label>
                   <select value={form.entityId} onChange={e => setForm(f => ({ ...f, entityId: e.target.value }))} required disabled={!!editingTarget}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50">
-                    <option value="">Pilih...</option>
+                    <option value="">{tm.selectEntity}</option>
                     {entityOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Periode <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{tm.period} <span className="text-red-500">*</span></label>
                   <input type="month" value={form.period} onChange={e => setForm(f => ({ ...f, period: e.target.value }))} required
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Jenis Periode</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{tm.periodKind}</label>
                   <select value={form.periodType} onChange={e => setForm(f => ({ ...f, periodType: e.target.value as any }))}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="monthly">Bulanan</option>
-                    <option value="quarterly">Kuartalan</option>
-                    <option value="annual">Tahunan</option>
+                    <option value="monthly">{tm.monthly}</option>
+                    <option value="quarterly">{tm.quarterly}</option>
+                    <option value="annual">{tm.annual}</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Target Revenue (Rp) <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{tm.revenueTarget} (Rp) <span className="text-red-500">*</span></label>
                 <input type="number" min={0} value={form.revenueTarget} onChange={e => setForm(f => ({ ...f, revenueTarget: e.target.value }))} required
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Target Biaya Operasional (Rp) <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{tm.opsCostTarget} (Rp) <span className="text-red-500">*</span></label>
                 <input type="number" min={0} value={form.operationalCostTarget} onChange={e => setForm(f => ({ ...f, operationalCostTarget: e.target.value }))} required
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0" />
               </div>
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Batal</button>
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">{c.cancel}</button>
                 <button type="submit" disabled={saving || !form.entityId || !form.period}
                   className="flex-1 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-                  {saving ? 'Menyimpan...' : editingTarget ? 'Perbarui' : 'Simpan'}
+                  {saving ? c.saving : editingTarget ? tm.update : c.save}
                 </button>
               </div>
             </form>
@@ -714,29 +734,26 @@ const TargetsTab: React.FC<{
 
 type TabDef = { id: Tab; label: string; icon: React.ElementType };
 
-const TABS: TabDef[] = [
-  { id: 'departments', label: 'Departments', icon: Building2 },
-  { id: 'projects', label: 'Projects', icon: FolderOpen },
-  { id: 'targets', label: 'Targets', icon: Target },
-];
+  const TABS: TabDef[] = [
+    { id: 'departments', label: mafindaI18n[language].dashboard.management.tabs.departments, icon: Building2 },
+    { id: 'projects', label: mafindaI18n[language].dashboard.management.tabs.projects, icon: FolderOpen },
+    { id: 'targets', label: mafindaI18n[language].dashboard.management.tabs.targets, icon: Target },
+  ];
 
 export const ManagementPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('departments');
 
-  const {
-    departments, projects, targets, isLoading, error,
-    createDepartment, updateDepartment, deleteDepartment,
-    createProject, updateProject, deleteProject,
-    upsertTarget, deleteTarget,
   } = useManagement();
+  const { language } = useAuth();
+  const t = commonsI18n[language];
 
   return (
     <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Projects &amp; Targets Management</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage departments, projects, and targets</p>
+          <h1 className="text-2xl font-bold text-slate-900">{mafindaI18n[language].dashboard.management.title}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{mafindaI18n[language].dashboard.management.subtitle}</p>
         </div>
         <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
           <Briefcase className="w-5 h-5 text-indigo-600" />
@@ -746,7 +763,7 @@ export const ManagementPage: React.FC = () => {
       {/* Error banner */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-xs text-red-700">
-          Gagal memuat data: {error}
+          {mafindaI18n[language].dashboard.management.errorLoad}: {error}
         </div>
       )}
 

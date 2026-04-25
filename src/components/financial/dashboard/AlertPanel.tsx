@@ -6,7 +6,9 @@ import { AlertCircle, AlertTriangle, Info, ChevronDown, ChevronUp, Bell, Check }
 import { format } from 'date-fns';
 import { Alert, AlertSeverity } from '../../../types/financial/alert';
 import { cn } from '../../../utils/cn';
-import { RATIO_META } from './RatioCard';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { ratiosI18n } from '../../../i18n/ratios';
+import { alertsI18n } from '../../../i18n/alerts';
 
 const SEVERITY_CONFIG: Record<AlertSeverity, {
   icon: React.ElementType;
@@ -49,9 +51,11 @@ interface AlertItemProps {
 }
 
 const AlertItem: React.FC<AlertItemProps> = ({ alert, subsidiaryName, onAcknowledge }) => {
+  const { language } = useAuth();
+  const t = alertsI18n[language];
   const cfg = SEVERITY_CONFIG[alert.severity];
   const Icon = cfg.icon;
-  const ratioMeta = RATIO_META.find((m) => m.key === alert.ratioName);
+  const localizedRatioLabel = ratiosI18n[language][alert.ratioName as keyof typeof ratiosI18n['id']]?.label ?? alert.ratioName;
 
   return (
     <div className={cn('flex items-start gap-3 p-3 rounded-lg border', cfg.bg, cfg.border)}>
@@ -59,16 +63,16 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, subsidiaryName, onAcknowle
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={cn('text-[10px] font-bold uppercase px-1.5 py-0.5 rounded', cfg.badge, 'text-white')}>
-            {cfg.label}
+            {t.severity[alert.severity]}
           </span>
           <span className="text-xs font-semibold text-slate-700 truncate">{subsidiaryName}</span>
           <span className="text-xs text-slate-500">·</span>
-          <span className="text-xs text-slate-500">{ratioMeta?.label ?? alert.ratioName}</span>
+          <span className="text-xs text-slate-500">{localizedRatioLabel}</span>
         </div>
         <p className="text-xs text-slate-600 mt-1">{alert.message}</p>
         <div className="flex items-center gap-3 mt-1.5 text-[10px] text-slate-400">
-          <span>Current: <strong className={cfg.color}>{alert.currentValue.toFixed(2)}</strong></span>
-          <span>Threshold: <strong>{alert.thresholdValue.toFixed(2)}</strong></span>
+          <span>{t.fields.current}: <strong className={cfg.color}>{alert.currentValue.toFixed(2)}</strong></span>
+          <span>{t.fields.threshold}: <strong>{alert.thresholdValue.toFixed(2)}</strong></span>
           <span>{format(new Date(alert.createdAt), 'dd MMM HH:mm')}</span>
         </div>
       </div>
@@ -76,7 +80,7 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, subsidiaryName, onAcknowle
         <button
           onClick={() => onAcknowledge(alert.id)}
           className="shrink-0 p-1 rounded-md hover:bg-white/60 transition-colors"
-          title="Acknowledge"
+          title={t.actions.acknowledge}
         >
           <Check className="w-3.5 h-3.5 text-slate-500" />
         </button>
@@ -111,6 +115,9 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
     return order[a.severity] - order[b.severity];
   });
 
+  const { language } = useAuth();
+  const t = alertsI18n[language];
+
   return (
     <div className={cn('bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden', className)}>
       {/* Header - always visible, acts as toggle */}
@@ -120,7 +127,7 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
       >
         <div className="flex items-center gap-2">
           <Bell className="w-4 h-4 text-slate-500" />
-          <span className="text-sm font-semibold text-slate-900">Active Alerts</span>
+          <span className="text-sm font-semibold text-slate-900">{t.activeAlerts}</span>
 
           {/* Count badges */}
           <div className="flex items-center gap-1">
@@ -140,7 +147,7 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
               </span>
             )}
             {activeAlerts.length === 0 && (
-              <span className="text-xs text-slate-400">No active alerts</span>
+              <span className="text-xs text-slate-400">{t.noActiveAlerts}</span>
             )}
           </div>
         </div>

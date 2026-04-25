@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Minus, ChevronDown, Award, Target, BarChart2 } from 'lucide-react';
 import { formatRupiah, formatPercentage } from '../../../utils/format';
 import type { DeptRevenueTargetItem } from '../../../services/mafinda/dashboardService';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface Department { id: string; name: string; description?: string; }
 
@@ -20,11 +22,11 @@ function getAchievementColor(rate: number) {
   return           { bar: 'bg-red-500',   text: 'text-red-700',   bg: 'bg-red-50',   border: 'border-red-200',   badge: 'bg-red-100 text-red-700' };
 }
 
-function getStatusLabel(rate: number) {
-  if (rate >= 100) return 'Tercapai';
-  if (rate >= 80)  return 'On Track';
-  if (rate >= 60)  return 'Perlu Perhatian';
-  return 'Di Bawah Target';
+function getStatusLabel(rate: number, t: any) {
+  if (rate >= 100) return t.statusLabels.achieved;
+  if (rate >= 80)  return t.statusLabels.onTrack;
+  if (rate >= 60)  return t.statusLabels.attention;
+  return t.statusLabels.belowTarget;
 }
 
 function getStatusIcon(rate: number) {
@@ -53,6 +55,8 @@ function SkeletonRow() {
 export const DepartmentPerformance: React.FC<Props> = ({
   departments, allDepartments, period, isLoading,
 }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
   const [selectedDept, setSelectedDept] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'achievement' | 'realization' | 'name'>('achievement');
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
@@ -83,9 +87,9 @@ export const DepartmentPerformance: React.FC<Props> = ({
           <div>
             <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-blue-600" />
-              Department Performance Achievement
+              {t.departmentPerformance}
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Target vs Realisasi Revenue — Periode: {period}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t.revenueTarget} — {t.fields.period}: {period}</p>
           </div>
 
           {/* Controls */}
@@ -97,7 +101,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
                 onChange={e => setSelectedDept(e.target.value)}
                 className="appearance-none pl-3 pr-8 py-1.5 text-xs font-medium border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 cursor-pointer"
               >
-                <option value="all">Semua Departemen</option>
+                <option value="all">{t.allDepartments}</option>
                 {(Array.isArray(allDepartments) ? allDepartments : []).map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
@@ -111,20 +115,20 @@ export const DepartmentPerformance: React.FC<Props> = ({
               onChange={e => setSortBy(e.target.value as any)}
               className="appearance-none pl-3 pr-7 py-1.5 text-xs font-medium border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 cursor-pointer"
             >
-              <option value="achievement">Sort: Achievement</option>
-              <option value="realization">Sort: Realisasi</option>
-              <option value="name">Sort: Nama</option>
+              <option value="achievement">Sort: {t.fields.achievement}</option>
+              <option value="realization">Sort: {t.fields.realization}</option>
+              <option value="name">Sort: {t.fields.name || 'Name'}</option>
             </select>
 
             {/* View toggle */}
             <div className="flex border border-slate-200 rounded-lg overflow-hidden">
               <button onClick={() => setViewMode('card')}
                 className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'card' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-                Cards
+                {t.viewLabels.cards}
               </button>
               <button onClick={() => setViewMode('table')}
                 className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-                Table
+                {t.viewLabels.table}
               </button>
             </div>
           </div>
@@ -134,23 +138,23 @@ export const DepartmentPerformance: React.FC<Props> = ({
         {!isLoading && departments.length > 0 && (
           <div className="mt-4 grid grid-cols-4 gap-3">
             <div className="bg-slate-50 rounded-lg p-3 text-center">
-              <div className="text-xs text-slate-500 mb-0.5">Overall Achievement</div>
+              <div className="text-xs text-slate-500 mb-0.5">{t.overallAchievement}</div>
               <div className={`text-xl font-bold ${getAchievementColor(overallRate).text}`}>
                 {overallRate.toFixed(1)}%
               </div>
             </div>
             <div className="bg-green-50 rounded-lg p-3 text-center">
-              <div className="text-xs text-green-600 mb-0.5">Tercapai</div>
+              <div className="text-xs text-green-600 mb-0.5">{t.statusLabels.achieved}</div>
               <div className="text-xl font-bold text-green-700">{achieved}</div>
               <div className="text-xs text-green-500">dept</div>
             </div>
             <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <div className="text-xs text-blue-600 mb-0.5">On Track</div>
+              <div className="text-xs text-blue-600 mb-0.5">{t.statusLabels.onTrack}</div>
               <div className="text-xl font-bold text-blue-700">{onTrack}</div>
               <div className="text-xs text-blue-500">dept</div>
             </div>
             <div className="bg-red-50 rounded-lg p-3 text-center">
-              <div className="text-xs text-red-600 mb-0.5">Di Bawah Target</div>
+              <div className="text-xs text-red-600 mb-0.5">{t.statusLabels.belowTarget}</div>
               <div className="text-xl font-bold text-red-700">{below}</div>
               <div className="text-xs text-red-500">dept</div>
             </div>
@@ -166,7 +170,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
           </div>
         ) : sorted.length === 0 ? (
           <div className="text-center py-10 text-sm text-slate-400">
-            Tidak ada data department performance untuk periode ini.
+            {t.noData}
           </div>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -188,7 +192,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
                     </div>
                     <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${c.badge}`}>
                       {getStatusIcon(dept.achievementRate)}
-                      {getStatusLabel(dept.achievementRate)}
+                      {getStatusLabel(dept.achievementRate, t)}
                     </span>
                   </div>
 
@@ -209,13 +213,13 @@ export const DepartmentPerformance: React.FC<Props> = ({
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="bg-white/60 rounded-lg p-2">
                       <div className="text-slate-500 mb-0.5 flex items-center gap-1">
-                        <Target className="w-3 h-3" />Target
+                        <Target className="w-3 h-3" />{t.fields.target}
                       </div>
                       <div className="font-bold text-slate-800">{formatRupiah(dept.target, false)}</div>
                     </div>
                     <div className="bg-white/60 rounded-lg p-2">
                       <div className="text-slate-500 mb-0.5 flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />Realisasi
+                        <TrendingUp className="w-3 h-3" />{t.fields.realization}
                       </div>
                       <div className={`font-bold ${c.text}`}>{formatRupiah(dept.realization, false)}</div>
                     </div>
@@ -224,7 +228,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
                   {/* Gap */}
                   {dept.target > 0 && (
                     <div className="mt-2 text-xs text-slate-500 text-right">
-                      Gap: <span className={`font-semibold ${dept.realization >= dept.target ? 'text-green-600' : 'text-red-600'}`}>
+                      {t.gap}: <span className={`font-semibold ${dept.realization >= dept.target ? 'text-green-600' : 'text-red-600'}`}>
                         {dept.realization >= dept.target ? '+' : ''}{formatRupiah(dept.realization - dept.target, false)}
                       </span>
                     </div>
@@ -239,7 +243,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['#', 'Departemen', 'Target', 'Realisasi', 'Achievement', 'Gap', 'Status'].map(h => (
+                  {['#', t.allDepartments.replace(/All |Semua /, ''), t.fields.target, t.fields.realization, t.fields.achievement, t.gap, 'Status'].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -270,7 +274,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
                       <td className="px-4 py-3">
                         <span className={`flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-xs font-semibold ${c.badge}`}>
                           {getStatusIcon(dept.achievementRate)}
-                          {getStatusLabel(dept.achievementRate)}
+                          {getStatusLabel(dept.achievementRate, t)}
                         </span>
                       </td>
                     </tr>
@@ -280,7 +284,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
               {/* Footer totals */}
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200">
-                  <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-700">TOTAL</td>
+                  <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-700">{t.total}</td>
                   <td className="px-4 py-3 text-xs font-bold text-slate-700">{formatRupiah(totalTarget, false)}</td>
                   <td className="px-4 py-3 text-xs font-bold text-slate-700">{formatRupiah(totalRealization, false)}</td>
                   <td className="px-4 py-3">

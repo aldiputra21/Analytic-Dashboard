@@ -14,6 +14,8 @@ import {
 } from 'recharts';
 import { formatRupiah } from '../../../utils/format';
 import type { HistoricalDataPoint } from '../../../services/mafinda/dashboardService';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { mafindaI18n } from '../../../i18n/mafinda';
 
 type RangeMonths = 3 | 6 | 12 | 24;
 
@@ -24,19 +26,9 @@ interface HistoricalDataChartProps {
   isLoading: boolean;
 }
 
-const RANGE_OPTIONS: { label: string; value: RangeMonths }[] = [
-  { label: '3 Bulan', value: 3 },
-  { label: '6 Bulan', value: 6 },
-  { label: '1 Tahun', value: 12 },
-  { label: '2 Tahun', value: 24 },
-];
+// Range options are now handled inside the component
 
-const LINES: { key: keyof HistoricalDataPoint; label: string; color: string }[] = [
-  { key: 'revenue', label: 'Revenue', color: '#3b82f6' },
-  { key: 'netProfit', label: 'Net Profit', color: '#10b981' },
-  { key: 'totalAssets', label: 'Total Aset', color: '#8b5cf6' },
-  { key: 'totalLiabilities', label: 'Total Liabilitas', color: '#f97316' },
-];
+// Lines are now handled inside the component
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -59,6 +51,22 @@ export const HistoricalDataChart: React.FC<HistoricalDataChartProps> = ({
   onMonthsChange,
   isLoading,
 }) => {
+  const { language } = useAuth();
+  const t = mafindaI18n[language].dashboard;
+
+  const RANGE_OPTIONS: { label: string; value: RangeMonths }[] = [
+    { label: t.ranges.months3, value: 3 },
+    { label: t.ranges.months6, value: 6 },
+    { label: t.ranges.year1, value: 12 },
+    { label: t.ranges.year2, value: 24 },
+  ];
+
+  const LINES: { key: keyof HistoricalDataPoint; label: string; color: string }[] = [
+    { key: 'revenue', label: t.revenue, color: '#3b82f6' },
+    { key: 'netProfit', label: t.netProfit, color: '#10b981' },
+    { key: 'totalAssets', label: t.totalAssets, color: '#8b5cf6' },
+    { key: 'totalLiabilities', label: t.totalLiabilities, color: '#f97316' },
+  ];
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
@@ -72,7 +80,7 @@ export const HistoricalDataChart: React.FC<HistoricalDataChartProps> = ({
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       {/* Header + range selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h3 className="text-sm font-semibold text-slate-800">Tren Data Keuangan Historis</h3>
+        <h3 className="text-sm font-semibold text-slate-800">{t.historicalTrend}</h3>
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
           {RANGE_OPTIONS.map((opt) => (
             <button
@@ -92,14 +100,14 @@ export const HistoricalDataChart: React.FC<HistoricalDataChartProps> = ({
 
       {data.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-center">
-          <p className="text-sm text-slate-400">Tidak ada data historis untuk rentang waktu yang dipilih.</p>
-          <p className="text-xs text-slate-300 mt-1">Coba pilih rentang waktu yang lebih panjang atau input data keuangan terlebih dahulu.</p>
+          <p className="text-sm text-slate-400">{t.noData}</p>
+          <p className="text-xs text-slate-300 mt-1">{t.noDataDesc}</p>
         </div>
       ) : (
         <>
           {data.length < 3 && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">
-              Data terbatas — hanya {data.length} periode tersedia. Menampilkan data yang ada.
+              {t.alerts.limitedData.replace('{count}', String(data.length))}
             </p>
           )}
           <ResponsiveContainer width="100%" height={280}>

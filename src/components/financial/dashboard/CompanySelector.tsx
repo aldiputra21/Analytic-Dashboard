@@ -5,6 +5,8 @@ import React from 'react';
 import { Building2, ChevronDown } from 'lucide-react';
 import { Subsidiary } from '../../../types/financial/subsidiary';
 import { cn } from '../../../utils/cn';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { dashboardI18n } from '../../../i18n/dashboard';
 
 // Consistent color palette per subsidiary index
 export const SUBSIDIARY_COLORS = [
@@ -46,10 +48,12 @@ export const CompanySelector: React.FC<CompanySelectorProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const { language } = useAuth();
+  const t = dashboardI18n[language];
   const selectedLabel =
     selectedId === 'all'
-      ? 'All Companies'
-      : (Array.isArray(subsidiaries) ? subsidiaries : []).find((s) => s.id === selectedId)?.name ?? 'Select Company';
+      ? t.allCompanies
+      : (Array.isArray(subsidiaries) ? subsidiaries : []).find((s) => s.id === selectedId)?.name ?? t.selectCompany;
 
   const selectedColor =
     selectedId === 'all'
@@ -78,7 +82,7 @@ export const CompanySelector: React.FC<CompanySelectorProps> = ({
             )}
           >
             <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
-            All Companies
+            {t.allCompanies}
           </button>
           {subsidiaries.map((sub, idx) => (
             <button
@@ -95,7 +99,7 @@ export const CompanySelector: React.FC<CompanySelectorProps> = ({
               />
               <span className="truncate">{sub.name}</span>
               {!sub.isActive && (
-                <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">Inactive</span>
+                <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{t.inactive}</span>
               )}
             </button>
           ))}

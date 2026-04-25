@@ -1,5 +1,5 @@
 // i18n/notification-config.ts
-import { Locale } from './income-statement';
+import { Locale } from './commons';
 
 export interface NotificationConfigCopy {
   title: string;
