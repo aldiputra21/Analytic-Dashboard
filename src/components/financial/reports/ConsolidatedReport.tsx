@@ -1,281 +1,312 @@
-// ConsolidatedReport.tsx - Consolidated financial report with drill-down
-// Requirements: 7.6
-
 import React, { useState } from 'react';
-import { FileText, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
-import { cn } from '../../../utils/cn';
-import { PeriodType } from '../../../types/financial/financialData';
-import { ConsolidatedReport as ConsolidatedReportData } from '../../../services/financial/reportGenerator';
+import { FileText, Download, Printer, Table as TableIcon } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
 
-const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'quarterly', label: 'Quarterly' },
-  { value: 'annual', label: 'Annual' },
+// ---------------------- DUMMY DATA ---------------------- //
+
+const incomeStatementData = [
+  { item: 'PENDAPATAN', amount: null, type: 'header' },
+  { item: 'Pendapatan Jasa / Operasional', amount: 1500000000, type: 'row' },
+  { item: 'Pendapatan Lain-lain', amount: 50000000, type: 'row' },
+  { item: 'Total Pendapatan', amount: 1550000000, type: 'subtotal' },
+
+  { item: 'HARGA POKOK PENJUALAN (HPP)', amount: null, type: 'header' },
+  { item: 'Biaya Material Langsung', amount: -400000000, type: 'row' },
+  { item: 'Biaya Tenaga Kerja Langsung', amount: -350000000, type: 'row' },
+  { item: 'Total HPP', amount: -750000000, type: 'subtotal' },
+
+  { item: 'LABA KOTOR', amount: 800000000, type: 'total' },
+
+  { item: 'BEBAN OPERASIONAL (OPEX)', amount: null, type: 'header' },
+  { item: 'Beban Gaji & Tunjangan Pokok', amount: -150000000, type: 'row' },
+  { item: 'Beban Pemasaran', amount: -45000000, type: 'row' },
+  { item: 'Beban Sewa & Infrastruktur', amount: -80000000, type: 'row' },
+  { item: 'Total Beban Operasional', amount: -275000000, type: 'subtotal' },
+
+  { item: 'LABA BERSIH SEBELUM PAJAK', amount: 525000000, type: 'total' },
 ];
 
-function formatCurrency(value: number): string {
-  if (Math.abs(value) >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
-  if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return value.toFixed(0);
+const balanceSheetData = [
+  { item: 'ASET', amount: null, type: 'header' },
+  { item: 'ASET LANCAR', amount: null, type: 'header2' },
+  { item: 'Kas dan Setara Kas', amount: 850000000, type: 'row' },
+  { item: 'Piutang Usaha', amount: 420000000, type: 'row' },
+  { item: 'Persediaan', amount: 120000000, type: 'row' },
+  { item: 'Total Aset Lancar', amount: 1390000000, type: 'subtotal' },
+
+  { item: 'ASET TIDAK LANCAR', amount: null, type: 'header2' },
+  { item: 'Aset Tetap (Net)', amount: 2100000000, type: 'row' },
+  { item: 'Total Aset Tidak Lancar', amount: 2100000000, type: 'subtotal' },
+
+  { item: 'TOTAL ASET', amount: 3490000000, type: 'total' },
+
+  { item: 'LIABILITAS', amount: null, type: 'header' },
+  { item: 'Hutang Usaha', amount: 310000000, type: 'row' },
+  { item: 'Hutang Bank (Jangka Pendek)', amount: 150000000, type: 'row' },
+  { item: 'Total Liabilitas', amount: 460000000, type: 'subtotal' },
+
+  { item: 'EKUITAS', amount: null, type: 'header' },
+  { item: 'Modal Saham', amount: 2000000000, type: 'row' },
+  { item: 'Laba Ditahan', amount: 1030000000, type: 'row' },
+  { item: 'Total Ekuitas', amount: 3030000000, type: 'subtotal' },
+
+  { item: 'TOTAL LIABILITAS & EKUITAS', amount: 3490000000, type: 'total' },
+];
+
+const cashFlowData = [
+  { item: 'ARUS KAS DARI AKTIVITAS OPERASI', amount: null, type: 'header' },
+  { item: 'Penerimaan Kas dari Pelanggan', amount: 1350000000, type: 'row' },
+  { item: 'Pembayaran Kas kepada Pemasok', amount: -600000000, type: 'row' },
+  { item: 'Pembayaran Gaji dan Operasional', amount: -250000000, type: 'row' },
+  { item: 'Kas Bersih dari Aktivitas Operasi', amount: 500000000, type: 'total' },
+
+  { item: 'ARUS KAS DARI AKTIVITAS INVESTASI', amount: null, type: 'header' },
+  { item: 'Pembelian Aset/Mesin Produksi', amount: -150000000, type: 'row' },
+  { item: 'Kas Bersih dari Aktivitas Investasi', amount: -150000000, type: 'total' },
+
+  { item: 'ARUS KAS DARI AKTIVITAS PENDANAAN', amount: null, type: 'header' },
+  { item: 'Penerimaan Pinjaman Bank', amount: 0, type: 'row' },
+  { item: 'Pembayaran Dividen', amount: -50000000, type: 'row' },
+  { item: 'Kas Bersih dari Aktivitas Pendanaan', amount: -50000000, type: 'total' },
+
+  { item: 'KENAIKAN (PENURUNAN) NETO KAS', amount: 300000000, type: 'total' },
+  { item: 'SALDO KAS AWAL PERIODE', amount: 550000000, type: 'subtotal' },
+  { item: 'SALDO KAS AKHIR PERIODE', amount: 850000000, type: 'total' },
+];
+
+const budgetActualData = [
+  { costCenter: 'CC-01', department: 'Operations', budget: 500000000, actual: 480000000 },
+  { costCenter: 'CC-02', department: 'Marketing', budget: 150000000, actual: 165000000 },
+  { costCenter: 'CC-03', department: 'IT Infrastructure', budget: 100000000, actual: 95000000 },
+  { costCenter: 'CC-04', department: 'HR & Admin', budget: 120000000, actual: 118000000 },
+  { costCenter: 'CC-05', department: 'Finance', budget: 80000000, actual: 80000000 },
+];
+
+function formatRp(value: number | null): string {
+  if (value === null) return '';
+  return `Rp ${value.toLocaleString('id-ID')}`;
 }
 
-function MetricCard({ label, value, unit = '' }: { label: string; value: number; unit?: string }) {
-  return (
-    <div className="bg-slate-50 rounded-lg p-3">
-      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-bold text-slate-900 mt-0.5">
-        {formatCurrency(value)}{unit}
-      </p>
-    </div>
-  );
-}
+export const ConsolidatedReport: React.FC = () => {
+  const [activeReport, setActiveReport] = useState<'is' | 'bs' | 'cf' | 'budget'>('is');
+  const [period, setPeriod] = useState('April 2026');
 
-function RatioRow({ label, value }: { label: string; value: number | null }) {
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-      <span className="text-xs text-slate-600">{label}</span>
-      <span className="text-xs font-semibold text-slate-800">
-        {value !== null ? value.toFixed(2) : 'N/A'}
-      </span>
-    </div>
-  );
-}
+  // Export functions
+  const exportToExcel = () => {
+    let wsData: any[] = [];
+    let title = '';
 
-interface ConsolidatedReportProps {
-  className?: string;
-}
-
-export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ className }) => {
-  const [periodType, setPeriodType] = useState<PeriodType>('annual');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [report, setReport] = useState<ConsolidatedReportData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [expandedSubsidiary, setExpandedSubsidiary] = useState<string | null>(null);
-
-  const fetchReport = async () => {
-    if (!startDate || !endDate) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const token = localStorage.getItem('frs_token');
-      const params = new URLSearchParams({ periodType, startDate, endDate });
-      const res = await fetch(`/api/frs/reports/consolidated?${params}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error('Failed to fetch consolidated report');
-      const data: ConsolidatedReportData = await res.json();
-      setReport(data);
-    } catch (err: any) {
-      setError(err.message ?? 'Unknown error');
-    } finally {
-      setIsLoading(false);
+    if (activeReport === 'is') {
+      title = `Laporan Laba Rugi - ${period}`;
+      wsData = incomeStatementData.map(r => ({ Keterangan: r.item, Jumlah: r.amount }));
+    } else if (activeReport === 'bs') {
+      title = `Neraca Keuangan - ${period}`;
+      wsData = balanceSheetData.map(r => ({ Keterangan: r.item, Jumlah: r.amount }));
+    } else if (activeReport === 'cf') {
+      title = `Laporan Arus Kas - ${period}`;
+      wsData = cashFlowData.map(r => ({ Keterangan: r.item, Jumlah: r.amount }));
+    } else if (activeReport === 'budget') {
+      title = `Laporan Realisasi Budget - ${period}`;
+      wsData = budgetActualData.map(r => ({
+        'Kode CC': r.costCenter,
+        'Departemen': r.department,
+        'Budget (Rp)': r.budget,
+        'Actual (Rp)': r.actual,
+        'Variance (Rp)': r.budget - r.actual,
+        '% Pemakaian': ((r.actual / r.budget) * 100).toFixed(1) + '%'
+      }));
     }
+
+    const ws = XLSX.utils.json_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Report');
+    XLSX.writeFile(wb, `${title}.xlsx`);
+  };
+
+  const exportToPDF = () => {
+    // Generate simple PDF report (dummy structured using jsPDF text)
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text('PT Titian Servis Indonesia', 14, 20);
+
+    let title = '';
+    if (activeReport === 'is') title = 'Laporan Laba Rugi';
+    if (activeReport === 'bs') title = 'Laporan Neraca Keuangan';
+    if (activeReport === 'cf') title = 'Laporan Arus Kas';
+    if (activeReport === 'budget') title = 'Realisasi Budget Cost Center';
+
+    doc.setFontSize(12);
+    doc.text(title, 14, 30);
+    doc.text(`Periode: ${period}`, 14, 36);
+
+    doc.setFontSize(10);
+    doc.text('Catatan: Ini adalah file ekspor yang disederhanakan dari Sistem Dashboard FRS.', 14, 50);
+
+    doc.save(`${title} - ${period}.pdf`);
   };
 
   return (
-    <div className={cn('bg-white rounded-xl border border-slate-200 shadow-sm', className)}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
-        <FileText className="w-4 h-4 text-indigo-600" />
-        <h3 className="text-sm font-semibold text-slate-900">Consolidated Report</h3>
+    <div className="space-y-6 max-w-5xl">
+      {/* Header Info */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-slate-200">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Formal Financial Reports</h2>
+          <p className="text-sm text-slate-500 mt-1">
+
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+          >
+            <option>Maret 2026</option>
+            <option>April 2026</option>
+            <option>Kuartal 1 2026</option>
+          </select>
+          <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={exportToPDF} className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <Printer className="w-4 h-4" /> PDF
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">Period Type</label>
-          <select
-            value={periodType}
-            onChange={(e) => setPeriodType(e.target.value as PeriodType)}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {PERIOD_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">Start Date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
+      {/* Report Switcher */}
+      <div className="flex border-b border-slate-200">
         <button
-          onClick={fetchReport}
-          disabled={!startDate || !endDate || isLoading}
-          className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          onClick={() => setActiveReport('is')}
+          className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors ${activeReport === 'is' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
-          {isLoading ? 'Generating...' : 'Generate'}
+          Laba Rugi (Income Statement)
+        </button>
+        <button
+          onClick={() => setActiveReport('bs')}
+          className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors ${activeReport === 'bs' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Neraca (Balance Sheet)
+        </button>
+        <button
+          onClick={() => setActiveReport('cf')}
+          className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors ${activeReport === 'cf' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Arus Kas (Cash Flow)
+        </button>
+        <button
+          onClick={() => setActiveReport('budget')}
+          className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors ${activeReport === 'budget' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Realisasi Budget Cost Center
         </button>
       </div>
 
-      {/* Content */}
-      <div className="p-5">
-        {error && (
-          <p className="text-sm text-red-500 mb-4">{error}</p>
-        )}
+      {/* Report Document Viewer Container */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
-        {!report && !isLoading && (
-          <p className="text-sm text-slate-400 text-center py-8">
-            Select a period and click Generate to view the consolidated report.
-          </p>
-        )}
+        {/* Document Header Page */}
+        <div className="bg-slate-50 border-b border-slate-200 px-8 py-6 text-center">
+          <h1 className="text-2xl font-serif font-bold text-slate-800">
+            {activeReport === 'is' && 'Laporan Komprehensif Laba Rugi'}
+            {activeReport === 'bs' && 'Laporan Posisi Keuangan (Neraca)'}
+            {activeReport === 'cf' && 'Laporan Arus Kas'}
+            {activeReport === 'budget' && 'Laporan Realisasi Anggaran (Cost Center)'}
+          </h1>
+          <p className="text-slate-600 mt-1">PT Titian Servis Indonesia</p>
+          <p className="text-slate-500 text-sm">Periode yang berakhir: {period}</p>
+        </div>
 
-        {isLoading && (
-          <div className="py-8 space-y-3">
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span>Generating consolidated report...</span>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-indigo-600 h-2 rounded-full animate-pulse w-3/4" />
-            </div>
-            <p className="text-xs text-slate-400 text-center">Aggregating data from all subsidiaries</p>
-          </div>
-        )}
-
-        {report && (
-          <div className="space-y-5">
-            {/* Summary metrics */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                Group Totals — {report.subsidiaryCount} Subsidiaries
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <MetricCard label="Revenue" value={report.consolidated.revenue} />
-                <MetricCard label="Net Profit" value={report.consolidated.netProfit} />
-                <MetricCard label="Total Assets" value={report.consolidated.totalAssets} />
-                <MetricCard label="Total Equity" value={report.consolidated.totalEquity} />
-                <MetricCard label="Total Liabilities" value={report.consolidated.totalLiabilities} />
-              </div>
-            </div>
-
-            {/* Consolidated ratios */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                Consolidated Ratios
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-                <div>
-                  <RatioRow label="ROA (%)" value={report.consolidatedRatios.roa} />
-                  <RatioRow label="ROE (%)" value={report.consolidatedRatios.roe} />
-                  <RatioRow label="NPM (%)" value={report.consolidatedRatios.npm} />
-                  <RatioRow label="DER" value={report.consolidatedRatios.der} />
-                  <RatioRow label="Health Score" value={report.consolidatedRatios.healthScore} />
-                </div>
-                <div>
-                  <RatioRow label="Current Ratio" value={report.consolidatedRatios.currentRatio} />
-                  <RatioRow label="Quick Ratio" value={report.consolidatedRatios.quickRatio} />
-                  <RatioRow label="Cash Ratio" value={report.consolidatedRatios.cashRatio} />
-                  <RatioRow label="OCF Ratio" value={report.consolidatedRatios.ocfRatio} />
-                  <RatioRow label="DSCR" value={report.consolidatedRatios.dscr} />
-                </div>
-              </div>
-            </div>
-
-            {/* Subsidiary contributions with drill-down (Req 7.6) */}
-            {report.contributions.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                  Subsidiary Contributions
-                </p>
-                <div className="space-y-2">
-                  {report.contributions.map((contrib) => (
-                    <div key={contrib.subsidiaryId} className="border border-slate-100 rounded-lg overflow-hidden">
-                      <button
-                        onClick={() => setExpandedSubsidiary(
-                          expandedSubsidiary === contrib.subsidiaryId ? null : contrib.subsidiaryId
-                        )}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          {expandedSubsidiary === contrib.subsidiaryId
-                            ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                            : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
-                          <span className="text-xs font-semibold text-slate-800">{contrib.subsidiaryName}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs">
-                          <span className="text-slate-500">
-                            Revenue: <span className="font-semibold text-slate-700">{contrib.revenueContribution.toFixed(1)}%</span>
-                          </span>
-                          <span className="text-slate-500">
-                            Profit: <span className="font-semibold text-slate-700">{contrib.profitContribution.toFixed(1)}%</span>
-                          </span>
-                        </div>
-                      </button>
-
-                      {expandedSubsidiary === contrib.subsidiaryId && (
-                        <div className="px-4 pb-3 bg-slate-50 border-t border-slate-100">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
-                            <div>
-                              <p className="text-[10px] text-slate-500">Revenue</p>
-                              <p className="text-sm font-bold text-slate-800">{formatCurrency(contrib.revenue)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-slate-500">Net Profit</p>
-                              <p className={cn('text-sm font-bold', contrib.netProfit >= 0 ? 'text-emerald-700' : 'text-red-600')}>
-                                {formatCurrency(contrib.netProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-slate-500">Total Assets</p>
-                              <p className="text-sm font-bold text-slate-800">{formatCurrency(contrib.totalAssets)}</p>
-                            </div>
-                          </div>
-                          {/* Contribution bars */}
-                          <div className="mt-3 space-y-1.5">
-                            <div>
-                              <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                                <span>Revenue contribution</span>
-                                <span>{contrib.revenueContribution.toFixed(1)}%</span>
-                              </div>
-                              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-indigo-500 rounded-full"
-                                  style={{ width: `${Math.min(contrib.revenueContribution, 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                                <span>Profit contribution</span>
-                                <span>{contrib.profitContribution.toFixed(1)}%</span>
-                              </div>
-                              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div
-                                  className={cn(
-                                    'h-full rounded-full',
-                                    contrib.profitContribution >= 0 ? 'bg-emerald-500' : 'bg-red-400'
-                                  )}
-                                  style={{ width: `${Math.min(Math.abs(contrib.profitContribution), 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+        {/* Tabular Data View */}
+        <div className="p-8">
+          <table className="w-full text-left border-collapse">
+            {(activeReport === 'is' || activeReport === 'bs' || activeReport === 'cf') && (
+              <tbody>
+                {(activeReport === 'is' ? incomeStatementData : activeReport === 'bs' ? balanceSheetData : cashFlowData).map((row, i) => (
+                  <tr key={i} className="group">
+                    <td className={`py-2 px-4 border-b border-slate-100 
+                      ${row.type === 'header' ? 'font-bold text-slate-900 pt-6 bg-slate-50/50' :
+                        row.type === 'header2' ? 'font-semibold text-slate-700 pt-4 px-8' :
+                          row.type === 'total' ? 'font-bold text-indigo-900 border-t-2 border-t-slate-300 border-b-4 border-b-slate-400 bg-indigo-50/30' :
+                            row.type === 'subtotal' ? 'font-semibold text-slate-800 border-t border-t-slate-200' : 'pl-8 text-slate-600'}`
+                    }>
+                      {row.item}
+                    </td>
+                    <td className={`py-2 px-4 text-right border-b border-slate-100 font-mono tracking-wide
+                      ${row.type === 'header' || row.type === 'header2' ? 'bg-slate-50/50' : ''}
+                      ${row.type === 'total' ? 'font-bold text-indigo-900 border-t-2 border-t-slate-300 border-b-4 border-b-slate-400 bg-indigo-50/30' :
+                        row.type === 'subtotal' ? 'font-semibold text-slate-800 border-t border-t-slate-200' : 'text-slate-700'}`
+                    }>
+                      {formatRp(row.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             )}
-          </div>
-        )}
+
+            {activeReport === 'budget' && (
+              <>
+                <thead>
+                  <tr className="bg-slate-100">
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-sm border-b border-slate-200">Cost Center</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-sm border-b border-slate-200">Departemen</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-sm border-b border-slate-200 text-right">Anggaran (Budget)</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-sm border-b border-slate-200 text-right">Realisasi (Actual)</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-sm border-b border-slate-200 text-right">Selisih (Variance)</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-sm border-b border-slate-200 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {budgetActualData.map((row, i) => {
+                    const variance = row.budget - row.actual;
+                    const percent = (row.actual / row.budget) * 100;
+                    return (
+                      <tr key={i} className="hover:bg-slate-50 text-sm">
+                        <td className="py-3 px-4 border-b border-slate-100 font-mono text-slate-600">{row.costCenter}</td>
+                        <td className="py-3 px-4 border-b border-slate-100 text-slate-800 font-medium">{row.department}</td>
+                        <td className="py-3 px-4 border-b border-slate-100 font-mono text-right text-slate-700">{formatRp(row.budget)}</td>
+                        <td className="py-3 px-4 border-b border-slate-100 font-mono text-right text-slate-700">{formatRp(row.actual)}</td>
+                        <td className={`py-3 px-4 border-b border-slate-100 font-mono text-right font-medium ${variance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {formatRp(variance)}
+                        </td>
+                        <td className="py-3 px-4 border-b border-slate-100 text-right">
+                          <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${percent > 100 ? 'bg-red-100 text-red-700' : percent > 90 ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {percent.toFixed(1)}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-bold">
+                    <td colSpan={2} className="py-3 px-4 text-right text-slate-800 border-t-2 border-slate-300">TOTAL KESELURUHAN:</td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-900 border-t-2 border-slate-300">
+                      {formatRp(budgetActualData.reduce((acc, r) => acc + r.budget, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-900 border-t-2 border-slate-300">
+                      {formatRp(budgetActualData.reduce((acc, r) => acc + r.actual, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono border-t-2 border-slate-300">
+                      {formatRp(budgetActualData.reduce((acc, r) => acc + (r.budget - r.actual), 0))}
+                    </td>
+                    <td className="border-t-2 border-slate-300"></td>
+                  </tr>
+                </tfoot>
+              </>
+            )}
+          </table>
+        </div>
+
+        {/* Footer info inside document */}
+        <div className="bg-slate-50 border-t border-slate-200 px-8 py-4 flex justify-between text-xs text-slate-400">
+          <p>Dihasilkan oleh: Sistem Titian FRS</p>
+          <p>Tanggal Cetak: {new Date().toLocaleDateString('id-ID')}</p>
+        </div>
       </div>
     </div>
   );
 };
+
+export default ConsolidatedReport;

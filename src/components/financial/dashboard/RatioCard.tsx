@@ -21,8 +21,6 @@ export const RATIO_META: RatioMeta[] = [
   { key: 'npm',          label: 'NPM',           unit: '%',  description: 'Net Profit Margin' },
   { key: 'der',          label: 'DER',           unit: 'x',  description: 'Debt-to-Equity Ratio' },
   { key: 'currentRatio', label: 'Current Ratio', unit: 'x',  description: 'Current Assets / Current Liabilities' },
-  { key: 'quickRatio',   label: 'Quick Ratio',   unit: 'x',  description: '(Current Assets - Inventory) / Current Liabilities' },
-  { key: 'cashRatio',    label: 'Cash Ratio',    unit: 'x',  description: 'Cash / Current Liabilities' },
   { key: 'ocfRatio',     label: 'OCF Ratio',     unit: 'x',  description: 'Operating Cash Flow / Current Liabilities' },
   { key: 'dscr',         label: 'DSCR',          unit: 'x',  description: 'Debt Service Coverage Ratio' },
 ];

@@ -6,11 +6,12 @@ import {
   LayoutDashboard, BarChart3, TrendingUp, FileText, Settings,
   Users, Upload, Bell, LogOut, Building2, ChevronLeft, ChevronRight,
   Shield, Menu, Target, Database, UserSquare2, FolderKanban,
-  CheckCircle, Receipt, ChevronDown,
+  CheckCircle, Receipt, ChevronDown, TrendingDown,
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { UserRole } from '../../../types/financial/user';
+import { useLanguage } from '../shared/LanguageContext';
 
 export type FRSPage =
   | 'dashboard' | 'benchmarking' | 'trends' | 'reports' | 'alerts'
@@ -19,7 +20,10 @@ export type FRSPage =
   | 'mafinda-management' | 'mafinda-data-entry'
   // CRM sub-pages
   | 'crm-dashboard' | 'crm-opportunities' | 'crm-customers'
-  | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse';
+  | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse'
+  // Cost Control sub-pages
+  | 'cost-control-dashboard' | 'cost-control-master' | 'cost-control-budget'
+  | 'cost-control-revenue' | 'cost-control-cost';
 
 interface NavChild {
   id: FRSPage;
@@ -34,7 +38,7 @@ interface NavItem {
   icon: React.ElementType;
   allowedRoles?: UserRole[];
   badge?: number;
-  group: 'main' | 'data' | 'mafinda' | 'crm' | 'admin';
+  group: 'main' | 'data' | 'mafinda' | 'crm' | 'admin' | 'cost-control';
   children?: NavChild[];
 }
 
@@ -46,12 +50,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'reports', label: 'Reports', icon: FileText, group: 'main' },
   { id: 'alerts', label: 'Alerts', icon: Bell, group: 'main' },
   // Data
-  { id: 'data-entry', label: 'Data Entry', icon: Upload, allowedRoles: ['owner', 'bod'], group: 'data' },
-  { id: 'mafinda-data-entry', label: 'Input Keuangan', icon: Database, allowedRoles: ['owner', 'bod'], group: 'data' },
+  //{ id: 'data-entry', label: 'Data Entry', icon: Upload, allowedRoles: ['owner', 'bod'], group: 'data' },
+  { id: 'mafinda-data-entry', label: 'Data Entry', icon: Database, allowedRoles: ['owner', 'bod'], group: 'data' },
   // MAFINDA
   { id: 'mafinda-management', label: 'Manajemen', icon: Target, allowedRoles: ['owner', 'bod'], group: 'mafinda' },
-  // CRM — tree with children
-  {
+  // CRM — tree with children (Temporarily hidden per request)
+  /* {
     id: 'crm-dashboard',
     label: 'CRM',
     icon: UserSquare2,
@@ -66,6 +70,21 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'crm-approvals', label: 'Approvals', icon: CheckCircle },
       { id: 'crm-reimburse', label: 'Reimburse', icon: Receipt },
     ],
+  }, */
+  // Cost Control
+  {
+    id: 'cost-control-dashboard',
+    label: 'Cost Control',
+    icon: Database,
+    allowedRoles: ['owner', 'bod', 'subsidiary_manager'],
+    group: 'cost-control',
+    children: [
+      { id: 'cost-control-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'cost-control-master', label: 'Master Cost Center', icon: Settings },
+      { id: 'cost-control-budget', label: 'Input Target Budget', icon: Upload },
+      { id: 'cost-control-revenue', label: 'Realisasi Revenue', icon: TrendingUp },
+      { id: 'cost-control-cost', label: 'Realisasi Biaya', icon: TrendingDown },
+    ],
   },
   // Admin
   { id: 'subsidiaries', label: 'Subsidiaries', icon: Building2, allowedRoles: ['owner'], group: 'admin' },
@@ -75,6 +94,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const CRM_PAGES: FRSPage[] = ['crm-dashboard', 'crm-opportunities', 'crm-customers', 'crm-proposals', 'crm-contracts', 'crm-approvals', 'crm-reimburse'];
+const COST_CONTROL_PAGES: FRSPage[] = ['cost-control-dashboard', 'cost-control-master', 'cost-control-budget', 'cost-control-revenue', 'cost-control-cost'];
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -86,28 +106,31 @@ interface DashboardLayoutProps {
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children, currentPage, onNavigate, alertCount = 0,
 }) => {
+  const { language, setLanguage, t } = useLanguage();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  // CRM tree open by default if on a CRM page
+  // Tree logic
   const [crmOpen, setCrmOpen] = useState(() => CRM_PAGES.includes(currentPage));
+  const [costControlOpen, setCostControlOpen] = useState(() => COST_CONTROL_PAGES.includes(currentPage));
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.allowedRoles || (user && item.allowedRoles.includes(user.role))
   );
 
   const groups: { key: NavItem['group']; label: string }[] = [
-    { key: 'main', label: 'Analitik' },
-    { key: 'data', label: 'Input Data' },
-    { key: 'mafinda', label: 'CFD' },
-    { key: 'crm', label: 'CRM' },
-    { key: 'admin', label: 'Admin' },
+    { key: 'main', label: t('group.main') },
+    { key: 'data', label: t('group.data') },
+    { key: 'mafinda', label: t('group.mafinda') },
+    { key: 'crm', label: t('group.crm') },
+    { key: 'cost-control', label: t('group.cost-control') },
+    { key: 'admin', label: t('group.admin') },
   ];
 
   const roleLabel: Record<UserRole, string> = {
-    owner: 'Owner',
-    bod: 'Board of Directors',
-    subsidiary_manager: 'Subsidiary Manager',
+    owner: t('role.owner'),
+    bod: t('role.bod'),
+    subsidiary_manager: t('role.subsidiary_manager'),
   };
 
   // Find label for header
@@ -115,9 +138,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     if (CRM_PAGES.includes(currentPage)) {
       const crmItem = NAV_ITEMS.find(n => n.id === 'crm-dashboard');
       const child = crmItem?.children?.find(c => c.id === currentPage);
-      return child ? `CRM › ${child.label}` : 'CRM';
+      return child ? `${t('nav.crm-dashboard')} › ${t(`nav.${child.id}`, child.label)}` : t('nav.crm-dashboard');
     }
-    return NAV_ITEMS.find(n => n.id === currentPage)?.label ?? 'Dashboard';
+    if (COST_CONTROL_PAGES.includes(currentPage)) {
+      const costItem = NAV_ITEMS.find(n => n.id === 'cost-control-dashboard');
+      const child = costItem?.children?.find(c => c.id === currentPage);
+      return child ? `${t('nav.cost-control-dashboard')} › ${t(`nav.${child.id}`, child.label)}` : t('nav.cost-control-dashboard');
+    }
+    const baseLabel = NAV_ITEMS.find(n => n.id === currentPage)?.label ?? 'Dashboard';
+    return t(`nav.${currentPage}`, baseLabel);
   };
 
   const SidebarContent = () => (
@@ -130,7 +159,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         {!collapsed && (
           <div>
             <p className="text-white font-bold text-sm leading-tight">CFD</p>
-            <p className="text-slate-400 text-[10px]">Corporate Finance Dashboard</p>
+            <p className="text-slate-400 text-[10px]">{t('sidebar.subtitle')}</p>
           </div>
         )}
       </div>
@@ -150,42 +179,48 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               {collapsed && <div className="border-t border-slate-700 mx-2 my-2" />}
               {items.map((item) => {
                 const Icon = item.icon;
-                const isCrmParent = item.children && item.children.length > 0;
-                const isCrmActive = isCrmParent && CRM_PAGES.includes(currentPage);
-                const isActive = !isCrmParent && currentPage === item.id;
+                const isParent = item.children && item.children.length > 0;
+                
+                const activePages = item.id === 'crm-dashboard' ? CRM_PAGES : item.id === 'cost-control-dashboard' ? COST_CONTROL_PAGES : [];
+                const isParentActive = isParent && activePages.includes(currentPage);
+                const isOpen = item.id === 'crm-dashboard' ? crmOpen : item.id === 'cost-control-dashboard' ? costControlOpen : false;
+                
+                const isActive = !isParent && currentPage === item.id;
                 const badge = item.id === 'alerts' && alertCount > 0 ? alertCount : undefined;
 
-                if (isCrmParent) {
+                if (isParent) {
                   return (
                     <div key={item.id}>
-                      {/* CRM parent button */}
+                      {/* Parent button */}
                       <button
                         onClick={() => {
                           if (collapsed) {
                             setCollapsed(false);
-                            setCrmOpen(true);
+                            if (item.id === 'crm-dashboard') setCrmOpen(true);
+                            if (item.id === 'cost-control-dashboard') setCostControlOpen(true);
                           } else {
-                            setCrmOpen(o => !o);
+                            if (item.id === 'crm-dashboard') setCrmOpen(o => !o);
+                            if (item.id === 'cost-control-dashboard') setCostControlOpen(o => !o);
                           }
-                          if (!crmOpen) onNavigate('crm-dashboard');
+                          if (!isOpen) onNavigate(item.id);
                         }}
                         className={cn(
                           'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative',
-                          isCrmActive ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white',
+                          isParentActive ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white',
                           collapsed && 'justify-center px-2'
                         )}
-                        title={collapsed ? item.label : undefined}
+                        title={collapsed ? t(`nav.${item.id}`, item.label) : undefined}
                       >
                         <Icon className="w-4 h-4 shrink-0" />
                         {!collapsed && (
                           <>
-                            <span className="flex-1 text-left">{item.label}</span>
-                            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', crmOpen && 'rotate-180')} />
+                            <span className="flex-1 text-left">{t(`nav.${item.id}`, item.label)}</span>
+                            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isOpen && 'rotate-180')} />
                           </>
                         )}
                       </button>
-                      {/* CRM children */}
-                      {!collapsed && crmOpen && (
+                      {/* Children */}
+                      {!collapsed && isOpen && (
                         <div className="ml-3 mt-0.5 pl-3 border-l border-slate-700 space-y-0.5">
                           {item.children!.map(child => {
                             const ChildIcon = child.icon;
@@ -202,7 +237,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                                 )}
                               >
                                 <ChildIcon className="w-3.5 h-3.5 shrink-0" />
-                                <span>{child.label}</span>
+                                <span>{t(`nav.${child.id}`, child.label)}</span>
                               </button>
                             );
                           })}
@@ -221,12 +256,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                       isActive ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white',
                       collapsed && 'justify-center px-2'
                     )}
-                    title={collapsed ? item.label : undefined}
+                    title={collapsed ? t(`nav.${item.id}`, item.label) : undefined}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
                     {!collapsed && (
                       <>
-                        <span className="flex-1 text-left">{item.label}</span>
+                        <span className="flex-1 text-left">{t(`nav.${item.id}`, item.label)}</span>
                         {badge !== undefined && (
                           <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                             {badge > 99 ? '99+' : badge}
@@ -259,10 +294,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm transition-colors',
             collapsed && 'justify-center px-2'
           )}
-          title={collapsed ? 'Logout' : undefined}
+          title={collapsed ? t('sidebar.logout') : undefined}
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Logout</span>}
+          {!collapsed && <span>{t('sidebar.logout')}</span>}
         </button>
       </div>
     </div>
@@ -300,11 +335,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <div className="flex-1">
             <h1 className="text-base font-semibold text-slate-900">{getPageLabel()}</h1>
           </div>
+          
+          <button
+            onClick={() => setLanguage(language === 'id' ? 'en' : 'id')}
+            className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors uppercase shrink-0 bg-white"
+            title="Toggle Language"
+          >
+            {language}
+          </button>
+
           {alertCount > 0 && (
             <button onClick={() => onNavigate('alerts')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors">
               <Bell className="w-3.5 h-3.5" />
-              {alertCount} Alert{alertCount !== 1 ? 's' : ''}
+              {alertCount} {alertCount !== 1 ? t('header.alertPlural') : t('header.alertSingular')}
             </button>
           )}
         </header>

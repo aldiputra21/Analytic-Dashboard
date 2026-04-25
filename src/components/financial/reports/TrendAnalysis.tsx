@@ -18,14 +18,12 @@ import { RatioName } from '../../../types/financial/ratio';
 import { useTrends, TrendPeriodFilter } from '../../../hooks/financial/useTrends';
 import { useSubsidiaries } from '../../../hooks/financial/useSubsidiaries';
 
-const RATIO_LABELS: Record<RatioName, string> = {
+const RATIO_LABELS: Partial<Record<RatioName, string>> = {
   roa: 'ROA (%)',
   roe: 'ROE (%)',
   npm: 'NPM (%)',
   der: 'DER',
   currentRatio: 'Current Ratio',
-  quickRatio: 'Quick Ratio',
-  cashRatio: 'Cash Ratio',
   ocfRatio: 'OCF Ratio',
   dscr: 'DSCR',
 };

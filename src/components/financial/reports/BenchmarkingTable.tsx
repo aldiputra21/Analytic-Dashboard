@@ -7,14 +7,12 @@ import { cn } from '../../../utils/cn';
 import { RatioName } from '../../../types/financial/ratio';
 import { BenchmarkResult, IndustryBenchmarkEntry } from '../../../services/financial/benchmarkingService';
 
-const RATIO_LABELS: Record<RatioName, string> = {
+const RATIO_LABELS: Partial<Record<RatioName, string>> = {
   roa: 'ROA (%)',
   roe: 'ROE (%)',
   npm: 'NPM (%)',
   der: 'DER',
   currentRatio: 'Current Ratio',
-  quickRatio: 'Quick Ratio',
-  cashRatio: 'Cash Ratio',
   ocfRatio: 'OCF Ratio',
   dscr: 'DSCR',
 };

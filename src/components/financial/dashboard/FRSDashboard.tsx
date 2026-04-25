@@ -92,8 +92,6 @@ export const FRSDashboard: React.FC = () => {
         npm: r.npm,
         der: r.der,
         currentRatio: r.currentRatio,
-        quickRatio: r.quickRatio,
-        cashRatio: r.cashRatio,
         ocfRatio: r.ocfRatio,
         dscr: r.dscr,
       };
