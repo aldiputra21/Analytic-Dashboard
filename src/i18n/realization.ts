@@ -34,6 +34,7 @@ export interface RealizationCopy {
   modal: {
     createTitle: string;
     editTitle: string;
+    viewTitle: string;
     entityType: string;
     department: string;
     project: string;
@@ -51,6 +52,7 @@ export interface RealizationCopy {
     fileHint: string;
     cancel: string;
     submit: string;
+    close: string;
     uploadAttachment: string;
     downloadAttachment: string;
     deleteAttachment: string;
@@ -122,6 +124,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     modal: {
       createTitle: 'Tambah Realisasi Kas Baru',
       editTitle: 'Edit Realisasi Kas',
+      viewTitle: 'Detail Realisasi Kas',
       entityType: 'Tipe Entitas',
       department: 'Departemen',
       project: 'Proyek',
@@ -139,6 +142,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       fileHint: 'Dokumen pendukung (PDF, Excel, Word, Gambar)\nMax 10MB',
       cancel: 'Batal',
       submit: 'Simpan',
+      close: 'Tutup',
       uploadAttachment: 'Unggah Lampiran',
       downloadAttachment: 'Unduh',
       deleteAttachment: 'Hapus',
@@ -208,6 +212,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     modal: {
       createTitle: 'Add New Cash Realization',
       editTitle: 'Edit Cash Realization',
+      viewTitle: 'Cash Realization Details',
       entityType: 'Entity Type',
       department: 'Department',
       project: 'Project',
@@ -225,6 +230,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       fileHint: 'Supporting documents (PDF, Excel, Word, Image)\nMax 10MB',
       cancel: 'Cancel',
       submit: 'Save',
+      close: 'Close',
       uploadAttachment: 'Upload Attachment',
       downloadAttachment: 'Download',
       deleteAttachment: 'Delete',

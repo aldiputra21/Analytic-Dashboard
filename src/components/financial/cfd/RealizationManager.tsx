@@ -975,7 +975,7 @@ export const RealizationManager: React.FC = () => {
                     onClick={() => setIsModalOpen(false)}
                     className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
                   >
-                    {t.modal.cancel}
+                    {t.modal.close}
                   </button>
                 </div>
               )}
