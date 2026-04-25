@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
 import { logCreate, logUpdate } from '../../helpers/crmAuditLog';
+import { asyncHandler } from '../../utils/asyncHandler';
 import { CreateCustomerInput, CreateContactInput } from '../../types/crm';
 import { db } from '../../db/connection';
 import { customers, contacts, interactions } from '../../db/schema/crm';
@@ -18,7 +19,7 @@ export function createCustomerRouter(): Router {
   router.post(
     '/',
     requirePermission('crm.customers.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const body = req.body as CreateCustomerInput;
 
@@ -132,14 +133,14 @@ export function createCustomerRouter(): Router {
         .where(eq(contacts.customerId, result.id));
 
       res.status(201).json({ ...mapCustomer(customer), contacts: customerContacts.map(mapContact) });
-    }
+    })
   );
 
   // GET /api/crm/customers - List customers with search
   router.get(
     '/',
     requirePermission('crm.customers.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { search, status } = req.query;
 
       const conditions = [sql`1=1`];
@@ -170,14 +171,14 @@ export function createCustomerRouter(): Router {
           picCount: Number(c.pic_count ?? 0),
         }))
       );
-    }
+    })
   );
 
   // GET /api/crm/customers/:id - Get customer detail
   router.get(
     '/:id',
     requirePermission('crm.customers.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const [customer] = (await db.execute(sql`
         SELECT c.*, p.company_name AS parent_company_name
         FROM crm.customers c
@@ -217,14 +218,14 @@ export function createCustomerRouter(): Router {
           picCount: Number(ch.pic_count ?? 0),
         })),
       });
-    }
+    })
   );
 
   // PUT /api/crm/customers/:id - Update customer
   router.put(
     '/:id',
     requirePermission('crm.customers.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const [customer] = await db
         .select()
@@ -361,14 +362,14 @@ export function createCustomerRouter(): Router {
         .orderBy(desc(contacts.isPrimary));
 
       res.json({ ...mapCustomer(updated), contacts: customerContacts.map(mapContact) });
-    }
+    })
   );
 
   // GET /api/crm/customers/:id/interactions - Get customer interactions
   router.get(
     '/:id/interactions',
     requirePermission('crm.customers.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const [customer] = await db
         .select({ id: customers.id })
         .from(customers)
@@ -394,7 +395,7 @@ export function createCustomerRouter(): Router {
         .orderBy(desc(interactions.interactionDate));
 
       res.json(rows.map(mapInteraction));
-    }
+    })
   );
 
   return router;
@@ -411,7 +412,7 @@ export function createContactRouter(): Router {
   router.post(
     '/',
     requirePermission('crm.customers.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const { customerId } = req.params;
 
@@ -454,7 +455,7 @@ export function createContactRouter(): Router {
       await logCreate(userId, 'contact', created.id, { customerId, name: body.name, role: body.role });
 
       res.status(201).json(mapContact(created));
-    }
+    })
   );
 
   return router;
@@ -471,7 +472,7 @@ export function createContactStandaloneRouter(): Router {
   router.put(
     '/:id',
     requirePermission('crm.customers.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const [contact] = await db
         .select()
@@ -501,14 +502,14 @@ export function createContactStandaloneRouter(): Router {
       await logUpdate(userId, 'contact', req.params.id, oldValues, req.body);
 
       res.json(mapContact(updated));
-    }
+    })
   );
 
   // DELETE /api/crm/contacts/:id
   router.delete(
     '/:id',
     requirePermission('crm.customers.delete'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const [contact] = await db
         .select()
@@ -552,7 +553,7 @@ export function createContactStandaloneRouter(): Router {
       await logUpdate(userId, 'contact', req.params.id, contact, { deleted: true });
 
       res.json({ success: true });
-    }
+    })
   );
 
   return router;

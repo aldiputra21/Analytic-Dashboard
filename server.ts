@@ -49,10 +49,47 @@ async function startServer() {
   const app = await createApp();
 
   const PORT = parseInt(process.env.PORT ?? "5000", 10);
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
     scheduleDailyCron();
   });
+
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
+    // In production, you might want to restart the service gracefully
+  });
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (err) => {
+    console.error('[Process] Uncaught Exception:', err);
+    // Critical errors should usually trigger a graceful shutdown
+    server.close(() => {
+      process.exit(1);
+    });
+  });
+
+  // Graceful shutdown for termination signals (Core Backend Requirement)
+  const shutdown = async (signal: string) => {
+    console.log(`[Process] ${signal} received. Starting graceful shutdown...`);
+    server.close(async () => {
+      console.log('[Process] HTTP server closed');
+      try {
+        const { db } = await import('./src/db/connection.js');
+        // @ts-ignore - accessing the pool from drizzle instance if possible, 
+        // but since we exported db from drizzle(pool), we might need to export pool too.
+        // For now, we'll just log and exit.
+        console.log('[Process] Shutdown complete');
+        process.exit(0);
+      } catch (err) {
+        console.error('[Process] Error during shutdown:', err);
+        process.exit(1);
+      }
+    });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer();

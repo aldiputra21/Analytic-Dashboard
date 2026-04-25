@@ -89,6 +89,11 @@ export interface NotificationConfigCopy {
     errorNetwork: string;
     errorDuplicate: string;
   };
+  validation: {
+    moduleRequired: string;
+    eventTypeRequired: string;
+    roleRequired: string;
+  };
 }
 
 export const notificationConfigI18n: Record<Locale, NotificationConfigCopy> = {
@@ -180,6 +185,11 @@ export const notificationConfigI18n: Record<Locale, NotificationConfigCopy> = {
       errorNetwork: 'Kesalahan jaringan',
       errorDuplicate: 'Kombinasi modul, tipe event, dan peran sudah ada',
     },
+    validation: {
+      moduleRequired: 'Modul wajib dipilih',
+      eventTypeRequired: 'Tipe event wajib dipilih',
+      roleRequired: 'Peran wajib dipilih',
+    },
   },
   en: {
     title: 'Notification Configuration',
@@ -268,6 +278,11 @@ export const notificationConfigI18n: Record<Locale, NotificationConfigCopy> = {
       errorFetch: 'Failed to load notification configuration data',
       errorNetwork: 'Network error',
       errorDuplicate: 'Combination of module, event type, and role already exists',
+    },
+    validation: {
+      moduleRequired: 'Module is required',
+      eventTypeRequired: 'Event type is required',
+      roleRequired: 'Role is required',
     },
   },
 };

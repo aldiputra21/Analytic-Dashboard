@@ -103,6 +103,12 @@ export interface BalanceSheetCopy {
     errorFetch: string;
     errorNetwork: string;
   };
+  validation: {
+    corporateRequired: string;
+    periodInvalid: string;
+    amountMin: string;
+    unbalancedError: string;
+  };
 }
 
 export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
@@ -208,6 +214,12 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       errorFetch: 'Gagal memuat data neraca',
       errorNetwork: 'Terjadi kesalahan jaringan',
     },
+    validation: {
+      corporateRequired: 'Perusahaan wajib dipilih',
+      periodInvalid: 'Periode tidak valid',
+      amountMin: 'Nilai tidak boleh negatif',
+      unbalancedError: 'Neraca tidak seimbang! Selisih harus nol.',
+    },
   },
   en: {
     title: 'Balance Sheet Management',
@@ -309,7 +321,13 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       successUpdate: 'Balance sheet report updated',
       errorSave: 'Failed to save report',
       errorFetch: 'Failed to load balance sheet data',
-      errorNetwork: 'Network error occurred',
+      errorNetwork: 'Network error',
+    },
+    validation: {
+      corporateRequired: 'Corporate is required',
+      periodInvalid: 'Invalid period',
+      amountMin: 'Value cannot be negative',
+      unbalancedError: 'Balance sheet is not balanced! Difference must be zero.',
     },
   },
 };

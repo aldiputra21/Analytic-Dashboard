@@ -1,479 +1,761 @@
-// UserManager.tsx - Admin component for user management
-// Requirements: 9.1, 9.5
-
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Plus, Search, Edit2, Shield, Eye,
+  X, AlertCircle, CheckCircle2,
+  RefreshCw, Users, Info, ChevronDown,
+  FilterX, Key, Building2, User
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { apiFetch } from '../../../services/financial/apiFetch';
+import { cn } from '../../../utils/cn';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { userI18n } from '../../../i18n/user';
+import { commonsI18n } from '../../../i18n/commons';
 import { FRSUser, UserRole } from '../../../types/financial/user';
 
-const API_BASE = '/api/frs';
-
-function getToken(): string {
-  return localStorage.getItem('frs_token') ?? '';
-}
-
 const ROLE_COLORS: Record<UserRole, string> = {
-  owner: 'bg-purple-100 text-purple-700',
-  bod: 'bg-blue-100 text-blue-700',
-  subsidiary_manager: 'bg-green-100 text-green-700',
+  owner: 'bg-purple-50 text-purple-700 border-purple-100',
+  bod: 'bg-blue-50 text-blue-700 border-blue-100',
+  subsidiary_manager: 'bg-emerald-50 text-emerald-700 border-emerald-100',
 };
 
-interface UserFormData {
-  username: string;
-  email: string;
-  password: string;
-  role: UserRole;
-  fullName: string;
-  subsidiaryIds: string[];
-}
+// --- Shared Components ---
 
-const emptyForm: UserFormData = {
-  username: '',
-  email: '',
-  password: '',
-  role: 'bod',
-  fullName: '',
-  subsidiaryIds: [],
+const Modal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  size?: 'md' | 'lg' | 'xl';
+}> = ({ isOpen, onClose, title, children, size = 'lg' }) => {
+  if (!isOpen) return null;
+
+  const sizeClasses = {
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl'
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[90vh]", sizeClasses[size])}
+      >
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
+              <User size={18} />
+            </div>
+            {title}
+          </h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
+            <X size={20} className="text-slate-500" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-6 max-h-[calc(90vh-64px)]">
+          {children}
+        </div>
+      </motion.div>
+    </div>
+  );
 };
+
+const FormField: React.FC<{
+  label: string;
+  error?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}> = ({ label, error, required, children }) => (
+  <div className="space-y-1.5">
+    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    {children}
+    {error && <p className="text-[10px] text-red-500 font-medium ml-1 flex items-center gap-1">
+      <AlertCircle size={10} /> {error}
+    </p>}
+  </div>
+);
+
+// --- Main Component ---
 
 export const UserManager: React.FC = () => {
-  const [users, setUsers] = useState<FRSUser[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<UserFormData>(emptyForm);
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [accessUserId, setAccessUserId] = useState<string | null>(null);
-  const [selectedSubsidiaryIds, setSelectedSubsidiaryIds] = useState<string[]>([]);
-  const [accessSaving, setAccessSaving] = useState(false);
-
+  const { hasPermission, language } = useAuth();
+  const t = userI18n[language];
+  const common = commonsI18n[language];
   const { corporates: subsidiaries } = useCorporates();
 
-  const fetchUsers = useCallback(async () => {
-    setIsLoading(true);
+  const canWrite = hasPermission('cfd.users.write');
+  const canDelete = hasPermission('cfd.users.delete');
+
+  // Validation Schemas
+  const userSchema = z.object({
+    fullName: z.string().min(3, t.validation.fullNameMin),
+    username: z.string().min(4, t.validation.usernameMin),
+    email: z.string().email(t.validation.emailInvalid),
+    role: z.enum(['owner', 'bod', 'subsidiary_manager']),
+    password: z.string().optional().refine(val => !val || val.length >= 12, {
+      message: t.validation.passwordMin
+    }).refine(val => !val || /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/.test(val), {
+      message: t.validation.passwordStrength
+    }),
+    subsidiaryIds: z.array(z.string()),
+    isActive: z.boolean()
+  }).refine(data => {
+    if (data.role !== 'owner' && data.subsidiaryIds.length === 0) return false;
+    return true;
+  }, {
+    message: t.modal.subsidiaryNote,
+    path: ['subsidiaryIds']
+  });
+
+  // State
+  const [users, setUsers] = useState<FRSUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [editingUser, setEditingUser] = useState<FRSUser | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Access Modal State
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const [accessUserId, setAccessUserId] = useState<string | null>(null);
+  const [selectedSubsidiaryIds, setSelectedSubsidiaryIds] = useState<string[]>([]);
+  const [isSavingAccess, setIsSavingAccess] = useState(false);
+
+  const [formData, setFormData] = useState({
+    fullName: '',
+    username: '',
+    email: '',
+    role: 'bod' as UserRole,
+    password: '',
+    subsidiaryIds: [] as string[],
+    isActive: true
+  });
+
+  const fetchUsers = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
+    else setIsRefreshing(true);
     setError(null);
+
     try {
-      const res = await fetch(`${API_BASE}/users`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      if (!res.ok) throw new Error('Failed to load users');
+      const res = await apiFetch('/api/frs/users');
+      if (!res.ok) throw new Error(t.alerts.errorFetch);
+
       const data = await res.json();
       setUsers(data);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+      setIsRefreshing(false);
     }
-  }, []);
+  }, [t.alerts.errorFetch, common.errorLoadTable]);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
-  function openCreate() {
-    setForm(emptyForm);
-    setEditingId(null);
-    setFormError(null);
-    setShowForm(true);
-  }
-
-  async function openEdit(user: FRSUser) {
-    let scopeIds: string[] = [];
-    try {
-      const res = await fetch(`${API_BASE}/users/${user.id}/subsidiary-access`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      if (res.ok) {
-        const accessRows = await res.json() as Array<{ subsidiaryId: string }>;
-        scopeIds = accessRows.map((row) => row.subsidiaryId).filter(Boolean);
+  const handleOpenModal = async (mode: 'create' | 'edit' | 'view', user?: FRSUser) => {
+    setModalMode(mode);
+    if (user) {
+      setEditingUser(user);
+      
+      // Fetch existing access
+      let scopeIds: string[] = [];
+      try {
+        const res = await apiFetch(`/api/frs/users/${user.id}/subsidiary-access`);
+        if (res.ok) {
+          const accessRows = await res.json() as Array<{ subsidiaryId: string }>;
+          scopeIds = accessRows.map((row) => row.subsidiaryId).filter(Boolean);
+        }
+      } catch {
+        scopeIds = [];
       }
-    } catch {
-      scopeIds = [];
+
+      setFormData({
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        password: '',
+        subsidiaryIds: scopeIds,
+        isActive: user.isActive
+      });
+    } else {
+      setEditingUser(null);
+      setFormData({
+        fullName: '',
+        username: '',
+        email: '',
+        role: 'bod',
+        password: '',
+        subsidiaryIds: [],
+        isActive: true
+      });
     }
+    setIsModalOpen(true);
+  };
 
-    setForm({
-      username: user.username,
-      email: user.email,
-      password: '',
-      role: user.role,
-      fullName: user.fullName,
-      subsidiaryIds: scopeIds,
-    });
-    setEditingId(user.id);
-    setFormError(null);
-    setShowForm(true);
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setFormError(null);
+    setIsSaving(true);
+
+    const validation = userSchema.safeParse(formData);
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
+      setIsSaving(false);
+      return;
+    }
 
     try {
-      const url = editingId ? `${API_BASE}/users/${editingId}` : `${API_BASE}/users`;
-      const method = editingId ? 'PUT' : 'POST';
-      const body: any = { ...form };
-      if (editingId && !body.password) delete body.password;
-      if (form.role === 'owner') body.subsidiaryIds = [];
+      const url = editingUser ? `/api/frs/users/${editingUser.id}` : '/api/frs/users';
+      const method = editingUser ? 'PUT' : 'POST';
+      
+      const payload: any = { ...validation.data };
+      if (editingUser && !payload.password) delete payload.password;
+      if (payload.role === 'owner') payload.subsidiaryIds = [];
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message ?? 'Failed to save user');
-
-      setShowForm(false);
-      fetchUsers();
-    } catch (err: any) {
-      setFormError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleToggleStatus(user: FRSUser) {
-    try {
-      const res = await fetch(`${API_BASE}/users/${user.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ isActive: !user.isActive }),
-      });
       if (!res.ok) {
-        const data = await res.json();
-        alert(data.error?.message ?? 'Failed to update status');
-        return;
+        const errorData = await res.json();
+        throw new Error(errorData.error?.message || t.alerts.errorSave);
       }
-      fetchUsers();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  }
 
-  async function openAccessManager(user: FRSUser) {
+      toast.success(editingUser ? t.alerts.successUpdate : t.alerts.successSave);
+      setIsModalOpen(false);
+      fetchUsers(true);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleStatus = async (user: FRSUser) => {
+    try {
+      const res = await apiFetch(`/api/frs/users/${user.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !user.isActive })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error?.message || t.alerts.errorStatus);
+      }
+
+      toast.success(t.alerts.successStatus);
+      fetchUsers(true);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const openAccessManager = async (user: FRSUser) => {
     setAccessUserId(user.id);
     try {
-      const res = await fetch(`${API_BASE}/users/${user.id}/subsidiary-access`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to load existing subsidiary access');
-      }
+      const res = await apiFetch(`/api/frs/users/${user.id}/subsidiary-access`);
+      if (!res.ok) throw new Error(t.alerts.errorFetch);
 
       const accessRows = await res.json() as Array<{ subsidiaryId: string }>;
       setSelectedSubsidiaryIds(accessRows.map((row) => row.subsidiaryId).filter(Boolean));
-    } catch {
-      setSelectedSubsidiaryIds([]);
-    }
-  }
-
-  async function handleSaveAccess() {
-    if (!accessUserId) return;
-    setAccessSaving(true);
-    try {
-      const res = await fetch(`${API_BASE}/users/${accessUserId}/subsidiary-access`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ subsidiaryIds: selectedSubsidiaryIds, replace: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message ?? 'Failed to assign access');
-      setAccessUserId(null);
+      setIsAccessModalOpen(true);
     } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setAccessSaving(false);
+      toast.error(err.message);
     }
-  }
+  };
+
+  const handleSaveAccess = async () => {
+    if (!accessUserId) return;
+    setIsSavingAccess(true);
+    try {
+      const res = await apiFetch(`/api/frs/users/${accessUserId}/subsidiary-access`, {
+        method: 'POST',
+        body: JSON.stringify({ subsidiaryIds: selectedSubsidiaryIds, replace: true })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error?.message || t.alerts.errorAccess);
+      }
+
+      toast.success(t.alerts.successAccess);
+      setIsAccessModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsSavingAccess(false);
+    }
+  };
+
+  const filteredUsers = users.filter(u => 
+    u.fullName.toLowerCase().includes(search.toLowerCase()) ||
+    u.username.toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">User Management</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Manage system users and access permissions</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
+              <Users size={24} />
+            </div>
+            {t.title}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
+            <Info size={14} className="text-indigo-400" />
+            {t.subtitle}
+          </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
-        >
-          + Add User
-        </button>
-      </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">{error}</div>
-      )}
-
-      {/* User list */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-24">
-            <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : users.length === 0 ? (
-          <div className="flex items-center justify-center h-24 text-sm text-slate-400">No users found</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Name</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Username</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Email</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Role</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600">Status</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-slate-800">{user.fullName}</td>
-                  <td className="px-4 py-3 text-slate-600">{user.username}</td>
-                  <td className="px-4 py-3 text-slate-600">{user.email}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role]}`}>
-                      {user.roleDescription || user.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      user.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {user.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(user)}
-                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                      >
-                        Edit
-                      </button>
-                      {(user.role === 'subsidiary_manager' || user.role === 'bod') && (
-                        <button
-                          onClick={() => openAccessManager(user)}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Access
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleToggleStatus(user)}
-                        className="text-xs text-slate-500 hover:text-slate-700 font-medium"
-                      >
-                        {user.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {canWrite && (
+          <button
+            onClick={() => handleOpenModal('create')}
+            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+          >
+            <Plus size={18} />
+            {t.addNew}
+          </button>
         )}
       </div>
 
-      {/* User form modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h3 className="text-sm font-semibold text-slate-900">
-                {editingId ? 'Edit User' : 'Add User'}
-              </h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {/* Filters Bar */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+        <div className="flex-1 min-w-[240px] relative group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+          <input
+            type="text"
+            placeholder={t.searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+          />
+        </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  value={form.fullName}
-                  onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
-                  required
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+        <button
+          onClick={() => fetchUsers()}
+          className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
+        >
+          <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+          {common.retry}
+        </button>
+      </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Username *</label>
+      {/* Datatable section */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.name}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.username}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.email}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.role}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              <AnimatePresence>
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <motion.tr
+                      key={`skeleton-${i}`}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="animate-pulse"
+                    >
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-lg w-32" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-20" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-40" /></td>
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-full w-24" /></td>
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-full w-16" /></td>
+                      <td className="px-6 py-4"><div className="h-8 bg-slate-100 rounded-lg w-24 ml-auto" /></td>
+                    </motion.tr>
+                  ))
+                ) : error ? (
+                  <motion.tr
+                    key="error"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={6}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchUsers()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ) : filteredUsers.length === 0 ? (
+                  <motion.tr
+                    key="empty"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={6}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-slate-50 rounded-full text-slate-300">
+                          <Users size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{t.status.empty}</p>
+                          <p className="text-slate-500 text-sm mt-1">{t.status.emptyDesc}</p>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ) : (
+                  filteredUsers.map((user, idx) => (
+                    <motion.tr
+                      key={user.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: idx * 0.03 }}
+                      className="hover:bg-slate-50/50 transition-colors group font-bold"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                            <User size={14} />
+                          </div>
+                          <span className="text-sm text-slate-800">{user.fullName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-mono text-slate-500">{user.username}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs text-slate-600">{user.email}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className={cn(
+                          "inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase border",
+                          ROLE_COLORS[user.role]
+                        )}>
+                          {user.roleDescription || t.roles[user.role]}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase border",
+                          user.isActive
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            : "bg-slate-50 text-slate-500 border-slate-100"
+                        )}>
+                          <div className={cn("w-1.5 h-1.5 rounded-full", user.isActive ? "bg-emerald-500" : "bg-slate-400")} />
+                          {user.isActive ? t.status.active : t.status.inactive}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleOpenModal('view', user)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
+                            title={t.modal.viewTitle}
+                          >
+                            <Eye size={16} />
+                          </button>
+                          {canWrite && (
+                            <button
+                              onClick={() => handleOpenModal('edit', user)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                              title={t.modal.editTitle}
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+                          {(user.role === 'subsidiary_manager' || user.role === 'bod') && canWrite && (
+                            <button
+                              onClick={() => openAccessManager(user)}
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer"
+                              title={t.modal.accessTitle}
+                            >
+                              <Shield size={16} />
+                            </button>
+                          )}
+                          {canWrite && (
+                            <button
+                              onClick={() => handleToggleStatus(user)}
+                              className={cn(
+                                "p-2 rounded-lg transition-all cursor-pointer",
+                                user.isActive ? "text-slate-400 hover:text-rose-600 hover:bg-rose-50" : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
+                              )}
+                              title={user.isActive ? 'Deactivate' : 'Activate'}
+                            >
+                              <RefreshCw size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
+              </AnimatePresence>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* User Form Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <Modal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : t.modal.viewTitle}
+            size="lg"
+          >
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField label={t.modal.fullName} required>
                   <input
                     type="text"
-                    value={form.username}
-                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={formData.fullName}
+                    onChange={(e) => setFormData(p => ({ ...p, fullName: e.target.value }))}
+                    disabled={modalMode === 'view'}
+                    placeholder="John Doe"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                   />
+                </FormField>
+
+                <FormField label={t.modal.username} required>
+                  <input
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => setFormData(p => ({ ...p, username: e.target.value }))}
+                    disabled={modalMode === 'view'}
+                    placeholder="johndoe"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                  />
+                </FormField>
+
+                <FormField label={t.modal.email} required>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                    disabled={modalMode === 'view'}
+                    placeholder="john@example.com"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                  />
+                </FormField>
+
+                <FormField label={t.modal.role} required>
+                  <div className="relative">
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData(p => ({ ...p, role: e.target.value as UserRole }))}
+                      disabled={modalMode === 'view'}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
+                    >
+                      <option value="bod">{t.roles.bod}</option>
+                      <option value="subsidiary_manager">{t.roles.subsidiary_manager}</option>
+                      <option value="owner">{t.roles.owner}</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                  </div>
+                </FormField>
+
+                <FormField label={t.modal.password} required={modalMode === 'create'}>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))}
+                      disabled={modalMode === 'view'}
+                      placeholder={t.modal.passwordPlaceholder}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                    />
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  </div>
+                  {modalMode === 'edit' && <p className="text-[10px] text-slate-400 mt-1 italic">{t.modal.passwordNote}</p>}
+                </FormField>
+
+                <div className="space-y-1.5 pt-6">
+                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</span>
+                    <button
+                      type="button"
+                      disabled={modalMode === 'view'}
+                      onClick={() => setFormData(p => ({ ...p, isActive: !p.isActive }))}
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+                        formData.isActive ? "bg-indigo-600" : "bg-slate-200"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                          formData.isActive ? "translate-x-5" : "translate-x-0"
+                        )}
+                      />
+                    </button>
+                    <span className={cn("text-[10px] font-black uppercase tracking-widest", formData.isActive ? "text-indigo-600" : "text-slate-400")}>
+                      {formData.isActive ? t.status.active : t.status.inactive}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Role *</label>
-                  <select
-                    value={form.role}
-                    onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="bod">Board of Directors</option>
-                    <option value="subsidiary_manager">Subsidiary Manager</option>
-                    <option value="owner">Owner</option>
-                  </select>
-                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  required
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Password {editingId ? '(leave blank to keep current)' : '*'}
-                </label>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  required={!editingId}
-                  minLength={12}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Min 12 chars, upper/lower/number/special"
-                />
-              </div>
-
-              {form.role !== 'owner' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-2">
-                    Subsidiary Access {editingId ? '' : '*'}
+              {formData.role !== 'owner' && (
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">
+                    {t.modal.subsidiaryAccess} {modalMode === 'create' && <span className="text-red-500">*</span>}
                   </label>
-                  <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                     {subsidiaries.map((sub) => (
-                      <label key={sub.id} className="flex items-center gap-2 cursor-pointer">
+                      <label key={sub.id} className={cn(
+                        "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group",
+                        formData.subsidiaryIds.includes(sub.id) 
+                          ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm" 
+                          : "bg-white border-slate-100 text-slate-600 hover:border-slate-200"
+                      )}>
                         <input
                           type="checkbox"
-                          checked={form.subsidiaryIds.includes(sub.id)}
+                          checked={formData.subsidiaryIds.includes(sub.id)}
+                          disabled={modalMode === 'view'}
                           onChange={(e) => {
-                            setForm((current) => ({
+                            setFormData((current) => ({
                               ...current,
                               subsidiaryIds: e.target.checked
                                 ? [...current.subsidiaryIds, sub.id]
                                 : current.subsidiaryIds.filter((id) => id !== sub.id),
                             }));
                           }}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        <span className="text-sm text-slate-700">{sub.name}</span>
-                        <span className="text-xs text-slate-400">({sub.industrySector})</span>
+                        <div className="flex-1">
+                          <p className="text-xs font-black">{sub.name}</p>
+                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <Building2 size={10} />
+                            {sub.industrySector}
+                          </p>
+                        </div>
                       </label>
                     ))}
                   </div>
-                  <p className="mt-1 text-[11px] text-slate-500">Non-owner users need at least one subsidiary scope.</p>
+                  <p className="text-[10px] text-slate-400 ml-1 italic">{t.modal.subsidiaryNote}</p>
                 </div>
               )}
 
-              {formError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
-                  {formError}
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
-                  className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-8 py-3 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
                 >
-                  Cancel
+                  {modalMode === 'view' ? t.modal.close : t.modal.cancel}
                 </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
-                </button>
+                {modalMode !== 'view' && (
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
+                  >
+                    {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                    {isSaving ? t.status.submitting : t.modal.submit}
+                  </button>
+                )}
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </Modal>
+        )}
+      </AnimatePresence>
 
-      {/* Subsidiary access modal */}
-      {accessUserId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h3 className="text-sm font-semibold text-slate-900">Assign Subsidiary Access</h3>
-              <button onClick={() => setAccessUserId(null)} className="text-slate-400 hover:text-slate-600">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {/* Access Manager Modal */}
+      <AnimatePresence>
+        {isAccessModalOpen && (
+          <Modal
+            isOpen={isAccessModalOpen}
+            onClose={() => setIsAccessModalOpen(false)}
+            title={t.modal.accessTitle}
+            size="md"
+          >
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <p className="text-xs text-slate-500 italic ml-1">{t.modal.subsidiaryNote}</p>
+                <div className="space-y-2 max-h-72 overflow-y-auto p-2">
+                  {subsidiaries.map((sub) => (
+                    <label key={sub.id} className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group",
+                      selectedSubsidiaryIds.includes(sub.id) 
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm" 
+                        : "bg-white border-slate-100 text-slate-600 hover:border-slate-200"
+                    )}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSubsidiaryIds.includes(sub.id)}
+                        onChange={(e) => {
+                          setSelectedSubsidiaryIds((prev) =>
+                            e.target.checked
+                              ? [...prev, sub.id]
+                              : prev.filter((id) => id !== sub.id)
+                          );
+                        }}
+                        className="w-4 h-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <div className="flex-1">
+                        <p className="text-xs font-black">{sub.name}</p>
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Building2 size={10} />
+                          {sub.industrySector}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-            <div className="p-6 space-y-3">
-              <p className="text-xs text-slate-500">Select subsidiaries this user can access:</p>
-              {subsidiaries.map((sub) => (
-                <label key={sub.id} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedSubsidiaryIds.includes(sub.id)}
-                    onChange={(e) => {
-                      setSelectedSubsidiaryIds((prev) =>
-                        e.target.checked
-                          ? [...prev, sub.id]
-                          : prev.filter((id) => id !== sub.id)
-                      );
-                    }}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-slate-700">{sub.name}</span>
-                  <span className="text-xs text-slate-400">({sub.industrySector})</span>
-                </label>
-              ))}
-
-              <div className="flex gap-2 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
                 <button
-                  onClick={() => setAccessUserId(null)}
-                  className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  type="button"
+                  onClick={() => setIsAccessModalOpen(false)}
+                  className="px-6 py-2.5 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
                 >
-                  Cancel
+                  {t.modal.cancel}
                 </button>
                 <button
                   onClick={handleSaveAccess}
-                  disabled={accessSaving}
-                  className="flex-1 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  disabled={isSavingAccess}
+                  className="px-8 py-2.5 bg-emerald-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[150px] cursor-pointer"
                 >
-                  {accessSaving ? 'Saving...' : 'Save Access'}
+                  {isSavingAccess ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                  {isSavingAccess ? t.status.submitting : t.modal.saveAccess}
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </Modal>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

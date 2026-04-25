@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import { getFRSAuditLog } from '../../services/financial/auditLogService';
 
 export function createAuditLogRouter(): Router {
@@ -14,7 +15,7 @@ export function createAuditLogRouter(): Router {
    * Supports filtering by action='export' for export history (Req 10.7).
    * Requirements: 10.7, 11.7
    */
-  router.get('/', requirePermission('cfd.audit_log.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.audit_log.read'), asyncHandler(async (req: Request, res: Response) => {
     const {
       userId,
       departmentId,
@@ -38,7 +39,7 @@ export function createAuditLogRouter(): Router {
     });
 
     res.json(entries);
-  });
+  }));
 
   return router;
 }

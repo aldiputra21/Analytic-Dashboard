@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, Filter, Eye, Edit2, Trash2,
   X, AlertCircle, Banknote, Calendar, Layers,
@@ -31,6 +31,8 @@ import {
   AlertDialogCancel
 } from '../../ui/alert-dialog';
 import { weeklyCashFlowI18n } from '../../../i18n/weekly-cash-flow';
+import { commonsI18n } from '../../../i18n/commons';
+import { z } from 'zod';
 
 // --- Types ---
 interface CashFlow {
@@ -53,18 +55,28 @@ interface CashFlow {
   createdBy: string;
 }
 
-interface Corporate {
-  id: string;
-  name: string;
-  code: string;
-}
-
 interface Project {
   id: string;
   name: string;
   corporateId?: string;
   departmentId?: string;
 }
+
+// --- Validation Schema ---
+const cashFlowSchema = (t: any) => z.object({
+  corporateId: z.string().min(1, t.validation.corporateRequired),
+  entityType: z.enum(['project', 'corporate']),
+  entityId: z.string().min(1, t.validation.entityRequired),
+  period: z.string().regex(/^\d{4}-\d{2}$/, t.validation.periodInvalid),
+  week: z.string().min(1, t.validation.weekRequired),
+  operatingCashIn: z.number().min(0, t.validation.amountMin),
+  operatingCashOut: z.number().min(0, t.validation.amountMin),
+  investingCashIn: z.number().min(0, t.validation.amountMin),
+  investingCashOut: z.number().min(0, t.validation.amountMin),
+  financingCashIn: z.number().min(0, t.validation.amountMin),
+  financingCashOut: z.number().min(0, t.validation.amountMin),
+  notes: z.string().optional()
+});
 
 // --- Components ---
 
@@ -144,7 +156,7 @@ const FormField: React.FC<{
         placeholder={placeholder}
         readOnly={readOnly}
         className={cn(
-          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm bg-slate-50/30",
+          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm bg-slate-50/30 font-bold",
           readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
         )}
       />
@@ -157,6 +169,7 @@ const FormField: React.FC<{
 export const WeeklyCashFlowManager: React.FC = () => {
   const { user, hasPermission, language, hasFullCorporateAccess, subsidiaryIds } = useAuth();
   const t = weeklyCashFlowI18n[language];
+  const common = commonsI18n[language];
 
   const canWrite = hasPermission('cfd.weekly_cash_flows.write');
   const canDelete = hasPermission('cfd.weekly_cash_flows.delete');
@@ -164,6 +177,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
   const [data, setData] = useState<CashFlow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const { corporates } = useCorporates();
@@ -198,29 +212,21 @@ export const WeeklyCashFlowManager: React.FC = () => {
   // Form State
   const [formData, setFormData] = useState<Partial<CashFlow>>({});
 
-  useEffect(() => {
-    fetchMetadata();
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [currentPage, pageSize, appliedFilters]);
-
   const fetchMetadata = async () => {
     try {
       const projRes = await apiFetch('/api/projects/dropdown-items');
       if (projRes.ok) {
-        const data = await projRes.json();
-        setProjects(Array.isArray(data) ? data : (data.records || []));
+        const d = await projRes.json();
+        setProjects(Array.isArray(d) ? d : (d.records || []));
       }
     } catch (err) {
       console.error('Failed to fetch metadata', err);
     }
   };
 
-
   const fetchData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const queryParams = new URLSearchParams();
       if (appliedFilters.periodStart) queryParams.set('periodStart', appliedFilters.periodStart);
@@ -237,13 +243,25 @@ export const WeeklyCashFlowManager: React.FC = () => {
         const d = await res.json();
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || t.alerts.errorFetch);
       }
-    } catch (err) {
-      toast.error(t.alerts.errorFetch);
+    } catch (err: any) {
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchMetadata();
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [currentPage, pageSize, appliedFilters]);
 
   const handleApplyFilter = () => {
     setAppliedFilters({
@@ -283,10 +301,11 @@ export const WeeklyCashFlowManager: React.FC = () => {
         toast.success(t.alerts.successDelete);
         fetchData();
       } else {
-        toast.error(t.alerts.errorDelete);
+        const errData = await res.json();
+        throw new Error(errData.error?.message || t.alerts.errorDelete);
       }
-    } catch {
-      toast.error(t.alerts.errorNetwork);
+    } catch (err: any) {
+      toast.error(err.message || t.alerts.errorNetwork);
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -326,12 +345,22 @@ export const WeeklyCashFlowManager: React.FC = () => {
     e.preventDefault();
     if (isSaving) return;
 
+    // Declarative validation with Zod
+    const validation = cashFlowSchema(t).safeParse(formData);
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const res = await apiFetch('/api/financial-statements/cash-flow', {
-        method: 'POST',
+      const url = modalMode === 'edit' ? `/api/financial-statements/cash-flow/${formData.id}` : '/api/financial-statements/cash-flow';
+      const method = modalMode === 'edit' ? 'PUT' : 'POST';
+
+      const res = await apiFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(validation.data),
       });
 
       if (res.ok) {
@@ -340,11 +369,10 @@ export const WeeklyCashFlowManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        toast.error(errData.error || t.alerts.errorSave);
+        throw new Error(errData.error?.message || t.alerts.errorSave);
       }
-    } catch (err) {
-      console.error('[WeeklyCashFlowManager] Save Error:', err);
-      toast.error(t.alerts.errorNetwork);
+    } catch (err: any) {
+      toast.error(err.message || t.alerts.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -368,8 +396,9 @@ export const WeeklyCashFlowManager: React.FC = () => {
   }, [formData.entityType, formData.corporateId, projects, corporates]);
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-full font-sans">
+    <div className="p-6 space-y-6 bg-slate-50 min-h-full font-bold">
 
+      {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -378,7 +407,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
             </div>
             {t.title}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
             <Info size={14} className="text-indigo-400" />
             {t.subtitle}
           </p>
@@ -397,6 +426,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
         )}
       </div>
 
+      {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {(hasFullCorporateAccess || user?.role === 'owner' || subsidiaryIds.length > 1) && (
@@ -405,7 +435,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
               <select
                 value={filterCorporate}
                 onChange={(e) => setFilterCorporate(e.target.value)}
-                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full"
+                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full font-bold"
               >
                 <option value="">{t.modal.corporate}</option>
                 {corporates
@@ -425,7 +455,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
               value={filterSearch}
               onChange={(e) => setFilterSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
-              className="bg-transparent border-none text-sm text-slate-800 focus:outline-none w-full"
+              className="bg-transparent border-none text-sm text-slate-800 focus:outline-none w-full font-bold"
             />
           </div>
 
@@ -461,6 +491,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
         </div>
       </div>
 
+      {/* Data Table */}
       <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -495,6 +526,27 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       <td className="px-6 py-4 text-right"><div className="h-6 bg-slate-100 rounded-lg w-16 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <td colSpan={7}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchData()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr
                     key="empty"
@@ -685,7 +737,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
           >
             <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
               <form onSubmit={handleSave} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-8">
-                {/* Header Inputs: Period, Week, Corporate (No container) */}
+                {/* Header Inputs */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                   {/* Period */}
                   <div className="md:col-span-4 space-y-1.5">
@@ -715,7 +767,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                         value={formData.week || ''}
                         onChange={(e) => setFormData(p => ({ ...p, week: e.target.value }))}
                         disabled={modalMode === 'view'}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-medium text-slate-800 outline-none shadow-sm cursor-pointer focus:ring-2 focus:ring-blue-500/20 appearance-none transition-all"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-800 outline-none shadow-sm cursor-pointer focus:ring-2 focus:ring-blue-500/20 appearance-none transition-all"
                       >
                         <option value="W1">{t.modal.week} 1</option>
                         <option value="W2">{t.modal.week} 2</option>
@@ -733,7 +785,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       <Landmark size={12} /> {t.modal.corporate}
                     </label>
                     {modalMode === 'view' ? (
-                      <div className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm font-medium text-slate-600">
+                      <div className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm font-bold text-slate-600">
                         {formData.corporateName || 'N/A'}
                       </div>
                     ) : (
@@ -742,7 +794,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                           required
                           value={formData.corporateId}
                           onChange={(e) => setFormData({ ...formData, corporateId: e.target.value, entityId: '' })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
                         >
                           <option value="">{t.modal.selectEntity} {t.modal.corporate}</option>
                           {corporates
@@ -757,12 +809,12 @@ export const WeeklyCashFlowManager: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Project Selection (No container) */}
+                {/* Entity Selection */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                   <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.projectRelated}</span>
-                      <span className="text-xs font-bold text-slate-600">{formData.entityType === 'project' ? t.modal.yes : t.modal.no}</span>
+                      <span className="text-xs font-bold text-slate-600 uppercase">{formData.entityType === 'project' ? t.modal.yes : t.modal.no}</span>
                     </div>
                     <button
                       type="button"
@@ -799,79 +851,96 @@ export const WeeklyCashFlowManager: React.FC = () => {
                         options={entityOptions.map(opt => ({
                           value: opt.id,
                           label: opt.name,
-                          sublabel: opt.code ? `${t.modal.code}: ${opt.code}` : undefined
+                          subtitle: (opt as any).code
                         }))}
                         value={formData.entityId || ''}
                         onChange={(val) => setFormData(p => ({ ...p, entityId: val }))}
-                        placeholder={`${t.modal.selectEntity} ${t.modal.project}...`}
+                        placeholder={t.modal.selectEntity}
                         disabled={modalMode === 'view'}
+                        className="w-full"
                       />
                     </div>
                   ) : (
-                    <div className="h-[46px]" />
+                    <div className="space-y-1.5 opacity-50 pointer-events-none">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-tight flex items-center gap-1.5">
+                        <Building2 size={12} /> {t.modal.corporate}
+                      </label>
+                      <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-500">
+                        {corporates.find(c => c.id === formData.corporateId)?.name || '-'}
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                {/* Cash Flow Sections: 1 Row, 2 Columns each */}
-                <div className="space-y-8">
-                  {/* Operating Activity */}
-                  <div className="space-y-4">
+                {/* Cash Flow Sections */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  {/* Operating */}
+                  <div className="space-y-6">
                     <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-500">
-                      <Building2 size={18} className="text-blue-500" />
-                      <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.operatingActivity}</h4>
+                      <TrendingUp size={18} className="text-blue-500" />
+                      <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.operating}</h4>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <FormField label={t.fields.cashIn} value={formData.operatingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                      <FormField label={t.fields.cashOut} value={formData.operatingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.modal.cashIn} value={formData.operatingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.modal.cashOut} value={formData.operatingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netOperating >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
+                      <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Operating</span>
+                      <span className="text-sm font-black">{formatRupiah(netOperating, false)}</span>
                     </div>
                   </div>
 
-                  {/* Investing Activity */}
-                  <div className="space-y-4">
+                  {/* Investing */}
+                  <div className="space-y-6">
                     <div className="flex items-center gap-2 pb-2 border-b-2 border-amber-500">
-                      <TrendingUp size={18} className="text-amber-500" />
+                      <ArrowUpCircle size={18} className="text-amber-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.investing}</h4>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <FormField label={t.fields.cashIn} value={formData.investingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                      <FormField label={t.fields.cashOut} value={formData.investingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.modal.cashIn} value={formData.investingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.modal.cashOut} value={formData.investingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netInvesting >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
+                      <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Investing</span>
+                      <span className="text-sm font-black">{formatRupiah(netInvesting, false)}</span>
                     </div>
                   </div>
 
-                  {/* Financing Activity */}
-                  <div className="space-y-4">
+                  {/* Financing */}
+                  <div className="space-y-6">
                     <div className="flex items-center gap-2 pb-2 border-b-2 border-indigo-500">
-                      <Briefcase size={18} className="text-indigo-500" />
+                      <Landmark size={18} className="text-indigo-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.financing}</h4>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <FormField label={t.fields.cashIn} value={formData.financingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                      <FormField label={t.fields.cashOut} value={formData.financingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.modal.cashIn} value={formData.financingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.modal.cashOut} value={formData.financingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netFinancing >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
+                      <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Financing</span>
+                      <span className="text-sm font-black">{formatRupiah(netFinancing, false)}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-5 bg-slate-900 rounded-2xl flex items-center justify-between text-white shadow-2xl relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500" />
-                  <div className="flex flex-col relative z-10">
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{t.modal.netCashFlow}</span>
-                    <span className={cn("text-2xl font-black", netCashFlow >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                      {formatRupiah(netCashFlow, false)}
-                    </span>
-                  </div>
-                  <div className="p-4 bg-white/10 rounded-2xl relative z-10 backdrop-blur-sm border border-white/10 group-hover:rotate-12 transition-transform">
-                    <Banknote size={32} />
+                {/* Overall Summary */}
+                <div className="pt-6 border-t border-slate-100">
+                  <div className={cn(
+                    "px-6 py-4 rounded-2xl shadow-xl flex items-center justify-between transition-all hover:scale-[1.01]",
+                    netCashFlow >= 0 ? "bg-emerald-600 text-white shadow-emerald-100" : "bg-rose-600 text-white shadow-rose-100"
+                  )}>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-widest opacity-80">{t.modal.netCashFlow}</span>
+                      <span className="text-2xl font-black">{formatRupiah(netCashFlow, false)}</span>
+                    </div>
+                    {netCashFlow >= 0 ? <ArrowUpCircle size={32} /> : <ArrowDownCircle size={32} />}
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                {/* Notes */}
+                <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.notes}</label>
                   <textarea
                     value={formData.notes || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
                     readOnly={modalMode === 'view'}
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm bg-slate-50/30 min-h-[100px]"
                     placeholder={t.modal.notesPlaceholder}
+                    rows={3}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none shadow-sm"
                   />
                 </div>
 
@@ -881,16 +950,16 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       type="button"
                       onClick={() => setIsModalOpen(false)}
                       disabled={isSaving}
-                      className="px-8 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                      className="px-8 py-3 bg-slate-100 text-xs font-black text-slate-500 uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
                     >
                       {t.modal.cancel}
                     </button>
                     <button
                       type="submit"
                       disabled={isSaving}
-                      className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
+                      className="px-10 py-3 bg-indigo-600 text-xs font-black text-white uppercase tracking-widest rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2 min-w-[180px] justify-center cursor-pointer disabled:opacity-50"
                     >
-                      {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                       {isSaving ? t.status.submitting : t.modal.submit}
                     </button>
                   </div>
@@ -901,29 +970,25 @@ export const WeeklyCashFlowManager: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <AlertDialog
-        open={!!deleteConfirmId}
-        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
-      >
-        <AlertDialogContent className="rounded-2xl">
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black text-slate-800">{t.alerts.deleteTitle}</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-500 font-medium pt-2">
+            <AlertDialogDescription className="text-slate-500 font-medium">
               {t.alerts.deleteDesc}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-6 gap-3">
-            <AlertDialogCancel
-              onClick={() => setDeleteConfirmId(null)}
-              className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-            >
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-slate-200 font-bold hover:bg-slate-50">
               {t.alerts.deleteCancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
-              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100"
+              disabled={isDeleting}
             >
-              {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {isDeleting ? <RefreshCw size={16} className="animate-spin mr-2" /> : <Trash2 size={16} className="mr-2" />}
               {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>

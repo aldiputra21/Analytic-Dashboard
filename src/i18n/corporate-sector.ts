@@ -58,6 +58,11 @@ export interface CorporateSectorCopy {
     errorNetwork: string;
     errorDuplicate: string;
   };
+  validation: {
+    codeMin: string;
+    labelIdRequired: string;
+    labelEnRequired: string;
+  };
 }
 
 export const corporateSectorI18n: Record<Locale, CorporateSectorCopy> = {
@@ -118,6 +123,11 @@ export const corporateSectorI18n: Record<Locale, CorporateSectorCopy> = {
       errorNetwork: 'Kesalahan jaringan',
       errorDuplicate: 'Kode sektor sudah digunakan',
     },
+    validation: {
+      codeMin: 'Kode minimal 2 karakter',
+      labelIdRequired: 'Label (ID) wajib diisi',
+      labelEnRequired: 'Label (EN) wajib diisi',
+    },
   },
   en: {
     title: 'Corporate Sector Management',
@@ -175,6 +185,11 @@ export const corporateSectorI18n: Record<Locale, CorporateSectorCopy> = {
       errorFetch: 'Failed to load sector data',
       errorNetwork: 'Network error',
       errorDuplicate: 'Sector code already in use',
+    },
+    validation: {
+      codeMin: 'Code must be at least 2 characters',
+      labelIdRequired: 'Label (ID) is required',
+      labelEnRequired: 'Label (EN) is required',
     },
   },
 };

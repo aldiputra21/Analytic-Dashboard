@@ -3,7 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Search, Edit2, Trash2, Eye,
   ChevronLeft, ChevronRight, Landmark, X,
-  RefreshCw, FilterX, Info, ChevronDown
+  RefreshCw, FilterX, Info, ChevronDown,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
@@ -21,6 +22,8 @@ import {
   AlertDialogCancel
 } from '../../ui/alert-dialog';
 import { bankI18n } from '../../../i18n/bank';
+import { commonsI18n } from '../../../i18n/commons';
+import { z } from 'zod';
 
 interface Bank {
   id: string;
@@ -75,6 +78,15 @@ const Modal: React.FC<{
 export const BankManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const t = bankI18n[language];
+  const common = commonsI18n[language];
+
+  // Validation Schema
+  const bankSchema = z.object({
+    code: z.string().min(2, t.validation.codeMin),
+    name: z.string().min(3, t.validation.nameMin),
+    swiftCode: z.string().nullable().optional(),
+    status: z.enum(['active', 'inactive'])
+  });
 
   const canWrite = hasPermission('public.banks.write');
   const canDelete = hasPermission('public.banks.delete');
@@ -83,6 +95,7 @@ export const BankManager: React.FC = () => {
   const [data, setData] = useState<Bank[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -127,8 +140,9 @@ export const BankManager: React.FC = () => {
       const d = await res.json();
       setData(d.records || []);
       setTotalCount(d.totalCount || 0);
-    } catch {
-      toast.error(t.alerts.errorFetch);
+    } catch (err: any) {
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
       setLoading(false);
     }
@@ -172,12 +186,17 @@ export const BankManager: React.FC = () => {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const payload = {
-        code: formData.code.toUpperCase(),
-        name: formData.name,
-        swiftCode: formData.swiftCode || null,
-        status: formData.status,
-      };
+      const validation = bankSchema.safeParse({
+        ...formData,
+        code: formData.code.toUpperCase()
+      });
+      if (!validation.success) {
+        validation.error.issues.forEach(err => toast.error(err.message));
+        setIsSaving(false);
+        return;
+      }
+
+      const payload = validation.data;
       const url = editingId ? `/api/banks/${editingId}` : '/api/banks';
       const method = editingId ? 'PUT' : 'POST';
       const res = await apiFetch(url, {
@@ -319,14 +338,44 @@ export const BankManager: React.FC = () => {
               <AnimatePresence>
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <motion.tr key={`sk-${i}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="animate-pulse">
-                      <td className="px-6 py-4"><div className="h-5 bg-slate-100 rounded w-16" /></td>
-                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-40" /></td>
-                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-24" /></td>
-                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-full w-20" /></td>
+                    <motion.tr
+                      key={`skeleton-${i}`}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="animate-pulse"
+                    >
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-16" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-40 mb-2" /><div className="h-3 bg-slate-100 rounded w-24" /></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-20" /></td>
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-full w-16" /></td>
                       <td className="px-6 py-4"><div className="h-8 bg-slate-100 rounded w-20 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={5}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchData()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <td colSpan={5}>
@@ -483,8 +532,8 @@ export const BankManager: React.FC = () => {
               modalMode === 'create'
                 ? t.modal.createTitle
                 : modalMode === 'edit'
-                ? t.modal.editTitle
-                : t.modal.viewTitle
+                  ? t.modal.editTitle
+                  : t.modal.viewTitle
             }
           >
             <form onSubmit={handleSave} className="space-y-5">

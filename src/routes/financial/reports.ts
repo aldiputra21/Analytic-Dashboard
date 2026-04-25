@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import { generateConsolidatedReport } from '../../services/financial/reportGenerator';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../services/financial/exportService';
 import {
@@ -23,7 +24,7 @@ export function createReportsRouter(): Router {
    * Generate a consolidated report for a given period.
    * Requirements: 7.1, 7.3, 7.4, 7.5, 7.7
    */
-  router.get('/consolidated', requirePermission('cfd.reports.read'), async (req: Request, res: Response) => {
+  router.get('/consolidated', requirePermission('cfd.reports.read'), asyncHandler(async (req: Request, res: Response) => {
     const { period } = req.query as Record<string, string>;
 
     if (!period) {
@@ -41,14 +42,14 @@ export function createReportsRouter(): Router {
     const report = await generateConsolidatedReport(period);
 
     res.json(report);
-  });
+  }));
 
   /**
    * GET /api/frs/reports/export
    * Export financial ratio data in CSV, Excel, or PDF format.
    * Requirements: 10.1, 10.3, 10.4, 10.8
    */
-  router.get('/export', requirePermission('cfd.reports.export'), async (req: Request, res: Response) => {
+  router.get('/export', requirePermission('cfd.reports.export'), asyncHandler(async (req: Request, res: Response) => {
     const { format, corporateId, startDate, endDate } = req.query as Record<string, string>;
 
     if (!format || !['csv', 'excel', 'pdf'].includes(format)) {
@@ -149,14 +150,14 @@ export function createReportsRouter(): Router {
         },
       });
     }
-  });
+  }));
 
   /**
    * POST /api/frs/reports/schedule
    * Create a scheduled report.
    * Requirements: 10.5
    */
-  router.post('/schedule', requirePermission('cfd.reports.schedule'), async (req: Request, res: Response) => {
+  router.post('/schedule', requirePermission('cfd.reports.schedule'), asyncHandler(async (req: Request, res: Response) => {
     const { name, reportType, corporateIds, periodType, format, scheduleFrequency, scheduleDay, recipients } = req.body;
 
     if (!name || !reportType || !periodType || !format || !scheduleFrequency || !scheduleDay || !recipients) {
@@ -190,24 +191,24 @@ export function createReportsRouter(): Router {
     }
 
     res.status(201).json(result.report);
-  });
+  }));
 
   /**
    * GET /api/frs/reports/scheduled
    * List all scheduled reports.
    * Requirements: 10.5
    */
-  router.get('/scheduled', requirePermission('cfd.reports.read'), async (_req: Request, res: Response) => {
+  router.get('/scheduled', requirePermission('cfd.reports.read'), asyncHandler(async (_req: Request, res: Response) => {
     const reports = await listScheduledReports();
     res.json(reports);
-  });
+  }));
 
   /**
    * DELETE /api/frs/reports/schedule/:id
    * Delete a scheduled report.
    * Requirements: 10.5
    */
-  router.delete('/schedule/:id', requirePermission('cfd.reports.schedule'), async (req: Request, res: Response) => {
+  router.delete('/schedule/:id', requirePermission('cfd.reports.schedule'), asyncHandler(async (req: Request, res: Response) => {
     const result = await deleteScheduledReport(req.params.id);
     if (!result.success) {
       res.status(404).json({
@@ -216,7 +217,7 @@ export function createReportsRouter(): Router {
       return;
     }
     res.status(204).send();
-  });
+  }));
 
   return router;
 }

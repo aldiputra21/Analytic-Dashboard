@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { requirePermission, requireSubsidiaryAccess } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   queryFinancialData,
   getFinancialDataById,
@@ -27,7 +28,7 @@ export function createFinancialDataRouter(): Router {
    * GET /api/frs/financial-data
    * Query financial data (from v_financial_summary view) with filters.
    */
-  router.get('/', requirePermission('cfd.reports.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.reports.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, departmentId, period, limit, offset } = req.query as any;
 
     // subsidiary_manager: restrict to their corporates
@@ -59,13 +60,13 @@ export function createFinancialDataRouter(): Router {
     });
 
     res.json(data);
-  });
+  }));
 
   /**
    * GET /api/frs/financial-data/:id
    * Get a single financial data entry (from v_financial_summary view).
    */
-  router.get('/:id', requirePermission('cfd.reports.read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.reports.read'), asyncHandler(async (req: Request, res: Response) => {
     const data = await getFinancialDataById(req.params.id);
     if (!data) {
       res.status(404).json({
@@ -74,7 +75,7 @@ export function createFinancialDataRouter(): Router {
       return;
     }
     res.json(data);
-  });
+  }));
 
   return router;
 }

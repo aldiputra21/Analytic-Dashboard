@@ -1,6 +1,7 @@
 // src/routes/management/cost-centers.ts
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   listCostCenters,
   getCostCenterById,
@@ -12,70 +13,57 @@ import {
 export function createCostCenterRouter(): Router {
   const router = Router();
 
-  router.get('/', requirePermission('cfd.cost_centers.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.cost_centers.read'), asyncHandler(async (req: Request, res: Response) => {
     const { search, activeOnly, page, pageSize } = req.query as Record<string, string>;
-    try {
-      const result = await listCostCenters({ 
-        search, 
-        activeOnly: activeOnly === 'true',
-        page: page ? parseInt(page) : 1,
-        pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 10,
-      });
-      res.json(result);
-    } catch (err: any) {
-      console.error('[GET /cost-centers] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const result = await listCostCenters({ 
+      search, 
+      activeOnly: activeOnly === 'true',
+      page: page ? parseInt(page) : 1,
+      pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 10,
+    });
+    res.json(result);
+  }));
 
-  router.post('/', requirePermission('cfd.cost_centers.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.cost_centers.write'), asyncHandler(async (req: Request, res: Response) => {
     const { parentId, category, name, code, description, isActive } = req.body;
     if (!name || !code || !category) {
-      return res.status(400).json({ error: 'Name, code, and category are required' });
+      res.status(400).json({ error: 'Name, code, and category are required' });
+      return;
     }
     const createdBy = req.user!.userId;
-    try {
-      const result = await createCostCenter(
-        { parentId, category, name, code, description, isActive }, 
-        createdBy,
-        { ip: req.ip, userAgent: req.headers['user-agent'] }
-      );
-      res.status(201).json(result);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+    const result = await createCostCenter(
+      { parentId, category, name, code, description, isActive }, 
+      createdBy,
+      { ip: req.ip, userAgent: req.headers['user-agent'] }
+    );
+    res.status(201).json(result);
+  }));
 
-  router.put('/:id', requirePermission('cfd.cost_centers.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.cost_centers.write'), asyncHandler(async (req: Request, res: Response) => {
     const { parentId, category, name, code, description, isActive } = req.body;
     const updatedBy = req.user!.userId;
-    try {
-      const result = await updateCostCenter(
-        req.params.id, 
-        { parentId, category, name, code, description, isActive }, 
-        updatedBy,
-        { ip: req.ip, userAgent: req.headers['user-agent'] }
-      );
-      if (!result) return res.status(404).json({ error: 'Cost center not found' });
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    const result = await updateCostCenter(
+      req.params.id, 
+      { parentId, category, name, code, description, isActive }, 
+      updatedBy,
+      { ip: req.ip, userAgent: req.headers['user-agent'] }
+    );
+    if (!result) {
+      res.status(404).json({ error: 'Cost center not found' });
+      return;
     }
-  });
+    res.json(result);
+  }));
 
-  router.delete('/:id', requirePermission('cfd.cost_centers.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.cost_centers.delete'), asyncHandler(async (req: Request, res: Response) => {
     const deletedBy = req.user!.userId;
-    try {
-      await deleteCostCenter(
-        req.params.id, 
-        deletedBy,
-        { ip: req.ip, userAgent: req.headers['user-agent'] }
-      );
-      res.json({ success: true });
-    } catch (err: any) {
-      res.status(400).json({ error: err.message });
-    }
-  });
+    await deleteCostCenter(
+      req.params.id, 
+      deletedBy,
+      { ip: req.ip, userAgent: req.headers['user-agent'] }
+    );
+    res.json({ success: true });
+  }));
 
   return router;
 }

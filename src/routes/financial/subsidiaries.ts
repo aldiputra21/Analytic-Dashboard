@@ -16,6 +16,7 @@ import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { db } from '../../db/connection';
 import { userCorporateAccesses } from '../../db/schema/public';
 import { eq } from 'drizzle-orm';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 export function createSubsidiariesRouter(): Router {
   const router = Router();
@@ -24,7 +25,7 @@ export function createSubsidiariesRouter(): Router {
    * POST /api/frs/subsidiaries
    * Create a new subsidiary (Owner only). Max 5 limit enforced.
    */
-  router.post('/', requirePermission('cfd.subsidiaries.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.subsidiaries.write'), asyncHandler(async (req: Request, res: Response) => {
     const { name, industrySector, fiscalYearStartMonth, currency, taxRate } = req.body;
 
     if (!name || !industrySector || !fiscalYearStartMonth || taxRate == null) {
@@ -66,13 +67,13 @@ export function createSubsidiariesRouter(): Router {
     });
 
     res.status(201).json(subsidiary);
-  });
+  }));
 
   /**
    * GET /api/frs/subsidiaries
    * List subsidiaries. Optional ?active=true filter.
    */
-  router.get('/', requirePermission('cfd.subsidiaries.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.subsidiaries.read'), asyncHandler(async (req: Request, res: Response) => {
     const activeOnly = req.query.active === 'true';
     let subsidiaries = await listSubsidiaries(activeOnly);
 
@@ -87,13 +88,13 @@ export function createSubsidiariesRouter(): Router {
     }
 
     res.json(subsidiaries);
-  });
+  }));
 
   /**
    * GET /api/frs/subsidiaries/:id
    * Get subsidiary details.
    */
-  router.get('/:id', requirePermission('cfd.subsidiaries.read'), requireSubsidiaryAccess(), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.subsidiaries.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
     const subsidiary = await getSubsidiaryById(req.params.id);
     if (!subsidiary) {
       res.status(404).json({
@@ -102,13 +103,13 @@ export function createSubsidiariesRouter(): Router {
       return;
     }
     res.json(subsidiary);
-  });
+  }));
 
   /**
    * PUT /api/frs/subsidiaries/:id
    * Update subsidiary profile (Owner only).
    */
-  router.put('/:id', requirePermission('cfd.subsidiaries.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.subsidiaries.write'), asyncHandler(async (req: Request, res: Response) => {
     const { name, industrySector, fiscalYearStartMonth, currency, taxRate } = req.body;
 
     const existing = await getSubsidiaryById(req.params.id);
@@ -133,13 +134,13 @@ export function createSubsidiariesRouter(): Router {
     });
 
     res.json(updated);
-  });
+  }));
 
   /**
    * PATCH /api/frs/subsidiaries/:id/status
    * Activate or deactivate a subsidiary (Owner only).
    */
-  router.patch('/:id/status', requirePermission('cfd.subsidiaries.configure'), async (req: Request, res: Response) => {
+  router.patch('/:id/status', requirePermission('cfd.subsidiaries.configure'), asyncHandler(async (req: Request, res: Response) => {
     const { isActive } = req.body;
 
     if (typeof isActive !== 'boolean') {
@@ -168,13 +169,13 @@ export function createSubsidiariesRouter(): Router {
     });
 
     res.json(updated);
-  });
+  }));
 
   /**
    * DELETE /api/frs/subsidiaries/:id
    * Delete a subsidiary. Rejected if it has financial data.
    */
-  router.delete('/:id', requirePermission('cfd.subsidiaries.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.subsidiaries.delete'), asyncHandler(async (req: Request, res: Response) => {
     const result = await deleteSubsidiary(req.params.id);
 
     if (!result.success) {
@@ -200,7 +201,7 @@ export function createSubsidiariesRouter(): Router {
     });
 
     res.json({ success: true });
-  });
+  }));
 
   return router;
 }

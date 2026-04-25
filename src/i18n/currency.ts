@@ -56,6 +56,11 @@ export interface CurrencyCopy {
     errorNetwork: string;
     errorDuplicate: string;
   };
+  validation: {
+    codeRequired: string;
+    codeMin: string;
+    labelRequired: string;
+  };
 }
 
 export const currencyI18n: Record<Locale, CurrencyCopy> = {
@@ -114,6 +119,11 @@ export const currencyI18n: Record<Locale, CurrencyCopy> = {
       errorNetwork: 'Kesalahan jaringan',
       errorDuplicate: 'Kode mata uang sudah digunakan',
     },
+    validation: {
+      codeRequired: 'Kode mata uang wajib diisi',
+      codeMin: 'Kode minimal 3 karakter (e.g., IDR)',
+      labelRequired: 'Nama mata uang wajib diisi',
+    },
   },
   en: {
     title: 'Currency Management',
@@ -169,6 +179,11 @@ export const currencyI18n: Record<Locale, CurrencyCopy> = {
       errorFetch: 'Failed to load currency data',
       errorNetwork: 'Network error',
       errorDuplicate: 'Currency code already in use',
+    },
+    validation: {
+      codeRequired: 'Currency code is required',
+      codeMin: 'Code must be at least 3 characters (e.g., USD)',
+      labelRequired: 'Currency name is required',
     },
   },
 };

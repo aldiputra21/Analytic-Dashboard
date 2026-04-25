@@ -69,6 +69,12 @@ export interface CorporateCopy {
     fileTooLarge: string;
     fileTooLargeDesc: string;
   };
+  validation: {
+    nameMin: string;
+    codeMin: string;
+    sectorRequired: string;
+    currencyInvalid: string;
+  };
 }
 
 export const corporateI18n: Record<Locale, CorporateCopy> = {
@@ -140,6 +146,12 @@ export const corporateI18n: Record<Locale, CorporateCopy> = {
       fileTooLarge: 'Ukuran file terlalu besar',
       fileTooLargeDesc: 'Ukuran logo maksimal adalah 2MB.',
     },
+    validation: {
+      nameMin: 'Nama minimal 3 karakter',
+      codeMin: 'Kode minimal 2 karakter',
+      sectorRequired: 'Sektor wajib dipilih',
+      currencyInvalid: 'Mata uang tidak valid',
+    },
   },
   en: {
     title: 'Corporate Management',
@@ -208,6 +220,12 @@ export const corporateI18n: Record<Locale, CorporateCopy> = {
       invalidFileDesc: 'Only JPG, JPEG, PNG, and WEBP files are allowed.',
       fileTooLarge: 'File too large',
       fileTooLargeDesc: 'Maximum logo size is 2MB.',
+    },
+    validation: {
+      nameMin: 'Name must be at least 3 characters',
+      codeMin: 'Code must be at least 2 characters',
+      sectorRequired: 'Sector is required',
+      currencyInvalid: 'Invalid currency',
     },
   },
 };

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
 import { logCreate, logApprove, logReject } from '../../helpers/crmAuditLog';
+import { asyncHandler } from '../../utils/asyncHandler';
 import { CreateQualificationInput, ResourcePlanItem } from '../../types/crm';
 import { calculateFeasibility, FEASIBILITY_THRESHOLDS } from '../../services/crm/feasibilityCalculator';
 import { db } from '../../db/connection';
@@ -20,7 +21,7 @@ export function createQualificationRouter(): Router {
   router.post(
     '/',
     requirePermission('crm.qualifications.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const opportunityId = req.params.id;
 
@@ -73,7 +74,7 @@ export function createQualificationRouter(): Router {
       });
 
       res.status(201).json(mapQualification(created));
-    }
+    })
   );
 
   // GET /api/crm/opportunities/:id/qualification
@@ -81,7 +82,7 @@ export function createQualificationRouter(): Router {
   router.get(
     '/',
     requirePermission('crm.qualifications.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const opportunityId = req.params.id;
 
       const [opp] = await db
@@ -112,7 +113,7 @@ export function createQualificationRouter(): Router {
       }
 
       res.json(mapQualification(qual));
-    }
+    })
   );
 
   // POST /api/crm/opportunities/:id/qualification/approve
@@ -120,7 +121,7 @@ export function createQualificationRouter(): Router {
   router.post(
     '/approve',
     requirePermission('crm.qualifications.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const opportunityId = req.params.id;
 
@@ -162,7 +163,7 @@ export function createQualificationRouter(): Router {
       }
 
       res.json(mapQualification(updated));
-    }
+    })
   );
 
   // GET /api/crm/opportunities/:id/qualification/history
@@ -170,7 +171,7 @@ export function createQualificationRouter(): Router {
   router.get(
     '/history',
     requirePermission('crm.qualifications.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const opportunityId = req.params.id;
 
       const [opp] = await db
@@ -193,7 +194,7 @@ export function createQualificationRouter(): Router {
         .orderBy(asc(qualifications.version));
 
       res.json(history.map(mapQualification));
-    }
+    })
   );
 
   return router;

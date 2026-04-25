@@ -59,6 +59,11 @@ export interface CostCenterCopy {
     errorFetch: string;
     errorNetwork: string;
   };
+  validation: {
+    codeMin: string;
+    nameMin: string;
+    categoryRequired: string;
+  };
 }
 
 export const costCenterI18n: Record<Locale, CostCenterCopy> = {
@@ -120,6 +125,11 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       errorFetch: 'Gagal memuat data cost center',
       errorNetwork: 'Kesalahan jaringan',
     },
+    validation: {
+      codeMin: 'Kode minimal 2 karakter',
+      nameMin: 'Nama minimal 3 karakter',
+      categoryRequired: 'Kategori wajib dipilih untuk level atas',
+    },
   },
   en: {
     title: 'Cost Center Management',
@@ -178,6 +188,11 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       errorDelete: 'Failed to delete cost center',
       errorFetch: 'Failed to load cost center data',
       errorNetwork: 'Network error',
+    },
+    validation: {
+      codeMin: 'Code must be at least 2 characters',
+      nameMin: 'Name must be at least 3 characters',
+      categoryRequired: 'Category is required for top-level centers',
     },
   },
 };

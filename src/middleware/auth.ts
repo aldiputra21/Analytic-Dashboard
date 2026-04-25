@@ -7,6 +7,7 @@ import { db } from '../db/connection';
 import { users } from '../db/schema';
 import { verifyToken } from '../services/financial/authService';
 import { JWTPayload } from '../types/financial/user';
+import { asyncHandler } from '../utils/asyncHandler';
 
 // Extend Express Request with unified user context
 declare global {
@@ -41,7 +42,7 @@ function extractToken(req: Request): string | null {
  * Attaches the decoded payload to req.user.
  * Requirements: 9.7 (session timeout via JWT expiry)
  */
-export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+export const authenticate = asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = extractToken(req);
   if (!token) {
     res.status(401).json({
@@ -100,12 +101,13 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   // Sliding Expiration (Stay-alive) logic
   // If more than 50% of session time has passed, issue a new token
   if (payload.iat && payload.exp) {
-    const { issueToken } = await import('../services/financial/authService');
     const now = Math.floor(Date.now() / 1000);
     const totalLife = payload.exp - payload.iat;
     const elapsed = now - payload.iat;
 
-    if (elapsed > totalLife / 2) {
+    // Safety check: totalLife should be positive
+    if (totalLife > 0 && elapsed > totalLife / 2) {
+      const { issueToken } = await import('../services/financial/authService');
       const newToken = issueToken(payload);
       res.setHeader('X-Refresh-Token', newToken);
       res.setHeader('Access-Control-Expose-Headers', 'X-Refresh-Token');
@@ -113,7 +115,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   }
 
   next();
-}
+});
 
 /**
  * Middleware: requires a valid FRS JWT token.

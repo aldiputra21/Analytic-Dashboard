@@ -30,5 +30,7 @@ Example: `.requirements/20260407_002_crm_enhancement/`
 - UUID strategy.
 - CRUD template reference (`CorporateManager.tsx`).
 - Use of `SearchableSelect` for dropdowns.
+- **Reusable Hooks**: Always check for existing hooks before creating new dropdowns; create reusable hooks if none exist.
 - **Multi-language (i18n)**: Never hardcode text; always use `src/i18n/` files.
 - **Dropdown API Design**: No paging, display all active data, no `status` parameter required from frontend.
+- **Error Handling & Resilience**: Standardized loading (PageSkeleton), localized error UI with Retry button, and Zod form validation with i18n messages.

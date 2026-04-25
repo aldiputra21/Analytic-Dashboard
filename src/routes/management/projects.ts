@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getProjectsByDepartment,
   getAllProjects,
@@ -23,38 +24,28 @@ export function createProjectRouter(): Router {
   const router = Router();
 
   // GET /api/projects — list projects
-  router.get('/', requirePermission('public.projects.read'), async (req: Request, res: Response): Promise<void> => {
+  router.get('/', requirePermission('public.projects.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId, departmentId, search, page, pageSize } = req.query as Record<string, string>;
 
-    try {
-      const result = await getAllProjects({
-        corporateId,
-        departmentId,
-        search,
-        page: page ? parseInt(page) : 1,
-        pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 100, // Changed default to 100 for dropdowns
-      });
-      res.json(result);
-    } catch (err) {
-      console.error('[GET /projects] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const result = await getAllProjects({
+      corporateId,
+      departmentId,
+      search,
+      page: page ? parseInt(page) : 1,
+      pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 100, // Changed default to 100 for dropdowns
+    });
+    res.json(result);
+  }));
 
   // GET /api/projects/dropdown-items — list all active projects for dropdowns
-  router.get('/dropdown-items', requirePermission('public.projects.read'), async (req: Request, res: Response): Promise<void> => {
+  router.get('/dropdown-items', requirePermission('public.projects.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId } = req.query as Record<string, string>;
-    try {
-      const result = await getActiveProjects(corporateId);
-      res.json(result);
-    } catch (err) {
-      console.error('[GET /projects/dropdown-items] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const result = await getActiveProjects(corporateId);
+    res.json(result);
+  }));
 
   // POST /api/projects — create new project
-  router.post('/', requirePermission('public.projects.write'), async (req: Request, res: Response): Promise<void> => {
+  router.post('/', requirePermission('public.projects.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { departmentId, code, name, description, startDate, endDate } = req.body ?? {};
 
     if (!departmentId?.trim()) {
@@ -92,12 +83,12 @@ export function createProjectRouter(): Router {
         res.status(409).json({ error: err.message });
         return;
       }
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err;
     }
-  });
+  }));
 
   // PUT /api/projects/:id — update project
-  router.put('/:id', requirePermission('public.projects.write'), async (req: Request, res: Response): Promise<void> => {
+  router.put('/:id', requirePermission('public.projects.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { name, code, description, startDate, endDate, isActive, status } = req.body ?? {};
 
     if (name !== undefined && !name?.trim()) {
@@ -128,15 +119,15 @@ export function createProjectRouter(): Router {
         res.status(409).json({ error: err.message });
         return;
       }
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err;
     }
-  });
+  }));
 
   // DELETE /api/projects/:id — delete project
-  router.delete('/:id', requirePermission('public.projects.delete'), async (req: Request, res: Response): Promise<void> => {
+  router.delete('/:id', requirePermission('public.projects.delete'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.userId;
+    const context = { ip: req.ip, userAgent: req.headers['user-agent'] };
     try {
-      const userId = req.user!.userId;
-      const context = { ip: req.ip, userAgent: req.headers['user-agent'] };
       const result = await deleteProject(req.params.id, userId, context);
       res.json(result);
     } catch (err) {
@@ -144,9 +135,9 @@ export function createProjectRouter(): Router {
         res.status(404).json({ error: err.message });
         return;
       }
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err;
     }
-  });
+  }));
 
   return router;
 }

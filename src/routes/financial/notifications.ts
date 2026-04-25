@@ -11,6 +11,7 @@ import {
 } from '../../services/financial/notificationService';
 import { requirePermission } from '../../middleware/rbac';
 import { verifyToken } from '../../services/financial/authService';
+import { asyncHandler } from '../../utils/asyncHandler';
 import type { JWTPayload } from '../../types/financial/user';
 
 const VALID_STATUSES: NotificationStatus[] = ['unread', 'read', 'archived', 'dismissed'];
@@ -47,7 +48,7 @@ async function validateStreamUser(streamToken: string | null): Promise<JWTPayloa
 export function createNotificationsRouter(): Router {
   const router = Router();
 
-  router.get('/stream', async (req: Request, res: Response) => {
+  router.get('/stream', asyncHandler(async (req: Request, res: Response) => {
     const streamToken = typeof req.query.token === 'string' ? req.query.token : null;
     const streamUser = await validateStreamUser(streamToken);
 
@@ -93,9 +94,9 @@ export function createNotificationsRouter(): Router {
       unsubscribe();
       res.end();
     });
-  });
+  }));
 
-  router.get('/', requirePermission('cfd.notifications.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.notifications.read'), asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const status = parseStatus(req.query.status);
     const before = typeof req.query.before === 'string' ? req.query.before : undefined;
@@ -109,9 +110,9 @@ export function createNotificationsRouter(): Router {
     });
 
     res.json(notifications);
-  });
+  }));
 
-  router.patch('/:id/read', requirePermission('cfd.notifications.write'), async (req: Request, res: Response) => {
+  router.patch('/:id/read', requirePermission('cfd.notifications.write'), asyncHandler(async (req: Request, res: Response) => {
     const updated = await markNotificationAsRead(req.params.id, req.user!.userId);
     if (!updated) {
       res.status(404).json({
@@ -126,9 +127,9 @@ export function createNotificationsRouter(): Router {
     }
 
     res.json(updated);
-  });
+  }));
 
-  router.patch('/:id/archive', requirePermission('cfd.notifications.write'), async (req: Request, res: Response) => {
+  router.patch('/:id/archive', requirePermission('cfd.notifications.write'), asyncHandler(async (req: Request, res: Response) => {
     const updated = await archiveNotification(req.params.id, req.user!.userId);
     if (!updated) {
       res.status(404).json({
@@ -143,7 +144,7 @@ export function createNotificationsRouter(): Router {
     }
 
     res.json(updated);
-  });
+  }));
 
   return router;
 }

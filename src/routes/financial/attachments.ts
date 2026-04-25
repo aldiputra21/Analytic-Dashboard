@@ -10,6 +10,7 @@ import { db } from '../../db/connection';
 import { attachments } from '../../db/schema/public';
 import { requirePermission } from '../../middleware/rbac';
 import { deleteAttachment } from '../../services/financial/attachmentService';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 export function createAttachmentsRouter(): Router {
   const router = Router();
@@ -23,7 +24,7 @@ export function createAttachmentsRouter(): Router {
   router.get(
     '/:id/download',
     requirePermission('cfd.realizations.read'),
-    async (req: Request, res: Response) => {
+    asyncHandler(async (req: Request, res: Response) => {
       const [record] = await db
         .select()
         .from(attachments)
@@ -60,7 +61,7 @@ export function createAttachmentsRouter(): Router {
       });
 
       return stream.pipe(res);
-    },
+    })
   );
 
   /**
@@ -71,7 +72,7 @@ export function createAttachmentsRouter(): Router {
   router.delete(
     '/:id',
     requirePermission('cfd.realizations.delete'),
-    async (req: Request, res: Response) => {
+    asyncHandler(async (req: Request, res: Response) => {
       try {
         await deleteAttachment(db, req.params.id);
         return res.json({ success: true });
@@ -84,7 +85,7 @@ export function createAttachmentsRouter(): Router {
         }
         throw err;
       }
-    },
+    })
   );
 
   return router;

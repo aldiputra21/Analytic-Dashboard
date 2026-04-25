@@ -80,6 +80,11 @@ export interface IncomeStatementCopy {
     errorFetch: string;
     errorNetwork: string;
   };
+  validation: {
+    corporateRequired: string;
+    periodInvalid: string;
+    amountMin: string;
+  };
 }
 
 export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
@@ -162,6 +167,11 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       errorFetch: 'Gagal memuat data laba rugi',
       errorNetwork: 'Kesalahan jaringan',
     },
+    validation: {
+      corporateRequired: 'Perusahaan wajib dipilih',
+      periodInvalid: 'Periode tidak valid',
+      amountMin: 'Nilai tidak boleh negatif',
+    },
   },
   en: {
     title: 'Income Statement Management',
@@ -241,6 +251,11 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       errorSave: 'Failed to save report',
       errorFetch: 'Failed to load income statement data',
       errorNetwork: 'Network error',
+    },
+    validation: {
+      corporateRequired: 'Corporate is required',
+      periodInvalid: 'Invalid period',
+      amountMin: 'Value cannot be negative',
     },
   },
 };

@@ -1,8 +1,8 @@
 // Financial Statement Routes — MAFINDA Dashboard Enhancement
 // Requirements: 8.7, 8.8, 8.9, 8.10
-
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   saveBalanceSheet,
   getBalanceSheets,
@@ -22,37 +22,32 @@ export function createFinancialStatementRouter(): Router {
   // ─── Balance Sheet ──────────────────────────────────────────────────────────
 
   // GET /api/financial-statements/balance-sheet
-  router.get('/balance-sheet', requirePermission('cfd.balance_sheets.read'), async (req: Request, res: Response): Promise<void> => {
+  router.get('/balance-sheet', requirePermission('cfd.balance_sheets.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { period, periodStart, periodEnd, corporateId, page, pageSize } = req.query as Record<string, string>;
     const userId = req.user?.userId;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    try {
-      const p = parseInt(page ?? '1', 10);
-      const ps = parseInt(pageSize ?? '10', 10);
-      const { data, totalCount } = await getBalanceSheets(userId, { 
-        period, 
-        periodStart,
-        periodEnd,
-        corporateId, 
-        page: p, 
-        pageSize: ps 
-      });
-      res.json({
-        records: data,
-        totalCount,
-        totalPages: Math.ceil(totalCount / ps)
-      });
-    } catch (err) {
-      console.error('[BalanceSheet] GET error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const p = parseInt(page ?? '1', 10);
+    const ps = parseInt(pageSize ?? '10', 10);
+    const { data, totalCount } = await getBalanceSheets(userId, { 
+      period, 
+      periodStart,
+      periodEnd,
+      corporateId, 
+      page: p, 
+      pageSize: ps 
+    });
+    res.json({
+      records: data,
+      totalCount,
+      totalPages: Math.ceil(totalCount / ps)
+    });
+  }));
 
   // POST /api/financial-statements/balance-sheet
-  router.post('/balance-sheet', requirePermission('cfd.balance_sheets.write'), async (req: Request, res: Response): Promise<void> => {
+  router.post('/balance-sheet', requirePermission('cfd.balance_sheets.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const {
       corporateId,
       period,
@@ -121,58 +116,49 @@ export function createFinancialStatementRouter(): Router {
       }, userId);
       res.status(201).json(saved);
     } catch (err) {
-      console.error('[BalanceSheet] POST error:', err);
       if (err instanceof ValidationError) {
         res.status(400).json({ error: err.message });
         return;
       }
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err;
     }
-  });
+  }));
 
   // DELETE /api/financial-statements/balance-sheet/:id
-  router.delete('/balance-sheet/:id', requirePermission('cfd.balance_sheets.delete'), async (req: Request, res: Response): Promise<void> => {
-    try {
-      await deleteBalanceSheet(req.params.id);
-      res.status(200).json({ message: 'Data neraca berhasil dihapus' });
-    } catch {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+  router.delete('/balance-sheet/:id', requirePermission('cfd.balance_sheets.delete'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    await deleteBalanceSheet(req.params.id);
+    res.status(200).json({ message: 'Data neraca berhasil dihapus' });
+  }));
 
   // ─── Income Statement ───────────────────────────────────────────────────────
 
   // GET /api/financial-statements/income-statement
-  router.get('/income-statement', requirePermission('cfd.income_statements.read'), async (req: Request, res: Response): Promise<void> => {
+  router.get('/income-statement', requirePermission('cfd.income_statements.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { period, periodStart, periodEnd, corporateId, page, pageSize } = req.query as Record<string, string>;
     const userId = req.user?.userId;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    try {
-      const p = parseInt(page ?? '1', 10);
-      const ps = parseInt(pageSize ?? '10', 10);
-      const { data, totalCount } = await getIncomeStatements(userId, { 
-        period, 
-        periodStart,
-        periodEnd,
-        corporateId, 
-        page: p, 
-        pageSize: ps 
-      });
-      res.json({
-        records: data,
-        totalCount,
-        totalPages: Math.ceil(totalCount / ps)
-      });
-    } catch {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const p = parseInt(page ?? '1', 10);
+    const ps = parseInt(pageSize ?? '10', 10);
+    const { data, totalCount } = await getIncomeStatements(userId, { 
+      period, 
+      periodStart,
+      periodEnd,
+      corporateId, 
+      page: p, 
+      pageSize: ps 
+    });
+    res.json({
+      records: data,
+      totalCount,
+      totalPages: Math.ceil(totalCount / ps)
+    });
+  }));
 
   // POST /api/financial-statements/income-statement
-  router.post('/income-statement', requirePermission('cfd.income_statements.write'), async (req: Request, res: Response): Promise<void> => {
+  router.post('/income-statement', requirePermission('cfd.income_statements.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const {
       corporateId,
       period,
@@ -213,61 +199,52 @@ export function createFinancialStatementRouter(): Router {
       }, userId);
       res.status(201).json(saved);
     } catch (err) {
-      console.error('[IncomeStatement] POST error:', err);
       if (err instanceof ValidationError) {
         res.status(400).json({ error: err.message });
         return;
       }
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err;
     }
-  });
+  }));
 
   // DELETE /api/financial-statements/income-statement/:id
-  router.delete('/income-statement/:id', requirePermission('cfd.income_statements.delete'), async (req: Request, res: Response): Promise<void> => {
-    try {
-      await deleteIncomeStatement(req.params.id);
-      res.status(200).json({ message: 'Data laba rugi berhasil dihapus' });
-    } catch {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+  router.delete('/income-statement/:id', requirePermission('cfd.income_statements.delete'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    await deleteIncomeStatement(req.params.id);
+    res.status(200).json({ message: 'Data laba rugi berhasil dihapus' });
+  }));
 
   // ─── Cash Flow ──────────────────────────────────────────────────────────────
 
   // GET /api/financial-statements/cash-flow
-  router.get('/cash-flow', requirePermission('cfd.weekly_cash_flows.read'), async (req: Request, res: Response): Promise<void> => {
+  router.get('/cash-flow', requirePermission('cfd.weekly_cash_flows.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { period, periodStart, periodEnd, corporateId, entityType, entityId, search, page, pageSize } = req.query as Record<string, string>;
     const userId = req.user?.userId;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    try {
-      const p = parseInt(page ?? '1', 10);
-      const ps = parseInt(pageSize ?? '10', 10);
-      const { data, totalCount } = await getCashFlows(userId, { 
-        period, 
-        periodStart,
-        periodEnd,
-        corporateId, 
-        entityType, 
-        entityId, 
-        search,
-        page: p, 
-        pageSize: ps 
-      });
-      res.json({
-        records: data,
-        totalCount,
-        totalPages: Math.ceil(totalCount / ps)
-      });
-    } catch {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const p = parseInt(page ?? '1', 10);
+    const ps = parseInt(pageSize ?? '10', 10);
+    const { data, totalCount } = await getCashFlows(userId, { 
+      period, 
+      periodStart,
+      periodEnd,
+      corporateId, 
+      entityType, 
+      entityId, 
+      search,
+      page: p, 
+      pageSize: ps 
+    });
+    res.json({
+      records: data,
+      totalCount,
+      totalPages: Math.ceil(totalCount / ps)
+    });
+  }));
 
   // POST /api/financial-statements/cash-flow
-  router.post('/cash-flow', requirePermission('cfd.weekly_cash_flows.write'), async (req: Request, res: Response): Promise<void> => {
+  router.post('/cash-flow', requirePermission('cfd.weekly_cash_flows.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const {
       corporateId,
       entityType,
@@ -328,24 +305,19 @@ export function createFinancialStatementRouter(): Router {
       }, userId);
       res.status(201).json(saved);
     } catch (err) {
-      console.error('[WeeklyCashFlow] POST error:', err);
       if (err instanceof ValidationError) {
         res.status(400).json({ error: err.message });
         return;
       }
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err;
     }
-  });
+  }));
 
   // DELETE /api/financial-statements/cash-flow/:id
-  router.delete('/cash-flow/:id', requirePermission('cfd.weekly_cash_flows.delete'), async (req: Request, res: Response): Promise<void> => {
-    try {
-      await deleteCashFlow(req.params.id);
-      res.status(200).json({ message: 'Data arus kas berhasil dihapus' });
-    } catch {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+  router.delete('/cash-flow/:id', requirePermission('cfd.weekly_cash_flows.delete'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    await deleteCashFlow(req.params.id);
+    res.status(200).json({ message: 'Data arus kas berhasil dihapus' });
+  }));
 
   return router;
 }

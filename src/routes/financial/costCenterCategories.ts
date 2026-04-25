@@ -8,6 +8,7 @@ import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { costCenterCategories } from '../../db/schema/public';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -51,7 +52,7 @@ export function createCostCenterCategoriesRouter(): Router {
    * GET /api/cost-center-categories
    * List cost center categories with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('public.cost_center_categories.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.cost_center_categories.read'), asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -91,13 +92,13 @@ export function createCostCenterCategoriesRouter(): Router {
     ]);
 
     res.json({ records, totalCount: Number(totalCount) });
-  });
+  }));
 
   /**
    * POST /api/cost-center-categories
    * Create a new cost center category.
    */
-  router.post('/', requirePermission('public.cost_center_categories.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('public.cost_center_categories.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = createCategorySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -135,13 +136,13 @@ export function createCostCenterCategoriesRouter(): Router {
       }
       throw err;
     }
-  });
+  }));
 
   /**
    * GET /api/cost-center-categories/:id
    * Get a single cost center category by ID.
    */
-  router.get('/:id', requirePermission('public.cost_center_categories.read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('public.cost_center_categories.read'), asyncHandler(async (req: Request, res: Response) => {
     const [category] = await db
       .select()
       .from(costCenterCategories)
@@ -155,13 +156,13 @@ export function createCostCenterCategoriesRouter(): Router {
     }
 
     return res.json(category);
-  });
+  }));
 
   /**
    * PUT /api/cost-center-categories/:id
    * Update a cost center category.
    */
-  router.put('/:id', requirePermission('public.cost_center_categories.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('public.cost_center_categories.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateCategorySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -208,13 +209,13 @@ export function createCostCenterCategoriesRouter(): Router {
       }
       throw err;
     }
-  });
+  }));
 
   /**
    * DELETE /api/cost-center-categories/:id
    * Delete a cost center category.
    */
-  router.delete('/:id', requirePermission('public.cost_center_categories.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('public.cost_center_categories.delete'), asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(costCenterCategories)
@@ -230,7 +231,7 @@ export function createCostCenterCategoriesRouter(): Router {
     await db.delete(costCenterCategories).where(eq(costCenterCategories.id, req.params.id));
 
     return res.json({ success: true });
-  });
+  }));
 
   return router;
 }

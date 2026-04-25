@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
 import { logCreate } from '../../helpers/crmAuditLog';
+import { asyncHandler } from '../../utils/asyncHandler';
 import { CreateInteractionInput } from '../../types/crm';
 import { db } from '../../db/connection';
 import { interactions, customers, opportunities } from '../../db/schema/crm';
@@ -18,7 +19,7 @@ export function createInteractionRouter(): Router {
   router.post(
     '/',
     requirePermission('crm.interactions.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const body = req.body as CreateInteractionInput;
 
@@ -87,14 +88,14 @@ export function createInteractionRouter(): Router {
       });
 
       res.status(201).json(created);
-    }
+    })
   );
 
   // GET /api/crm/interactions - List interactions with filters
   router.get(
     '/',
     requirePermission('crm.interactions.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { entityId, entityType, type } = req.query;
 
       const conditions: ReturnType<typeof sql>[] = [];
@@ -111,7 +112,7 @@ export function createInteractionRouter(): Router {
         .orderBy(desc(interactions.interactionDate), desc(interactions.createdAt));
 
       res.json(rows);
-    }
+    })
   );
 
   return router;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, Filter, Eye, Edit2, Trash2,
   ChevronLeft, ChevronRight, X, AlertCircle,
@@ -27,6 +27,8 @@ import {
   AlertDialogCancel
 } from '../../ui/alert-dialog';
 import { incomeStatementI18n } from '../../../i18n/income-statement';
+import { commonsI18n } from '../../../i18n/commons';
+import { z } from 'zod';
 
 // --- Types ---
 interface IncomeStatement {
@@ -43,6 +45,8 @@ interface IncomeStatement {
   createdAt: string;
   createdBy: string;
 }
+
+// --- Validation Schema ---
 
 // --- Components ---
 
@@ -121,7 +125,7 @@ const FormField: React.FC<{
         placeholder={placeholder}
         readOnly={readOnly}
         className={cn(
-          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30",
+          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30 font-bold",
           readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
         )}
       />
@@ -150,6 +154,19 @@ const SummaryCard: React.FC<{ label: string; value: number; color: 'emerald' | '
 export const IncomeStatementManager: React.FC = () => {
   const { user, hasPermission, language, hasFullCorporateAccess, subsidiaryIds } = useAuth();
   const t = incomeStatementI18n[language];
+  const common = commonsI18n[language];
+
+  // Validation Schema
+  const incomeStatementSchema = z.object({
+    corporateId: z.string().min(1, t.validation.corporateRequired),
+    period: z.string().regex(/^\d{4}-\d{2}$/, t.validation.periodInvalid),
+    revenue: z.number().min(0, t.validation.amountMin),
+    cogs: z.number().min(0, t.validation.amountMin),
+    operatingExpenses: z.number().min(0, t.validation.amountMin),
+    interestExpense: z.number().min(0, t.validation.amountMin),
+    taxExpense: z.number().min(0, t.validation.amountMin),
+    notes: z.string().optional()
+  });
 
   const canWrite = hasPermission('cfd.income_statements.write');
   const canDelete = hasPermission('cfd.income_statements.delete');
@@ -157,6 +174,7 @@ export const IncomeStatementManager: React.FC = () => {
   const [data, setData] = useState<IncomeStatement[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const { corporates } = useCorporates();
@@ -184,12 +202,9 @@ export const IncomeStatementManager: React.FC = () => {
   // Form State
   const [formData, setFormData] = useState<Partial<IncomeStatement>>({});
 
-  useEffect(() => {
-    fetchData();
-  }, [currentPage, pageSize, appliedFilters]);
-
   const fetchData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const queryParams = new URLSearchParams();
       if (appliedFilters.periodStart) queryParams.set('periodStart', appliedFilters.periodStart);
@@ -203,13 +218,21 @@ export const IncomeStatementManager: React.FC = () => {
         const d = await res.json();
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || t.alerts.errorFetch);
       }
-    } catch (err) {
-      toast.error(t.alerts.errorFetch);
+    } catch (err: any) {
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, [currentPage, pageSize, appliedFilters]);
 
   const handleApplyFilter = () => {
     setAppliedFilters({
@@ -240,10 +263,11 @@ export const IncomeStatementManager: React.FC = () => {
         toast.success(t.alerts.successDelete);
         fetchData();
       } else {
-        toast.error(t.alerts.errorDelete);
+        const errData = await res.json();
+        throw new Error(errData.error?.message || t.alerts.errorDelete);
       }
-    } catch {
-      toast.error(t.alerts.errorNetwork);
+    } catch (err: any) {
+      toast.error(err.message || t.alerts.errorNetwork);
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -276,12 +300,22 @@ export const IncomeStatementManager: React.FC = () => {
     e.preventDefault();
     if (isSaving) return;
 
+    // Declarative validation with Zod
+    const validation = incomeStatementSchema.safeParse(formData);
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const res = await apiFetch('/api/financial-statements/income-statement', {
-        method: 'POST',
+      const url = modalMode === 'edit' ? `/api/financial-statements/income-statement/${formData.id}` : '/api/financial-statements/income-statement';
+      const method = modalMode === 'edit' ? 'PUT' : 'POST';
+
+      const res = await apiFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(validation.data),
       });
 
       if (res.ok) {
@@ -290,11 +324,10 @@ export const IncomeStatementManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        toast.error(errData.error || t.alerts.errorSave);
+        throw new Error(errData.error?.message || t.alerts.errorSave);
       }
-    } catch (err) {
-      console.error('[IncomeStatementManager] Save Error:', err);
-      toast.error(t.alerts.errorNetwork);
+    } catch (err: any) {
+      toast.error(err.message || t.alerts.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -312,7 +345,7 @@ export const IncomeStatementManager: React.FC = () => {
   const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-full">
+    <div className="p-6 space-y-6 bg-slate-50 min-h-full font-bold">
 
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -323,7 +356,7 @@ export const IncomeStatementManager: React.FC = () => {
             </div>
             {t.title}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
             <Info size={14} className="text-indigo-400" />
             {t.subtitle}
           </p>
@@ -350,7 +383,7 @@ export const IncomeStatementManager: React.FC = () => {
               <select
                 value={filterCorporate}
                 onChange={(e) => setFilterCorporate(e.target.value)}
-                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full"
+                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full font-bold"
               >
                 <option value="">{t.modal.selectCorporate}</option>
                 {corporates
@@ -397,7 +430,7 @@ export const IncomeStatementManager: React.FC = () => {
       {/* Data Table */}
       <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-separate border-spacing-0">
+          <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.period}</th>
@@ -429,6 +462,27 @@ export const IncomeStatementManager: React.FC = () => {
                       <td className="px-6 py-4 text-right"><div className="h-6 bg-slate-100 rounded-lg w-16 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <td colSpan={7}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchData()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr
                     key="empty"
@@ -635,7 +689,7 @@ export const IncomeStatementManager: React.FC = () => {
                       <Calculator size={12} /> {t.modal.corporate}
                     </label>
                     {modalMode === 'view' ? (
-                      <div className="w-full bg-slate-100 border-none rounded-xl px-4 py-2 text-sm font-medium text-slate-600">
+                      <div className="w-full bg-slate-100 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600">
                         {formData.corporateName || 'N/A'}
                       </div>
                     ) : (
@@ -644,7 +698,7 @@ export const IncomeStatementManager: React.FC = () => {
                           required
                           value={formData.corporateId}
                           onChange={(e) => setFormData({ ...formData, corporateId: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
                         >
                           <option value="">{t.modal.selectCorporate}</option>
                           {corporates
@@ -709,7 +763,7 @@ export const IncomeStatementManager: React.FC = () => {
                     value={formData.notes || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     readOnly={modalMode === 'view'}
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30 min-h-[100px]"
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30 min-h-[100px] font-bold"
                     placeholder={t.modal.notesPlaceholder}
                   />
                 </div>
@@ -720,7 +774,7 @@ export const IncomeStatementManager: React.FC = () => {
                       type="button"
                       onClick={() => setIsModalOpen(false)}
                       disabled={isSaving}
-                      className="px-8 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                      className="px-8 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer shadow-sm"
                     >
                       {t.modal.cancel}
                     </button>

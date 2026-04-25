@@ -15,6 +15,7 @@ import { UserRole } from '../../../types/financial/user';
 import { balanceSheetI18n } from '../../../i18n/balance-sheet';
 import { incomeStatementI18n } from '../../../i18n/income-statement';
 import { weeklyCashFlowI18n } from '../../../i18n/weekly-cash-flow';
+import { useNetworkResilience } from '../../../hooks/financial/useNetworkResilience';
 
 export type FRSPage =
   | 'dashboard' | 'benchmarking' | 'trends' | 'reports' | 'alerts'
@@ -58,6 +59,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children, currentPage, onNavigate, alertCount = 0,
 }) => {
   const { user, logout, hasPermission, language, setLanguage } = useAuth();
+  useNetworkResilience();
   
   const navItems = useMemo(() => {
     const items: NavItem[] = [

@@ -21,7 +21,9 @@ import {
   AlertDialogHeader
 } from '../../ui/alert-dialog';
 import { corporateI18n } from '../../../i18n/corporate';
+import { commonsI18n } from '../../../i18n/commons';
 import { Corporate } from '../../../types/financial/corporate';
+import { z } from 'zod';
 
 const getMonths = (lang: 'id' | 'en') => {
   if (lang === 'id') {
@@ -88,6 +90,18 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: str
 export const CorporateManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const t = corporateI18n[language];
+  const common = commonsI18n[language];
+
+  // Validation Schema
+  const corporateSchema = z.object({
+    name: z.string().min(3, t.validation.nameMin),
+    code: z.string().min(2, t.validation.codeMin),
+    sector: z.string().min(1, t.validation.sectorRequired),
+    fiscalMonth: z.number().min(1).max(12),
+    currency: z.string().length(3, t.validation.currencyInvalid),
+    taxRate: z.number().min(0).max(100),
+    isActive: z.boolean()
+  });
 
   const canWrite = hasPermission('cfd.corporates.write');
   const canDelete = hasPermission('cfd.corporates.delete');
@@ -100,6 +114,7 @@ export const CorporateManager: React.FC = () => {
   // Filters
   const [filterSearch, setFilterSearch] = useState('');
   const [appliedFilters, setAppliedFilters] = useState({ search: '' });
+  const [error, setError] = useState<string | null>(null);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -162,6 +177,7 @@ export const CorporateManager: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
+      toast.error(common.errorFetchMasterData);
     }
   };
 
@@ -196,8 +212,9 @@ export const CorporateManager: React.FC = () => {
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
       }
-    } catch (err) {
-      toast.error(t.alerts.errorFetch);
+    } catch (err: any) {
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
       setIsLoading(false);
     }
@@ -292,10 +309,17 @@ export const CorporateManager: React.FC = () => {
       const url = editingId ? `/api/corporates/${editingId}` : '/api/corporates';
       const method = editingId ? 'PUT' : 'POST';
 
+      const validation = corporateSchema.safeParse(formData);
+      if (!validation.success) {
+        validation.error.issues.forEach(err => toast.error(err.message));
+        setIsSaving(false);
+        return;
+      }
+
       const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(validation.data),
       });
 
       if (res.ok) {
@@ -460,6 +484,32 @@ export const CorporateManager: React.FC = () => {
                       <td className="px-6 py-4"><div className="h-8 bg-slate-200 animate-pulse rounded w-20 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={7}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchData()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     <td colSpan={7}>

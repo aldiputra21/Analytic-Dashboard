@@ -58,6 +58,11 @@ export interface CostCenterCategoryCopy {
     errorNetwork: string;
     errorDuplicate: string;
   };
+  validation: {
+    codeMin: string;
+    labelIdRequired: string;
+    labelEnRequired: string;
+  };
 }
 
 export const costCenterCategoryI18n: Record<Locale, CostCenterCategoryCopy> = {
@@ -118,6 +123,11 @@ export const costCenterCategoryI18n: Record<Locale, CostCenterCategoryCopy> = {
       errorNetwork: 'Kesalahan jaringan',
       errorDuplicate: 'Kode kategori sudah digunakan',
     },
+    validation: {
+      codeMin: 'Kode minimal 2 karakter',
+      labelIdRequired: 'Label (ID) wajib diisi',
+      labelEnRequired: 'Label (EN) wajib diisi',
+    },
   },
   en: {
     title: 'Cost Center Category Management',
@@ -175,6 +185,11 @@ export const costCenterCategoryI18n: Record<Locale, CostCenterCategoryCopy> = {
       errorFetch: 'Failed to load category data',
       errorNetwork: 'Network error',
       errorDuplicate: 'Category code already in use',
+    },
+    validation: {
+      codeMin: 'Code must be at least 2 characters',
+      labelIdRequired: 'Label (ID) is required',
+      labelEnRequired: 'Label (EN) is required',
     },
   },
 };

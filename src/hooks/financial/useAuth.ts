@@ -36,6 +36,7 @@ interface ResetPasswordInput {
 let _state: AuthState = { user: null, token: null, isLoading: true, error: null, language: 'id' };
 let _config: { keepAliveIntervalMs: number } | null | undefined = undefined;
 let _keepAliveInterval: any = null;
+let _keepAliveSetupComplete = false; // Guard agar interval hanya di-setup sekali
 const _listeners = new Set<(state: AuthState) => void>();
 let _refreshPromise: Promise<void> | null = null;
 let _initialized = false;
@@ -51,8 +52,10 @@ function isTokenExpired(token: string): boolean {
     const parts = token.split('.');
     if (parts.length !== 3) return true;
     const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    // Expired if current time + 10s buffer > exp
-    return (payload.exp * 1000) < (Date.now() + 10000);
+    // Token expired jika waktu exp sudah lewat.
+    // Buffer 5 detik ke BELAKANG untuk toleransi skew jam antar server/client.
+    // JANGAN pakai buffer ke depan (+ 10000) karena itu menyebabkan logout prematur.
+    return (payload.exp * 1000) < (Date.now() - 5000);
   } catch {
     return true;
   }
@@ -152,8 +155,11 @@ async function refreshSessionFromServer(): Promise<void> {
 
       if (res.ok) {
         const user = await res.json() as User;
+        // FIX: Ambil token terbaru dari localStorage, bukan dari closure.
+        // Token bisa sudah diperbarui via X-Refresh-Token header selama request berlangsung.
+        const latestToken = localStorage.getItem(TOKEN_KEY);
         localStorage.setItem(USER_KEY, JSON.stringify(user));
-        setState(s => ({ ...s, user, token: token || s.token, isLoading: false, error: null }));
+        setState(s => ({ ...s, user, token: latestToken || s.token, isLoading: false, error: null }));
         return;
       }
 
@@ -200,15 +206,26 @@ export function useAuth() {
       window.addEventListener('frs:unauthorized', _unauthorizedHandler);
     }
 
-    const handleTokenRefreshed = (e: any) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Auth] Token refreshed successfully');
+
+    // FIX: Listener untuk token yang di-refresh via X-Refresh-Token header.
+    // Sebelumnya didefinisikan tapi tidak pernah di-addEventListener.
+    const handleTokenRefreshed = () => {
+      const newToken = localStorage.getItem(TOKEN_KEY);
+      if (newToken) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Auth] Token refreshed via X-Refresh-Token header, updating state.');
+        }
+        setState(s => ({ ...s, token: newToken }));
       }
-      setState(s => ({ ...s, token: e.detail }));
     };
+    window.addEventListener('frs:token-refreshed', handleTokenRefreshed);
 
     // Fetch config and setup keep-alive
     const setupKeepAlive = async () => {
+      // FIX: Guard agar interval hanya di-setup sekali, mencegah race condition
+      // ketika beberapa komponen mount bersamaan.
+      if (_keepAliveSetupComplete) return;
+
       try {
         if (_config === undefined) {
           _config = null; // Mark as fetching
@@ -223,6 +240,8 @@ export function useAuth() {
 
         // Wait if currently being fetched by another instance
         if (_config === null) return;
+
+        _keepAliveSetupComplete = true;
 
         if (_config && _config.keepAliveIntervalMs > 0 && !_keepAliveInterval) {
           const intervalMs = _config.keepAliveIntervalMs;
@@ -240,6 +259,7 @@ export function useAuth() {
       } catch (err) {
         console.error('[Auth] Failed to load config:', err);
         _config = undefined;
+        _keepAliveSetupComplete = false; // Allow retry on error
       }
     };
 
@@ -248,8 +268,7 @@ export function useAuth() {
     return () => {
       _listeners.delete(setLocalState);
       window.removeEventListener('frs:token-refreshed', handleTokenRefreshed);
-      // We don't clear the global _keepAliveInterval here.
-      // It stays active for the app session since it uses localStorage directly.
+      // Keep-alive interval tetap aktif untuk session app karena menggunakan localStorage langsung.
 
       if (_listeners.size === 0 && _unauthorizedHandler) {
         window.removeEventListener('frs:unauthorized', _unauthorizedHandler);

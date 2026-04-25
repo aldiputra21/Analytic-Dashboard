@@ -115,21 +115,9 @@ export async function createApp(options: CreateAppOptions = {}) {
   // FRS router handles its own public/private route separation
   app.use('/api/frs', createFRSRouter());
 
-  app.use('/api/frs', (err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const requestId = (req.headers['x-request-id'] as string) ?? '';
-    const status = err.status ?? err.statusCode ?? 500;
-    console.error(`[FRS Error] ${req.method} ${req.url}:`, err.message);
-    res.status(status).json({
-      error: {
-        code: err.code ?? 'FRS_INTERNAL_ERROR',
-        message: status < 500 ? err.message : 'An internal error occurred',
-        details: status < 500 ? err.details : undefined,
-        field: err.field,
-        timestamp: new Date().toISOString(),
-        requestId,
-      },
-    });
-  });
+  // Global Error Handler (must be last)
+  const { errorHandler } = await import('../middleware/errorHandler.js');
+  app.use(errorHandler);
 
   app.all('/api/*', (req, res) => {
     res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });

@@ -46,6 +46,12 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function issueToken(payload: JWTPayload): string {
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Use existing original iat if present, otherwise set it to now
+  // This tracks when the session actually started (first login)
+  const origIat = (payload as any).origIat || payload.iat || now;
+
   const token = jwt.sign(
     {
       userId: payload.userId,
@@ -54,6 +60,7 @@ export function issueToken(payload: JWTPayload): string {
       roleName: payload.roleName,
       roleDescription: payload.roleDescription,
       authzVersion: payload.authzVersion ?? 1,
+      origIat: origIat, // Preserve original session start
     },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN as any },

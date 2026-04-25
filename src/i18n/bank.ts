@@ -59,6 +59,10 @@ export interface BankCopy {
     errorNetwork: string;
     errorDuplicate: string;
   };
+  validation: {
+    codeMin: string;
+    nameMin: string;
+  };
 }
 
 export const bankI18n: Record<Locale, BankCopy> = {
@@ -120,6 +124,10 @@ export const bankI18n: Record<Locale, BankCopy> = {
       errorNetwork: 'Kesalahan jaringan',
       errorDuplicate: 'Kode bank sudah digunakan',
     },
+    validation: {
+      codeMin: 'Kode minimal 2 karakter',
+      nameMin: 'Nama minimal 3 karakter',
+    },
   },
   en: {
     title: 'Bank Management',
@@ -178,6 +186,10 @@ export const bankI18n: Record<Locale, BankCopy> = {
       errorFetch: 'Failed to load bank data',
       errorNetwork: 'Network error',
       errorDuplicate: 'Bank code already in use',
+    },
+    validation: {
+      codeMin: 'Code must be at least 2 characters',
+      nameMin: 'Name must be at least 3 characters',
     },
   },
 };

@@ -4,13 +4,14 @@
 import React, { useState, useRef, useEffect, Suspense, lazy } from 'react';
 import { ArrowLeft, CircleCheckBig, KeyRound, LogIn, Mail } from 'lucide-react';
 import { loginI18n, loginLocales, type LoginLocale } from '../../i18n/login';
+import { commonsI18n } from '../../i18n/commons';
 import { DashboardLayout, FRSPage } from './dashboard/DashboardLayout';
 import { ProtectedRoute } from './shared/ProtectedRoute';
 import { QueryProvider } from './shared/QueryProvider';
 import { ErrorBoundary } from './shared/ErrorBoundary';
 import { ToastProvider } from './shared/Toast';
 import { useAuth } from '../../hooks/financial/useAuth';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { useNotifications } from '../../hooks/financial/useNotifications';
 import { useCorporates } from '../../hooks/financial/useCorporates';
 
@@ -809,7 +810,48 @@ const AppContent: React.FC = () => {
 };
 
 export const FRSApp: React.FC = () => {
-  const { user, isLoading, login, forgotPassword, resetPassword, error } = useAuth();
+  const { language, user, isLoading, login, forgotPassword, resetPassword, error } = useAuth();
+  const common = commonsI18n[language];
+  const copy = loginI18n[language];
+
+  // Global network status tracking (Core Frontend Resilience)
+  useEffect(() => {
+    const handleOnline = () => toast.success(common.networkOnline, { id: 'network-status' });
+    const handleOffline = () => toast.error(common.networkOffline, { id: 'network-status', duration: Infinity });
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [common.networkOnline, common.networkOffline]);
+
+  // Global event handling (Auth & Rate Limiting)
+  useEffect(() => {
+    const handleRateLimited = (e: any) => {
+      const { retryAfter } = e.detail;
+      toast.error(
+        `Terlalu banyak permintaan. Silakan tunggu ${retryAfter || 'beberapa'} detik.`,
+        { id: 'rate-limit' }
+      );
+    };
+
+    const handleUnauthorized = () => {
+      if (user) { // Only show if we were previously logged in
+        toast.error(copy.errorSessionExpired || 'Sesi berakhir, silakan masuk kembali', { id: 'auth-error' });
+      }
+    };
+
+    window.addEventListener('frs:rate-limited', handleRateLimited as EventListener);
+    window.addEventListener('frs:unauthorized', handleUnauthorized);
+
+    return () => {
+      window.removeEventListener('frs:rate-limited', handleRateLimited as EventListener);
+      window.removeEventListener('frs:unauthorized', handleUnauthorized);
+    };
+  }, [user, copy.errorSessionExpired]);
 
   if (isLoading) return null;
   if (!user) return <LoginForm onLogin={login} onForgotPassword={forgotPassword} onResetPassword={resetPassword} error={error} isLoading={isLoading} />;

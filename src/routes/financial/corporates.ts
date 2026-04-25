@@ -13,6 +13,7 @@ import {
 } from '../../services/financial/corporateService';
 import { initDefaultThresholds } from '../../services/financial/thresholdService';
 import { uploadLogo } from '../../middleware/upload';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 export function createCorporatesRouter(): Router {
   const router = Router();
@@ -20,7 +21,7 @@ export function createCorporatesRouter(): Router {
   /**
    * POST /api/frs/corporates
    */
-  router.post('/', requirePermission('cfd.corporates.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.corporates.write'), asyncHandler(async (req: Request, res: Response) => {
     const { name, code, logo, industrySector, fiscalYearStartMonth, currency, taxRate } = req.body;
 
     if (!name || !code || !industrySector || !fiscalYearStartMonth || taxRate == null) {
@@ -45,12 +46,12 @@ export function createCorporatesRouter(): Router {
     await initDefaultThresholds(corporate.id, industrySector, req.user!.userId);
 
     res.status(201).json(corporate);
-  });
+  }));
 
   /**
    * GET /api/frs/corporates
    */
-  router.get('/', requirePermission('cfd.corporates.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.corporates.read'), asyncHandler(async (req: Request, res: Response) => {
     const activeOnly = req.query.active === 'true';
     const search = req.query.search as string;
     const page = parseInt(req.query.page as string) || 1;
@@ -58,20 +59,20 @@ export function createCorporatesRouter(): Router {
 
     const results = await listCorporates({ activeOnly, search, page, pageSize });
     res.json(results);
-  });
+  }));
 
   /**
    * GET /api/frs/corporates/dropdown-items
    */
-  router.get('/dropdown-items', requirePermission('cfd.corporates.read'), async (_req: Request, res: Response) => {
+  router.get('/dropdown-items', requirePermission('cfd.corporates.read'), asyncHandler(async (_req: Request, res: Response) => {
     const results = await getActiveCorporates();
     res.json(results);
-  });
+  }));
 
   /**
    * POST /api/frs/corporates/:id/logo
    */
-  router.post('/:id/logo', requirePermission('cfd.corporates.write'), uploadLogo.single('logo'), async (req: Request, res: Response) => {
+  router.post('/:id/logo', requirePermission('cfd.corporates.write'), uploadLogo.single('logo'), asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -87,24 +88,24 @@ export function createCorporatesRouter(): Router {
     }
 
     res.json({ logo: logoPath });
-  });
+  }));
 
   /**
    * PUT /api/frs/corporates/:id
    */
-  router.put('/:id', requirePermission('cfd.corporates.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.corporates.write'), asyncHandler(async (req: Request, res: Response) => {
     const result = await updateCorporate(req.params.id, req.body, req.user!.userId, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
     if (!result) return res.status(404).json({ error: 'Corporate not found' });
     res.json(result);
-  });
+  }));
 
   /**
    * DELETE /api/frs/corporates/:id
    */
-  router.delete('/:id', requirePermission('cfd.corporates.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.corporates.delete'), asyncHandler(async (req: Request, res: Response) => {
     const result = await deleteCorporate(req.params.id, req.user!.userId, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
@@ -113,7 +114,7 @@ export function createCorporatesRouter(): Router {
       return res.status(422).json({ error: result.error });
     }
     res.json({ success: true });
-  });
+  }));
 
   return router;
 }

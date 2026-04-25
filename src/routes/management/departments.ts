@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getAllDepartments,
   getActiveDepartments,
@@ -18,18 +19,13 @@ export function createDepartmentRouter(): Router {
   const router = Router();
 
   // GET /api/departments/dropdown-items — list all active departments for dropdowns (no pagination)
-  router.get('/dropdown-items', requirePermission('public.departments.read'), async (_req: Request, res: Response): Promise<void> => {
-    try {
-      const results = await getActiveDepartments();
-      res.json(results);
-    } catch (err) {
-      console.error('[GET /departments/dropdown-items] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+  router.get('/dropdown-items', requirePermission('public.departments.read'), asyncHandler(async (_req: Request, res: Response): Promise<void> => {
+    const results = await getActiveDepartments();
+    res.json(results);
+  }));
 
   // GET /api/departments?corporateId=xxx — list departments for a corporate
-  router.get('/', requirePermission('public.departments.read'), async (req: Request, res: Response): Promise<void> => {
+  router.get('/', requirePermission('public.departments.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId, search, page, pageSize } = req.query as Record<string, string>;
     const userRole = req.user?.role;
     
@@ -47,22 +43,17 @@ export function createDepartmentRouter(): Router {
       return;
     }
 
-    try {
-      const result = await getAllDepartments({
-        corporateId,
-        search,
-        page: page ? parseInt(page) : 1,
-        pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 10,
-      });
-      res.json(result);
-    } catch (err) {
-      console.error('[GET /departments] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const result = await getAllDepartments({
+      corporateId,
+      search,
+      page: page ? parseInt(page) : 1,
+      pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 10,
+    });
+    res.json(result);
+  }));
 
   // POST /api/departments — create new department
-  router.post('/', requirePermission('public.departments.write'), async (req: Request, res: Response): Promise<void> => {
+  router.post('/', requirePermission('public.departments.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId, name, code, description, headName } = req.body ?? {};
 
     if (!corporateId?.trim()) {
@@ -92,13 +83,12 @@ export function createDepartmentRouter(): Router {
         res.status(409).json({ error: err.message });
         return;
       }
-      console.error('[POST /departments] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err; // Re-throw to be caught by asyncHandler
     }
-  });
+  }));
 
   // PUT /api/departments/:id — update department
-  router.put('/:id', requirePermission('public.departments.write'), async (req: Request, res: Response): Promise<void> => {
+  router.put('/:id', requirePermission('public.departments.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { name, code, description, headName, isActive } = req.body ?? {};
 
     if (name !== undefined && !name?.trim()) {
@@ -131,13 +121,12 @@ export function createDepartmentRouter(): Router {
         res.status(409).json({ error: err.message });
         return;
       }
-      console.error('[PUT /departments/:id] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err; // Re-throw to be caught by asyncHandler
     }
-  });
+  }));
 
   // DELETE /api/departments/:id — delete department
-  router.delete('/:id', requirePermission('public.departments.delete'), async (req, res) => {
+  router.delete('/:id', requirePermission('public.departments.delete'), asyncHandler(async (req, res) => {
     const deletedBy = req.user!.userId;
     try {
       const result = await deleteDepartment(
@@ -151,10 +140,9 @@ export function createDepartmentRouter(): Router {
         res.status(404).json({ error: err.message });
         return;
       }
-      console.error('[DELETE /departments/:id] Error:', err);
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
+      throw err; // Re-throw to be caught by asyncHandler
     }
-  });
+  }));
 
   return router;
 }

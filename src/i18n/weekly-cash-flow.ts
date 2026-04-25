@@ -84,6 +84,13 @@ export interface WeeklyCashFlowCopy {
     errorFetch: string;
     errorNetwork: string;
   };
+  validation: {
+    corporateRequired: string;
+    entityRequired: string;
+    periodInvalid: string;
+    weekRequired: string;
+    amountMin: string;
+  };
 }
 
 export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
@@ -170,6 +177,13 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
       errorFetch: 'Gagal memuat data arus kas',
       errorNetwork: 'Kesalahan jaringan',
     },
+    validation: {
+      corporateRequired: 'Perusahaan wajib dipilih',
+      entityRequired: 'Entitas (Proyek/Perusahaan) wajib dipilih',
+      periodInvalid: 'Periode tidak valid',
+      weekRequired: 'Minggu wajib dipilih',
+      amountMin: 'Nilai tidak boleh negatif',
+    },
   },
   en: {
     title: 'Weekly Cash Flow',
@@ -253,6 +267,13 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
       errorSave: 'Failed to save data',
       errorFetch: 'Failed to load cash flow data',
       errorNetwork: 'Network error',
+    },
+    validation: {
+      corporateRequired: 'Corporate is required',
+      entityRequired: 'Entity (Project/Corporate) is required',
+      periodInvalid: 'Invalid period',
+      weekRequired: 'Week is required',
+      amountMin: 'Value cannot be negative',
     },
   },
 };

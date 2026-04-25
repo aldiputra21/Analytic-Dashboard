@@ -66,6 +66,13 @@ export interface ProjectCopy {
     errorFetch: string;
     errorNetwork: string;
   };
+  validation: {
+    corporateRequired: string;
+    departmentRequired: string;
+    codeMin: string;
+    nameMin: string;
+    startDateRequired: string;
+  };
 }
 
 export const projectI18n: Record<Locale, ProjectCopy> = {
@@ -134,6 +141,13 @@ export const projectI18n: Record<Locale, ProjectCopy> = {
       errorFetch: 'Gagal memuat data proyek',
       errorNetwork: 'Kesalahan jaringan',
     },
+    validation: {
+      corporateRequired: 'Perusahaan wajib dipilih',
+      departmentRequired: 'Departemen wajib dipilih',
+      codeMin: 'Kode minimal 2 karakter',
+      nameMin: 'Nama minimal 3 karakter',
+      startDateRequired: 'Tanggal mulai wajib diisi',
+    },
   },
   en: {
     title: 'Project Management',
@@ -199,6 +213,13 @@ export const projectI18n: Record<Locale, ProjectCopy> = {
       errorDelete: 'Failed to delete project',
       errorFetch: 'Failed to load project data',
       errorNetwork: 'Network error',
+    },
+    validation: {
+      corporateRequired: 'Corporate is required',
+      departmentRequired: 'Department is required',
+      codeMin: 'Code must be at least 2 characters',
+      nameMin: 'Name must be at least 3 characters',
+      startDateRequired: 'Start date is required',
     },
   },
 };

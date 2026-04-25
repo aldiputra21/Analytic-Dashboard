@@ -4,13 +4,15 @@ import {
   ChevronLeft, ChevronRight, Wallet, X,
   RefreshCw, FilterX, Info, ChevronDown,
   FileText, Download, Paperclip, Calendar,
-  ArrowUpRight, ArrowDownRight, Upload
+  ArrowUpRight, ArrowDownRight, Upload,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -22,6 +24,7 @@ import {
   AlertDialogCancel
 } from '../../ui/alert-dialog';
 import { realizationI18n } from '../../../i18n/realization';
+import { commonsI18n } from '../../../i18n/commons';
 import { SearchableSelect } from '../shared/SearchableSelect';
 
 interface Attachment {
@@ -86,6 +89,7 @@ const Modal: React.FC<{
 export const RealizationManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const t = realizationI18n[language];
+  const common = commonsI18n[language];
 
   const canWrite = hasPermission('cfd.realizations.write');
   const canDelete = hasPermission('cfd.realizations.delete');
@@ -93,6 +97,8 @@ export const RealizationManager: React.FC = () => {
   const [data, setData] = useState<Realization[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+
+
 
   // Filters
   const [search, setSearch] = useState('');
@@ -138,6 +144,28 @@ export const RealizationManager: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
+  const realizationSchema = z.object({
+    entityType: z.enum(['department', 'project']),
+    departmentId: z.string().optional(),
+    projectId: z.string().optional(),
+    transactionDate: z.string().min(1, t.validation.transactionDateRequired),
+    category: z.enum(['cash-in', 'cash-out']),
+    amount: z.string().refine(v => {
+      const n = parseFloat(v);
+      return !isNaN(n) && n > 0;
+    }, { message: t.validation.amountMin }),
+    notes: z.string().optional(),
+  }).refine(data => {
+    if (data.entityType === 'department' && !data.departmentId) return false;
+    if (data.entityType === 'project' && !data.projectId) return false;
+    return true;
+  }, {
+    message: language === 'id' ? 'Departemen/Proyek wajib dipilih' : 'Department/Project is required',
+    path: ['departmentId'] // Use departmentId as base error path
+  });
+
   const fetchMasterData = useCallback(async () => {
     try {
       const [deptsRes, projsRes] = await Promise.all([
@@ -163,11 +191,13 @@ export const RealizationManager: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch master data', err);
+      toast.error(t.alerts.errorFetchMasterData || 'Gagal memuat data master');
     }
-  }, []);
+  }, [t.alerts.errorFetchMasterData]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const query = new URLSearchParams({
         page: page.toString(),
@@ -184,8 +214,9 @@ export const RealizationManager: React.FC = () => {
       const d = await res.json();
       setData(d.records || []);
       setTotalCount(d.totalCount || 0);
-    } catch {
-      toast.error(t.alerts.errorFetch);
+    } catch (err: any) {
+      setError(err.message || t.alerts.errorFetch);
+      toast.error(err.message || t.alerts.errorFetch);
     } finally {
       setLoading(false);
     }
@@ -254,16 +285,15 @@ export const RealizationManager: React.FC = () => {
     setIsModalOpen(true);
   };
 
+
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSaving) return;
 
-    if (!formData.departmentId) {
-      toast.error(t.alerts.errorRequired);
-      return;
-    }
-    if (formData.entityType === 'project' && !formData.projectId) {
-      toast.error(t.alerts.errorRequired);
+    const validation = realizationSchema.safeParse(formData);
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
       return;
     }
 
@@ -271,8 +301,8 @@ export const RealizationManager: React.FC = () => {
     try {
       const payload = {
         ...formData,
-        amount: parseFloat(formData.amount),
-        projectId: formData.entityType === 'project' ? formData.projectId : null
+        projectId: formData.entityType === 'project' ? formData.projectId : null,
+        departmentId: formData.entityType === 'department' ? formData.departmentId : null
       };
 
       const url = editingId ? `/api/cash-realizations/${editingId}` : '/api/cash-realizations';
@@ -436,7 +466,7 @@ export const RealizationManager: React.FC = () => {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
           />
         </div>
-        
+
         <div className="relative">
           <select
             value={filterEntityType}
@@ -525,6 +555,32 @@ export const RealizationManager: React.FC = () => {
                       <td className="px-6 py-4"><div className="h-8 bg-slate-100 rounded w-20 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={6}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchData()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <td colSpan={6}>
@@ -565,8 +621,8 @@ export const RealizationManager: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className={cn(
                           'inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider uppercase',
-                          item.category === 'cash-in' 
-                            ? 'bg-emerald-50 text-emerald-700' 
+                          item.category === 'cash-in'
+                            ? 'bg-emerald-50 text-emerald-700'
                             : 'bg-rose-50 text-rose-700'
                         )}>
                           {item.category === 'cash-in' ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
@@ -706,8 +762,8 @@ export const RealizationManager: React.FC = () => {
             onClose={() => !isSaving && setIsModalOpen(false)}
             title={
               modalMode === 'create' ? t.modal.createTitle
-              : modalMode === 'edit' ? t.modal.editTitle
-              : t.modal.viewTitle
+                : modalMode === 'edit' ? t.modal.editTitle
+                  : t.modal.viewTitle
             }
           >
             <form onSubmit={handleSave} className="space-y-6">

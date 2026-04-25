@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, Filter, Eye, Edit2, Trash2,
   ChevronLeft, ChevronRight, Scale, X, AlertCircle, CheckCircle,
@@ -24,9 +24,10 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
   AlertDialogCancel
-  // Note: the provided alert-dialog from shadcn/ui usually has these exports.
 } from '../../ui/alert-dialog';
 import { balanceSheetI18n } from '../../../i18n/balance-sheet';
+import { commonsI18n } from '../../../i18n/commons';
+import { z } from 'zod';
 
 // --- Types ---
 interface BalanceSheet {
@@ -56,12 +57,6 @@ interface BalanceSheet {
   notes?: string;
   createdAt: string;
   createdBy: string;
-}
-
-interface Corporate {
-  id: string;
-  name: string;
-  code: string;
 }
 
 // --- Components ---
@@ -143,7 +138,7 @@ const FormField: React.FC<{
           placeholder={placeholder}
           readOnly={readOnly}
           className={cn(
-            "w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30",
+            "w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30 font-bold",
             readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
           )}
         />
@@ -186,6 +181,42 @@ const SummaryCard: React.FC<{ label: string; value: number; color: 'indigo' | 'e
 export const BalanceSheetManager: React.FC = () => {
   const { user, hasPermission, language, hasFullCorporateAccess, subsidiaryIds } = useAuth();
   const t = balanceSheetI18n[language];
+  const common = commonsI18n[language];
+
+  // Validation Schema
+  const balanceSheetSchema = z.object({
+    corporateId: z.string().min(1, t.validation.corporateRequired),
+    period: z.string().regex(/^\d{4}-\d{2}$/, t.validation.periodInvalid),
+    cashAndBank: z.number().min(0, t.validation.amountMin),
+    accountsReceivable: z.number().min(0, t.validation.amountMin),
+    workInProgress: z.number().min(0, t.validation.amountMin),
+    inventory: z.number().min(0, t.validation.amountMin),
+    prepaidExpenses: z.number().min(0, t.validation.amountMin),
+    land: z.number().min(0, t.validation.amountMin),
+    building: z.number().min(0, t.validation.amountMin),
+    equipment: z.number().min(0, t.validation.amountMin),
+    otherFixedAssets: z.number().min(0, t.validation.amountMin),
+    accountsPayable: z.number().min(0, t.validation.amountMin),
+    bankLoanCurrent: z.number().min(0, t.validation.amountMin),
+    otherCurrentLiabilities: z.number().min(0, t.validation.amountMin),
+    bankLoanLongTerm: z.number().min(0, t.validation.amountMin),
+    otherLongTermLiabilities: z.number().min(0, t.validation.amountMin),
+    shareholderLoan: z.number().min(0, t.validation.amountMin),
+    capital: z.number().min(0, t.validation.amountMin),
+    earningsAfterTax: z.number().min(0, t.validation.amountMin),
+    retainedEarnings: z.number().min(0, t.validation.amountMin),
+    dividends: z.number().min(0, t.validation.amountMin),
+    notes: z.string().optional()
+  }).refine((data) => {
+    const totalAssets = (data.cashAndBank || 0) + (data.accountsReceivable || 0) + (data.workInProgress || 0) + (data.inventory || 0) + (data.prepaidExpenses || 0) + (data.land || 0) + (data.building || 0) + (data.equipment || 0) + (data.otherFixedAssets || 0);
+    const totalLiabilities = (data.accountsPayable || 0) + (data.bankLoanCurrent || 0) + (data.otherCurrentLiabilities || 0) + (data.bankLoanLongTerm || 0) + (data.otherLongTermLiabilities || 0) + (data.shareholderLoan || 0);
+    const totalEquity = (data.capital || 0) + (data.earningsAfterTax || 0) + (data.retainedEarnings || 0) - (data.dividends || 0);
+    const diff = Math.abs(totalAssets - (totalLiabilities + totalEquity));
+    return diff < 1; // Tolerance for floating point
+  }, {
+    message: t.validation.unbalancedError,
+    path: ['totalAssets']
+  });
 
   const canWrite = hasPermission('cfd.balance_sheets.write');
   const canDelete = hasPermission('cfd.balance_sheets.delete');
@@ -193,6 +224,7 @@ export const BalanceSheetManager: React.FC = () => {
   const [data, setData] = useState<BalanceSheet[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const { corporates } = useCorporates();
@@ -220,12 +252,9 @@ export const BalanceSheetManager: React.FC = () => {
   // Form State
   const [formData, setFormData] = useState<Partial<BalanceSheet>>({});
 
-  useEffect(() => {
-    fetchData();
-  }, [currentPage, pageSize, appliedFilters]);
-
   const fetchData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const queryParams = new URLSearchParams();
       if (appliedFilters.periodStart) queryParams.set('periodStart', appliedFilters.periodStart);
@@ -239,15 +268,21 @@ export const BalanceSheetManager: React.FC = () => {
         const d = await res.json();
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
-      } else if (res.status === 401) {
-        console.warn('Unauthorized access to balance sheets');
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || t.alerts.errorFetch);
       }
-    } catch (err) {
-      toast.error(t.alerts.errorFetch);
+    } catch (err: any) {
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, [currentPage, pageSize, appliedFilters]);
 
   const handleApplyFilter = () => {
     setAppliedFilters({
@@ -276,13 +311,13 @@ export const BalanceSheetManager: React.FC = () => {
       const res = await apiFetch(`/api/financial-statements/balance-sheet/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success(t.alerts.successDelete);
-        setData(prev => prev.filter(item => item.id !== id));
         fetchData();
       } else {
-        toast.error(t.alerts.errorDelete);
+        const errData = await res.json();
+        throw new Error(errData.error?.message || t.alerts.errorDelete);
       }
-    } catch {
-      toast.error(t.alerts.errorNetwork);
+    } catch (err: any) {
+      toast.error(err.message || t.alerts.errorNetwork);
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -333,12 +368,22 @@ export const BalanceSheetManager: React.FC = () => {
     e.preventDefault();
     if (isSaving) return;
 
+    // Declarative validation with Zod
+    const validation = balanceSheetSchema.safeParse(formData);
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const res = await apiFetch('/api/financial-statements/balance-sheet', {
-        method: 'POST',
+      const url = modalMode === 'edit' ? `/api/financial-statements/balance-sheet/${formData.id}` : '/api/financial-statements/balance-sheet';
+      const method = modalMode === 'edit' ? 'PUT' : 'POST';
+
+      const res = await apiFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(validation.data),
       });
 
       if (res.ok) {
@@ -347,11 +392,10 @@ export const BalanceSheetManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        toast.error(errData.error || t.alerts.errorSave);
+        throw new Error(errData.error?.message || t.alerts.errorSave);
       }
-    } catch (err) {
-      console.error('[BalanceSheetManager] Save Error:', err);
-      toast.error(t.alerts.errorNetwork);
+    } catch (err: any) {
+      toast.error(err.message || t.alerts.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -387,7 +431,7 @@ export const BalanceSheetManager: React.FC = () => {
             </div>
             {t.title}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
             <Info size={14} className="text-indigo-400" />
             {t.subtitle}
           </p>
@@ -415,7 +459,7 @@ export const BalanceSheetManager: React.FC = () => {
               <select
                 value={filterCorporate}
                 onChange={(e) => setFilterCorporate(e.target.value)}
-                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full"
+                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full font-bold"
               >
                 <option value="">{t.modal.selectCorporate}</option>
                 {corporates
@@ -494,6 +538,27 @@ export const BalanceSheetManager: React.FC = () => {
                       <td className="px-6 py-4 text-right"><div className="h-6 bg-slate-100 rounded-lg w-16 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <td colSpan={7}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchData()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr
                     key="empty"
@@ -709,7 +774,7 @@ export const BalanceSheetManager: React.FC = () => {
                       <Landmark size={12} /> {t.modal.corporate}
                     </label>
                     {modalMode === 'view' ? (
-                      <div className="w-full bg-slate-100 border-none rounded-xl px-4 py-2 text-sm font-medium text-slate-600">
+                      <div className="w-full bg-slate-100 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600">
                         {formData.corporateName || 'N/A'}
                       </div>
                     ) : (
@@ -718,7 +783,7 @@ export const BalanceSheetManager: React.FC = () => {
                           required
                           value={formData.corporateId}
                           onChange={(e) => setFormData(prev => ({ ...prev, corporateId: e.target.value }))}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
                         >
                           <option value="">{t.modal.selectCorporate}</option>
                           {corporates
@@ -798,13 +863,13 @@ export const BalanceSheetManager: React.FC = () => {
 
                     {/* Non-Current Liabilities */}
                     <div>
-                      <SectionHeader title={t.modal.longTermLiabilities} icon={<Landmark size={16} className="text-rose-500" />} color="border-rose-500" />
+                      <SectionHeader title={t.modal.longTermLiabilities} icon={<Landmark size={16} className="text-orange-500" />} color="border-orange-500" />
                       <div className="grid grid-cols-2 gap-4">
                         <FormField label={t.fields.bankLoanLongTerm} value={formData.bankLoanLongTerm || 0} onChange={(v) => setFormData(p => ({ ...p, bankLoanLongTerm: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                         <FormField label={t.fields.otherLongTermLiabilities} value={formData.otherLongTermLiabilities || 0} onChange={(v) => setFormData(p => ({ ...p, otherLongTermLiabilities: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                         <FormField label={t.fields.shareholderLoan} value={formData.shareholderLoan || 0} onChange={(v) => setFormData(p => ({ ...p, shareholderLoan: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                         <div className="col-span-2">
-                          <SummaryCard label={t.modal.totalLongTermLiabilities} value={totalNonCurrentLiabilities} color="rose" fullWidth />
+                          <SummaryCard label={t.modal.totalLongTermLiabilities} value={totalNonCurrentLiabilities} color="amber" fullWidth />
                         </div>
                       </div>
                     </div>
@@ -823,78 +888,97 @@ export const BalanceSheetManager: React.FC = () => {
                       </div>
                     </div>
                   </div>
-
                 </div>
 
-                {/* Grand Totals Side by Side */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                  <SummaryCard label={t.modal.totalAssets} value={totalAssets} color="indigo" />
-                  <SummaryCard label={t.modal.totalLiabEquity} value={totalLiabilitiesEquity} color="emerald" />
+                {/* Footer Totals */}
+                <div className="pt-8 border-t border-slate-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 shadow-inner">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t.modal.totalAssets}</span>
+                        <span className="text-2xl font-black text-slate-800">{formatRupiah(totalAssets, false)}</span>
+                      </div>
+                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <motion.div 
+                          className="h-full bg-indigo-500" 
+                          initial={{ width: 0 }}
+                          animate={{ width: '100%' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t.modal.totalLiabEquity}</span>
+                        <span className="text-2xl font-black text-slate-800">{formatRupiah(totalLiabilitiesEquity, false)}</span>
+                      </div>
+                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <motion.div 
+                          className={cn("h-full transition-all", isBalanced ? "bg-emerald-500" : "bg-rose-500")}
+                          initial={{ width: 0 }}
+                          animate={{ width: totalAssets > 0 ? `${(totalLiabilitiesEquity / totalAssets) * 100}%` : '0%' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Notes */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.notes}</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tight ml-1">{t.modal.notes}</label>
                   <textarea
                     value={formData.notes || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
                     readOnly={modalMode === 'view'}
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30 min-h-[100px]"
                     placeholder={t.modal.notesPlaceholder}
+                    rows={3}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all resize-none shadow-sm"
                   />
                 </div>
-
-                {/* Actions */}
-                {modalMode !== 'view' && (
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setIsModalOpen(false)}
-                      disabled={isSaving}
-                      className="px-8 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
-                    >
-                      {t.modal.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      {isSaving ? t.status.submitting : t.modal.submit}
-                    </button>
-                  </div>
-                )}
               </form>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-6 py-2.5 bg-white border border-slate-200 text-sm font-bold text-slate-600 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm"
+              >
+                {modalMode === 'view' ? t.modal.cancel : t.modal.cancel}
+              </button>
+              {modalMode !== 'view' && (
+                <button
+                  type="submit"
+                  form="balanceSheetForm"
+                  disabled={isSaving}
+                  className="px-8 py-2.5 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2 min-w-[140px] justify-center cursor-pointer disabled:opacity-50"
+                >
+                  {isSaving ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                  {isSaving ? t.status.submitting : t.modal.submit}
+                </button>
+              )}
             </div>
           </Modal>
         )}
       </AnimatePresence>
 
-      {/* Delete Confirmation Alert Dialog */}
-      <AlertDialog
-        open={!!deleteConfirmId}
-        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
-      >
-        <AlertDialogContent className="rounded-2xl">
+      {/* --- Delete Confirmation --- */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black text-slate-800">{t.alerts.deleteTitle}</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-500 font-medium pt-2">
+            <AlertDialogDescription className="text-slate-500 font-medium">
               {t.alerts.deleteDesc}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-6 gap-3">
-            <AlertDialogCancel
-              onClick={() => setDeleteConfirmId(null)}
-              className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-            >
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-slate-200 font-bold hover:bg-slate-50">
               {t.alerts.deleteCancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
-              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100"
+              disabled={isDeleting}
             >
-              {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {isDeleting ? <RefreshCw size={16} className="animate-spin mr-2" /> : <Trash2 size={16} className="mr-2" />}
               {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -903,4 +987,3 @@ export const BalanceSheetManager: React.FC = () => {
     </div>
   );
 };
-

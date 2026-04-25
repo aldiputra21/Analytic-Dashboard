@@ -8,6 +8,7 @@ import { eq, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { notificationConfigs, roles } from '../../db/schema/public';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -51,7 +52,7 @@ export function createNotificationConfigsRouter(): Router {
    * GET /api/notification-configs
    * List notification configs with optional module, eventType filter, and pagination.
    */
-  router.get('/', requirePermission('public.notification_configs.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.notification_configs.read'), asyncHandler(async (req: Request, res: Response) => {
     const module = req.query.module as string | undefined;
     const eventType = req.query.eventType as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -98,13 +99,13 @@ export function createNotificationConfigsRouter(): Router {
     ]);
 
     res.json({ records, totalCount: Number(totalCount) });
-  });
+  }));
 
   /**
    * POST /api/notification-configs
    * Create a new notification config. Owner-only.
    */
-  router.post('/', requirePermission('public.notification_configs.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('public.notification_configs.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = createNotificationConfigSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -142,13 +143,13 @@ export function createNotificationConfigsRouter(): Router {
       }
       throw err;
     }
-  });
+  }));
 
   /**
    * GET /api/notification-configs/:id
    * Get a single notification config by ID.
    */
-  router.get('/:id', requirePermission('public.notification_configs.read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('public.notification_configs.read'), asyncHandler(async (req: Request, res: Response) => {
     const [config] = await db
       .select()
       .from(notificationConfigs)
@@ -162,13 +163,13 @@ export function createNotificationConfigsRouter(): Router {
     }
 
     return res.json(config);
-  });
+  }));
 
   /**
    * PUT /api/notification-configs/:id
    * Update a notification config. Owner-only.
    */
-  router.put('/:id', requirePermission('public.notification_configs.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('public.notification_configs.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateNotificationConfigSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -215,13 +216,13 @@ export function createNotificationConfigsRouter(): Router {
       }
       throw err;
     }
-  });
+  }));
 
   /**
    * DELETE /api/notification-configs/:id
    * Delete a notification config. Owner-only.
    */
-  router.delete('/:id', requirePermission('public.notification_configs.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('public.notification_configs.delete'), asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(notificationConfigs)
@@ -237,7 +238,7 @@ export function createNotificationConfigsRouter(): Router {
     await db.delete(notificationConfigs).where(eq(notificationConfigs.id, req.params.id));
 
     return res.json({ success: true });
-  });
+  }));
 
   return router;
 }

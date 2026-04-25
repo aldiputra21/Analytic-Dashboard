@@ -20,7 +20,9 @@ import {
   AlertDialogCancel
 } from '../../ui/alert-dialog';
 import { departmentI18n } from '../../../i18n/department';
+import { commonsI18n } from '../../../i18n/commons';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
+import { z } from 'zod';
 
 interface Department {
   id: string;
@@ -112,7 +114,18 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: str
 export const DepartmentManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const t = departmentI18n[language];
+  const common = commonsI18n[language];
   const { corporates } = useCorporates(); // Active corporates for dropdown
+
+  // Validation Schema
+  const departmentSchema = z.object({
+    corporateId: z.string().min(1, t.validation.corporateRequired),
+    code: z.string().min(2, t.validation.codeMin),
+    name: z.string().min(3, t.validation.nameMin),
+    headName: z.string().optional(),
+    description: z.string().optional(),
+    isActive: z.boolean()
+  });
 
   const canWrite = hasPermission('public.departments.write');
   const canDelete = hasPermission('public.departments.delete');
@@ -171,19 +184,20 @@ export const DepartmentManager: React.FC = () => {
       const res = await apiFetch(`/api/departments?${query.toString()}`);
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || t.alerts.errorFetch);
+        throw new Error(errorData.error || common.errorLoadTable);
       }
 
       const data = await res.json();
       setDepartments(data.records);
       setTotalCount(data.totalCount);
     } catch (err: any) {
-      setError(err.message || t.alerts.errorFetch);
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [page, pageSize, appliedFilters, t.alerts.errorFetch]);
+  }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
   useEffect(() => {
     if (corporates.length > 0 && !appliedFilters.corporateId) {
@@ -250,8 +264,10 @@ export const DepartmentManager: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.corporateId || !formData.code || !formData.name) {
-      toast.error('Corporate, Code, and Name are required');
+    
+    const validation = departmentSchema.safeParse(formData);
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
       return;
     }
 
@@ -416,6 +432,32 @@ export const DepartmentManager: React.FC = () => {
                       <td className="px-6 py-4"><div className="h-8 bg-slate-100 rounded-lg w-24 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={6}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchDepartments()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : departments.length === 0 ? (
                   <motion.tr
                     key="empty"
@@ -612,7 +654,7 @@ export const DepartmentManager: React.FC = () => {
 
               <div className="space-y-6">
                 <SectionHeader
-                  title="Identitas & Detail Departemen"
+                  title={t.modal.sectionTitle}
                   icon={<Briefcase size={14} className="text-indigo-600" />}
                   color="border-indigo-200"
                 />
@@ -646,7 +688,7 @@ export const DepartmentManager: React.FC = () => {
                         value={formData.code}
                         onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                         disabled={!!editingDept || isViewOnly}
-                        placeholder="FIN"
+                        placeholder={t.modal.codePlaceholder}
                         className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 disabled:opacity-50"
                       />
                     </div>
@@ -660,7 +702,7 @@ export const DepartmentManager: React.FC = () => {
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Nama Departemen"
+                      placeholder={t.modal.namePlaceholder}
                       disabled={isViewOnly}
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                     />
@@ -675,7 +717,7 @@ export const DepartmentManager: React.FC = () => {
                         type="text"
                         value={formData.headName}
                         onChange={(e) => setFormData({ ...formData, headName: e.target.value })}
-                        placeholder="Nama Kepala Dept"
+                        placeholder={t.modal.headPlaceholder}
                         disabled={isViewOnly}
                         className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                       />
@@ -690,7 +732,7 @@ export const DepartmentManager: React.FC = () => {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={3}
-                      placeholder="Deskripsi singkat mengenai fungsi departemen ini..."
+                      placeholder={t.modal.descriptionPlaceholder}
                       disabled={isViewOnly}
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 resize-none"
                     />

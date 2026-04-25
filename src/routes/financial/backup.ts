@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   backupDatabase,
   restoreDatabase,
@@ -18,7 +19,7 @@ export function createBackupRouter(): Router {
    * Trigger a manual database backup (Owner only).
    * Requirements: 14.1, 14.3, 14.6
    */
-  router.post('/', requirePermission('cfd.config.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.config.write'), asyncHandler(async (req: Request, res: Response) => {
     const result = await backupDatabase();
     await logBackupOperation('backup', req.user!.userId, result);
 
@@ -39,7 +40,7 @@ export function createBackupRouter(): Router {
       backupPath: result.backupPath,
       timestamp: result.timestamp,
     });
-  });
+  }));
 
   /**
    * GET /api/frs/backup
@@ -56,7 +57,7 @@ export function createBackupRouter(): Router {
    * Restore database from a backup file (Owner only).
    * Requirements: 14.6, 14.8
    */
-  router.post('/restore', requirePermission('cfd.config.write'), async (req: Request, res: Response) => {
+  router.post('/restore', requirePermission('cfd.config.write'), asyncHandler(async (req: Request, res: Response) => {
     const { filename } = req.body;
 
     if (!filename) {
@@ -87,7 +88,7 @@ export function createBackupRouter(): Router {
     }
 
     res.json({ success: true, timestamp: result.timestamp });
-  });
+  }));
 
   return router;
 }

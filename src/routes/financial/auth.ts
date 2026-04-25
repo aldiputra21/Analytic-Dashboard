@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { authenticateUser, invalidateToken, getUserById, requestPasswordReset, resetPasswordWithToken } from '../../services/financial/authService';
 import { authenticate } from '../../middleware/auth';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 const forgotPasswordSchema = z.object({
   identifier: z.string().trim().min(1),
@@ -26,17 +27,19 @@ export function createFRSAuthRouter(): Router {
    * GET /api/frs/auth/config
    * Public configuration for the frontend
    */
-  router.get('/config', (_req: Request, res: Response) => {
+  router.get('/config', asyncHandler(async (_req: Request, res: Response) => {
     res.json({
-      keepAliveIntervalMs: Number(process.env.FRS_KEEP_ALIVE_INTERVAL_MS || 0),
+      // Default to 10 minutes if not configured. 
+      // This ensures keep-alive polling is active even if the .env is missing the key.
+      keepAliveIntervalMs: Number(process.env.FRS_KEEP_ALIVE_INTERVAL_MS || 600000),
     });
-  });
+  }));
 
   /**
    * POST /api/frs/auth/login
    * Authenticates user and returns JWT token.
    */
-  router.post('/login', async (req: Request, res: Response) => {
+  router.post('/login', asyncHandler(async (req: Request, res: Response) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -110,9 +113,9 @@ export function createFRSAuthRouter(): Router {
         error: { code: 'FRS_SERVER_ERROR', message: 'Internal server error', timestamp: new Date().toISOString(), requestId: '' },
       });
     }
-  });
+  }));
 
-  router.post('/forgot-password', async (req: Request, res: Response) => {
+  router.post('/forgot-password', asyncHandler(async (req: Request, res: Response) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -152,9 +155,9 @@ export function createFRSAuthRouter(): Router {
         message: 'If the account exists, a password reset link has been sent to the registered email address.',
       });
     }
-  });
+  }));
 
-  router.post('/reset-password', async (req: Request, res: Response) => {
+  router.post('/reset-password', asyncHandler(async (req: Request, res: Response) => {
     const parsed = resetPasswordSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -204,13 +207,13 @@ export function createFRSAuthRouter(): Router {
         error: { code: 'FRS_SERVER_ERROR', message: 'Internal server error', timestamp: new Date().toISOString(), requestId: '' },
       });
     }
-  });
+  }));
 
   /**
    * POST /api/frs/auth/logout
    * Invalidates the current JWT token.
    */
-  router.post('/logout', authenticate, async (req: Request, res: Response) => {
+  router.post('/logout', authenticate, asyncHandler(async (req: Request, res: Response) => {
     const token = req.headers.authorization?.slice(7) ?? '';
     invalidateToken(token);
 
@@ -223,13 +226,13 @@ export function createFRSAuthRouter(): Router {
     });
 
     res.json({ success: true, message: 'Logged out successfully' });
-  });
+  }));
 
   /**
    * GET /api/frs/auth/me
    * Returns the current authenticated user.
    */
-  router.get('/me', authenticate, async (req: Request, res: Response) => {
+  router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response) => {
     const user = await getUserById(req.user!.userId);
     if (!user) {
       res.status(404).json({
@@ -253,7 +256,7 @@ export function createFRSAuthRouter(): Router {
       roleName: user.roleName,
       roleDescription: user.roleDescription,
     });
-  });
+  }));
 
   return router;
 }

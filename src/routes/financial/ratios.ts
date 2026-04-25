@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import { mapRowToRatios } from '../../services/financial/ratioCalculator';
 import {
   getSubsidiaryRatioTrends,
@@ -60,7 +61,7 @@ export function createRatiosRouter(): Router {
    * Implements 5-minute in-memory cache.
    * Requirements: 12.2, 12.4
    */
-  router.get('/', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, departmentId, startDate, endDate, limit } = req.query as Record<string, string>;
 
     const cacheKey = `ratios:${corporateId ?? 'all'}:${departmentId ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}:${limit ?? ''}`;
@@ -120,13 +121,13 @@ export function createRatiosRouter(): Router {
     setCached(cacheKey, result);
     res.setHeader('X-Cache', 'MISS');
     res.json(result);
-  });
+  }));
 
   /**
    * GET /api/frs/ratios/latest
    * Get the most recent ratio for each active corporate.
    */
-  router.get('/latest', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/latest', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const cacheKey = `ratios:latest:${req.user!.userId}`;
     const cached = getCached<any[]>(cacheKey);
     if (cached) {
@@ -157,7 +158,7 @@ export function createRatiosRouter(): Router {
     setCached(cacheKey, result);
     res.setHeader('X-Cache', 'MISS');
     res.json(result);
-  });
+  }));
 
   /**
    * GET /api/frs/ratios/trends
@@ -165,7 +166,7 @@ export function createRatiosRouter(): Router {
    * Supports time period filtering: 3m, 6m, 1y, 3y, 5y
    * Requirements: 8.1, 8.2
    */
-  router.get('/trends', requirePermission('cfd.trends.read'), async (req: Request, res: Response) => {
+  router.get('/trends', requirePermission('cfd.trends.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, ratioName, period } = req.query as Record<string, string>;
 
     // Resolve date range from period shorthand
@@ -229,14 +230,14 @@ export function createRatiosRouter(): Router {
     }
 
     res.json(results);
-  });
+  }));
 
   /**
    * GET /api/frs/ratios/benchmark
    * Returns benchmarking data: rankings, portfolio averages, gaps.
    * Requirements: 6.1, 6.4, 6.5, 6.6, 6.7
    */
-  router.get('/benchmark', requirePermission('cfd.benchmarking.read'), async (req: Request, res: Response) => {
+  router.get('/benchmark', requirePermission('cfd.benchmarking.read'), asyncHandler(async (req: Request, res: Response) => {
     const cacheKey = `benchmark:all`;
     const cached = getCached<any>(cacheKey);
     if (cached) {
@@ -252,7 +253,7 @@ export function createRatiosRouter(): Router {
     setCached(cacheKey, result);
     res.setHeader('X-Cache', 'MISS');
     res.json(result);
-  });
+  }));
 
   return router;
 }

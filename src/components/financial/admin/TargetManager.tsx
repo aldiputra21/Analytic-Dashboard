@@ -21,8 +21,10 @@ import {
   AlertDialogCancel
 } from '../../ui/alert-dialog';
 import { targetI18n } from '../../../i18n/target';
+import { commonsI18n } from '../../../i18n/commons';
 import { formatRupiah } from '../../../utils/format';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { z } from 'zod';
 
 interface TargetSummary {
   department_id: string;
@@ -128,6 +130,26 @@ const FormField: React.FC<{
 export const TargetManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const t = targetI18n[language];
+  const common = commonsI18n[language];
+
+  // Validation Schema
+  const targetSchema = z.object({
+    departmentId: z.string().min(1, language === 'id' ? 'Departemen wajib dipilih' : 'Department is required'),
+    projectId: z.string().nullable(),
+    fiscalYear: z.number().min(2000).max(2100),
+    revenueDetails: z.array(z.object({
+      month: z.number().min(1).max(12),
+      amount: z.string().refine(v => !isNaN(parseFloat(v)), language === 'id' ? 'Nilai tidak valid' : 'Invalid value'),
+      notes: z.string().optional()
+    })),
+    costDetails: z.array(z.object({
+      month: z.number().min(1).max(12),
+      costCenter: z.string().min(1),
+      amount: z.string().refine(v => !isNaN(parseFloat(v)), language === 'id' ? 'Nilai tidak valid' : 'Invalid value'),
+      notes: z.string().optional()
+    })),
+    notes: z.string().optional()
+  });
 
   const canWrite = hasPermission('public.targets.write');
   const canDelete = hasPermission('public.targets.delete');
@@ -141,6 +163,7 @@ export const TargetManager: React.FC = () => {
   const [summaries, setSummaries] = useState<TargetSummary[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterDepartmentId, setFilterDepartmentId] = useState('');
   const [appliedFilters, setAppliedFilters] = useState({ search: '', departmentId: '' });
@@ -195,8 +218,9 @@ export const TargetManager: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch master data:', err);
+      toast.error(common.errorFetchMasterData);
     }
-  }, []);
+  }, [common.errorFetchMasterData]);
 
   const fetchSummaries = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -217,7 +241,8 @@ export const TargetManager: React.FC = () => {
       setSummaries(data.records);
       setTotalCount(data.totalCount);
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorFetch);
+      setError(err.message || common.errorLoadTable);
+      toast.error(err.message || common.errorLoadTable);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -274,6 +299,7 @@ export const TargetManager: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load details:', err);
+      toast.error(common.errorFetchMasterData);
     } finally {
       setIsSaving(false);
     }
@@ -318,8 +344,9 @@ export const TargetManager: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isViewOnly) return;
-    if (!formData.departmentId) {
-      setFormError('Department is required');
+    const validation = targetSchema.safeParse(formData);
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
       return;
     }
 
@@ -342,12 +369,8 @@ export const TargetManager: React.FC = () => {
       const res = await apiFetch('/api/targets/batch', {
         method: 'POST',
         body: JSON.stringify({
-          departmentId: formData.departmentId,
-          projectId: formData.relatedToProject ? formData.projectId : null,
-          fiscalYear: formData.fiscalYear,
-          revenueDetails: formData.revenueDetails,
-          costDetails: formData.costDetails,
-          notes: formData.notes
+          ...validation.data,
+          projectId: formData.relatedToProject ? validation.data.projectId : null
         })
       });
 
@@ -502,6 +525,32 @@ export const TargetManager: React.FC = () => {
                       <td className="px-6 py-4"><div className="h-8 bg-slate-100 rounded-lg w-24 ml-auto" /></td>
                     </motion.tr>
                   ))
+                ) : error ? (
+                  <motion.tr
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={6}>
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100">
+                          <AlertCircle size={48} />
+                        </div>
+                        <div>
+                          <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <button
+                            onClick={() => fetchSummaries()}
+                            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                          >
+                            <RefreshCw size={14} />
+                            {common.retry}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </motion.tr>
                 ) : summaries.length === 0 ? (
                   <motion.tr
                     key="empty"

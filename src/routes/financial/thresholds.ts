@@ -13,6 +13,7 @@ import { getSubsidiaryById } from '../../services/financial/subsidiaryService';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { reevaluateAlertsForSubsidiary } from '../../services/financial/alertEngine';
 import { RatioName } from '../../types/financial/ratio';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 const VALID_RATIO_NAMES: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
@@ -24,7 +25,7 @@ export function createThresholdsRouter(): Router {
    * Get threshold change history (Owner only).
    * Requirements: 15.5
    */
-  router.get('/history', requirePermission('cfd.thresholds.read'), async (req: Request, res: Response) => {
+  router.get('/history', requirePermission('cfd.thresholds.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, limit, offset } = req.query;
 
     if (!corporateId) {
@@ -41,14 +42,14 @@ export function createThresholdsRouter(): Router {
     );
 
     res.json(history);
-  });
+  }));
 
   /**
    * GET /api/frs/thresholds/:corporateId
    * Get thresholds for a corporate.
    * Requirements: 15.1
    */
-  router.get('/:corporateId', requirePermission('cfd.thresholds.read'), requireSubsidiaryAccess(), async (req: Request, res: Response) => {
+  router.get('/:corporateId', requirePermission('cfd.thresholds.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId } = req.params;
 
     const subsidiary = await getSubsidiaryById(corporateId);
@@ -61,14 +62,14 @@ export function createThresholdsRouter(): Router {
 
     const thresholds = await getThresholds(corporateId);
     res.json(thresholds);
-  });
+  }));
 
   /**
    * PUT /api/frs/thresholds/:corporateId
    * Update custom thresholds for a corporate (Owner only).
    * Requirements: 15.1, 15.3, 15.5
    */
-  router.put('/:corporateId', requirePermission('cfd.thresholds.write'), async (req: Request, res: Response) => {
+  router.put('/:corporateId', requirePermission('cfd.thresholds.write'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId } = req.params;
     const { thresholds } = req.body;
 
@@ -130,14 +131,14 @@ export function createThresholdsRouter(): Router {
 
     const updated = await getThresholds(corporateId);
     res.json(updated);
-  });
+  }));
 
   /**
    * POST /api/frs/thresholds/:corporateId/reset
    * Reset thresholds to industry defaults (Owner only).
    * Requirements: 15.6
    */
-  router.post('/:corporateId/reset', requirePermission('cfd.thresholds.configure'), async (req: Request, res: Response) => {
+  router.post('/:corporateId/reset', requirePermission('cfd.thresholds.configure'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId } = req.params;
 
     const subsidiary = await getSubsidiaryById(corporateId);
@@ -164,7 +165,7 @@ export function createThresholdsRouter(): Router {
 
     const updatedThresholds = await getThresholds(corporateId);
     res.json({ message: 'Thresholds reset to industry defaults', thresholds: updatedThresholds });
-  });
+  }));
 
   return router;
 }

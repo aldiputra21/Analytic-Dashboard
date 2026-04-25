@@ -8,6 +8,7 @@ import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { currencies } from '../../db/schema/public';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -49,7 +50,7 @@ export function createCurrenciesRouter(): Router {
    * GET /api/currencies
    * List currencies with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('public.currencies.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.currencies.read'), asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -88,13 +89,13 @@ export function createCurrenciesRouter(): Router {
     ]);
 
     res.json({ records, totalCount: Number(totalCount) });
-  });
+  }));
 
   /**
    * POST /api/currencies
    * Create a new currency.
    */
-  router.post('/', requirePermission('public.currencies.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('public.currencies.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = createCurrencySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -131,13 +132,13 @@ export function createCurrenciesRouter(): Router {
       }
       throw err;
     }
-  });
+  }));
 
   /**
    * GET /api/currencies/:id
    * Get a single currency by ID.
    */
-  router.get('/:id', requirePermission('public.currencies.read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('public.currencies.read'), asyncHandler(async (req: Request, res: Response) => {
     const [currency] = await db
       .select()
       .from(currencies)
@@ -151,13 +152,13 @@ export function createCurrenciesRouter(): Router {
     }
 
     return res.json(currency);
-  });
+  }));
 
   /**
    * PUT /api/currencies/:id
    * Update a currency.
    */
-  router.put('/:id', requirePermission('public.currencies.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('public.currencies.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateCurrencySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -204,13 +205,13 @@ export function createCurrenciesRouter(): Router {
       }
       throw err;
     }
-  });
+  }));
 
   /**
    * DELETE /api/currencies/:id
    * Delete a currency.
    */
-  router.delete('/:id', requirePermission('public.currencies.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('public.currencies.delete'), asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(currencies)
@@ -226,7 +227,7 @@ export function createCurrenciesRouter(): Router {
     await db.delete(currencies).where(eq(currencies.id, req.params.id));
 
     return res.json({ success: true });
-  });
+  }));
 
   return router;
 }

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
 import { logCreate, logUpdate, logTransition } from '../../helpers/crmAuditLog';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   CreateOpportunityInput,
   TransitionStageInput,
@@ -36,7 +37,7 @@ export function createOpportunityRouter(): Router {
   router.post(
     '/',
     requirePermission('crm.opportunities.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const body = req.body as CreateOpportunityInput;
 
@@ -108,14 +109,14 @@ export function createOpportunityRouter(): Router {
 
       const stale = await isOpportunityStale(created.id);
       res.status(201).json(mapOpportunity(opp, stale));
-    }
+    })
   );
 
   // GET /api/crm/opportunities - List opportunities
   router.get(
     '/',
     requirePermission('crm.opportunities.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { stage, status, assignedTo, search } = req.query;
       const userId = req.user!.userId;
       const role = req.user!.role;
@@ -153,14 +154,14 @@ export function createOpportunityRouter(): Router {
       res.json(
         rows.map((r) => mapOpportunity(r, isStaleFromLastActivity(r.last_activity as string | null)))
       );
-    }
+    })
   );
 
   // GET /api/crm/opportunities/:id - Get opportunity detail
   router.get(
     '/:id',
     requirePermission('crm.opportunities.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const [opp] = (await db.execute(sql`
         SELECT o.*, c.company_name,
           (SELECT MAX(i.interaction_date)
@@ -197,14 +198,14 @@ export function createOpportunityRouter(): Router {
         valueHistory: valueHistory.map(mapValueHistory),
         stageTransitions: transitions.map(mapTransition),
       });
-    }
+    })
   );
 
   // PUT /api/crm/opportunities/:id - Update opportunity
   router.put(
     '/:id',
     requirePermission('crm.opportunities.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const [opp] = await db
         .select()
@@ -258,14 +259,14 @@ export function createOpportunityRouter(): Router {
 
       const stale = await isOpportunityStale(req.params.id);
       res.json(mapOpportunity(updated, stale));
-    }
+    })
   );
 
   // POST /api/crm/opportunities/:id/transition - Transition stage
   router.post(
     '/:id/transition',
     requirePermission('crm.opportunities.write'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const body = req.body as TransitionStageInput;
 
@@ -343,7 +344,7 @@ export function createOpportunityRouter(): Router {
 
       const stale = await isOpportunityStale(req.params.id);
       res.json(mapOpportunity(updated, stale));
-    }
+    })
   );
 
   return router;
@@ -360,7 +361,7 @@ export function createPipelineRouter(): Router {
   router.get(
     '/kanban',
     requirePermission('crm.pipeline.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const role = req.user!.role;
       const { assignedTo, corporateId } = req.query;
@@ -377,14 +378,14 @@ export function createPipelineRouter(): Router {
 
       const columns = await buildKanbanData(filters);
       res.json(columns);
-    }
+    })
   );
 
   // GET /api/crm/pipeline/funnel - Funnel chart data
   router.get(
     '/funnel',
     requirePermission('crm.pipeline.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const role = req.user!.role;
       const { assignedTo, corporateId } = req.query;
@@ -401,14 +402,14 @@ export function createPipelineRouter(): Router {
 
       const funnel = await buildFunnelData(filters);
       res.json(funnel);
-    }
+    })
   );
 
   // GET /api/crm/pipeline/forecast - Sales forecast (Req 2.8)
   router.get(
     '/forecast',
     requirePermission('crm.pipeline.read'),
-    async (req: Request, res: Response): Promise<void> => {
+    asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = req.user!.userId;
       const role = req.user!.role;
       const { assignedTo, corporateId, period } = req.query;
@@ -426,7 +427,7 @@ export function createPipelineRouter(): Router {
 
       const forecast = await calculateWeightedForecast(filters);
       res.json(forecast);
-    }
+    })
   );
 
   return router;

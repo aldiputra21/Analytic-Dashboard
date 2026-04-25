@@ -87,6 +87,13 @@ export interface RealizationCopy {
     errorUpload: string;
     successDeleteAttachment: string;
     errorDeleteAttachment: string;
+    errorFetchMasterData: string;
+  };
+  validation: {
+    departmentRequired: string;
+    projectRequired: string;
+    transactionDateRequired: string;
+    amountMin: string;
   };
 }
 
@@ -177,6 +184,13 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       errorUpload: 'Gagal mengunggah lampiran',
       successDeleteAttachment: 'Lampiran berhasil dihapus',
       errorDeleteAttachment: 'Gagal menghapus lampiran',
+      errorFetchMasterData: 'Gagal memuat data master (Departemen/Proyek)',
+    },
+    validation: {
+      departmentRequired: 'Departemen wajib dipilih',
+      projectRequired: 'Proyek wajib dipilih',
+      transactionDateRequired: 'Tanggal transaksi wajib diisi',
+      amountMin: 'Jumlah harus lebih besar dari 0',
     },
   },
   en: {
@@ -265,6 +279,13 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       errorUpload: 'Failed to upload attachment',
       successDeleteAttachment: 'Attachment deleted successfully',
       errorDeleteAttachment: 'Failed to delete attachment',
+      errorFetchMasterData: 'Failed to load master data (Department/Project)',
+    },
+    validation: {
+      departmentRequired: 'Department is required',
+      projectRequired: 'Project is required',
+      transactionDateRequired: 'Transaction date is required',
+      amountMin: 'Amount must be greater than 0',
     },
   },
 };

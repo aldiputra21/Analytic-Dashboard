@@ -315,7 +315,7 @@ Implementasi dilakukan secara sequential: database schema → migration → back
       - **Property 5: Dashboard aggregation correctness**
       - **Validates: Requirements 3.1**
 
-- [~] 32. Integration Tests
+- [ ] 32. Integration Tests
   - Buat `src/services/financial/__tests__/fileUpload.integration.test.ts`
     - [ ]* 32.1 Test upload file end-to-end: upload → verifikasi file ada di disk → download → verifikasi konten
     - [ ]* 32.2 Test upload file dengan ekstensi tidak diizinkan → verifikasi 422
@@ -325,7 +325,7 @@ Implementasi dilakukan secara sequential: database schema → migration → back
   - Buat `src/services/financial/__tests__/masterMigration.integration.test.ts`
     - [ ]* 32.5 Seed `system_configs` → jalankan migration script → verifikasi data di tabel baru → verifikasi `code` unik
 
-- [~] 33. Final Checkpoint — Pastikan semua tests pass
+- [ ] 33. Final Checkpoint — Pastikan semua tests pass
   - Jalankan `npx tsc --noEmit` untuk memastikan tidak ada TypeScript error.
   - Pastikan semua tests pass, tanyakan kepada user jika ada pertanyaan.
 

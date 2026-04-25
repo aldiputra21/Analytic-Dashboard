@@ -61,6 +61,7 @@ Untuk menjaga konsistensi antarmuka, gunakan referensi berikut sebagai standar:
 
 ### 3.2 Form & Input
 - **Dropdown/Selector**: Wajib menggunakan komponen `SearchableSelect` untuk semua input yang memiliki opsi banyak (Corporate, Project, Department).
+- **Reusable Hooks**: Sebelum membuat dropdown baru, pastikan untuk memeriksa apakah sudah ada custom hook yang bisa digunakan (reusable). Jika belum ada, buatlah hook baru yang dapat digunakan kembali di komponen lain.
 - **Styling**: Gunakan Tailwind CSS 4 dengan pendekatan premium (glassmorphism, subtle borders, modern typography).
 
 ---
@@ -115,6 +116,26 @@ updatedAt: timestamp('updated_at', { withTimezone: true }).$onUpdate(() => new D
 - **No Paging**: Endpoint yang digunakan untuk memuat data dropdown/selector **tidak boleh** menggunakan pagination.
 - **Active Data Only**: Tampilkan seluruh data yang memiliki status aktif secara otomatis.
 - **No Status Parameter**: Frontend tidak perlu mengirimkan parameter `status` untuk menyaring data aktif; backend harus menanganinya secara internal.
+
+---
+
+### 5.7 Error Handling & Resilience
+
+#### 1. Frontend Loading & Errors
+- **Skeletons**: Gunakan `PageSkeleton` (untuk halaman) atau `Skeleton` (untuk komponen kecil) saat data sedang di-fetch.
+- **Table/Dropdown Load Failures**: Jika data gagal dimuat, tampilkan UI "Gagal Memuat" di dalam area komponen tersebut. 
+  - Wajib menyertakan **Tombol Retry** (untuk memicu fetch ulang) dan pesan error yang deskriptif.
+  - Gunakan `commonsI18n` untuk pesan error standar (e.g., `errorLoadTable`).
+- **Network Awareness**: Gunakan hook `useNetworkResilience` untuk memantau status koneksi. Tampilkan *persistent toast* saat user sedang offline.
+
+#### 2. Form Validation (Zod)
+- **Declarative Validation**: Semua form wajib divalidasi menggunakan `zod` schema sebelum dikirim ke backend.
+- **Localized Messages**: Pesan error di dalam Zod schema **tidak boleh hardcoded**. Ambil dari file i18n (e.g., `t.validation.nameMin`).
+- **Error Feedback**: Gunakan `safeParse` dan tampilkan pesan kesalahan menggunakan `toast.error()`.
+
+#### 3. Backend Error Handling
+- **Consistent Response**: Pastikan API mengembalikan status code yang sesuai (400 untuk validasi, 401 untuk auth, 403 untuk permission, 500 untuk server error).
+- **Global Error Handler**: Manfaatkan middleware error handler global untuk menangkap exception dan mengembalikan format JSON yang konsisten.
 
 ---
 

@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getDeptRevenueTarget,
   getRevenueCostSummary,
@@ -21,7 +22,7 @@ export function createMafindaDashboardRouter(): Router {
    * Requirements: 1.6
    * Query params: period (required, format YYYY-MM), corporateId (optional for owner role)
    */
-  router.get('/dept-revenue-target', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/dept-revenue-target', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
 
     if (!period) {
@@ -35,13 +36,9 @@ export function createMafindaDashboardRouter(): Router {
       return;
     }
 
-    try {
-      const data = await getDeptRevenueTarget(period, corporateId);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const data = await getDeptRevenueTarget(period, corporateId);
+    res.json(data);
+  }));
 
   /**
    * GET /api/dashboard/revenue-cost-summary
@@ -49,7 +46,7 @@ export function createMafindaDashboardRouter(): Router {
    * Requirements: 2.5
    * Query params: period (required), departmentId (optional)
    */
-  router.get('/revenue-cost-summary', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/revenue-cost-summary', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
 
     if (!period) {
@@ -57,13 +54,9 @@ export function createMafindaDashboardRouter(): Router {
       return;
     }
 
-    try {
-      const data = await getRevenueCostSummary(period, corporateId);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const data = await getRevenueCostSummary(period, corporateId);
+    res.json(data);
+  }));
 
   /**
    * GET /api/dashboard/cash-flow
@@ -71,7 +64,7 @@ export function createMafindaDashboardRouter(): Router {
    * Requirements: 3.5
    * Query params: period (required), months (optional), departmentId (optional), entityType (optional), entityId (optional)
    */
-  router.get('/cash-flow', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/cash-flow', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { period, months, corporateId, entityType, entityId } = req.query as Record<string, string>;
 
     if (!period) {
@@ -85,13 +78,9 @@ export function createMafindaDashboardRouter(): Router {
       return;
     }
 
-    try {
-      const data = await getCashFlowData(period, monthsNum, corporateId, entityType, entityId);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const data = await getCashFlowData(period, monthsNum, corporateId, entityType, entityId);
+    res.json(data);
+  }));
 
   /**
    * GET /api/dashboard/asset-composition
@@ -99,7 +88,7 @@ export function createMafindaDashboardRouter(): Router {
    * Requirements: 4.5
    * Query params: period (required, format YYYY-MM), departmentId (optional)
    */
-  router.get('/asset-composition', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/asset-composition', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
 
     if (!period) {
@@ -107,13 +96,9 @@ export function createMafindaDashboardRouter(): Router {
       return;
     }
 
-    try {
-      const data = await getAssetComposition(period, corporateId);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const data = await getAssetComposition(period, corporateId);
+    res.json(data);
+  }));
 
   /**
    * GET /api/dashboard/equity-liability-composition
@@ -121,7 +106,7 @@ export function createMafindaDashboardRouter(): Router {
    * Requirements: 5.5
    * Query params: period (required, format YYYY-MM), departmentId (optional)
    */
-  router.get('/equity-liability-composition', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/equity-liability-composition', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
 
     if (!period) {
@@ -129,13 +114,9 @@ export function createMafindaDashboardRouter(): Router {
       return;
     }
 
-    try {
-      const data = await getEquityLiabilityComposition(period, corporateId);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const data = await getEquityLiabilityComposition(period, corporateId);
+    res.json(data);
+  }));
 
   /**
    * GET /api/dashboard/historical-data
@@ -143,7 +124,7 @@ export function createMafindaDashboardRouter(): Router {
    * Requirements: 6.5
    * Query params: months (required: 3|6|12|24)
    */
-  router.get('/historical-data', requirePermission('cfd.dashboard.read'), async (req: Request, res: Response) => {
+  router.get('/historical-data', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { months, corporateId } = req.query as Record<string, string>;
 
     if (!months) {
@@ -157,13 +138,9 @@ export function createMafindaDashboardRouter(): Router {
       return;
     }
 
-    try {
-      const data = await getHistoricalData(monthsNum, corporateId);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Terjadi kesalahan server' });
-    }
-  });
+    const data = await getHistoricalData(monthsNum, corporateId);
+    res.json(data);
+  }));
 
   return router;
 }

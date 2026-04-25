@@ -111,6 +111,14 @@ export interface BankLoanCopy {
     errorNetwork: string;
     errorMarkPaid: string;
   };
+  validation: {
+    bankRequired: string;
+    corporateRequired: string;
+    amountMin: string;
+    startDateRequired: string;
+    tenorMin: string;
+    interestRateInvalid: string;
+  };
 }
 
 export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
@@ -224,6 +232,14 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       errorNetwork: 'Kesalahan jaringan',
       errorMarkPaid: 'Gagal menandai cicilan sebagai lunas',
     },
+    validation: {
+      bankRequired: 'Bank wajib dipilih',
+      corporateRequired: 'Perusahaan wajib dipilih',
+      amountMin: 'Jumlah harus lebih besar dari 0',
+      startDateRequired: 'Tanggal mulai wajib diisi',
+      tenorMin: 'Tenor minimal 1 bulan',
+      interestRateInvalid: 'Suku bunga tidak valid',
+    },
   },
   en: {
     title: 'Bank Loan Management',
@@ -334,6 +350,14 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       errorFetch: 'Failed to load loan data',
       errorNetwork: 'Network error',
       errorMarkPaid: 'Failed to mark installment as paid',
+    },
+    validation: {
+      bankRequired: 'Bank is required',
+      corporateRequired: 'Corporate is required',
+      amountMin: 'Amount must be greater than 0',
+      startDateRequired: 'Start date is required',
+      tenorMin: 'Tenor must be at least 1 month',
+      interestRateInvalid: 'Invalid interest rate',
     },
   },
 };

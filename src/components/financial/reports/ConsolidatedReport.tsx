@@ -2,10 +2,15 @@
 // Requirements: 7.6
 
 import React, { useState } from 'react';
-import { FileText, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
+import { FileText, ChevronDown, ChevronRight, TrendingUp, TrendingDown, AlertCircle, RefreshCw, Layers, Calendar, ChevronDown as ChevronDownIcon, Search, Info } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../../utils/cn';
 import { PeriodType } from '../../../types/financial/financialData';
 import { ConsolidatedReport as ConsolidatedReportData } from '../../../services/financial/reportGenerator';
+import { apiFetch } from '../../../services/financial/apiFetch';
+import { useAuth } from '../../../hooks/financial/useAuth';
+import { commonsI18n } from '../../../i18n/commons';
+import { formatRupiah } from '../../../utils/format';
 
 const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
@@ -20,22 +25,34 @@ function formatCurrency(value: number): string {
   return value.toFixed(0);
 }
 
-function MetricCard({ label, value, unit = '' }: { label: string; value: number; unit?: string }) {
+function MetricCard({ label, value, unit = '', color = 'slate' }: { label: string; value: number; unit?: string; color?: 'slate' | 'indigo' | 'emerald' | 'amber' | 'rose' }) {
+  const variants = {
+    slate: 'bg-slate-50 border-slate-100 text-slate-900',
+    indigo: 'bg-indigo-50 border-indigo-100 text-indigo-700',
+    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-700',
+    amber: 'bg-amber-50 border-amber-100 text-amber-700',
+    rose: 'bg-rose-50 border-rose-100 text-rose-700',
+  };
+
   return (
-    <div className="bg-slate-50 rounded-lg p-3">
-      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-bold text-slate-900 mt-0.5">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cn("rounded-2xl p-4 border shadow-sm transition-all hover:shadow-md", variants[color])}
+    >
+      <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">{label}</p>
+      <p className="text-xl font-black">
         {formatCurrency(value)}{unit}
       </p>
-    </div>
+    </motion.div>
   );
 }
 
 function RatioRow({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-      <span className="text-xs text-slate-600">{label}</span>
-      <span className="text-xs font-semibold text-slate-800">
+    <div className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 px-2 rounded-lg transition-colors group">
+      <span className="text-xs font-bold text-slate-500 group-hover:text-slate-800 transition-colors">{label}</span>
+      <span className="text-sm font-black text-slate-800">
         {value !== null ? value.toFixed(2) : 'N/A'}
       </span>
     </div>
@@ -47,6 +64,9 @@ interface ConsolidatedReportProps {
 }
 
 export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ className }) => {
+  const { language } = useAuth();
+  const common = commonsI18n[language];
+
   const [periodType, setPeriodType] = useState<PeriodType>('annual');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -60,221 +80,317 @@ export const ConsolidatedReport: React.FC<ConsolidatedReportProps> = ({ classNam
     setIsLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('frs_token');
       const params = new URLSearchParams({ periodType, startDate, endDate });
-      const res = await fetch(`/api/frs/reports/consolidated?${params}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error('Failed to fetch consolidated report');
+      const res = await apiFetch(`/api/frs/reports/consolidated?${params}`);
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || 'Failed to fetch consolidated report');
+      }
+      
       const data: ConsolidatedReportData = await res.json();
       setReport(data);
     } catch (err: any) {
-      setError(err.message ?? 'Unknown error');
+      setError(err.message ?? common.errorLoadTable);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className={cn('bg-white rounded-xl border border-slate-200 shadow-sm', className)}>
+    <div className={cn('bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden', className)}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
-        <FileText className="w-4 h-4 text-indigo-600" />
-        <h3 className="text-sm font-semibold text-slate-900">Consolidated Report</h3>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50 bg-slate-50/30">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl shadow-sm">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Consolidated Report</h3>
+            <p className="text-[10px] font-bold text-slate-400 mt-0.5 tracking-tighter">Aggregated performance across all subsidiaries</p>
+          </div>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">Period Type</label>
-          <select
-            value={periodType}
-            onChange={(e) => setPeriodType(e.target.value as PeriodType)}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {PERIOD_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+      {/* Filters Bar */}
+      <div className="px-6 py-5 border-b border-slate-50 flex flex-wrap gap-5 bg-white items-end">
+        <div className="space-y-1.5 flex-1 min-w-[140px]">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+            <Calendar size={12} /> Period Type
+          </label>
+          <div className="relative">
+            <select
+              value={periodType}
+              onChange={(e) => setPeriodType(e.target.value as PeriodType)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 pr-10 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all appearance-none cursor-pointer shadow-sm"
+            >
+              {PERIOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <ChevronDownIcon className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+          </div>
         </div>
-        <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">Start Date</label>
+
+        <div className="space-y-1.5 flex-1 min-w-[180px]">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
           />
         </div>
-        <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">End Date</label>
+
+        <div className="space-y-1.5 flex-1 min-w-[180px]">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
           />
         </div>
+
         <button
           onClick={fetchReport}
           disabled={!startDate || !endDate || isLoading}
-          className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-6 py-2.5 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2 cursor-pointer h-[38px]"
         >
-          {isLoading ? 'Generating...' : 'Generate'}
+          {isLoading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+          {isLoading ? 'Generating...' : 'Generate Report'}
         </button>
       </div>
 
-      {/* Content */}
-      <div className="p-5">
-        {error && (
-          <p className="text-sm text-red-500 mb-4">{error}</p>
-        )}
-
-        {!report && !isLoading && (
-          <p className="text-sm text-slate-400 text-center py-8">
-            Select a period and click Generate to view the consolidated report.
-          </p>
-        )}
-
-        {isLoading && (
-          <div className="py-8 space-y-3">
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span>Generating consolidated report...</span>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-indigo-600 h-2 rounded-full animate-pulse w-3/4" />
-            </div>
-            <p className="text-xs text-slate-400 text-center">Aggregating data from all subsidiaries</p>
-          </div>
-        )}
-
-        {report && (
-          <div className="space-y-5">
-            {/* Summary metrics */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                Group Totals — {report.subsidiaryCount} Subsidiaries
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <MetricCard label="Revenue" value={report.consolidated.revenue} />
-                <MetricCard label="Net Profit" value={report.consolidated.netProfit} />
-                <MetricCard label="Total Assets" value={report.consolidated.totalAssets} />
-                <MetricCard label="Total Equity" value={report.consolidated.totalEquity} />
-                <MetricCard label="Total Liabilities" value={report.consolidated.totalLiabilities} />
+      {/* Content Area */}
+      <div className="p-6 relative min-h-[400px]">
+        <AnimatePresence mode="wait">
+          {error ? (
+            <motion.div 
+              key="error"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="py-20 flex flex-col items-center justify-center text-center"
+            >
+              <div className="p-4 bg-red-50 rounded-full text-red-400 border border-red-100 mb-4">
+                <AlertCircle size={48} />
               </div>
-            </div>
-
-            {/* Consolidated ratios */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                Consolidated Ratios
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-                <div>
-                  <RatioRow label="ROA (%)" value={report.consolidatedRatios.roa} />
-                  <RatioRow label="ROE (%)" value={report.consolidatedRatios.roe} />
-                  <RatioRow label="NPM (%)" value={report.consolidatedRatios.npm} />
-                  <RatioRow label="DER" value={report.consolidatedRatios.der} />
-                  <RatioRow label="Health Score" value={report.consolidatedRatios.healthScore} />
-                </div>
-                <div>
-                  <RatioRow label="Current Ratio" value={report.consolidatedRatios.currentRatio} />
-                  <RatioRow label="Quick Ratio" value={report.consolidatedRatios.quickRatio} />
-                  <RatioRow label="Cash Ratio" value={report.consolidatedRatios.cashRatio} />
-                  <RatioRow label="OCF Ratio" value={report.consolidatedRatios.ocfRatio} />
-                  <RatioRow label="DSCR" value={report.consolidatedRatios.dscr} />
+              <h4 className="text-slate-800 font-black text-lg">Generation Failed</h4>
+              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+              <button
+                onClick={fetchReport}
+                className="mt-8 px-8 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+              >
+                <RefreshCw size={14} />
+                Try Again
+              </button>
+            </motion.div>
+          ) : isLoading ? (
+            <motion.div 
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="py-20 flex flex-col items-center justify-center text-center"
+            >
+              <div className="relative w-24 h-24 mb-6">
+                <motion.div 
+                  className="absolute inset-0 border-4 border-indigo-100 rounded-full"
+                  animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+                <motion.div 
+                  className="absolute inset-2 border-4 border-t-indigo-600 border-r-transparent border-b-transparent border-l-transparent rounded-full"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center text-indigo-600">
+                  <FileText size={32} />
                 </div>
               </div>
-            </div>
+              <h4 className="text-slate-800 font-black text-lg">Consolidating Data</h4>
+              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">Aggregating financial metrics from all corporate subsidiaries...</p>
+            </motion.div>
+          ) : !report ? (
+            <motion.div 
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="py-20 flex flex-col items-center justify-center text-center"
+            >
+              <div className="p-5 bg-slate-50 rounded-3xl text-slate-300 border border-slate-100 mb-4">
+                <FileText size={64} />
+              </div>
+              <h4 className="text-slate-800 font-black text-lg">No Report Generated</h4>
+              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto font-bold">Select a date range and click generate to build the consolidated group statement.</p>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="data"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-10"
+            >
+              {/* Summary metrics */}
+              <section>
+                <div className="flex items-center gap-2 mb-4 ml-1">
+                  <Info size={14} className="text-indigo-400" />
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Group Totals — {report.subsidiaryCount} Subsidiaries
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <MetricCard label="Revenue" value={report.consolidated.revenue} color="indigo" />
+                  <MetricCard label="Net Profit" value={report.consolidated.netProfit} color={report.consolidated.netProfit >= 0 ? 'emerald' : 'rose'} />
+                  <MetricCard label="Total Assets" value={report.consolidated.totalAssets} color="slate" />
+                  <MetricCard label="Total Equity" value={report.consolidated.totalEquity} color="slate" />
+                  <MetricCard label="Total Liabilities" value={report.consolidated.totalLiabilities} color="rose" />
+                </div>
+              </section>
 
-            {/* Subsidiary contributions with drill-down (Req 7.6) */}
-            {report.contributions.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                  Subsidiary Contributions
-                </p>
-                <div className="space-y-2">
-                  {report.contributions.map((contrib) => (
-                    <div key={contrib.subsidiaryId} className="border border-slate-100 rounded-lg overflow-hidden">
-                      <button
-                        onClick={() => setExpandedSubsidiary(
-                          expandedSubsidiary === contrib.subsidiaryId ? null : contrib.subsidiaryId
-                        )}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
+              {/* Consolidated ratios */}
+              <section className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
+                <div className="flex items-center gap-2 mb-6">
+                  <TrendingUp size={16} className="text-indigo-600" />
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">
+                    Consolidated Ratios
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-2">
+                  <div className="space-y-1">
+                    <RatioRow label="ROA (%)" value={report.consolidatedRatios.roa} />
+                    <RatioRow label="ROE (%)" value={report.consolidatedRatios.roe} />
+                    <RatioRow label="NPM (%)" value={report.consolidatedRatios.npm} />
+                    <RatioRow label="DER" value={report.consolidatedRatios.der} />
+                    <RatioRow label="Health Score" value={report.consolidatedRatios.healthScore} />
+                  </div>
+                  <div className="space-y-1">
+                    <RatioRow label="Current Ratio" value={report.consolidatedRatios.currentRatio} />
+                    <RatioRow label="Quick Ratio" value={report.consolidatedRatios.quickRatio} />
+                    <RatioRow label="Cash Ratio" value={report.consolidatedRatios.cashRatio} />
+                    <RatioRow label="OCF Ratio" value={report.consolidatedRatios.ocfRatio} />
+                    <RatioRow label="DSCR" value={report.consolidatedRatios.dscr} />
+                  </div>
+                </div>
+              </section>
+
+              {/* Subsidiary contributions */}
+              {report.contributions.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-2 mb-5 ml-1">
+                    <Layers size={14} className="text-indigo-400" />
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Subsidiary Contributions
+                    </h4>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {report.contributions.map((contrib, idx) => (
+                      <motion.div 
+                        key={contrib.subsidiaryId} 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-slate-200"
                       >
-                        <div className="flex items-center gap-2">
-                          {expandedSubsidiary === contrib.subsidiaryId
-                            ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                            : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
-                          <span className="text-xs font-semibold text-slate-800">{contrib.subsidiaryName}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs">
-                          <span className="text-slate-500">
-                            Revenue: <span className="font-semibold text-slate-700">{contrib.revenueContribution.toFixed(1)}%</span>
-                          </span>
-                          <span className="text-slate-500">
-                            Profit: <span className="font-semibold text-slate-700">{contrib.profitContribution.toFixed(1)}%</span>
-                          </span>
-                        </div>
-                      </button>
+                        <button
+                          onClick={() => setExpandedSubsidiary(
+                            expandedSubsidiary === contrib.subsidiaryId ? null : contrib.subsidiaryId
+                          )}
+                          className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                              {expandedSubsidiary === contrib.subsidiaryId
+                                ? <ChevronDown className="w-4 h-4" />
+                                : <ChevronRight className="w-4 h-4" />}
+                            </div>
+                            <span className="text-sm font-black text-slate-800">{contrib.subsidiaryName}</span>
+                          </div>
+                          <div className="hidden sm:flex items-center gap-6">
+                            <div className="flex flex-col items-end">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Revenue Contrib.</span>
+                              <span className="text-xs font-black text-indigo-600">{contrib.revenueContribution.toFixed(1)}%</span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Profit Contrib.</span>
+                              <span className={cn("text-xs font-black", contrib.profitContribution >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                {contrib.profitContribution.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        </button>
 
-                      {expandedSubsidiary === contrib.subsidiaryId && (
-                        <div className="px-4 pb-3 bg-slate-50 border-t border-slate-100">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
-                            <div>
-                              <p className="text-[10px] text-slate-500">Revenue</p>
-                              <p className="text-sm font-bold text-slate-800">{formatCurrency(contrib.revenue)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-slate-500">Net Profit</p>
-                              <p className={cn('text-sm font-bold', contrib.netProfit >= 0 ? 'text-emerald-700' : 'text-red-600')}>
-                                {formatCurrency(contrib.netProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-slate-500">Total Assets</p>
-                              <p className="text-sm font-bold text-slate-800">{formatCurrency(contrib.totalAssets)}</p>
-                            </div>
-                          </div>
-                          {/* Contribution bars */}
-                          <div className="mt-3 space-y-1.5">
-                            <div>
-                              <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                                <span>Revenue contribution</span>
-                                <span>{contrib.revenueContribution.toFixed(1)}%</span>
+                        <AnimatePresence>
+                          {expandedSubsidiary === contrib.subsidiaryId && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-6 pb-6 pt-2 bg-slate-50/30 border-t border-slate-50">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mt-4">
+                                  <div className="space-y-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Revenue</p>
+                                    <p className="text-sm font-black text-slate-800">{formatRupiah(contrib.revenue, false)}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Net Profit</p>
+                                    <p className={cn('text-sm font-black', contrib.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600')}>
+                                      {formatRupiah(contrib.netProfit, false)}
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Assets</p>
+                                    <p className="text-sm font-black text-slate-800">{formatRupiah(contrib.totalAssets, false)}</p>
+                                  </div>
+                                </div>
+                                
+                                {/* Contribution bars */}
+                                <div className="mt-8 space-y-4">
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                      <span>Revenue contribution</span>
+                                      <span>{contrib.revenueContribution.toFixed(1)}%</span>
+                                    </div>
+                                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                                      <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${Math.min(contrib.revenueContribution, 100)}%` }}
+                                        className="h-full bg-indigo-500 rounded-full shadow-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                      <span>Profit contribution</span>
+                                      <span>{contrib.profitContribution.toFixed(1)}%</span>
+                                    </div>
+                                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                                      <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${Math.min(Math.abs(contrib.profitContribution), 100)}%` }}
+                                        className={cn(
+                                          'h-full rounded-full shadow-sm',
+                                          contrib.profitContribution >= 0 ? 'bg-emerald-500' : 'bg-rose-500'
+                                        )}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-indigo-500 rounded-full"
-                                  style={{ width: `${Math.min(contrib.revenueContribution, 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                                <span>Profit contribution</span>
-                                <span>{contrib.profitContribution.toFixed(1)}%</span>
-                              </div>
-                              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div
-                                  className={cn(
-                                    'h-full rounded-full',
-                                    contrib.profitContribution >= 0 ? 'bg-emerald-500' : 'bg-red-400'
-                                  )}
-                                  style={{ width: `${Math.min(Math.abs(contrib.profitContribution), 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

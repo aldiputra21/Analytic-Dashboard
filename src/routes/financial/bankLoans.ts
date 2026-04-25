@@ -8,6 +8,7 @@ import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { bankLoans, bankLoanInstallments } from '../../db/schema/cfd';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   generateFlatInstallments,
   validateEffectiveInstallments,
@@ -89,7 +90,7 @@ export function createBankLoansRouter(): Router {
    * GET /api/bank-loans
    * List bank loans with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('cfd.bank_loans.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.bank_loans.read'), asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -125,14 +126,14 @@ export function createBankLoansRouter(): Router {
     ]);
 
     return res.json({ records, totalCount: Number(totalCount) });
-  });
+  }));
 
   /**
    * POST /api/bank-loans
    * Create a new bank loan with installments (flat or effective).
    * Uses a DB transaction to insert loan + installments atomically.
    */
-  router.post('/', requirePermission('cfd.bank_loans.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.bank_loans.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = createLoanSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -221,13 +222,13 @@ export function createBankLoansRouter(): Router {
     });
 
     return res.status(201).json(loan);
-  });
+  }));
 
   /**
    * GET /api/bank-loans/:id
    * Get a single bank loan by ID.
    */
-  router.get('/:id', requirePermission('cfd.bank_loans.read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.bank_loans.read'), asyncHandler(async (req: Request, res: Response) => {
     const [loan] = await db
       .select()
       .from(bankLoans)
@@ -241,13 +242,13 @@ export function createBankLoansRouter(): Router {
     }
 
     return res.json(loan);
-  });
+  }));
 
   /**
    * PUT /api/bank-loans/:id
    * Update a bank loan (header fields only; installments managed separately).
    */
-  router.put('/:id', requirePermission('cfd.bank_loans.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.bank_loans.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateLoanSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -296,13 +297,13 @@ export function createBankLoansRouter(): Router {
       .returning();
 
     return res.json(updated);
-  });
+  }));
 
   /**
    * DELETE /api/bank-loans/:id
    * Delete a bank loan (installments cascade-deleted via FK).
    */
-  router.delete('/:id', requirePermission('cfd.bank_loans.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.bank_loans.delete'), asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(bankLoans)
@@ -318,7 +319,7 @@ export function createBankLoansRouter(): Router {
     await db.delete(bankLoans).where(eq(bankLoans.id, req.params.id));
 
     return res.json({ success: true });
-  });
+  }));
 
   /**
    * GET /api/bank-loans/:id/installments
@@ -327,7 +328,7 @@ export function createBankLoansRouter(): Router {
   router.get(
     '/:id/installments',
     requirePermission('cfd.bank_loans.read'),
-    async (req: Request, res: Response) => {
+    asyncHandler(async (req: Request, res: Response) => {
       const [loan] = await db
         .select()
         .from(bankLoans)
@@ -347,7 +348,7 @@ export function createBankLoansRouter(): Router {
         .orderBy(bankLoanInstallments.installmentDate);
 
       return res.json({ records: installments, totalCount: installments.length });
-    },
+    })
   );
 
   /**
@@ -358,7 +359,7 @@ export function createBankLoansRouter(): Router {
   router.patch(
     '/:id/installments/:installmentId/mark-paid',
     requirePermission('cfd.bank_loans.write'),
-    async (req: Request, res: Response) => {
+    asyncHandler(async (req: Request, res: Response) => {
       const { id: loanId, installmentId } = req.params;
 
       // Verify loan exists
@@ -438,7 +439,7 @@ export function createBankLoansRouter(): Router {
         .limit(1);
 
       return res.json(updated);
-    },
+    })
   );
 
   return router;

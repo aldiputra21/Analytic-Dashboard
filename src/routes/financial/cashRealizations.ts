@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { cashRealizations } from '../../db/schema/cfd';
 import { attachments } from '../../db/schema/public';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getAttachmentConfig,
   createMulterUpload,
@@ -74,7 +75,7 @@ export function createCashRealizationsRouter(): Router {
    * List realizations with filters: entityType, category, dateFrom, dateTo, search, pagination.
    * Also includes attachment count per record.
    */
-  router.get('/', requirePermission('cfd.realizations.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.realizations.read'), asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const entityType = req.query.entityType as string | undefined;
     const category = req.query.category as string | undefined;
@@ -139,13 +140,13 @@ export function createCashRealizationsRouter(): Router {
     }));
 
     res.json({ records: enriched, totalCount: Number(totalCount) });
-  });
+  }));
 
   /**
    * POST /api/cash-realizations
    * Create a new cash realization.
    */
-  router.post('/', requirePermission('cfd.realizations.write'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.realizations.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = createRealizationSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -178,13 +179,13 @@ export function createCashRealizationsRouter(): Router {
       .returning();
 
     return res.status(201).json(record);
-  });
+  }));
 
   /**
    * GET /api/cash-realizations/:id
    * Get a single realization by ID, including its attachments.
    */
-  router.get('/:id', requirePermission('cfd.realizations.read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.realizations.read'), asyncHandler(async (req: Request, res: Response) => {
     const [record] = await db
       .select()
       .from(cashRealizations)
@@ -209,13 +210,13 @@ export function createCashRealizationsRouter(): Router {
       .orderBy(attachments.createdAt);
 
     return res.json({ ...record, attachments: recordAttachments });
-  });
+  }));
 
   /**
    * PUT /api/cash-realizations/:id
    * Update a cash realization.
    */
-  router.put('/:id', requirePermission('cfd.realizations.write'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.realizations.write'), asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateRealizationSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -262,13 +263,13 @@ export function createCashRealizationsRouter(): Router {
       .returning();
 
     return res.json(updated);
-  });
+  }));
 
   /**
    * DELETE /api/cash-realizations/:id
    * Delete a cash realization.
    */
-  router.delete('/:id', requirePermission('cfd.realizations.delete'), async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.realizations.delete'), asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(cashRealizations)
@@ -284,7 +285,7 @@ export function createCashRealizationsRouter(): Router {
     await db.delete(cashRealizations).where(eq(cashRealizations.id, req.params.id));
 
     return res.json({ success: true });
-  });
+  }));
 
   /**
    * POST /api/cash-realizations/:id/attachments
@@ -294,7 +295,7 @@ export function createCashRealizationsRouter(): Router {
   router.post(
     '/:id/attachments',
     requirePermission('cfd.realizations.write'),
-    async (req: Request, res: Response) => {
+    asyncHandler(async (req: Request, res: Response) => {
       // Verify the realization exists first
       const [existing] = await db
         .select()
@@ -366,7 +367,7 @@ export function createCashRealizationsRouter(): Router {
 
         return res.status(201).json({ saved, errors: errors.length > 0 ? errors : undefined });
       });
-    },
+    })
   );
 
   return router;

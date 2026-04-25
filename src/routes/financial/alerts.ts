@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
+import { asyncHandler } from '../../utils/asyncHandler';
 import {
   listAlerts,
   getUserAlertById,
@@ -21,7 +22,7 @@ export function createAlertsRouter(): Router {
    * Get alert history (non-active alerts).
    * Requirements: 5.8, 5.9
    */
-  router.get('/history', requirePermission('cfd.alerts.read'), async (req: Request, res: Response) => {
+  router.get('/history', requirePermission('cfd.alerts.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, severity, limit, offset } = req.query as any;
 
     // subsidiary_manager: restrict to their corporates
@@ -52,14 +53,14 @@ export function createAlertsRouter(): Router {
     });
 
     res.json(alerts);
-  });
+  }));
 
   /**
    * GET /api/frs/alerts
    * List active alerts with filters.
    * Requirements: 5.8
    */
-  router.get('/', requirePermission('cfd.alerts.read'), async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.alerts.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, severity, status, limit, offset } = req.query as any;
 
     // subsidiary_manager: restrict to their corporates
@@ -91,14 +92,14 @@ export function createAlertsRouter(): Router {
     });
 
     res.json(alerts);
-  });
+  }));
 
   /**
    * GET /api/frs/alerts/:id
    * Get alert details.
    * Requirements: 5.9
    */
-  router.get('/:id', requirePermission('cfd.alerts.read'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.alerts.read'), asyncHandler(async (req: Request, res: Response) => {
     const alert = await getUserAlertById(req.params.id, req.user!.userId);
     if (!alert) {
       res.status(404).json({
@@ -108,14 +109,14 @@ export function createAlertsRouter(): Router {
     }
 
     res.json(alert);
-  });
+  }));
 
   /**
    * PATCH /api/frs/alerts/:id/acknowledge
    * Acknowledge an alert.
    * Requirements: 5.9
    */
-  router.patch('/:id/acknowledge', requirePermission('cfd.alerts.write'), async (req: Request, res: Response) => {
+  router.patch('/:id/acknowledge', requirePermission('cfd.alerts.write'), asyncHandler(async (req: Request, res: Response) => {
     const alert = await getUserAlertById(req.params.id, req.user!.userId);
     if (!alert) {
       res.status(404).json({
@@ -133,7 +134,7 @@ export function createAlertsRouter(): Router {
 
     const updated = await acknowledgeAlert(req.params.id, req.user!.userId);
     res.json(updated);
-  });
+  }));
 
   return router;
 }

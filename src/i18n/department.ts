@@ -43,6 +43,11 @@ export interface DepartmentCopy {
     submit: string;
     selectCorporate: string;
     close: string;
+    sectionTitle: string;
+    codePlaceholder: string;
+    namePlaceholder: string;
+    headPlaceholder: string;
+    descriptionPlaceholder: string;
   };
   alerts: {
     errorRequired: string;
@@ -58,6 +63,11 @@ export interface DepartmentCopy {
     errorDelete: string;
     errorFetch: string;
     errorNetwork: string;
+  };
+  validation: {
+    corporateRequired: string;
+    codeMin: string;
+    nameMin: string;
   };
 }
 
@@ -104,6 +114,11 @@ export const departmentI18n: Record<Locale, DepartmentCopy> = {
       submit: 'Simpan',
       selectCorporate: 'Pilih Perusahaan',
       close: 'Tutup',
+      sectionTitle: 'Identitas & Detail Departemen',
+      codePlaceholder: 'MISAL: FIN',
+      namePlaceholder: 'Nama Departemen',
+      headPlaceholder: 'Nama Kepala Dept',
+      descriptionPlaceholder: 'Deskripsi singkat mengenai fungsi departemen ini...',
     },
     alerts: {
       errorRequired: 'Mohon lengkapi semua field yang wajib diisi',
@@ -119,6 +134,11 @@ export const departmentI18n: Record<Locale, DepartmentCopy> = {
       errorDelete: 'Gagal menghapus departemen',
       errorFetch: 'Gagal memuat data departemen',
       errorNetwork: 'Kesalahan jaringan',
+    },
+    validation: {
+      corporateRequired: 'Perusahaan wajib dipilih',
+      codeMin: 'Kode minimal 2 karakter',
+      nameMin: 'Nama minimal 3 karakter',
     },
   },
   en: {
@@ -163,6 +183,11 @@ export const departmentI18n: Record<Locale, DepartmentCopy> = {
       submit: 'Save',
       selectCorporate: 'Select Corporate',
       close: 'Close',
+      sectionTitle: 'Identity & Department Details',
+      codePlaceholder: 'E.G. FIN',
+      namePlaceholder: 'Department Name',
+      headPlaceholder: 'Dept Head Name',
+      descriptionPlaceholder: 'Brief description of this department\'s function...',
     },
     alerts: {
       errorRequired: 'Please fill in all required fields',
@@ -178,6 +203,11 @@ export const departmentI18n: Record<Locale, DepartmentCopy> = {
       errorDelete: 'Failed to delete department',
       errorFetch: 'Failed to load department data',
       errorNetwork: 'Network error',
+    },
+    validation: {
+      corporateRequired: 'Corporate is required',
+      codeMin: 'Code must be at least 2 characters',
+      nameMin: 'Name must be at least 3 characters',
     },
   },
 };

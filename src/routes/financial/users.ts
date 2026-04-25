@@ -16,6 +16,7 @@ import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { db } from '../../db/connection';
 import { roles } from '../../db/schema/public';
 import { asc } from 'drizzle-orm';
+import { asyncHandler } from '../../utils/asyncHandler';
 
 export function createUsersRouter(): Router {
   const router = Router();
@@ -24,7 +25,7 @@ export function createUsersRouter(): Router {
    * POST /api/frs/users
    * Create a new user (Owner only).
    */
-  router.post('/', requirePermission('cfd.users.manage_users'), async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.users.manage_users'), asyncHandler(async (req: Request, res: Response) => {
     const { username, email, password, role, fullName, subsidiaryIds } = req.body;
 
     if (!username || !email || !password || !role || !fullName) {
@@ -68,22 +69,22 @@ export function createUsersRouter(): Router {
     });
 
     res.status(201).json(result.user);
-  });
+  }));
 
   /**
    * GET /api/frs/users
    * List all users (Owner only).
    */
-  router.get('/', requirePermission('cfd.users.manage_users'), async (_req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.users.manage_users'), asyncHandler(async (_req: Request, res: Response) => {
     const users = await listUsers();
     res.json(users);
-  });
+  }));
 
   /**
    * GET /api/frs/users/:id
    * Get user details (Owner only).
    */
-  router.get('/:id', requirePermission('cfd.users.manage_users'), async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.users.manage_users'), asyncHandler(async (req: Request, res: Response) => {
     const user = await getUserById(req.params.id);
     if (!user) {
       res.status(404).json({
@@ -92,13 +93,13 @@ export function createUsersRouter(): Router {
       return;
     }
     res.json(user);
-  });
+  }));
 
   /**
    * PUT /api/frs/users/:id
    * Update a user (Owner only).
    */
-  router.put('/:id', requirePermission('cfd.users.manage_users'), async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.users.manage_users'), asyncHandler(async (req: Request, res: Response) => {
     const { email, fullName, role, subsidiaryIds } = req.body;
 
     const existing = await getUserById(req.params.id);
@@ -145,13 +146,13 @@ export function createUsersRouter(): Router {
     });
 
     res.json(updated);
-  });
+  }));
 
   /**
    * PATCH /api/frs/users/:id/status
    * Activate or deactivate a user (Owner only).
    */
-  router.patch('/:id/status', requirePermission('cfd.users.manage_users'), async (req: Request, res: Response) => {
+  router.patch('/:id/status', requirePermission('cfd.users.manage_users'), asyncHandler(async (req: Request, res: Response) => {
     const { isActive } = req.body;
 
     if (typeof isActive !== 'boolean') {
@@ -180,14 +181,14 @@ export function createUsersRouter(): Router {
     });
 
     res.json(updated);
-  });
+  }));
 
   /**
    * POST /api/frs/users/:id/subsidiary-access
    * Assign subsidiary access to a user (Owner only).
    * Requirements: 9.9
    */
-  router.post('/:id/subsidiary-access', requirePermission('cfd.users.manage_users'), async (req: Request, res: Response) => {
+  router.post('/:id/subsidiary-access', requirePermission('cfd.users.manage_users'), asyncHandler(async (req: Request, res: Response) => {
     const { subsidiaryIds, replace } = req.body;
 
     if (!Array.isArray(subsidiaryIds) || subsidiaryIds.length === 0) {
@@ -220,13 +221,13 @@ export function createUsersRouter(): Router {
 
     const access = await getUserSubsidiaryAccess(req.params.id);
     res.json(access);
-  });
+  }));
 
   /**
    * GET /api/frs/users/:id/subsidiary-access
    * Get subsidiary access for a user (Owner only).
    */
-  router.get('/:id/subsidiary-access', requirePermission('cfd.users.manage_users'), async (req: Request, res: Response) => {
+  router.get('/:id/subsidiary-access', requirePermission('cfd.users.manage_users'), asyncHandler(async (req: Request, res: Response) => {
     const user = await getUserById(req.params.id);
     if (!user) {
       res.status(404).json({
@@ -236,7 +237,7 @@ export function createUsersRouter(): Router {
     }
     const access = await getUserSubsidiaryAccess(req.params.id);
     res.json(access);
-  });
+  }));
 
   return router;
 }
@@ -248,13 +249,13 @@ export function createUsersRouter(): Router {
 export function createRolesRouter(): Router {
   const router = Router();
 
-  router.get('/', async (_req: Request, res: Response) => {
+  router.get('/', asyncHandler(async (_req: Request, res: Response) => {
     const allRoles = await db
       .select({ id: roles.id, name: roles.name, description: roles.description })
       .from(roles)
       .orderBy(asc(roles.name));
     res.json(allRoles);
-  });
+  }));
 
   return router;
 }
