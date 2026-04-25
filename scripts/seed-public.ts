@@ -23,6 +23,11 @@ import {
   projects,
   userCorporateAccesses,
   systemConfigs,
+  banks,
+  corporateSectors,
+  currencies,
+  costCenterCategories,
+  notificationConfigs,
 } from '../src/db/schema/public';
 import bcrypt from 'bcryptjs';
 
@@ -85,6 +90,29 @@ async function main() {
     { key: 'cfd.weekly_cash_flows.write', module: 'cfd', description: 'Manage weekly cash flows' },
     { key: 'cfd.weekly_cash_flows.delete', module: 'cfd', description: 'Delete weekly cash flows' },
 
+    // CFD Financial Enhancements
+    { key: 'cfd.realizations.read', module: 'cfd', description: 'Read cash realizations' },
+    { key: 'cfd.realizations.write', module: 'cfd', description: 'Manage cash realizations' },
+    { key: 'cfd.realizations.delete', module: 'cfd', description: 'Delete cash realizations' },
+    { key: 'cfd.bank_loans.read', module: 'cfd', description: 'Read bank loans' },
+    { key: 'cfd.bank_loans.write', module: 'cfd', description: 'Manage bank loans' },
+    { key: 'cfd.bank_loans.delete', module: 'cfd', description: 'Delete bank loans' },
+    { key: 'public.banks.read', module: 'public', description: 'Read banks' },
+    { key: 'public.banks.write', module: 'public', description: 'Manage banks' },
+    { key: 'public.banks.delete', module: 'public', description: 'Delete banks' },
+    { key: 'public.corporate_sectors.read', module: 'public', description: 'Read corporate sectors' },
+    { key: 'public.corporate_sectors.write', module: 'public', description: 'Manage corporate sectors' },
+    { key: 'public.corporate_sectors.delete', module: 'public', description: 'Delete corporate sectors' },
+    { key: 'public.currencies.read', module: 'public', description: 'Read currencies' },
+    { key: 'public.currencies.write', module: 'public', description: 'Manage currencies' },
+    { key: 'public.currencies.delete', module: 'public', description: 'Delete currencies' },
+    { key: 'public.cost_center_categories.read', module: 'public', description: 'Read cost center categories' },
+    { key: 'public.cost_center_categories.write', module: 'public', description: 'Manage cost center categories' },
+    { key: 'public.cost_center_categories.delete', module: 'public', description: 'Delete cost center categories' },
+    { key: 'public.notification_configs.read', module: 'public', description: 'Read notification configs' },
+    { key: 'public.notification_configs.write', module: 'public', description: 'Manage notification configs' },
+    { key: 'public.notification_configs.delete', module: 'public', description: 'Delete notification configs' },
+
     // CRM Module
     { key: 'crm.dashboard.read', module: 'crm', description: 'Read CRM dashboard' },
     { key: 'crm.customers.read', module: 'crm', description: 'Read customers' },
@@ -142,6 +170,12 @@ async function main() {
       'cfd.income_statements.write',
       'cfd.weekly_cash_flows.read',
       'cfd.weekly_cash_flows.write',
+      // Master tables (read only)
+      'public.banks.read',
+      'public.corporate_sectors.read',
+      'public.currencies.read',
+      'public.cost_center_categories.read',
+      'public.notification_configs.read',
       // CRM write access for managers
       'crm.dashboard.read',
       'crm.customers.read',
@@ -155,6 +189,11 @@ async function main() {
       'crm.qualifications.write',
       'crm.reimburse.read',
       'crm.reimburse.write',
+      // CFD Financial Enhancements
+      'cfd.realizations.read',
+      'cfd.realizations.write',
+      'cfd.bank_loans.read',
+      'cfd.bank_loans.write',
     ],
   };
 
@@ -332,6 +371,57 @@ async function main() {
   }
   console.log('   ✅ System configs ready');
 
+  // ── Banks ─────────────────────────────────────────────────
+  console.log('🏦 Seeding banks...');
+  const bankValues = [
+    { code: 'BCA', name: 'Bank Central Asia', swiftCode: 'CENAIDJA', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'MANDIRI', name: 'Bank Mandiri', swiftCode: 'BMRIIDJA', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'BNI', name: 'Bank Negara Indonesia', swiftCode: 'BNINIDJA', createdBy: SYSTEM_ACTOR_ID },
+  ];
+  for (const bv of bankValues) {
+    await db.insert(banks).values(bv).onConflictDoNothing({ target: banks.code });
+  }
+  console.log('   ✅ Banks ready');
+
+  // ── Corporate Sectors ─────────────────────────────────────
+  console.log('🏭 Seeding corporate sectors...');
+  const sectorValues = [
+    { code: 'technology', labelId: 'Teknologi', labelEn: 'Technology', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'retail', labelId: 'Retail', labelEn: 'Retail', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'services', labelId: 'Jasa', labelEn: 'Services', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'manufacturing', labelId: 'Manufaktur', labelEn: 'Manufacturing', createdBy: SYSTEM_ACTOR_ID },
+  ];
+  for (const sv of sectorValues) {
+    await db.insert(corporateSectors).values(sv).onConflictDoNothing({ target: corporateSectors.code });
+  }
+  console.log('   ✅ Corporate sectors ready');
+
+  // ── Currencies ────────────────────────────────────────────
+  console.log('💱 Seeding currencies...');
+  const currencyValues = [
+    { code: 'IDR', label: 'Rupiah', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'USD', label: 'US Dollar', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'EUR', label: 'Euro', createdBy: SYSTEM_ACTOR_ID },
+  ];
+  for (const cv of currencyValues) {
+    await db.insert(currencies).values(cv).onConflictDoNothing({ target: currencies.code });
+  }
+  console.log('   ✅ Currencies ready');
+
+  // ── Cost Center Categories ────────────────────────────────
+  console.log('📂 Seeding cost center categories...');
+  const categoryValues = [
+    { code: 'hrd', labelId: 'HRD', labelEn: 'HRD', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'atk', labelId: 'Alat Tulis Kantor', labelEn: 'Office Stationery', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'operational', labelId: 'Operasional', labelEn: 'Operational', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'marketing', labelId: 'Pemasaran', labelEn: 'Marketing', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'it', labelId: 'IT', labelEn: 'IT', createdBy: SYSTEM_ACTOR_ID },
+  ];
+  for (const cv of categoryValues) {
+    await db.insert(costCenterCategories).values(cv).onConflictDoNothing({ target: costCenterCategories.code });
+  }
+  console.log('   ✅ Cost center categories ready');
+
   // ── Projects ──────────────────────────────────────────────
   console.log('📊 Seeding projects...');
   const allDepts = await db.select().from(departments);
@@ -378,6 +468,37 @@ async function main() {
     }
   }
   console.log('   ✅ User access ready');
+
+  // ── Notification Configs ──────────────────────────────────
+  console.log('🔔 Seeding notification configs...');
+  const notifConfigValues = [
+    {
+      module: 'cfd',
+      eventType: 'loan_installment_due',
+      roleId: subsidiaryManagerRoleId,
+      isActive: true,
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+    {
+      module: 'cfd',
+      eventType: 'loan_installment_due',
+      roleId: bodRoleId,
+      isActive: true,
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+    {
+      module: 'cfd',
+      eventType: 'loan_installment_due',
+      roleId: ownerRoleId,
+      isActive: true,
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+  ];
+
+  for (const ncv of notifConfigValues) {
+    await db.insert(notificationConfigs).values(ncv).onConflictDoNothing();
+  }
+  console.log('   ✅ Notification configs ready');
 
   console.log('\n🎉 Public schema seeding complete!');
   process.exit(0);

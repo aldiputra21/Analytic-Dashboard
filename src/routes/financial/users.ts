@@ -13,6 +13,9 @@ import {
   getUserSubsidiaryAccess,
 } from '../../services/financial/userService';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
+import { db } from '../../db/connection';
+import { roles } from '../../db/schema/public';
+import { asc } from 'drizzle-orm';
 
 export function createUsersRouter(): Router {
   const router = Router();
@@ -233,6 +236,24 @@ export function createUsersRouter(): Router {
     }
     const access = await getUserSubsidiaryAccess(req.params.id);
     res.json(access);
+  });
+
+  return router;
+}
+
+/**
+ * Creates a router for listing roles.
+ * GET /api/frs/roles — returns all roles (id, name, description).
+ */
+export function createRolesRouter(): Router {
+  const router = Router();
+
+  router.get('/', async (_req: Request, res: Response) => {
+    const allRoles = await db
+      .select({ id: roles.id, name: roles.name, description: roles.description })
+      .from(roles)
+      .orderBy(asc(roles.name));
+    res.json(allRoles);
   });
 
   return router;

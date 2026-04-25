@@ -130,7 +130,7 @@ export const CostCenterManager: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isViewOnly, setIsViewOnly] = useState(false);
-  const [costCenterCategories, setCostCenterCategories] = useState<{ code: string; label: any }[]>([]);
+  const [costCenterCategories, setCostCenterCategories] = useState<{ code: string; labelId: string; labelEn: string }[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -152,14 +152,14 @@ export const CostCenterManager: React.FC = () => {
 
   const fetchConfigs = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/system-configs?key=cost_center_categories');
+      const res = await apiFetch('/api/cost-center-categories?status=active&pageSize=100');
       if (res.ok) {
         const data = await res.json();
-        const config = data.find((c: any) => c.key === 'cost_center_categories');
-        if (config && Array.isArray(config.value)) {
-          setCostCenterCategories(config.value.map((v: any) => ({
-            code: v.code || v,
-            label: v.label || v.code || v,
+        if (Array.isArray(data.records)) {
+          setCostCenterCategories(data.records.map((v: any) => ({
+            code: v.code,
+            labelId: v.labelId,
+            labelEn: v.labelEn,
           })));
         }
       }
@@ -655,7 +655,7 @@ export const CostCenterManager: React.FC = () => {
                       >
                         {costCenterCategories.map(c => (
                           <option key={c.code} value={c.code}>
-                            {typeof c.label === 'object' ? (c.label[language] ?? c.code) : (c.label || c.code)}
+                            {language === 'id' ? c.labelId : c.labelEn}
                           </option>
                         ))}
                         {costCenterCategories.length === 0 && (

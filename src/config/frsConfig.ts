@@ -1,6 +1,8 @@
 // FRS Server Configuration with Zod validation
 // Requirements: 14.3
 
+import dotenv from 'dotenv';
+dotenv.config({ path: ['.env.local', '.env'] });
 import { z } from 'zod';
 
 const configSchema = z.object({
@@ -13,6 +15,7 @@ const configSchema = z.object({
     (v) => v.startsWith('postgresql://') || v.startsWith('postgres://'),
     { message: 'DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://)' }
   ),
+  DB_POOL_MAX: z.coerce.number().int().min(1).default(10),
 
   // JWT
   FRS_JWT_SECRET: z
@@ -33,6 +36,7 @@ const configSchema = z.object({
 
   // Cache
   CACHE_TTL: z.coerce.number().int().min(0).default(300000),
+  STATIC_CACHE_MAX_AGE: z.coerce.number().int().min(0).default(86400000), // 1 day default in ms
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(900000), // 15 minutes default

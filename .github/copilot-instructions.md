@@ -31,3 +31,4 @@ Example: `.requirements/20260407_002_crm_enhancement/`
 - CRUD template reference (`CorporateManager.tsx`).
 - Use of `SearchableSelect` for dropdowns.
 - **Multi-language (i18n)**: Never hardcode text; always use `src/i18n/` files.
+- **Dropdown API Design**: No paging, display all active data, no `status` parameter required from frontend.

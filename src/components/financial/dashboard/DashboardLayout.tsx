@@ -7,6 +7,7 @@ import {
   Users, Upload, Bell, LogOut, Building2, ChevronLeft, ChevronRight,
   Shield, Menu, Target, Database, UserSquare2, FolderKanban,
   CheckCircle, Receipt, ChevronDown, Scale, FileBarChart, ArrowLeftRight,
+  ClipboardList, Landmark, DollarSign, Layers,
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
@@ -20,6 +21,9 @@ export type FRSPage =
   | 'corporates' | 'cost-centers' | 'departments' | 'projects' | 'targets'
   | 'users' | 'thresholds' | 'audit-log'
   | 'cfd-balance-sheets' | 'cfd-income-statements' | 'cfd-weekly-cash-flows'
+  | 'cfd-realizations' | 'cfd-bank-loans'
+  | 'bank-manager' | 'corporate-sectors-manager' | 'currencies-manager'
+  | 'cost-center-categories-manager' | 'notification-configs-manager'
   // CRM sub-pages
   | 'crm-dashboard' | 'crm-opportunities' | 'crm-customers'
   | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse';
@@ -67,6 +71,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'cfd-balance-sheets', label: balanceSheetI18n[language].title, icon: Scale, requiredPermissions: ['cfd.balance_sheets.read'], group: 'data' },
       { id: 'cfd-income-statements', label: incomeStatementI18n[language].title, icon: FileBarChart, requiredPermissions: ['cfd.income_statements.read'], group: 'data' },
       { id: 'cfd-weekly-cash-flows', label: weeklyCashFlowI18n[language].title, icon: ArrowLeftRight, requiredPermissions: ['cfd.weekly_cash_flows.read'], group: 'data' },
+      { id: 'cfd-realizations', label: language === 'id' ? 'Realisasi' : 'Realizations', icon: ClipboardList, requiredPermissions: ['cfd.realizations.read'], group: 'data' },
+      { id: 'cfd-bank-loans', label: language === 'id' ? 'Pinjaman Bank' : 'Bank Loans', icon: Landmark, requiredPermissions: ['cfd.bank_loans.read'], group: 'data' },
       // Corporate Management
       { id: 'corporates', label: language === 'id' ? 'Perusahaan' : 'Corporates', icon: Building2, requiredPermissions: ['cfd.corporates.read'], group: 'corporate-management' },
       { id: 'cost-centers', label: language === 'id' ? 'Cost Center' : 'Cost Center', icon: Target, requiredPermissions: ['cfd.cost_centers.read'], group: 'corporate-management' },
@@ -94,6 +100,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'users', label: language === 'id' ? 'Pengguna' : 'Users', icon: Users, requiredPermissions: ['cfd.users.read'], group: 'admin' },
       { id: 'thresholds', label: language === 'id' ? 'Ambang Batas' : 'Thresholds', icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'admin' },
       { id: 'audit-log', label: language === 'id' ? 'Log Audit' : 'Audit Log', icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'admin' },
+      { id: 'bank-manager', label: language === 'id' ? 'Master Bank' : 'Master Bank', icon: Building2, requiredPermissions: ['public.banks.read'], group: 'admin' },
+      { id: 'corporate-sectors-manager', label: language === 'id' ? 'Sektor Perusahaan' : 'Corporate Sectors', icon: Building2, requiredPermissions: ['public.corporate_sectors.read'], group: 'admin' },
+      { id: 'currencies-manager', label: language === 'id' ? 'Mata Uang' : 'Currencies', icon: DollarSign, requiredPermissions: ['public.currencies.read'], group: 'admin' },
+      { id: 'cost-center-categories-manager', label: language === 'id' ? 'Kategori Cost Center' : 'Cost Center Categories', icon: Layers, requiredPermissions: ['public.cost_center_categories.read'], group: 'admin' },
+      { id: 'notification-configs-manager', label: language === 'id' ? 'Konfigurasi Notifikasi' : 'Notification Config', icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'admin' },
     ];
     return items;
   }, [language]);

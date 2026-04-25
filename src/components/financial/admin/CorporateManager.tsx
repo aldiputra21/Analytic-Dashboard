@@ -138,15 +138,25 @@ export const CorporateManager: React.FC = () => {
 
   const fetchConfigs = async () => {
     try {
-      const res = await apiFetch('/api/system-configs');
-      if (res.ok) {
-        const d = await res.json();
-        const sectorConfig = d.find((c: any) => c.key === 'corporate_sectors');
-        if (sectorConfig) setSectors(sectorConfig.value);
+      const [sectorsRes, currenciesRes] = await Promise.all([
+        apiFetch('/api/corporate-sectors?status=active&pageSize=100'),
+        apiFetch('/api/currencies?status=active&pageSize=100'),
+      ]);
 
-        const currConfig = d.find((c: any) => c.key === 'currencies');
-        if (currConfig) setCurrencies(currConfig.value);
+      if (sectorsRes.ok) {
+        const d = await sectorsRes.json();
+        setSectors(d.records || []);
+      }
 
+      if (currenciesRes.ok) {
+        const d = await currenciesRes.json();
+        setCurrencies(d.records || []);
+      }
+
+      // max_logo_size still comes from system-configs
+      const sizeRes = await apiFetch('/api/system-configs');
+      if (sizeRes.ok) {
+        const d = await sizeRes.json();
         const sizeConfig = d.find((c: any) => c.key === 'max_logo_size');
         if (sizeConfig) setMaxLogoSize(sizeConfig.value);
       }
@@ -158,7 +168,7 @@ export const CorporateManager: React.FC = () => {
   const getSectorLabel = (code: string) => {
     const s = sectors.find(s => s.code === code);
     if (!s) return code;
-    return language === 'id' ? s.label.id : s.label.en;
+    return language === 'id' ? s.labelId : s.labelEn;
   };
 
   const getCurrencyLabel = (code: string) => {
@@ -180,7 +190,7 @@ export const CorporateManager: React.FC = () => {
       queryParams.set('page', currentPage.toString());
       queryParams.set('pageSize', pageSize.toString());
 
-      const res = await apiFetch(`/api/frs/corporates?${queryParams.toString()}`);
+      const res = await apiFetch(`/api/corporates?${queryParams.toString()}`);
       if (res.ok) {
         const d = await res.json();
         setData(d.records || []);
@@ -279,7 +289,7 @@ export const CorporateManager: React.FC = () => {
         isActive: formData.isActive
       };
 
-      const url = editingId ? `/api/frs/corporates/${editingId}` : '/api/frs/corporates';
+      const url = editingId ? `/api/corporates/${editingId}` : '/api/corporates';
       const method = editingId ? 'PUT' : 'POST';
 
       const res = await apiFetch(url, {
@@ -296,7 +306,7 @@ export const CorporateManager: React.FC = () => {
         if (logoFile) {
           const form = new FormData();
           form.append('logo', logoFile);
-          const logoRes = await apiFetch(`/api/frs/corporates/${corpId}/logo`, {
+          const logoRes = await apiFetch(`/api/corporates/${corpId}/logo`, {
             method: 'POST',
             body: form,
           });
@@ -321,7 +331,7 @@ export const CorporateManager: React.FC = () => {
 
   const handleToggleStatus = async (corp: Corporate) => {
     try {
-      const res = await apiFetch(`/api/frs/corporates/${corp.id}`, {
+      const res = await apiFetch(`/api/corporates/${corp.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !corp.isActive }),
@@ -338,7 +348,7 @@ export const CorporateManager: React.FC = () => {
   const handleDelete = async (id: string) => {
     setIsDeleting(true);
     try {
-      const res = await apiFetch(`/api/frs/corporates/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/corporates/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success(t.alerts.successDelete);
         setDeleteConfirmId(null);
@@ -680,7 +690,7 @@ export const CorporateManager: React.FC = () => {
                             disabled={isReadOnly}
                             className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
                           >
-                            {sectors.map(s => <option key={s.code} value={s.code}>{language === 'id' ? s.label.id : s.label.en}</option>)}
+                            {sectors.map(s => <option key={s.code} value={s.code}>{language === 'id' ? s.labelId : s.labelEn}</option>)}
                           </select>
                           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover/select:text-indigo-500 transition-colors pointer-events-none">
                             <ChevronRight size={14} className="rotate-90" />

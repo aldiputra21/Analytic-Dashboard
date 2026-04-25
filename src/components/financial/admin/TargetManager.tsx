@@ -135,7 +135,7 @@ export const TargetManager: React.FC = () => {
   // Master Data State
   const [departments, setDepartments] = useState<{ id: string, name: string, corporateName?: string }[]>([]);
   const [projects, setProjects] = useState<{ id: string, name: string, departmentId: string, code?: string }[]>([]);
-  const [costCenters, setCostCenters] = useState<{ code: string, label: { id: string, en: string } }[]>([]);
+  const [costCenters, setCostCenters] = useState<{ code: string, labelId: string, labelEn: string }[]>([]);
 
   // List State
   const [summaries, setSummaries] = useState<TargetSummary[]>([]);
@@ -173,7 +173,7 @@ export const TargetManager: React.FC = () => {
       const [dRes, pRes, cRes] = await Promise.all([
         apiFetch('/api/departments/dropdown-items'),
         apiFetch('/api/projects/dropdown-items'),
-        apiFetch('/api/system-configs/cost_center_categories')
+        apiFetch('/api/cost-center-categories?status=active&pageSize=100')
       ]);
       if (dRes.ok) {
         const data = await dRes.json();
@@ -185,7 +185,13 @@ export const TargetManager: React.FC = () => {
       }
       if (cRes.ok) {
         const data = await cRes.json();
-        setCostCenters(data.value || []);
+        if (Array.isArray(data.records)) {
+          setCostCenters(data.records.map((v: any) => ({
+            code: v.code,
+            labelId: v.labelId,
+            labelEn: v.labelEn,
+          })));
+        }
       }
     } catch (err) {
       console.error('Failed to fetch master data:', err);
@@ -968,7 +974,7 @@ export const TargetManager: React.FC = () => {
                                 >
                                   {costCenters.map(cat => (
                                     <option key={cat.code} value={cat.code}>
-                                      {cat.label[language as keyof typeof cat.label]}
+                                      {language === 'id' ? cat.labelId : cat.labelEn}
                                     </option>
                                   ))}
                                 </select>

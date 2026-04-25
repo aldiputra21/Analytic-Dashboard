@@ -92,7 +92,7 @@ Fitur ini menambahkan beberapa kapabilitas baru pada aplikasi Corporate Finance 
 4. WHEN Admin membuat atau memperbarui data bank, THE Bank_Master SHALL mewajibkan pengisian field `code` dan `name`.
 5. THE Bank_Master SHALL memastikan `code` bank bersifat unik di seluruh tabel `public.banks`.
 6. IF Admin mencoba menyimpan bank dengan `code` yang sudah ada, THEN THE Bank_Master SHALL mengembalikan pesan error yang deskriptif.
-7. THE Bank_Master SHALL menggunakan komponen `SearchableSelect` pada form yang memiliki opsi banyak.
+7. WHEN User memilih bank pada form dropdown, THE System SHALL menyediakan endpoint `/api/banks/dropdown` yang mengembalikan semua bank aktif tanpa pagination. Backend HARUS apply filter `status = 'active'` secara otomatis; frontend TIDAK mengirimkan parameter status.
 8. THE Bank_Master SHALL menggunakan file translasi i18n dan tidak melakukan hardcode label.
 
 ---
@@ -112,7 +112,7 @@ Fitur ini menambahkan beberapa kapabilitas baru pada aplikasi Corporate Finance 
 7. THE Loan_Module SHALL menampilkan daftar pinjaman beserta status cicilan dan aksi "mark as paid" dalam satu halaman yang terintegrasi.
 8. WHEN User menandai cicilan sebagai paid, THE Loan_Module SHALL mengisi `paid_date` dengan tanggal saat ini dan mengubah `status` cicilan menjadi `paid`.
 9. WHEN semua cicilan pada sebuah pinjaman berstatus `paid`, THE System SHALL secara otomatis mengubah `status` pinjaman menjadi `paid`.
-10. THE Loan_Module SHALL menggunakan komponen `SearchableSelect` untuk pemilihan bank dan corporate.
+10. WHEN User memilih bank atau corporate pada form dropdown, THE System SHALL menyediakan endpoint `/api/banks/dropdown` dan `/api/frs/corporates/dropdown` yang mengembalikan semua item aktif tanpa pagination. Backend HARUS apply filter `status = 'active'` secara otomatis; frontend TIDAK mengirimkan parameter status.
 11. THE Loan_Module SHALL menggunakan file translasi i18n dan tidak melakukan hardcode label.
 
 ---
@@ -145,7 +145,8 @@ Fitur ini menambahkan beberapa kapabilitas baru pada aplikasi Corporate Finance 
 2. THE Master_Migration SHALL memigrasikan data yang ada di `system_configs` dengan key `corporate_sectors` ke tabel `public.corporate_sectors`.
 3. WHEN kode yang menggunakan `system_configs` key `corporate_sectors` dijalankan (termasuk `CorporateManager.tsx` dan seed), THE System SHALL membaca data dari tabel `public.corporate_sectors` dan bukan dari `system_configs`.
 4. THE System SHALL menyediakan antarmuka CRUD untuk mengelola data `corporate_sectors` (tambah, ubah, hapus, aktif/nonaktif).
-5. THE System SHALL memastikan `code` pada `corporate_sectors` bersifat unik.
+5. WHEN User memilih sektor pada form dropdown, THE System SHALL menyediakan endpoint `/api/corporate-sectors/dropdown` yang mengembalikan semua sektor aktif tanpa pagination. Backend HARUS apply filter `status = 'active'` secara otomatis; frontend TIDAK mengirimkan parameter status.
+6. THE System SHALL memastikan `code` pada `corporate_sectors` bersifat unik.
 
 ---
 
@@ -159,7 +160,8 @@ Fitur ini menambahkan beberapa kapabilitas baru pada aplikasi Corporate Finance 
 2. THE Master_Migration SHALL memigrasikan data yang ada di `system_configs` dengan key `currencies` ke tabel `public.currencies`.
 3. WHEN kode yang menggunakan `system_configs` key `currencies` dijalankan (termasuk `CorporateManager.tsx` dan seed), THE System SHALL membaca data dari tabel `public.currencies` dan bukan dari `system_configs`.
 4. THE System SHALL menyediakan antarmuka CRUD untuk mengelola data `currencies` (tambah, ubah, hapus, aktif/nonaktif).
-5. THE System SHALL memastikan `code` pada `currencies` bersifat unik.
+5. WHEN User memilih mata uang pada form dropdown, THE System SHALL menyediakan endpoint `/api/currencies/dropdown` yang mengembalikan semua mata uang aktif tanpa pagination. Backend HARUS apply filter `status = 'active'` secara otomatis; frontend TIDAK mengirimkan parameter status.
+6. THE System SHALL memastikan `code` pada `currencies` bersifat unik.
 
 ---
 
@@ -173,7 +175,8 @@ Fitur ini menambahkan beberapa kapabilitas baru pada aplikasi Corporate Finance 
 2. THE Master_Migration SHALL memigrasikan data yang ada di `system_configs` dengan key `cost_center_categories` ke tabel `public.cost_center_categories`.
 3. WHEN kode yang menggunakan `system_configs` key `cost_center_categories` dijalankan (termasuk `CostCenterManager.tsx`, `TargetManager.tsx`, dan seed), THE System SHALL membaca data dari tabel `public.cost_center_categories` dan bukan dari `system_configs`.
 4. THE System SHALL menyediakan antarmuka CRUD untuk mengelola data `cost_center_categories` (tambah, ubah, hapus, aktif/nonaktif).
-5. THE System SHALL memastikan `code` pada `cost_center_categories` bersifat unik.
+5. WHEN User memilih kategori pada form dropdown, THE System SHALL menyediakan endpoint `/api/cost-center-categories/dropdown` yang mengembalikan semua kategori aktif tanpa pagination. Backend HARUS apply filter `status = 'active'` secara otomatis; frontend TIDAK mengirimkan parameter status.
+6. THE System SHALL memastikan `code` pada `cost_center_categories` bersifat unik.
 
 ---
 

@@ -1,10 +1,14 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: ['.env.local', '.env'] });
+import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { getFRSConfig } from '../config/frsConfig.js';
 import * as schema from './schema/index.js';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
-}
+const config = getFRSConfig();
 
-export const db = drizzle(process.env.DATABASE_URL, { schema });
+// Use Pool for better performance in production
+const pool = new pg.Pool({
+  connectionString: config.DATABASE_URL,
+  max: config.DB_POOL_MAX,
+});
+
+export const db = drizzle(pool, { schema });

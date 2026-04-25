@@ -111,6 +111,11 @@ updatedAt: timestamp('updated_at', { withTimezone: true }).$onUpdate(() => new D
 - **No Hardcoding**: Jangan pernah melakukan hardcode untuk judul, label, placeholder, atau pesan (alerts/toasts) langsung di dalam komponen.
 - **Translation Files**: Wajib menggunakan file translasi yang ada di folder `src/i18n/`. Setiap modul harus merujuk pada file i18n yang relevan.
 
+### 5.6 API Design (Dropdowns)
+- **No Paging**: Endpoint yang digunakan untuk memuat data dropdown/selector **tidak boleh** menggunakan pagination.
+- **Active Data Only**: Tampilkan seluruh data yang memiliki status aktif secara otomatis.
+- **No Status Parameter**: Frontend tidak perlu mengirimkan parameter `status` untuk menyaring data aktif; backend harus menanganinya secara internal.
+
 ---
 
 ## 6. Referensi Cepat

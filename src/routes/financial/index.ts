@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { createFRSAuthRouter } from './auth';
 import { createCorporatesRouter } from './corporates';
 import { createFinancialDataRouter } from './financialData';
-import { createUsersRouter } from './users';
+import { createUsersRouter, createRolesRouter } from './users';
 import { createRatiosRouter } from './ratios';
 import { createThresholdsRouter } from './thresholds';
 import { createAlertsRouter } from './alerts';
@@ -15,6 +15,14 @@ import { createNotificationsRouter } from './notifications';
 import { createReportsRouter } from './reports';
 import { createAuditLogRouter } from './auditLog';
 import { createBackupRouter } from './backup';
+import { createBanksRouter } from './banks';
+import { createCorporateSectorsRouter } from './corporateSectors';
+import { createCurrenciesRouter } from './currencies';
+import { createCostCenterCategoriesRouter } from './costCenterCategories';
+import { createCashRealizationsRouter } from './cashRealizations';
+import { createAttachmentsRouter } from './attachments';
+import { createBankLoansRouter } from './bankLoans';
+import { createNotificationConfigsRouter } from './notificationConfigs';
 import { authenticate } from '../../middleware/auth';
 
 import { getFRSConfig } from '../../config/frsConfig';
@@ -69,6 +77,9 @@ export function createFRSRouter(): Router {
   // User management (Owner only)
   router.use('/users', createUsersRouter());
 
+  // Roles listing (for dropdowns)
+  router.use('/roles', createRolesRouter());
+
   // Calculated ratios (with caching)
   router.use('/ratios', createRatiosRouter());
 
@@ -89,6 +100,30 @@ export function createFRSRouter(): Router {
 
   // Backup and restore (Owner only)
   router.use('/backup', createBackupRouter());
+
+  // Master Banks
+  router.use('/banks', createBanksRouter());
+
+  // Master Corporate Sectors
+  router.use('/corporate-sectors', createCorporateSectorsRouter());
+
+  // Master Currencies
+  router.use('/currencies', createCurrenciesRouter());
+
+  // Master Cost Center Categories
+  router.use('/cost-center-categories', createCostCenterCategoriesRouter());
+
+  // Cash Realizations
+  router.use('/cash-realizations', createCashRealizationsRouter());
+
+  // Attachments (download + delete)
+  router.use('/attachments', createAttachmentsRouter());
+
+  // Bank Loans
+  router.use('/bank-loans', createBankLoansRouter());
+
+  // Notification Configs (owner-only write/delete)
+  router.use('/notification-configs', createNotificationConfigsRouter());
 
   return router;
 }

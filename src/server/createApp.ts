@@ -1,5 +1,6 @@
 import express from 'express';
 import helmet from 'helmet';
+import compression from 'compression';
 import path from 'path';
 import { db } from '../db/connection.js';
 import { users } from '../db/schema/public.js';
@@ -8,6 +9,8 @@ import { authenticate } from '../middleware/auth.js';
 import { createCustomerRouter, createContactRouter, createContactStandaloneRouter } from '../routes/crm/customers.js';
 import { createInteractionRouter } from '../routes/crm/interactions.js';
 import { createFRSRouter } from '../routes/financial/index.js';
+import { createRolesRouter } from '../routes/financial/users.js';
+import { createCorporatesRouter } from '../routes/financial/corporates.js';
 import { createDepartmentRouter } from '../routes/management/departments.js';
 import { createProjectRouter } from '../routes/management/projects.js';
 import { createTargetRouter } from '../routes/management/targets.js';
@@ -17,6 +20,16 @@ import { createOpportunityRouter, createPipelineRouter } from '../routes/crm/opp
 import { createQualificationRouter } from '../routes/crm/qualifications.js';
 import { createCostCenterRouter } from '../routes/management/cost-centers.js';
 import { createSystemConfigRouter } from '../routes/management/systemConfigs.js';
+import { createBanksRouter } from '../routes/financial/banks.js';
+import { createCorporateSectorsRouter } from '../routes/financial/corporateSectors.js';
+import { createCurrenciesRouter } from '../routes/financial/currencies.js';
+import { createCostCenterCategoriesRouter } from '../routes/financial/costCenterCategories.js';
+import { createCashRealizationsRouter } from '../routes/financial/cashRealizations.js';
+import { createBankLoansRouter } from '../routes/financial/bankLoans.js';
+import { createNotificationConfigsRouter } from '../routes/financial/notificationConfigs.js';
+import { createAttachmentsRouter } from '../routes/financial/attachments.js';
+
+import { getFRSConfig } from '../config/frsConfig.js';
 
 interface CreateAppOptions {
   enableRequestLogger?: boolean;
@@ -32,14 +45,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   } = options;
 
   const app = express();
+  const config = getFRSConfig();
 
+  app.use(compression());
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json());
 
   // Global API Rate Limiter
-  const { getFRSConfig } = await import('../config/frsConfig.js');
   const rateLimit = (await import('express-rate-limit')).default;
-  const config = getFRSConfig();
 
   const globalLimiter = rateLimit({
     windowMs: config.RATE_LIMIT_WINDOW_MS,
@@ -77,6 +90,18 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use('/api/system-configs', authenticate, createSystemConfigRouter());
   app.use('/api/financial-statements', authenticate, createFinancialStatementRouter());
   app.use('/api/dashboard', authenticate, createMafindaDashboardRouter());
+
+  // Master Data & Financial Enhancement routes
+  app.use('/api/corporates', authenticate, createCorporatesRouter());
+  app.use('/api/roles', authenticate, createRolesRouter());
+  app.use('/api/banks', authenticate, createBanksRouter());
+  app.use('/api/corporate-sectors', authenticate, createCorporateSectorsRouter());
+  app.use('/api/currencies', authenticate, createCurrenciesRouter());
+  app.use('/api/cost-center-categories', authenticate, createCostCenterCategoriesRouter());
+  app.use('/api/cash-realizations', authenticate, createCashRealizationsRouter());
+  app.use('/api/bank-loans', authenticate, createBankLoansRouter());
+  app.use('/api/notification-configs', authenticate, createNotificationConfigsRouter());
+  app.use('/api/attachments', authenticate, createAttachmentsRouter());
 
   // CRM routes require authentication
   app.use('/api/crm/customers', authenticate, createCustomerRouter());
@@ -121,7 +146,11 @@ export async function createApp(options: CreateAppOptions = {}) {
     const __filename = new URL(import.meta.url).pathname;
     const __dirname = path.dirname(__filename);
     const distPath = path.resolve(__dirname, '../../dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: config.STATIC_CACHE_MAX_AGE,
+      immutable: true,
+      index: false
+    }));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });

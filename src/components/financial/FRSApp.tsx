@@ -39,6 +39,15 @@ const BalanceSheetManager = lazy(() => import('./data-entry/BalanceSheetManager'
 const IncomeStatementManager = lazy(() => import('./data-entry/IncomeStatementManager').then((m) => ({ default: m.IncomeStatementManager })));
 const WeeklyCashFlowManager = lazy(() => import('./data-entry/WeeklyCashFlowManager').then((m) => ({ default: m.WeeklyCashFlowManager })));
 
+// CFD Financial Enhancements Components
+const RealizationManager = lazy(() => import('./cfd/RealizationManager').then((m) => ({ default: m.RealizationManager })));
+const BankLoanManager = lazy(() => import('./cfd/BankLoanManager').then((m) => ({ default: m.BankLoanManager })));
+const BankManager = lazy(() => import('./admin/BankManager').then((m) => ({ default: m.BankManager })));
+const CorporateSectorManager = lazy(() => import('./admin/CorporateSectorManager').then((m) => ({ default: m.CorporateSectorManager })));
+const CurrencyManager = lazy(() => import('./admin/CurrencyManager').then((m) => ({ default: m.CurrencyManager })));
+const CostCenterCategoryManager = lazy(() => import('./admin/CostCenterCategoryManager').then((m) => ({ default: m.CostCenterCategoryManager })));
+const NotificationConfigManager = lazy(() => import('./admin/NotificationConfigManager').then((m) => ({ default: m.NotificationConfigManager })));
+
 // Skeleton screen for loading states (Req 12.1)
 const PageSkeleton: React.FC = () => (
   <div className="p-6 space-y-4 animate-pulse">
@@ -726,6 +735,48 @@ const AppContent: React.FC = () => {
         return <IncomeStatementManager />;
       case 'cfd-weekly-cash-flows':
         return <WeeklyCashFlowManager />;
+      case 'cfd-realizations':
+        return (
+          <div className="p-6">
+            <RealizationManager />
+          </div>
+        );
+      case 'cfd-bank-loans':
+        return (
+          <div className="p-6">
+            <BankLoanManager />
+          </div>
+        );
+      case 'bank-manager':
+        return (
+          <div className="p-6">
+            <BankManager />
+          </div>
+        );
+      case 'corporate-sectors-manager':
+        return (
+          <div className="p-6">
+            <CorporateSectorManager />
+          </div>
+        );
+      case 'currencies-manager':
+        return (
+          <div className="p-6">
+            <CurrencyManager />
+          </div>
+        );
+      case 'cost-center-categories-manager':
+        return (
+          <div className="p-6">
+            <CostCenterCategoryManager />
+          </div>
+        );
+      case 'notification-configs-manager':
+        return (
+          <div className="p-6">
+            <NotificationConfigManager />
+          </div>
+        );
       case 'crm-dashboard':
         return <CRMPage activeTab="dashboard" />;
       case 'crm-opportunities':

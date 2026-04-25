@@ -303,3 +303,98 @@ export const notifications = pgTable('notifications', {
   check('chk_notifications_status', sql`${table.status} IN ('unread', 'read', 'archived', 'dismissed')`),
   check('chk_notifications_severity', sql`${table.severity} IN ('low', 'medium', 'high')`),
 ]);
+
+// ============================================================================
+// public schema — CFD Financial Enhancements additions
+// ============================================================================
+
+// --- 14. banks --------------------------------------------------------------
+
+export const banks = pgTable('banks', {
+  id: uuid().primaryKey().defaultRandom(),
+  code: varchar({ length: 20 }).notNull().unique(),
+  name: varchar({ length: 100 }).notNull(),
+  swiftCode: varchar('swift_code', { length: 20 }),
+  status: varchar({ length: 20 }).notNull().default('active'),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  check('chk_banks_status', sql`${table.status} IN ('active', 'inactive')`),
+]);
+
+// --- 15. corporate_sectors --------------------------------------------------
+
+export const corporateSectors = pgTable('corporate_sectors', {
+  id: uuid().primaryKey().defaultRandom(),
+  code: varchar({ length: 50 }).notNull().unique(),
+  labelId: varchar('label_id', { length: 100 }).notNull(),
+  labelEn: varchar('label_en', { length: 100 }).notNull(),
+  status: varchar({ length: 20 }).notNull().default('active'),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+});
+
+// --- 16. currencies ---------------------------------------------------------
+
+export const currencies = pgTable('currencies', {
+  id: uuid().primaryKey().defaultRandom(),
+  code: varchar({ length: 10 }).notNull().unique(),
+  label: varchar({ length: 50 }).notNull(),
+  status: varchar({ length: 20 }).notNull().default('active'),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+});
+
+// --- 17. cost_center_categories ---------------------------------------------
+
+export const costCenterCategories = pgTable('cost_center_categories', {
+  id: uuid().primaryKey().defaultRandom(),
+  code: varchar({ length: 50 }).notNull().unique(),
+  labelId: varchar('label_id', { length: 100 }).notNull(),
+  labelEn: varchar('label_en', { length: 100 }).notNull(),
+  status: varchar({ length: 20 }).notNull().default('active'),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+});
+
+// --- 18. attachments --------------------------------------------------------
+
+export const attachments = pgTable('attachments', {
+  id: uuid().primaryKey().defaultRandom(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(),
+  entityId: uuid('entity_id').notNull(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  filePath: text('file_path').notNull(),
+  fileSize: integer('file_size').notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  index('idx_attachments_entity').on(table.entityType, table.entityId),
+]);
+
+// --- 19. notification_configs -----------------------------------------------
+
+export const notificationConfigs = pgTable('notification_configs', {
+  id: uuid().primaryKey().defaultRandom(),
+  module: varchar({ length: 50 }).notNull(),
+  eventType: varchar('event_type', { length: 100 }).notNull(),
+  roleId: uuid('role_id').notNull().references(() => roles.id),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  unique('uq_notification_config_module_event_role').on(table.module, table.eventType, table.roleId),
+]);

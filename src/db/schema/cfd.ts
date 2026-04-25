@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  date,
   integer,
   jsonb,
   numeric,
@@ -14,7 +15,7 @@ import {
   varchar,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { corporates, departments, projects } from './public';
+import { banks, corporates, departments, projects } from './public';
 
 // ============================================================================
 // cfd schema — 8 tables
@@ -185,3 +186,65 @@ export const thresholds = cfdSchema.table('thresholds', {
   unique('uq_threshold_corporate_ratio').on(table.corporateId, table.ratioName),
 ]);
 
+
+// ============================================================================
+// cfd schema — CFD Financial Enhancements additions
+// ============================================================================
+
+// --- 7. cash_realizations ---------------------------------------------------
+
+export const cashRealizations = cfdSchema.table('cash_realizations', {
+  id: uuid().primaryKey().defaultRandom(),
+  entityType: varchar('entity_type', { length: 20 }).notNull(),
+  departmentId: uuid('department_id').notNull().references(() => departments.id),
+  projectId: uuid('project_id').references(() => projects.id),
+  transactionDate: date('transaction_date').notNull(),
+  category: varchar({ length: 20 }).notNull(),
+  amount: numeric({ precision: 18, scale: 2 }).notNull(),
+  notes: text(),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  check('chk_realization_entity_type', sql`${table.entityType} IN ('department', 'project')`),
+  check('chk_realization_category', sql`${table.category} IN ('cash-in', 'cash-out')`),
+  check('chk_realization_project_required',
+    sql`NOT (${table.entityType} = 'project' AND ${table.projectId} IS NULL)`),
+]);
+
+// --- 8. bank_loans ----------------------------------------------------------
+
+export const bankLoans = cfdSchema.table('bank_loans', {
+  id: uuid().primaryKey().defaultRandom(),
+  bankId: uuid('bank_id').notNull().references(() => banks.id),
+  corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
+  amount: numeric({ precision: 18, scale: 2 }).notNull(),
+  startDate: date('start_date').notNull(),
+  tenor: integer().notNull(),
+  interestType: varchar('interest_type', { length: 20 }).notNull(),
+  interestRate: numeric('interest_rate', { precision: 5, scale: 4 }).notNull(),
+  status: varchar({ length: 20 }).notNull().default('ongoing'),
+  alertMinDays: integer('alert_min_days').notNull().default(5),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  check('chk_loan_interest_type', sql`${table.interestType} IN ('flat', 'effective')`),
+  check('chk_loan_status', sql`${table.status} IN ('ongoing', 'paid')`),
+  check('chk_loan_tenor_positive', sql`${table.tenor} > 0`),
+]);
+
+// --- 9. bank_loan_installments ----------------------------------------------
+
+export const bankLoanInstallments = cfdSchema.table('bank_loan_installments', {
+  id: uuid().primaryKey().defaultRandom(),
+  bankLoanId: uuid('bank_loan_id').notNull().references(() => bankLoans.id, { onDelete: 'cascade' }),
+  installmentDate: date('installment_date').notNull(),
+  amount: numeric({ precision: 18, scale: 2 }).notNull(),
+  status: varchar({ length: 20 }).notNull().default('unpaid'),
+  paidDate: date('paid_date'),
+}, (table) => [
+  check('chk_installment_status', sql`${table.status} IN ('paid', 'unpaid')`),
+]);
