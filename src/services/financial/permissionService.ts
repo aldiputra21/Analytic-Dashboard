@@ -57,3 +57,25 @@ export async function userHasPermission(userId: string, permissionKey: string): 
 export function toPermissionKey(resource: string, action: string): string {
   return `cfd.${resource}.${action}`;
 }
+
+/**
+ * Gets the list of corporate IDs a user has access to.
+ * Returns null if the user has system-wide access (owner/bod logic).
+ */
+export async function getUserSubsidiaryIds(userId: string): Promise<string[] | null> {
+  const rows = await db.select({ 
+    corporateId: userCorporateAccesses.corporateId,
+    scope: userCorporateAccesses.scope 
+  })
+    .from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.userId, userId));
+
+  // If any row has scope 'system', user has access to everything
+  if (rows.some(r => r.scope === 'system')) {
+    return null; // null means "all"
+  }
+
+  return rows
+    .map(r => r.corporateId)
+    .filter((id): id is string => id !== null);
+}

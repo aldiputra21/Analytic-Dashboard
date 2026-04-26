@@ -2,7 +2,7 @@
 // Requirements: 7.1, 7.6, 7.9
 
 import { Router, Request, Response } from 'express';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, requireSubsidiaryAccess } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getAllDepartments,
@@ -14,18 +14,20 @@ import {
   ConflictError,
   NotFoundError,
 } from '../../services/mafinda/departmentService.js';
+import { getUserSubsidiaryIds } from '../../services/financial/permissionService';
 
 export function createDepartmentRouter(): Router {
   const router = Router();
 
   // GET /api/departments/dropdown-items — list all active departments for dropdowns (no pagination)
-  router.get('/dropdown-items', requirePermission('public.departments.read'), asyncHandler(async (_req: Request, res: Response): Promise<void> => {
-    const results = await getActiveDepartments();
+  router.get('/dropdown-items', requirePermission('public.departments.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
+    const results = await getActiveDepartments(subsidiaryIds);
     res.json(results);
   }));
 
   // GET /api/departments?corporateId=xxx — list departments for a corporate
-  router.get('/', requirePermission('public.departments.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.get('/', requirePermission('public.departments.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId, search, page, pageSize } = req.query as Record<string, string>;
     const userRole = req.user?.role;
     
@@ -53,7 +55,7 @@ export function createDepartmentRouter(): Router {
   }));
 
   // POST /api/departments — create new department
-  router.post('/', requirePermission('public.departments.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.post('/', requirePermission('public.departments.write'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId, name, code, description, headName } = req.body ?? {};
 
     if (!corporateId?.trim()) {

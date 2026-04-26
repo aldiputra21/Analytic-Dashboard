@@ -16,6 +16,7 @@ import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import { MonthPicker } from '../shared/MonthPicker';
 import { MonthRangePicker } from '../shared/MonthRangePicker';
+import { SearchableSelect } from '../shared/SearchableSelect';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -177,7 +178,7 @@ export const IncomeStatementManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { corporates } = useCorporates();
+  const { options: corporateOptions, isLoading: isCorpsLoading, corporates } = useCorporates();
 
   // Filters
   const [filterPeriodStart, setFilterPeriodStart] = useState('');
@@ -371,20 +372,14 @@ export const IncomeStatementManager: React.FC = () => {
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {(hasFullCorporateAccess || user?.role === 'owner' || subsidiaryIds.length > 1) && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex-1 min-w-[200px]">
-              <Landmark size={16} className="text-slate-500" />
-              <select
+            <div className="flex-1 min-w-[200px]">
+              <SearchableSelect
+                options={corporateOptions.filter(opt => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(opt.value)))}
                 value={filterCorporate}
-                onChange={(e) => setFilterCorporate(e.target.value)}
-                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full font-bold"
-              >
-                <option value="">{t.modal.selectCorporate}</option>
-                {corporates
-                  .filter(corp => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(corp.id)))
-                  .map(corp => (
-                    <option key={corp.id} value={corp.id}>{corp.name}</option>
-                  ))}
-              </select>
+                onChange={(val) => setFilterCorporate(val)}
+                placeholder={t.modal.selectCorporate}
+                disabled={isCorpsLoading}
+              />
             </div>
           )}
 
@@ -686,22 +681,13 @@ export const IncomeStatementManager: React.FC = () => {
                         {formData.corporateName || 'N/A'}
                       </div>
                     ) : (
-                      <div className="relative">
-                        <select
-                          required
-                          value={formData.corporateId}
-                          onChange={(e) => setFormData({ ...formData, corporateId: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
-                        >
-                          <option value="">{t.modal.selectCorporate}</option>
-                          {corporates
-                            .filter(corp => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(corp.id)))
-                            .map(corp => (
-                              <option key={corp.id} value={corp.id}>{corp.name}</option>
-                            ))}
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                      </div>
+                      <SearchableSelect
+                        options={corporateOptions.filter(opt => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(opt.value)))}
+                        value={formData.corporateId || ''}
+                        onChange={(val) => setFormData({ ...formData, corporateId: val })}
+                        placeholder={t.modal.selectCorporate}
+                        disabled={isCorpsLoading}
+                      />
                     )}
                   </div>
                 </div>

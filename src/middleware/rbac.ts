@@ -96,7 +96,8 @@ export function requireSubsidiaryAccess() {
     }
 
     const subsidiaryId =
-      (req.params.subsidiaryId ?? req.params.id ?? req.query.subsidiaryId as string);
+      (req.params.subsidiaryId ?? req.params.id ?? req.params.corporateId ?? 
+       req.query.subsidiaryId ?? req.query.corporateId ?? req.query.corporate_id) as string;
 
     if (!subsidiaryId) {
       next();

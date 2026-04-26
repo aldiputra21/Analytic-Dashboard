@@ -11,6 +11,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { useDepartments } from '../../../hooks/financial/useDepartments';
+import { useProjects } from '../../../hooks/financial/useProjects';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import {
@@ -88,6 +90,8 @@ const Modal: React.FC<{
 
 export const RealizationManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
+  const { departments, isLoading: isDeptsLoading } = useDepartments();
+  const { projects, isLoading: isProjsLoading } = useProjects();
   const t = realizationI18n[language];
   const common = commonsI18n[language];
 
@@ -117,9 +121,6 @@ export const RealizationManager: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Master Data for Dropdowns
-  const [departments, setDepartments] = useState<{ value: string; label: string }[]>([]);
-  const [projects, setProjects] = useState<{ value: string; label: string; departmentId: string }[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -166,34 +167,6 @@ export const RealizationManager: React.FC = () => {
     path: ['departmentId'] // Use departmentId as base error path
   });
 
-  const fetchMasterData = useCallback(async () => {
-    try {
-      const [deptsRes, projsRes] = await Promise.all([
-        apiFetch('/api/departments'),
-        apiFetch('/api/projects')
-      ]);
-
-      if (deptsRes.ok) {
-        const d = await deptsRes.json();
-        setDepartments((d.records || []).map((item: any) => ({
-          value: item.id,
-          label: `[${item.code}] ${item.name}`
-        })));
-      }
-
-      if (projsRes.ok) {
-        const d = await projsRes.json();
-        setProjects((d.records || []).map((item: any) => ({
-          value: item.id,
-          label: `[${item.code}] ${item.name}`,
-          departmentId: item.departmentId
-        })));
-      }
-    } catch (err) {
-      console.error('Failed to fetch master data', err);
-      toast.error(t.alerts.errorFetchMasterData || 'Gagal memuat data master');
-    }
-  }, [t.alerts.errorFetchMasterData]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -222,9 +195,6 @@ export const RealizationManager: React.FC = () => {
     }
   }, [page, pageSize, appliedFilters, t.alerts.errorFetch]);
 
-  useEffect(() => {
-    fetchMasterData();
-  }, [fetchMasterData]);
 
   useEffect(() => {
     fetchData();
@@ -424,7 +394,6 @@ export const RealizationManager: React.FC = () => {
   const showingTo = Math.min(page * pageSize, totalCount);
 
   // Filter projects based on selected department in form
-  const filteredProjects = projects.filter(p => p.departmentId === formData.departmentId);
 
   return (
     <div className="space-y-6">
@@ -812,11 +781,11 @@ export const RealizationManager: React.FC = () => {
                       {t.modal.department} <span className="text-red-500">*</span>
                     </label>
                     <SearchableSelect
-                      options={departments}
+                      options={departments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
                       value={formData.departmentId}
                       onChange={(val) => setFormData(p => ({ ...p, departmentId: val, projectId: '' }))}
                       placeholder={t.modal.department}
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || isDeptsLoading}
                     />
                   </div>
 
@@ -827,11 +796,13 @@ export const RealizationManager: React.FC = () => {
                         {t.modal.project} <span className="text-red-500">*</span>
                       </label>
                       <SearchableSelect
-                        options={filteredProjects}
+                        options={projects
+                          .filter(p => p.departmentId === formData.departmentId)
+                          .map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
                         value={formData.projectId}
                         onChange={(val) => setFormData(p => ({ ...p, projectId: val }))}
                         placeholder={t.modal.project}
-                        disabled={isReadOnly || !formData.departmentId}
+                        disabled={isReadOnly || !formData.departmentId || isProjsLoading}
                       />
                     </motion.div>
                   )}

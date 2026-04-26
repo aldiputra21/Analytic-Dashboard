@@ -1,7 +1,7 @@
 // Corporate Service
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { corporates, departments } from '../../db/schema/index.js';
 import { Corporate, CreateCorporateInput, UpdateCorporateInput } from '../../types/financial/corporate';
@@ -74,8 +74,9 @@ export async function listCorporates(options: {
   search?: string; 
   page?: number; 
   pageSize?: number;
+  subsidiaryIds?: string[] | null;
 } = {}): Promise<{ records: Corporate[]; totalCount: number }> {
-  const { activeOnly, search, page = 1, pageSize = 0 } = options;
+  const { activeOnly, search, page = 1, pageSize = 0, subsidiaryIds } = options;
   
   let baseQuery = db.select().from(corporates);
   let countQuery = db.select({ count: sql<number>`count(*)` }).from(corporates);
@@ -91,6 +92,11 @@ export async function listCorporates(options: {
   if (filters.length > 0) {
     baseQuery = baseQuery.where(sql.join(filters, sql` AND `)) as any;
     countQuery = countQuery.where(sql.join(filters, sql` AND `)) as any;
+  }
+  
+  if (subsidiaryIds && subsidiaryIds.length > 0) {
+    baseQuery = baseQuery.where(inArray(corporates.id, subsidiaryIds)) as any;
+    countQuery = countQuery.where(inArray(corporates.id, subsidiaryIds)) as any;
   }
 
   // Get total count
@@ -112,12 +118,16 @@ export async function listCorporates(options: {
 
 /**
  * Gets all active corporates for dropdowns/items.
+ * Optional filter by corporate IDs for access control.
  */
-export async function getActiveCorporates(): Promise<Corporate[]> {
-  const rows = await db.select().from(corporates)
-    .where(eq(corporates.isActive, true))
-    .orderBy(asc(corporates.name));
+export async function getActiveCorporates(subsidiaryIds?: string[] | null): Promise<Corporate[]> {
+  let query = db.select().from(corporates).where(eq(corporates.isActive, true));
   
+  if (subsidiaryIds && subsidiaryIds.length > 0) {
+    query = query.where(inArray(corporates.id, subsidiaryIds)) as any;
+  }
+  
+  const rows = await query.orderBy(asc(corporates.name));
   return rows.map(mapRowToCorporate);
 }
 

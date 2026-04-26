@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { useBanks } from '../../../hooks/financial/useBanks';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -93,6 +95,8 @@ const Modal: React.FC<{
 
 export const BankLoanManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
+  const { options: bankOptions, isLoading: isBanksLoading } = useBanks();
+  const { corporates, options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
   const t = bankLoanI18n[language];
   const common = commonsI18n[language];
 
@@ -127,9 +131,6 @@ export const BankLoanManager: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Master Data
-  const [banks, setBanks] = useState<{ value: string; label: string }[]>([]);
-  const [corporates, setCorporates] = useState<{ value: string; label: string }[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -155,33 +156,6 @@ export const BankLoanManager: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchMasterData = useCallback(async () => {
-    try {
-      const [banksRes, corpsRes] = await Promise.all([
-        apiFetch('/api/banks'),
-        apiFetch('/api/corporates')
-      ]);
-
-      if (banksRes.ok) {
-        const d = await banksRes.json();
-        setBanks((d.records || []).map((item: any) => ({
-          value: item.id,
-          label: `[${item.code}] ${item.name}`
-        })));
-      }
-
-      if (corpsRes.ok) {
-        const d = await corpsRes.json();
-        setCorporates((d.records || []).map((item: any) => ({
-          value: item.id,
-          label: `[${item.code}] ${item.name}`
-        })));
-      }
-    } catch (err) {
-      console.error('Failed to fetch master data', err);
-      toast.error(common.errorFetchMasterData);
-    }
-  }, [common.errorFetchMasterData]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -209,9 +183,6 @@ export const BankLoanManager: React.FC = () => {
     }
   }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
-  useEffect(() => {
-    fetchMasterData();
-  }, [fetchMasterData]);
 
   useEffect(() => {
     fetchData();
@@ -731,11 +702,11 @@ export const BankLoanManager: React.FC = () => {
                       {t.modal.bank} <span className="text-red-500">*</span>
                     </label>
                     <SearchableSelect
-                      options={banks}
+                      options={bankOptions}
                       value={formData.bankId}
                       onChange={(val) => setFormData(p => ({ ...p, bankId: val }))}
                       placeholder={t.modal.selectBank}
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || isBanksLoading}
                     />
                   </div>
 
@@ -744,11 +715,11 @@ export const BankLoanManager: React.FC = () => {
                       {t.modal.corporate} <span className="text-red-500">*</span>
                     </label>
                     <SearchableSelect
-                      options={corporates}
+                      options={corporateOptions}
                       value={formData.corporateId}
                       onChange={(val) => setFormData(p => ({ ...p, corporateId: val }))}
                       placeholder={t.modal.selectCorporate}
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || isCorpsLoading}
                     />
                   </div>
 

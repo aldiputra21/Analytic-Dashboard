@@ -9,6 +9,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { useCostCenterCategories } from '../../../hooks/financial/useCostCenterCategories';
+import { useCostCenters } from '../../../hooks/financial/useCostCenters';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -23,6 +25,7 @@ import {
 import { costCenterI18n } from '../../../i18n/cost-center';
 import { commonsI18n } from '../../../i18n/commons';
 import { z } from 'zod';
+import { SearchableSelect } from '../shared/SearchableSelect';
 
 interface CostCenter {
   id: string;
@@ -113,6 +116,8 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: str
 
 export const CostCenterManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
+  const { options: categoryOptions, isLoading: isCatsLoading, categories } = useCostCenterCategories();
+  const { options: parentOptions, isLoading: isParentsLoading, costCenters: allActiveCostCenters } = useCostCenters();
   const t = costCenterI18n[language];
   const common = commonsI18n[language];
 
@@ -138,7 +143,6 @@ export const CostCenterManager: React.FC = () => {
 
   // State
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
-  const [allCostCenters, setAllCostCenters] = useState<CostCenter[]>([]); // For parent selection
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +152,6 @@ export const CostCenterManager: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isViewOnly, setIsViewOnly] = useState(false);
-  const [costCenterCategories, setCostCenterCategories] = useState<{ code: string; labelId: string; labelEn: string }[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -168,23 +171,6 @@ export const CostCenterManager: React.FC = () => {
     isActive: true
   });
 
-  const fetchConfigs = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/cost-center-categories?status=active&pageSize=100');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.records)) {
-          setCostCenterCategories(data.records.map((v: any) => ({
-            code: v.code,
-            labelId: v.labelId,
-            labelEn: v.labelEn,
-          })));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch cost center categories:', err);
-    }
-  }, []);
 
   const fetchCostCenters = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -204,14 +190,6 @@ export const CostCenterManager: React.FC = () => {
       const data = await res.json();
       setCostCenters(data.records);
       setTotalCount(data.totalCount);
-
-      // Also fetch all active ones for parent selection if we haven't or if needed
-      // Fetching without pageSize to get all for dropdown
-      const allRes = await apiFetch(`/api/cost-centers?pageSize=0&activeOnly=true`);
-      if (allRes.ok) {
-        const allData = await allRes.json();
-        setAllCostCenters(allData.records);
-      }
     } catch (err: any) {
       setError(err.message || common.errorLoadTable);
       toast.error(err.message || common.errorLoadTable);
@@ -221,9 +199,6 @@ export const CostCenterManager: React.FC = () => {
     }
   }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
-  useEffect(() => {
-    fetchConfigs();
-  }, [fetchConfigs]);
 
   useEffect(() => {
     fetchCostCenters();
@@ -256,7 +231,7 @@ export const CostCenterManager: React.FC = () => {
       setEditingCC(null);
       setFormData({
         parentId: '',
-        category: costCenterCategories[0]?.code || '',
+        category: categoryOptions[0]?.value || '',
         name: '',
         code: '',
         description: '',
@@ -672,51 +647,26 @@ export const CostCenterManager: React.FC = () => {
                 {/* Row 1: Induk + Kategori */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField label={t.modal.parent}>
-                    <div className="relative">
-                      <select
-                        value={formData.parentId}
-                        onChange={(e) => setFormData({ ...formData, parentId: e.target.value })}
-                        disabled={isViewOnly}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
-                      >
-                        <option value="">{t.modal.none}</option>
-                        {allCostCenters.filter(cc => cc.id !== editingCC?.id).map(cc => (
-                          <option key={cc.id} value={cc.id}>{cc.code} - {cc.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                    </div>
+                    <SearchableSelect
+                      options={parentOptions.filter(opt => opt.value !== editingCC?.id)}
+                      value={formData.parentId}
+                      onChange={(val) => setFormData({ ...formData, parentId: val })}
+                      placeholder={t.modal.none}
+                      disabled={isViewOnly || isParentsLoading}
+                    />
                     {!formData.parentId && !isViewOnly && (
                       <p className="text-[10px] text-slate-400 mt-1 pl-1 italic">{t.modal.parentNote}</p>
                     )}
                   </FormField>
 
                   <FormField label={t.modal.category} required>
-                    <div className="relative">
-                      <select
-                        value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        disabled={!!formData.parentId || isViewOnly}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
-                      >
-                        {costCenterCategories.map(c => (
-                          <option key={c.code} value={c.code}>
-                            {language === 'id' ? c.labelId : c.labelEn}
-                          </option>
-                        ))}
-                        {costCenterCategories.length === 0 && (
-                          <>
-                            <option value="General">General</option>
-                            <option value="Operation">Operation</option>
-                            <option value="Support">Support</option>
-                            <option value="Sales">Sales</option>
-                            <option value="Marketing">Marketing</option>
-                            <option value="Production">Production</option>
-                          </>
-                        )}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                    </div>
+                    <SearchableSelect
+                      options={categoryOptions}
+                      value={formData.category}
+                      onChange={(val) => setFormData({ ...formData, category: val })}
+                      placeholder={t.modal.selectCategory}
+                      disabled={!!formData.parentId || isViewOnly || isCatsLoading}
+                    />
                   </FormField>
                 </div>
 

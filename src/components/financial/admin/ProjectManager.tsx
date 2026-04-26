@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
+import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -121,6 +123,8 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: str
 
 export const ProjectManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
+  const { options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
+  const { departments: allDepartments, isLoading: isDeptsLoading } = useDepartments();
   const t = projectI18n[language];
   const common = commonsI18n[language];
 
@@ -141,8 +145,6 @@ export const ProjectManager: React.FC = () => {
 
   // State
   const [projects, setProjects] = useState<Project[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [corporates, setCorporates] = useState<{ id: string; name: string; code: string }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,31 +177,6 @@ export const ProjectManager: React.FC = () => {
     isActive: true
   });
 
-  const fetchCorporates = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/corporates/dropdown-items');
-      if (res.ok) {
-        const data = await res.json();
-        setCorporates(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch corporates:', err);
-      toast.error(common.errorFetchMasterData);
-    }
-  }, [common.errorFetchMasterData]);
-
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/departments/dropdown-items');
-      if (res.ok) {
-        const data = await res.json();
-        setDepartments(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch departments for dropdown:', err);
-      toast.error(common.errorFetchMasterData);
-    }
-  }, [common.errorFetchMasterData]);
 
   const fetchProjects = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -229,10 +206,6 @@ export const ProjectManager: React.FC = () => {
     }
   }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
-  useEffect(() => {
-    fetchCorporates();
-    fetchDepartments();
-  }, [fetchCorporates, fetchDepartments]);
 
   useEffect(() => {
     fetchProjects();
@@ -253,7 +226,7 @@ export const ProjectManager: React.FC = () => {
   const handleOpenModal = (p?: Project, viewOnly = false) => {
     setIsViewOnly(viewOnly);
     if (p) {
-      const dept = departments.find(d => d.id === p.departmentId);
+      const dept = allDepartments.find(d => d.id === p.departmentId);
       setEditingProject(p);
       setFormData({
         corporateId: dept?.corporateId || '',
@@ -388,18 +361,14 @@ export const ProjectManager: React.FC = () => {
 
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
-        <div className="w-full md:w-56 relative group">
-          <select
+        <div className="w-full md:w-64">
+          <SearchableSelect
+            options={allDepartments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
             value={filterDepartment}
-            onChange={(e) => setFilterDepartment(e.target.value)}
-            className="w-full pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all cursor-pointer appearance-none"
-          >
-            <option value="">{t.filter.allDepartments}</option>
-            {departments.map(d => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" size={16} />
+            onChange={(val) => setFilterDepartment(val)}
+            placeholder={t.filter.allDepartments}
+            disabled={isDeptsLoading}
+          />
         </div>
 
         <div className="flex-1 min-w-[240px] relative group">
@@ -703,28 +672,20 @@ export const ProjectManager: React.FC = () => {
                 {/* Row 1: Perusahaan + Departemen */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField label={t.modal.corporate} required>
-                    <div className="relative">
-                      <select
-                        value={formData.corporateId}
-                        onChange={(e) => {
-                          const cid = e.target.value;
-                          setFormData({ ...formData, corporateId: cid, departmentId: '' });
-                        }}
-                        disabled={!!editingProject || isViewOnly}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
-                      >
-                        <option value="">{t.modal.selectCorporate}</option>
-                        {corporates.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                    </div>
+                    <SearchableSelect
+                      options={corporateOptions}
+                      value={formData.corporateId}
+                      onChange={(val) => {
+                        setFormData({ ...formData, corporateId: val, departmentId: '' });
+                      }}
+                      disabled={!!editingProject || isViewOnly || isCorpsLoading}
+                      placeholder={t.modal.selectCorporate}
+                    />
                   </FormField>
 
                   <FormField label={t.modal.department} required>
                     <SearchableSelect
-                      options={departments
+                      options={allDepartments
                         .filter(d => !formData.corporateId || d.corporateId === formData.corporateId)
                         .map(d => ({
                           value: d.id,
@@ -734,7 +695,7 @@ export const ProjectManager: React.FC = () => {
                       value={formData.departmentId}
                       onChange={(val) => setFormData({ ...formData, departmentId: val })}
                       placeholder={t.modal.selectDepartment}
-                      disabled={!formData.corporateId || isViewOnly}
+                      disabled={!formData.corporateId || isViewOnly || isDeptsLoading}
                     />
                   </FormField>
                 </div>

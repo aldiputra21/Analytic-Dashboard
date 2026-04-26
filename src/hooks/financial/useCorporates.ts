@@ -7,6 +7,7 @@ const API_BASE = '/api/frs';
 
 interface UseCorporatesResult {
   corporates: Corporate[];
+  options: { value: string; label: string }[];
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -37,5 +38,15 @@ export function useCorporates(): UseCorporatesResult {
 
   useEffect(() => { fetchCorporates(); }, [fetchCorporates]);
 
-  return { corporates, isLoading, error, refetch: fetchCorporates };
+  return { 
+    corporates, 
+    options: corporates.map(c => ({ 
+      value: c.id, 
+      label: c.name,
+      sublabel: c.code
+    })),
+    isLoading, 
+    error, 
+    refetch: fetchCorporates 
+  };
 }

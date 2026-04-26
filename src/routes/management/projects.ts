@@ -2,7 +2,7 @@
 // Requirements: 7.2, 7.7, 7.10
 
 import { Router, Request, Response } from 'express';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, requireSubsidiaryAccess } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getProjectsByDepartment,
@@ -14,6 +14,7 @@ import {
   getActiveProjects,
   Project,
 } from '../../services/mafinda/projectService.js';
+import { getUserSubsidiaryIds } from '../../services/financial/permissionService';
 import { ConflictError, NotFoundError } from '../../services/mafinda/departmentService.js';
 import { db } from '../../db/connection.js';
 import { projects } from '../../db/schema/public.js';
@@ -24,7 +25,7 @@ export function createProjectRouter(): Router {
   const router = Router();
 
   // GET /api/projects — list projects
-  router.get('/', requirePermission('public.projects.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.get('/', requirePermission('public.projects.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId, departmentId, search, page, pageSize } = req.query as Record<string, string>;
 
     const result = await getAllProjects({
@@ -40,7 +41,8 @@ export function createProjectRouter(): Router {
   // GET /api/projects/dropdown-items — list all active projects for dropdowns
   router.get('/dropdown-items', requirePermission('public.projects.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId } = req.query as Record<string, string>;
-    const result = await getActiveProjects(corporateId);
+    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
+    const result = await getActiveProjects(corporateId, subsidiaryIds);
     res.json(result);
   }));
 

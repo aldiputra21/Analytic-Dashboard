@@ -1,7 +1,7 @@
 // Department Service — MAFINDA Dashboard Enhancement
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, and, ne, asc, sql } from 'drizzle-orm';
+import { eq, and, ne, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments, projects } from '../../db/schema/index.js';
 import { createFRSAuditLog } from '../financial/auditLogService';
@@ -93,11 +93,15 @@ export async function getAllDepartments(options: {
   };
 }
 
-/** Returns all active departments for dropdowns. No pagination — select all active. */
-export async function getActiveDepartments(): Promise<Department[]> {
-  const rows = await db.select().from(departments)
-    .where(eq(departments.isActive, true))
-    .orderBy(asc(departments.name));
+/** Returns all active departments for dropdowns. Optional filter by corporate IDs. */
+export async function getActiveDepartments(subsidiaryIds?: string[] | null): Promise<Department[]> {
+  let query = db.select().from(departments).where(eq(departments.isActive, true));
+  
+  if (subsidiaryIds && subsidiaryIds.length > 0) {
+    query = query.where(inArray(departments.corporateId, subsidiaryIds)) as any;
+  }
+  
+  const rows = await query.orderBy(asc(departments.name));
   return rows.map(mapRow);
 }
 

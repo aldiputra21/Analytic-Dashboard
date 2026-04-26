@@ -1,7 +1,7 @@
 // Financial Statement Routes — MAFINDA Dashboard Enhancement
 // Requirements: 8.7, 8.8, 8.9, 8.10
 import { Router, Request, Response } from 'express';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, requireSubsidiaryAccess } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
   saveBalanceSheet,
@@ -22,7 +22,7 @@ export function createFinancialStatementRouter(): Router {
   // ─── Balance Sheet ──────────────────────────────────────────────────────────
 
   // GET /api/financial-statements/balance-sheet
-  router.get('/balance-sheet', requirePermission('cfd.balance_sheets.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.get('/balance-sheet', requirePermission('cfd.balance_sheets.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { period, periodStart, periodEnd, corporateId, page, pageSize } = req.query as Record<string, string>;
     const userId = req.user?.userId;
     if (!userId) {
@@ -47,7 +47,7 @@ export function createFinancialStatementRouter(): Router {
   }));
 
   // POST /api/financial-statements/balance-sheet
-  router.post('/balance-sheet', requirePermission('cfd.balance_sheets.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.post('/balance-sheet', requirePermission('cfd.balance_sheets.write'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const {
       corporateId,
       period,
@@ -133,7 +133,7 @@ export function createFinancialStatementRouter(): Router {
   // ─── Income Statement ───────────────────────────────────────────────────────
 
   // GET /api/financial-statements/income-statement
-  router.get('/income-statement', requirePermission('cfd.income_statements.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.get('/income-statement', requirePermission('cfd.income_statements.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { period, periodStart, periodEnd, corporateId, page, pageSize } = req.query as Record<string, string>;
     const userId = req.user?.userId;
     if (!userId) {
@@ -158,7 +158,7 @@ export function createFinancialStatementRouter(): Router {
   }));
 
   // POST /api/financial-statements/income-statement
-  router.post('/income-statement', requirePermission('cfd.income_statements.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.post('/income-statement', requirePermission('cfd.income_statements.write'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const {
       corporateId,
       period,
@@ -216,7 +216,7 @@ export function createFinancialStatementRouter(): Router {
   // ─── Cash Flow ──────────────────────────────────────────────────────────────
 
   // GET /api/financial-statements/cash-flow
-  router.get('/cash-flow', requirePermission('cfd.weekly_cash_flows.read'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.get('/cash-flow', requirePermission('cfd.weekly_cash_flows.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { period, periodStart, periodEnd, corporateId, entityType, entityId, search, page, pageSize } = req.query as Record<string, string>;
     const userId = req.user?.userId;
     if (!userId) {
@@ -244,7 +244,7 @@ export function createFinancialStatementRouter(): Router {
   }));
 
   // POST /api/financial-statements/cash-flow
-  router.post('/cash-flow', requirePermission('cfd.weekly_cash_flows.write'), asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  router.post('/cash-flow', requirePermission('cfd.weekly_cash_flows.write'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const {
       corporateId,
       entityType,

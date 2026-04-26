@@ -1,7 +1,7 @@
 // Project Service — MAFINDA Dashboard Enhancement
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, and, ne, asc, ilike, or, sql } from 'drizzle-orm';
+import { eq, and, ne, asc, ilike, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments, projects } from '../../db/schema/index.js';
 import { ConflictError, NotFoundError } from './departmentService';
@@ -152,7 +152,7 @@ export async function getAllProjects(options: {
 /**
  * Gets all active projects for dropdowns/items.
  */
-export async function getActiveProjects(corporateId?: string): Promise<Project[]> {
+export async function getActiveProjects(corporateId?: string, subsidiaryIds?: string[] | null): Promise<Project[]> {
   let baseQuery = db.select({
     id: projects.id,
     departmentId: projects.departmentId,
@@ -176,6 +176,10 @@ export async function getActiveProjects(corporateId?: string): Promise<Project[]
   const filters = [eq(projects.isActive, true)];
   if (corporateId) {
     filters.push(eq(departments.corporateId, corporateId));
+  }
+  
+  if (subsidiaryIds && subsidiaryIds.length > 0) {
+    filters.push(inArray(departments.corporateId, subsidiaryIds));
   }
 
   const rows = await baseQuery.where(and(...filters)).orderBy(asc(projects.name));

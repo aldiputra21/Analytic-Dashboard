@@ -14,6 +14,7 @@ import {
 import { initDefaultThresholds } from '../../services/financial/thresholdService';
 import { uploadLogo } from '../../middleware/upload';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { getUserSubsidiaryIds } from '../../services/financial/permissionService';
 
 export function createCorporatesRouter(): Router {
   const router = Router();
@@ -56,16 +57,18 @@ export function createCorporatesRouter(): Router {
     const search = req.query.search as string;
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.pageSize as string) || 0;
+    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
 
-    const results = await listCorporates({ activeOnly, search, page, pageSize });
+    const results = await listCorporates({ activeOnly, search, page, pageSize, subsidiaryIds });
     res.json(results);
   }));
 
   /**
    * GET /api/frs/corporates/dropdown-items
    */
-  router.get('/dropdown-items', requirePermission('cfd.corporates.read'), asyncHandler(async (_req: Request, res: Response) => {
-    const results = await getActiveCorporates();
+  router.get('/dropdown-items', requirePermission('cfd.corporates.read'), asyncHandler(async (req: Request, res: Response) => {
+    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
+    const results = await getActiveCorporates(subsidiaryIds);
     res.json(results);
   }));
 

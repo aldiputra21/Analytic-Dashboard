@@ -28,6 +28,10 @@ export interface CostCenterCopy {
     description: string;
     none: string;
     parentNote: string;
+    selectCategory: string;
+    codePlaceholder: string;
+    namePlaceholder: string;
+    descPlaceholder: string;
   };
   alerts: {
     deleteTitle: string;
@@ -73,6 +77,10 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       description: 'Deskripsi',
       none: 'Tidak ada (Level Atas)',
       parentNote: 'Jika diatur, kategori akan mengikuti induk secara otomatis.',
+      selectCategory: 'Pilih kategori...',
+      codePlaceholder: 'CC-001',
+      namePlaceholder: 'Nama Cost Center',
+      descPlaceholder: 'Gunakan field ini untuk catatan tambahan...',
     },
     alerts: {
       deleteTitle: 'Hapus cost center?',
@@ -116,6 +124,10 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       description: 'Description',
       none: 'None (Top Level)',
       parentNote: 'If set, category will follow parent automatically.',
+      selectCategory: 'Select category...',
+      codePlaceholder: 'CC-001',
+      namePlaceholder: 'Cost Center Name',
+      descPlaceholder: 'Use this field for additional notes...',
     },
     alerts: {
       deleteTitle: 'Delete cost center?',

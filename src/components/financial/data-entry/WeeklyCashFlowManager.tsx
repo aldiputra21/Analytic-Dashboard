@@ -16,6 +16,7 @@ import { formatRupiah, formatPeriod } from '../../../utils/format';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
+import { useProjects } from '../../../hooks/financial/useProjects';
 import { toast } from 'sonner';
 import { MonthPicker } from '../shared/MonthPicker';
 import { MonthRangePicker } from '../shared/MonthRangePicker';
@@ -180,8 +181,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { corporates } = useCorporates();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { corporates, isLoading: isCorpsLoading } = useCorporates();
+  const { projects, isLoading: isProjsLoading } = useProjects();
 
   // Filters
   const [filterPeriodStart, setFilterPeriodStart] = useState('');
@@ -212,17 +213,6 @@ export const WeeklyCashFlowManager: React.FC = () => {
   // Form State
   const [formData, setFormData] = useState<Partial<CashFlow>>({});
 
-  const fetchMetadata = async () => {
-    try {
-      const projRes = await apiFetch('/api/projects/dropdown-items');
-      if (projRes.ok) {
-        const d = await projRes.json();
-        setProjects(Array.isArray(d) ? d : (d.records || []));
-      }
-    } catch (err) {
-      console.error('Failed to fetch metadata', err);
-    }
-  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -255,9 +245,6 @@ export const WeeklyCashFlowManager: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    fetchMetadata();
-  }, []);
 
   useEffect(() => {
     fetchData();
@@ -390,7 +377,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
   const entityOptions = useMemo(() => {
     if (formData.entityType === 'project') {
       if (!formData.corporateId) return [];
-      return projects.filter(p => p.corporateId === formData.corporateId || p.departmentId === formData.corporateId);
+      return projects.filter(p => p.corporateId === formData.corporateId);
     }
     return corporates;
   }, [formData.entityType, formData.corporateId, projects, corporates]);
@@ -430,20 +417,20 @@ export const WeeklyCashFlowManager: React.FC = () => {
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {(hasFullCorporateAccess || user?.role === 'owner' || subsidiaryIds.length > 1) && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex-1 min-w-[200px]">
-              <Landmark size={16} className="text-slate-500" />
-              <select
-                value={filterCorporate}
-                onChange={(e) => setFilterCorporate(e.target.value)}
-                className="bg-transparent border-none text-sm text-slate-800 focus:outline-none cursor-pointer w-full font-bold"
-              >
-                <option value="">{t.modal.corporate}</option>
-                {corporates
+            <div className="flex-1 min-w-[200px]">
+              <SearchableSelect
+                options={corporates
                   .filter(corp => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(corp.id)))
-                  .map(corp => (
-                    <option key={corp.id} value={corp.id}>{corp.name}</option>
-                  ))}
-              </select>
+                  .map(corp => ({
+                    value: corp.id,
+                    label: corp.name,
+                    sublabel: corp.code
+                  }))}
+                value={filterCorporate}
+                onChange={(val) => setFilterCorporate(val)}
+                placeholder={t.modal.corporate}
+                disabled={isCorpsLoading}
+              />
             </div>
           )}
 
@@ -788,22 +775,19 @@ export const WeeklyCashFlowManager: React.FC = () => {
                         {formData.corporateName || 'N/A'}
                       </div>
                     ) : (
-                      <div className="relative">
-                        <select
-                          required
-                          value={formData.corporateId}
-                          onChange={(e) => setFormData({ ...formData, corporateId: e.target.value, entityId: '' })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none transition-all shadow-sm cursor-pointer"
-                        >
-                          <option value="">{t.modal.selectEntity} {t.modal.corporate}</option>
-                          {corporates
-                            .filter(corp => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(corp.id)))
-                            .map(corp => (
-                              <option key={corp.id} value={corp.id}>{corp.name}</option>
-                            ))}
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                      </div>
+                      <SearchableSelect
+                        options={corporates
+                          .filter(corp => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(corp.id)))
+                          .map(corp => ({
+                            value: corp.id,
+                            label: corp.name,
+                            sublabel: corp.code
+                          }))}
+                        value={formData.corporateId || ''}
+                        onChange={(val) => setFormData({ ...formData, corporateId: val, entityId: '' })}
+                        placeholder={t.modal.selectEntity + ' ' + t.modal.corporate}
+                        disabled={isCorpsLoading}
+                      />
                     )}
                   </div>
                 </div>
@@ -841,7 +825,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                     </button>
                   </div>
 
-                  {formData.entityType === 'project' ? (
+                  {formData.entityType === 'project' && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
                         <Briefcase size={12} /> {t.modal.project}
@@ -850,7 +834,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                         options={entityOptions.map(opt => ({
                           value: opt.id,
                           label: opt.name,
-                          subtitle: (opt as any).code
+                          sublabel: opt.code
                         }))}
                         value={formData.entityId || ''}
                         onChange={(val) => setFormData(p => ({ ...p, entityId: val }))}
@@ -858,15 +842,6 @@ export const WeeklyCashFlowManager: React.FC = () => {
                         disabled={modalMode === 'view'}
                         className="w-full"
                       />
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5 opacity-50 pointer-events-none">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-tight flex items-center gap-1.5">
-                        <Building2 size={12} /> {t.modal.corporate}
-                      </label>
-                      <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-500">
-                        {corporates.find(c => c.id === formData.corporateId)?.name || '-'}
-                      </div>
                     </div>
                   )}
                 </div>

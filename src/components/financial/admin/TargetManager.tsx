@@ -9,6 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { useDepartments } from '../../../hooks/financial/useDepartments';
+import { useProjects } from '../../../hooks/financial/useProjects';
+import { useCostCenterCategories } from '../../../hooks/financial/useCostCenterCategories';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -129,6 +132,9 @@ const FormField: React.FC<{
 
 export const TargetManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
+  const { options: departmentOptions, isLoading: isDeptsLoading, departments } = useDepartments();
+  const { options: projectOptions, isLoading: isProjsLoading, projects } = useProjects();
+  const { options: categoryOptions, isLoading: isCatsLoading } = useCostCenterCategories();
   const t = targetI18n[language];
   const common = commonsI18n[language];
 
@@ -154,12 +160,6 @@ export const TargetManager: React.FC = () => {
   const canWrite = hasPermission('public.targets.write');
   const canDelete = hasPermission('public.targets.delete');
 
-  // Master Data State
-  const [departments, setDepartments] = useState<{ id: string, name: string, corporateName?: string }[]>([]);
-  const [projects, setProjects] = useState<{ id: string, name: string, departmentId: string, code?: string }[]>([]);
-  const [costCenters, setCostCenters] = useState<{ code: string, labelId: string, labelEn: string }[]>([]);
-
-  // List State
   const [summaries, setSummaries] = useState<TargetSummary[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -191,36 +191,6 @@ export const TargetManager: React.FC = () => {
   const [targetToDelete, setTargetToDelete] = useState<TargetSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchMasterData = useCallback(async () => {
-    try {
-      const [dRes, pRes, cRes] = await Promise.all([
-        apiFetch('/api/departments/dropdown-items'),
-        apiFetch('/api/projects/dropdown-items'),
-        apiFetch('/api/cost-center-categories?status=active&pageSize=100')
-      ]);
-      if (dRes.ok) {
-        const data = await dRes.json();
-        setDepartments(Array.isArray(data) ? data : []);
-      }
-      if (pRes.ok) {
-        const data = await pRes.json();
-        setProjects(Array.isArray(data) ? data : (data.records || []));
-      }
-      if (cRes.ok) {
-        const data = await cRes.json();
-        if (Array.isArray(data.records)) {
-          setCostCenters(data.records.map((v: any) => ({
-            code: v.code,
-            labelId: v.labelId,
-            labelEn: v.labelEn,
-          })));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch master data:', err);
-      toast.error(common.errorFetchMasterData);
-    }
-  }, [common.errorFetchMasterData]);
 
   const fetchSummaries = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -249,9 +219,6 @@ export const TargetManager: React.FC = () => {
     }
   }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
-  useEffect(() => {
-    fetchMasterData();
-  }, [fetchMasterData]);
 
   useEffect(() => {
     fetchSummaries();
@@ -451,17 +418,13 @@ export const TargetManager: React.FC = () => {
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="w-full md:w-52 relative group">
-          <select
+          <SearchableSelect
+            options={departments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
             value={filterDepartmentId}
-            onChange={(e) => setFilterDepartmentId(e.target.value)}
-            className="w-full pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all cursor-pointer appearance-none"
-          >
-            <option value="">{t.filter.allDepartments}</option>
-            {departments.map(d => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+            onChange={(val) => setFilterDepartmentId(val)}
+            placeholder={t.filter.allDepartments}
+            disabled={isDeptsLoading}
+          />
         </div>
 
         <div className="flex-1 min-w-[200px] relative group">
@@ -764,16 +727,12 @@ export const TargetManager: React.FC = () => {
                   <div className="sm:col-span-6">
                     <FormField label={t.fields.department} required>
                       <SearchableSelect
-                        options={departments.map(d => ({
-                          value: d.id,
-                          label: d.name,
-                          sublabel: d.corporateName
-                        }))}
+                        options={departmentOptions}
                         value={formData.departmentId}
                         onChange={(val) => {
                           setFormData({ ...formData, departmentId: val });
                         }}
-                        disabled={!!editingSummary || isViewOnly}
+                        disabled={!!editingSummary || isViewOnly || isDeptsLoading}
                         placeholder={t.modal.selectEntity}
                       />
                     </FormField>
@@ -833,7 +792,7 @@ export const TargetManager: React.FC = () => {
                           onChange={(val) => {
                             setFormData({ ...formData, projectId: val });
                           }}
-                          disabled={!!editingSummary || isViewOnly}
+                          disabled={!!editingSummary || isViewOnly || isProjsLoading}
                           placeholder={t.modal.selectEntity}
                         />
                       </FormField>
@@ -1035,9 +994,9 @@ export const TargetManager: React.FC = () => {
                                     }}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
                                   >
-                                    {costCenters.map(cat => (
-                                      <option key={cat.code} value={cat.code}>
-                                        {language === 'id' ? cat.labelId : cat.labelEn}
+                                    {categoryOptions.map(cat => (
+                                      <option key={cat.value} value={cat.value}>
+                                        {cat.label}
                                       </option>
                                     ))}
                                   </select>

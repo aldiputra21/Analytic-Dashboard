@@ -14,6 +14,7 @@ import {
   getFinancialDataById,
 } from '../../services/financial/financialDataService';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
+import { getUserSubsidiaryIds } from '../../services/financial/permissionService';
 import { db } from '../../db/connection';
 import { userCorporateAccesses } from '../../db/schema/public';
 import { eq } from 'drizzle-orm';
@@ -28,26 +29,19 @@ export function createFinancialDataRouter(): Router {
    * GET /api/frs/financial-data
    * Query financial data (from v_financial_summary view) with filters.
    */
-  router.get('/', requirePermission('cfd.reports.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.reports.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, departmentId, period, limit, offset } = req.query as any;
 
-    // subsidiary_manager: restrict to their corporates
-    if (req.user!.role === 'subsidiary_manager' && !corporateId) {
-      const accessRows = await db
-        .select({ corporateId: userCorporateAccesses.corporateId })
-        .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.user!.userId));
-      if (accessRows.length === 0) {
-        res.json([]);
-        return;
-      }
-      // Return data for all their corporates
-      const allData: any[] = [];
-      for (const r of accessRows) {
-        const rows = await queryFinancialData({ corporateId: r.corporateId, departmentId, period });
-        allData.push(...rows);
-      }
-      res.json(allData);
+    if (!corporateId) {
+      const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
+      const data = await queryFinancialData({
+        corporateId: subsidiaryIds,
+        departmentId,
+        period,
+        limit: limit ? parseInt(limit) : undefined,
+        offset: offset ? parseInt(offset) : undefined,
+      } as any);
+      res.json(data);
       return;
     }
 
