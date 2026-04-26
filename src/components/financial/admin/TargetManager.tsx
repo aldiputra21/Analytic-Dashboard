@@ -11,7 +11,7 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { useProjects } from '../../../hooks/financial/useProjects';
-import { useCostCenterCategories } from '../../../hooks/financial/useCostCenterCategories';
+import { useCostCenters } from '../../../hooks/financial/useCostCenters';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -132,9 +132,9 @@ const FormField: React.FC<{
 
 export const TargetManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
-  const { options: departmentOptions, isLoading: isDeptsLoading, departments } = useDepartments();
+  const { options: departmentOptions, isLoading: isDeptsLoading, departments: allDepartments } = useDepartments();
   const { options: projectOptions, isLoading: isProjsLoading, projects } = useProjects();
-  const { options: categoryOptions, isLoading: isCatsLoading } = useCostCenterCategories();
+  const { options: costCenterOptions, isLoading: isCCLoading } = useCostCenters();
   const t = targetI18n[language];
   const common = commonsI18n[language];
 
@@ -289,7 +289,7 @@ export const TargetManager: React.FC = () => {
     } else {
       setEditingSummary(null);
       setFormData({
-        departmentId: departments[0]?.id || '',
+        departmentId: allDepartments[0]?.id || '',
         projectId: null,
         fiscalYear: new Date().getFullYear(),
         relatedToProject: false,
@@ -419,7 +419,7 @@ export const TargetManager: React.FC = () => {
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="w-full md:w-52 relative group">
           <SearchableSelect
-            options={departments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
+            options={departmentOptions}
             value={filterDepartmentId}
             onChange={(val) => setFilterDepartmentId(val)}
             placeholder={t.filter.allDepartments}
@@ -783,11 +783,10 @@ export const TargetManager: React.FC = () => {
                     <div className="sm:col-span-6">
                       <FormField label={t.fields.project} required={formData.relatedToProject}>
                         <SearchableSelect
-                          options={projects.filter(p => p.departmentId === formData.departmentId).map(p => ({
-                            value: p.id,
-                            label: p.name,
-                            sublabel: p.code
-                          }))}
+                          options={projectOptions.filter(opt => {
+                            const p = projects.find(proj => proj.id === opt.value);
+                            return p?.departmentId === formData.departmentId;
+                          })}
                           value={formData.projectId || ''}
                           onChange={(val) => {
                             setFormData({ ...formData, projectId: val });
@@ -798,24 +797,10 @@ export const TargetManager: React.FC = () => {
                       </FormField>
                     </div>
                   )}
-
-                  <FormField label={t.fields.year} required>
-                    <div className="relative">
-                      <select
-                        value={formData.fiscalYear}
-                        onChange={(e) => setFormData({ ...formData, fiscalYear: parseInt(e.target.value) })}
-                        disabled={!!editingSummary || isViewOnly}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
-                      >
-                        {YEAR_OPTIONS.map(y => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                    </div>
-                  </FormField>
                 </div>
+              </div>
 
+              <div className="px-6 space-y-8">
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
                   {/* Revenue Table */}
                   <div className="xl:col-span-5 space-y-4">
@@ -984,23 +969,20 @@ export const TargetManager: React.FC = () => {
                               </td>
                               <td className="px-1.5 py-1">
                                 <div className="relative">
-                                  <select
+                                  <SearchableSelect
+                                    options={costCenterOptions}
                                     value={c.costCenter}
-                                    disabled={isViewOnly}
-                                    onChange={(e) => {
+                                    onChange={(val) => {
                                       const newCosts = [...formData.costDetails];
-                                      newCosts[idx].costCenter = e.target.value;
+                                      newCosts[idx].costCenter = val;
                                       setFormData({ ...formData, costDetails: newCosts });
                                     }}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
-                                  >
-                                    {categoryOptions.map(cat => (
-                                      <option key={cat.value} value={cat.value}>
-                                        {cat.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                                    disabled={isViewOnly}
+                                    placeholder={t.fields.costCenter}
+                                    className="!space-y-0"
+                                    size="sm"
+                                    usePortal={true}
+                                  />
                                 </div>
                               </td>
                               <td className="px-1.5 py-1">
@@ -1086,14 +1068,14 @@ export const TargetManager: React.FC = () => {
               <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4 px-5 py-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm">
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.revenueTarget}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.totalRevenue}</p>
                     <p className="text-sm font-black text-emerald-600">
                       {formatRupiah(formData.revenueDetails.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0))}
                     </p>
                   </div>
                   <div className="w-px h-8 bg-slate-100" />
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.costTarget}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.totalCost}</p>
                     <p className="text-sm font-black text-red-500">
                       {formatRupiah(formData.costDetails.reduce((acc, c) => acc + (parseFloat(c.amount) || 0), 0))}
                     </p>

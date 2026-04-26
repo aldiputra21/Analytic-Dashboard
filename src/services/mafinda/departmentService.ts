@@ -59,23 +59,34 @@ function mapRow(row: typeof departments.$inferSelect): Department {
   };
 }
 
-/** Returns departments for a corporate with pagination and search. */
+/** Returns departments with pagination and search. Optional filter by corporate. */
 export async function getAllDepartments(options: {
-  corporateId: string;
+  corporateId?: string;
   search?: string;
   page?: number;
   pageSize?: number;
 }): Promise<{ records: Department[]; totalCount: number }> {
   const { corporateId, search, page = 1, pageSize = 0 } = options;
 
-  const conditions = [eq(departments.corporateId, corporateId)];
+  const conditions = [];
+  
+  if (corporateId) {
+    conditions.push(eq(departments.corporateId, corporateId));
+  }
 
   if (search) {
     conditions.push(sql`(${departments.name} ILIKE ${'%' + search + '%'} OR ${departments.code} ILIKE ${'%' + search + '%'})`);
   }
 
-  let baseQuery = db.select().from(departments).where(and(...conditions)).$dynamic();
-  let countQuery = db.select({ count: sql<number>`count(*)` }).from(departments).where(and(...conditions));
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  let baseQuery = whereClause 
+    ? db.select().from(departments).where(whereClause).$dynamic()
+    : db.select().from(departments).$dynamic();
+  
+  let countQuery = whereClause
+    ? db.select({ count: sql<number>`count(*)` }).from(departments).where(whereClause)
+    : db.select({ count: sql<number>`count(*)` }).from(departments);
 
   // Get total count
   const [countResult] = await countQuery;
@@ -95,13 +106,16 @@ export async function getAllDepartments(options: {
 
 /** Returns all active departments for dropdowns. Optional filter by corporate IDs. */
 export async function getActiveDepartments(subsidiaryIds?: string[] | null): Promise<Department[]> {
-  let query = db.select().from(departments).where(eq(departments.isActive, true));
+  const conditions = [eq(departments.isActive, true)];
   
   if (subsidiaryIds && subsidiaryIds.length > 0) {
-    query = query.where(inArray(departments.corporateId, subsidiaryIds)) as any;
+    conditions.push(inArray(departments.corporateId, subsidiaryIds));
   }
   
-  const rows = await query.orderBy(asc(departments.name));
+  const rows = await db.select().from(departments)
+    .where(and(...conditions))
+    .orderBy(asc(departments.name));
+    
   return rows.map(mapRow);
 }
 

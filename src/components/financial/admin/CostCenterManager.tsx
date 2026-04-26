@@ -118,7 +118,7 @@ export const CostCenterManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const { options: categoryOptions, isLoading: isCatsLoading, categories } = useCostCenterCategories();
   const { options: parentOptions, isLoading: isParentsLoading, costCenters: allActiveCostCenters } = useCostCenters();
-  const t = costCenterI18n[language];
+  const t = costCenterI18n[language] as any;
   const common = commonsI18n[language];
 
   // Validation Schema

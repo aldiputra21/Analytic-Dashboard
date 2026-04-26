@@ -374,9 +374,11 @@ async function main() {
   // ── Banks ─────────────────────────────────────────────────
   console.log('🏦 Seeding banks...');
   const bankValues = [
-    { code: 'BCA', name: 'Bank Central Asia', swiftCode: 'CENAIDJA', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'MANDIRI', name: 'Bank Mandiri', swiftCode: 'BMRIIDJA', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'BNI', name: 'Bank Negara Indonesia', swiftCode: 'BNINIDJA', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'BCA', name: 'Bank Central Asia', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'MANDIRI', name: 'Bank Mandiri', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'BNI', name: 'Bank Negara Indonesia', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'BRI', name: 'Bank Rakyat Indonesia', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'CIMB', name: 'CIMB Niaga', createdBy: SYSTEM_ACTOR_ID },
   ];
   for (const bv of bankValues) {
     await db.insert(banks).values(bv).onConflictDoNothing({ target: banks.code });

@@ -19,8 +19,9 @@ console.log('[DB] Using PostgreSQL via Drizzle ORM');
 // Notification cron — runs daily at 00:00
 // Uses setInterval to schedule the job every 24 hours, with an initial
 // alignment to the next midnight.
+// Returns timer IDs for cleanup during shutdown.
 // ---------------------------------------------------------------------------
-function scheduleDailyCron() {
+function scheduleDailyCron(): { timeoutId: NodeJS.Timeout; intervalId?: NodeJS.Timeout } {
   function msUntilNextMidnight(): number {
     const now = new Date();
     const nextMidnight = new Date(now);
@@ -29,13 +30,14 @@ function scheduleDailyCron() {
   }
 
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  let intervalId: NodeJS.Timeout | undefined;
 
   // Fire once at the next midnight, then repeat every 24 h
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     runInstallmentNotificationCron().catch((err) =>
       console.error('[NotificationCron] Unhandled error:', err),
     );
-    setInterval(() => {
+    intervalId = setInterval(() => {
       runInstallmentNotificationCron().catch((err) =>
         console.error('[NotificationCron] Unhandled error:', err),
       );
@@ -43,6 +45,7 @@ function scheduleDailyCron() {
   }, msUntilNextMidnight());
 
   console.log('[NotificationCron] Scheduled — next run at midnight');
+  return { timeoutId, intervalId };
 }
 
 async function startServer() {
@@ -51,41 +54,76 @@ async function startServer() {
   const PORT = parseInt(process.env.PORT ?? "5000", 10);
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
-    scheduleDailyCron();
   });
+
+  // Store cron timers for cleanup
+  const cronTimers = scheduleDailyCron();
 
   // Handle unhandled promise rejections
   process.on('unhandledRejection', (reason, promise) => {
     console.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
-    // In production, you might want to restart the service gracefully
   });
 
   // Handle uncaught exceptions
   process.on('uncaughtException', (err) => {
     console.error('[Process] Uncaught Exception:', err);
-    // Critical errors should usually trigger a graceful shutdown
     server.close(() => {
       process.exit(1);
     });
   });
 
-  // Graceful shutdown for termination signals (Core Backend Requirement)
+  // Graceful shutdown for termination signals
   const shutdown = async (signal: string) => {
     console.log(`[Process] ${signal} received. Starting graceful shutdown...`);
-    server.close(async () => {
-      console.log('[Process] HTTP server closed');
+
+    // Clear cron timers immediately
+    clearTimeout(cronTimers.timeoutId);
+    if (cronTimers.intervalId) {
+      clearInterval(cronTimers.intervalId);
+    }
+    console.log('[Process] Cron jobs cleared');
+
+    // Close Vite server if it exists (HMR WebSocket)
+    const viteServer = (app as any).viteServer;
+    if (viteServer) {
       try {
-        const { db } = await import('./src/db/connection.js');
-        // @ts-ignore - accessing the pool from drizzle instance if possible, 
-        // but since we exported db from drizzle(pool), we might need to export pool too.
-        // For now, we'll just log and exit.
-        console.log('[Process] Shutdown complete');
-        process.exit(0);
+        await viteServer.close();
+        console.log('[Process] Vite HMR server closed');
       } catch (err) {
-        console.error('[Process] Error during shutdown:', err);
-        process.exit(1);
+        console.error('[Process] Error closing Vite server:', err);
       }
+    }
+
+    // Close server with timeout
+    const serverCloseTimeout = setTimeout(() => {
+      console.error('[Process] Server close timeout - forcing exit');
+      process.exit(1);
+    }, 10000); // 10 second timeout
+
+    server.close(async () => {
+      clearTimeout(serverCloseTimeout);
+      console.log('[Process] HTTP server closed');
+
+      try {
+        // Close database connection
+        const { pool } = await import('./src/db/connection.js');
+        if (pool) {
+          await pool.end();
+          console.log('[Process] Database pool closed');
+        }
+      } catch (err) {
+        console.error('[Process] Error closing database:', err);
+      }
+
+      console.log('[Process] Shutdown complete');
+      process.exit(0);
     });
+
+    // Force close any remaining connections after timeout
+    setTimeout(() => {
+      console.warn('[Process] Forcing shutdown - some connections may not have closed gracefully');
+      process.exit(0);
+    }, 15000); // 15 second hard timeout
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

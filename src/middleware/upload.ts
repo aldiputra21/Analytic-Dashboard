@@ -4,17 +4,18 @@ import path from 'path';
 import fs from 'fs';
 import { Request } from 'express';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || 'public/upload/corporate-logos';
-const MAX_SIZE = parseInt(process.env.MAX_UPLOAD_SIZE || '2097152', 10); // Default 2MB
+const CORPORATE_LOGO_UPLOAD_DIR = process.env.CORPORATE_LOGO_UPLOAD_DIR || 'assets/corporate-logos';
+const CORPORATE_LOGO_MAX_SIZE = parseInt(process.env.CORPORATE_LOGO_MAX_SIZE || '2097152', 10); // Default 2MB
+const CORPORATE_LOGO_ALLOWED_FORMATS = (process.env.CORPORATE_LOGO_ALLOWED_FORMATS || 'jpg,jpeg,png,webp').split(',').map(f => f.trim());
 
 // Ensure directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+if (!fs.existsSync(CORPORATE_LOGO_UPLOAD_DIR)) {
+  fs.mkdirSync(CORPORATE_LOGO_UPLOAD_DIR, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    cb(null, UPLOAD_DIR);
+    cb(null, CORPORATE_LOGO_UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
     if (req.params.id) {
@@ -28,12 +29,11 @@ const storage = multer.diskStorage({
 
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
   
-  const ext = path.extname(file.originalname).toLowerCase();
+  const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
   const mime = file.mimetype;
 
-  if (allowedMimeTypes.includes(mime) && allowedExtensions.includes(ext)) {
+  if (allowedMimeTypes.includes(mime) && CORPORATE_LOGO_ALLOWED_FORMATS.includes(ext)) {
     cb(null, true);
   } else {
     const error = new Error('INVALID_FILE_TYPE');
@@ -46,7 +46,7 @@ const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFil
 export const uploadLogo = multer({
   storage,
   limits: {
-    fileSize: MAX_SIZE,
+    fileSize: CORPORATE_LOGO_MAX_SIZE,
   },
   fileFilter,
 });

@@ -24,7 +24,7 @@ const createRealizationSchema = z
   .object({
     entityType: z.enum(['department', 'project']),
     departmentId: z.string().uuid(),
-    projectId: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional().nullable(),
     transactionDate: z.string().date(),
     category: z.enum(['cash-in', 'cash-out']),
     amount: z.number().positive(),

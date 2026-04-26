@@ -26,27 +26,12 @@ export function createDepartmentRouter(): Router {
     res.json(results);
   }));
 
-  // GET /api/departments?corporateId=xxx — list departments for a corporate
+  // GET /api/departments?corporateId=xxx — list departments (optionally filtered by corporate)
   router.get('/', requirePermission('public.departments.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { corporateId, search, page, pageSize } = req.query as Record<string, string>;
-    const userRole = req.user?.role;
-    
-    if (userRole !== 'owner' && !corporateId) {
-      res.status(400).json({ error: 'Query parameter "corporateId" wajib diisi untuk non-owner role' });
-      return;
-    }
-
-    // For owner role, if corporateId is missing, we might want to return all or handle it.
-    // The service requires corporateId. Let's ensure it's handled.
-    if (!corporateId && userRole === 'owner') {
-      // In FRSApp/CorporateManager pattern, the UI always sends corporateId from context.
-      // If missing here, it's an error for this specific list function.
-      res.status(400).json({ error: 'Query parameter "corporateId" wajib diisi' });
-      return;
-    }
 
     const result = await getAllDepartments({
-      corporateId,
+      corporateId: corporateId || undefined,
       search,
       page: page ? parseInt(page) : 1,
       pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 10,

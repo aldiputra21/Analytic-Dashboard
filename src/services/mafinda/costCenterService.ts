@@ -168,3 +168,22 @@ export async function deleteCostCenter(id: string, deletedBy?: string, context?:
  
   return result.length > 0;
 }
+
+export async function getActiveCostCenters(parentId?: string | null): Promise<CostCenter[]> {
+  const conditions = [eq(costCenters.isActive, true)];
+  if (parentId !== undefined) {
+    if (parentId === null) {
+      conditions.push(sql`${costCenters.parentId} IS NULL`);
+    } else {
+      conditions.push(eq(costCenters.parentId, parentId));
+    }
+  }
+
+  const rows = await db
+    .select()
+    .from(costCenters)
+    .where(and(...conditions))
+    .orderBy(asc(costCenters.code));
+
+  return rows.map(mapRowToCostCenter);
+}

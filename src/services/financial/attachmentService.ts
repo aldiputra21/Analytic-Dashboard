@@ -42,7 +42,8 @@ export interface UploadedFile {
 const DEFAULT_ALLOWED_EXTENSIONS = ['png', 'jpg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-const BASE_UPLOAD_DIR = 'assets/attachments/realisasi';
+const BASE_UPLOAD_DIR = process.env.REALIZATION_ATTACHMENT_UPLOAD_DIR || 'assets/attachments/realisasi';
+const ALLOWED_EXTENSIONS = (process.env.REALIZATION_ATTACHMENT_ALLOWED_FORMATS || 'png,jpg,jpeg,doc,docx,xls,xlsx,pdf').split(',').map(f => f.trim());
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export async function getAttachmentConfig(
     const value = rows[0].value as Record<string, unknown>;
     const allowedExtensions = Array.isArray(value.allowed_extensions)
       ? (value.allowed_extensions as string[])
-      : DEFAULT_ALLOWED_EXTENSIONS;
+      : ALLOWED_EXTENSIONS;
     const maxFileSize =
       typeof value.max_file_size === 'number'
         ? value.max_file_size
@@ -82,7 +83,7 @@ export async function getAttachmentConfig(
   const allowedExtensions =
     extRow.length > 0 && Array.isArray(extRow[0].value)
       ? (extRow[0].value as string[])
-      : DEFAULT_ALLOWED_EXTENSIONS;
+      : ALLOWED_EXTENSIONS;
 
   const maxFileSize =
     sizeRow.length > 0 && typeof sizeRow[0].value === 'number'

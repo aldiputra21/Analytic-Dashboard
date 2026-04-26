@@ -46,6 +46,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   const app = express();
   const config = getFRSConfig();
+  
+  // Store Vite server instance for cleanup during shutdown
+  (app as any).viteServer = null;
 
   app.use(compression());
   app.use(helmet({ contentSecurityPolicy: false }));
@@ -74,6 +77,10 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use('/api', globalLimiter);
 
   app.use('/upload', express.static(path.resolve('public/upload')));
+
+  // PUBLIC routes (no authentication required)
+  // Logo endpoint - must be before authenticate middleware
+  app.get('/api/corporates/:id/logo', (await import('../routes/financial/corporates.js')).logoHandler);
 
   if (enableRequestLogger) {
     app.use((req, _res, next) => {
@@ -129,6 +136,8 @@ export async function createApp(options: CreateAppOptions = {}) {
       server: { middlewareMode: true },
       appType: 'spa',
     });
+    // Store Vite server for cleanup during shutdown
+    (app as any).viteServer = vite;
     app.use(vite.middlewares);
   } else if (serveStaticClient) {
     const __filename = new URL(import.meta.url).pathname;

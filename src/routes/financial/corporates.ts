@@ -16,8 +16,62 @@ import { uploadLogo } from '../../middleware/upload';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { getUserSubsidiaryIds } from '../../services/financial/permissionService';
 
+/**
+ * Logo Handler - exported separately for public access
+ * This is registered at app level before authenticate middleware
+ */
+export const logoHandler = asyncHandler(async (req: Request, res: Response) => {
+  const corporate = await getCorporateById(req.params.id);
+  if (!corporate) {
+    return res.status(404).json({ error: 'Corporate not found' });
+  }
+
+  if (!corporate.logo) {
+    return res.status(404).json({ error: 'Logo not found' });
+  }
+
+  // The logo path is stored as a relative path like "assets/corporate-logos/filename"
+  // We need to serve it from the filesystem
+  const fs = await import('fs');
+  const path = await import('path');
+  
+  // Extract filename from the stored path
+  const filename = corporate.logo.split('/').pop();
+  const uploadDir = process.env.CORPORATE_LOGO_UPLOAD_DIR || 'assets/corporate-logos';
+  const filePath = path.join(uploadDir, filename!);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Logo file not found' });
+  }
+
+  // Determine MIME type based on file extension
+  const ext = path.extname(filename!).toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+  };
+  const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+  // Serve the file with appropriate headers
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+  res.sendFile(path.resolve(filePath));
+});
+
 export function createCorporatesRouter(): Router {
   const router = Router();
+
+  /**
+   * GET /api/frs/corporates/dropdown-items
+   * MUST be before /:id routes to avoid matching as ID
+   */
+  router.get('/dropdown-items', requirePermission('cfd.corporates.read'), asyncHandler(async (req: Request, res: Response) => {
+    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
+    const results = await getActiveCorporates(subsidiaryIds);
+    res.json(results);
+  }));
 
   /**
    * POST /api/frs/corporates
@@ -64,13 +118,11 @@ export function createCorporatesRouter(): Router {
   }));
 
   /**
-   * GET /api/frs/corporates/dropdown-items
+   * GET /api/frs/corporates/:id/logo
+   * Serve the corporate logo file (PUBLIC - no auth required)
+   * NOTE: This route is registered at app level in createApp.ts before authenticate middleware
+   * So it's handled by logoHandler export, not this router
    */
-  router.get('/dropdown-items', requirePermission('cfd.corporates.read'), asyncHandler(async (req: Request, res: Response) => {
-    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
-    const results = await getActiveCorporates(subsidiaryIds);
-    res.json(results);
-  }));
 
   /**
    * POST /api/frs/corporates/:id/logo
@@ -80,7 +132,7 @@ export function createCorporatesRouter(): Router {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const logoPath = `/upload/corporate-logos/${req.file.filename}`;
+    const logoPath = `/asset/corporate-logos/${req.file.filename}`;
     const updated = await updateCorporate(req.params.id, { logo: logoPath }, req.user!.userId, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],

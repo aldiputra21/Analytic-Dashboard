@@ -33,7 +33,8 @@ export interface TargetCopy {
     amount: string;
     costCenter: string;
     notes: string;
-    total: string;
+    totalRevenue: string;
+    totalCost: string;
   };
   modal: {
     createTitle: string;
@@ -81,7 +82,7 @@ export const targetI18n: Record<Locale, TargetCopy> = {
     fields: {
       department: 'Departemen',
       project: 'Proyek',
-      year: 'Tahun Fiskal',
+      year: 'Tahun Target',
       relatedToProject: 'Terkait Proyek?',
       revenueTarget: 'Target Pendapatan',
       costTarget: 'Target Biaya',
@@ -89,20 +90,21 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       amount: 'Nilai (Rp)',
       costCenter: 'Cost Center',
       notes: 'Catatan',
-      total: 'Total Keseluruhan',
+      totalRevenue: 'Total Tahunan Pendapatan',
+      totalCost: 'Total Tahunan Biaya',
     },
     modal: {
-      createTitle: 'Buat Target Baru',
+      createTitle: 'Input Target Tahunan',
       editTitle: 'Edit Data Target',
       viewTitle: 'Detail Target Finansial',
       contextTitle: 'Konteks Target',
-      contextDesc: 'Tentukan departemen, proyek (opsional), dan tahun fiskal untuk target ini.',
+      contextDesc: 'TENTUKAN DEPARTEMEN, TAHUN, DAN ASOSIASI PROYEK OPSIONAL.',
       selectEntity: 'Pilih entitas...',
-      revenueTitle: 'Target Pendapatan',
-      costTitle: 'Target Biaya (Expenses)',
+      revenueTitle: 'Pendapatan',
+      costTitle: 'Biaya',
       addRow: 'Tambah Baris',
-      notes: 'Catatan',
-      notesPlaceholder: 'Tambahkan catatan opsional di sini...',
+      notes: 'Catatan (Opsional)',
+      notesPlaceholder: 'Catatan tambahan untuk target tahunan ini...',
       total: 'Total Keseluruhan',
     },
     alerts: {
@@ -143,7 +145,8 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       amount: 'Amount (IDR)',
       costCenter: 'Cost Center',
       notes: 'Notes',
-      total: 'Grand Total',
+      totalRevenue: 'Annual Revenue Total',
+      totalCost: 'Annual Cost Total',
     },
     modal: {
       createTitle: 'Create New Target',

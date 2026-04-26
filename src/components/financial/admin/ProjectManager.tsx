@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Search, Edit2, Trash2, Eye,
   ChevronLeft, ChevronRight, Briefcase, X, AlertCircle, CheckCircle2,
-  RefreshCw, FilterX, Calendar, Info, Building2, Hash, ChevronDown
+  RefreshCw, FilterX, Calendar, Info, Building2, Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
@@ -39,14 +39,6 @@ interface Project {
   isActive: boolean;
   createdBy: string;
   createdAt: string;
-}
-
-interface Department {
-  id: string;
-  name: string;
-  code: string;
-  corporateId: string;
-  corporateName?: string;
 }
 
 // --- Shared Components ---
@@ -139,6 +131,12 @@ export const ProjectManager: React.FC = () => {
     description: z.string().optional(),
     isActive: z.boolean()
   });
+
+  const departmentOptions = allDepartments.map(d => ({
+    value: d.id,
+    label: d.name,
+    sublabel: d.code
+  }));
 
   const canWrite = hasPermission('public.projects.write');
   const canDelete = hasPermission('public.projects.delete');
@@ -363,7 +361,7 @@ export const ProjectManager: React.FC = () => {
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="w-full md:w-64">
           <SearchableSelect
-            options={allDepartments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
+            options={departmentOptions}
             value={filterDepartment}
             onChange={(val) => setFilterDepartment(val)}
             placeholder={t.filter.allDepartments}
@@ -685,13 +683,10 @@ export const ProjectManager: React.FC = () => {
 
                   <FormField label={t.modal.department} required>
                     <SearchableSelect
-                      options={allDepartments
-                        .filter(d => !formData.corporateId || d.corporateId === formData.corporateId)
-                        .map(d => ({
-                          value: d.id,
-                          label: d.name,
-                          sublabel: d.code
-                        }))}
+                      options={departmentOptions.filter(opt => {
+                        const dept = allDepartments.find(d => d.id === opt.value);
+                        return !formData.corporateId || dept?.corporateId === formData.corporateId;
+                      })}
                       value={formData.departmentId}
                       onChange={(val) => setFormData({ ...formData, departmentId: val })}
                       placeholder={t.modal.selectDepartment}

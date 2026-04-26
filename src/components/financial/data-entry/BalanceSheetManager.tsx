@@ -449,7 +449,7 @@ export const BalanceSheetManager: React.FC = () => {
           {(hasFullCorporateAccess || user?.role === 'owner' || subsidiaryIds.length > 1) && (
             <div className="flex-1 min-w-[200px]">
               <SearchableSelect
-                options={corporateOptions.filter(opt => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(opt.value)))}
+                options={corporateOptions}
                 value={filterCorporate}
                 onChange={(val) => setFilterCorporate(val)}
                 placeholder={t.modal.selectCorporate}

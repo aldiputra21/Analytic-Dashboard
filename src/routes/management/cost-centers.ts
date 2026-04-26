@@ -5,6 +5,7 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import {
   listCostCenters,
   getCostCenterById,
+  getActiveCostCenters,
   createCostCenter,
   updateCostCenter,
   deleteCostCenter,
@@ -21,6 +22,21 @@ export function createCostCenterRouter(): Router {
       page: page ? parseInt(page) : 1,
       pageSize: pageSize ? Math.min(parseInt(pageSize), 100) : 10,
     });
+    res.json(result);
+  }));
+
+  router.get('/dropdown-items', requirePermission('cfd.cost_centers.read'), asyncHandler(async (req: Request, res: Response) => {
+    const { parentId } = req.query as Record<string, string>;
+    const result = await getActiveCostCenters(parentId === undefined ? undefined : (parentId === 'null' ? null : parentId));
+    res.json(result);
+  }));
+
+  router.get('/:id', requirePermission('cfd.cost_centers.read'), asyncHandler(async (req: Request, res: Response) => {
+    const result = await getCostCenterById(req.params.id);
+    if (!result) {
+      res.status(404).json({ error: 'Cost center not found' });
+      return;
+    }
     res.json(result);
   }));
 

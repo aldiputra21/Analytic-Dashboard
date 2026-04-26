@@ -192,6 +192,15 @@ export const CorporateManager: React.FC = () => {
     return c ? c.label : code;
   };
 
+  // Helper function to get logo URL from path
+  const getLogoUrl = (logoPath: string | null | undefined, corporateId: string): string | null => {
+    if (!logoPath) return null;
+    // If it's already an API endpoint, return as is
+    if (logoPath.startsWith('/api/')) return logoPath;
+    // Otherwise, use the API endpoint to serve the file
+    return `/api/corporates/${corporateId}/logo`;
+  };
+
 
 
   useEffect(() => {
@@ -537,7 +546,7 @@ export const CorporateManager: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="w-12 h-12 rounded-xl border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden shadow-sm">
                           {corp.logo ? (
-                            <img src={corp.logo} alt={corp.name} className="w-full h-full object-contain" />
+                            <img src={getLogoUrl(corp.logo, corp.id)!} alt={corp.name} className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                           ) : (
                             <div className="w-full h-full bg-slate-50 flex items-center justify-center text-slate-400 text-xs">
                               {corp.name.substring(0, 2).toUpperCase()}
@@ -706,7 +715,12 @@ export const CorporateManager: React.FC = () => {
                     <div className="relative group">
                       <div className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-200 bg-white flex items-center justify-center overflow-hidden transition-all group-hover:border-indigo-500/50 shadow-inner">
                         {logoPreview ? (
-                          <img src={logoPreview} alt="Preview" className="w-full h-full object-contain p-2" />
+                          <img 
+                            src={logoPreview.startsWith('blob:') ? logoPreview : getLogoUrl(logoPreview, editingId || '')!} 
+                            alt="Preview" 
+                            className="w-full h-full object-contain p-2" 
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                          />
                         ) : (
                           <div className="text-center p-4">
                             <Upload className="w-8 h-8 text-slate-300 mx-auto mb-2" />

@@ -1,7 +1,7 @@
 // Corporate Service
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, asc, sql, inArray } from 'drizzle-orm';
+import { eq, asc, sql, inArray, and } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { corporates, departments } from '../../db/schema/index.js';
 import { Corporate, CreateCorporateInput, UpdateCorporateInput } from '../../types/financial/corporate';
@@ -121,13 +121,16 @@ export async function listCorporates(options: {
  * Optional filter by corporate IDs for access control.
  */
 export async function getActiveCorporates(subsidiaryIds?: string[] | null): Promise<Corporate[]> {
-  let query = db.select().from(corporates).where(eq(corporates.isActive, true));
+  const conditions = [eq(corporates.isActive, true)];
   
   if (subsidiaryIds && subsidiaryIds.length > 0) {
-    query = query.where(inArray(corporates.id, subsidiaryIds)) as any;
+    conditions.push(inArray(corporates.id, subsidiaryIds));
   }
   
-  const rows = await query.orderBy(asc(corporates.name));
+  const rows = await db.select().from(corporates)
+    .where(and(...conditions))
+    .orderBy(asc(corporates.name));
+    
   return rows.map(mapRowToCorporate);
 }
 

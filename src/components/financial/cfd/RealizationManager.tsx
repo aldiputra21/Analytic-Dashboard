@@ -5,7 +5,8 @@ import {
   RefreshCw, FilterX, Info, ChevronDown,
   FileText, Download, Paperclip, Calendar,
   ArrowUpRight, ArrowDownRight, Upload,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
@@ -29,11 +30,15 @@ import { realizationI18n } from '../../../i18n/realization';
 import { commonsI18n } from '../../../i18n/commons';
 import { SearchableSelect } from '../shared/SearchableSelect';
 
+const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 interface Attachment {
   id: string;
   fileName: string;
   fileSize: number;
   mimeType: string;
+  createdAt: string;
 }
 
 interface Realization {
@@ -80,7 +85,7 @@ const Modal: React.FC<{
             <X size={20} className="text-slate-500" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {children}
         </div>
       </motion.div>
@@ -142,6 +147,10 @@ export const RealizationManager: React.FC = () => {
 
   // Attachments State
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -200,6 +209,24 @@ export const RealizationManager: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (isModalOpen && editingId) {
+      setIsDetailLoading(true);
+      apiFetch(`/api/cash-realizations/${editingId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.attachments) {
+            setAttachments(data.attachments);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching details:", err);
+          toast.error(t.alerts.errorFetch);
+        })
+        .finally(() => setIsDetailLoading(false));
+    }
+  }, [isModalOpen, editingId, t.alerts.errorFetch]);
+
   const handleApplyFilter = () => {
     setAppliedFilters({
       search,
@@ -240,8 +267,11 @@ export const RealizationManager: React.FC = () => {
         amount: item.amount.toString(),
         notes: item.notes || '',
       });
+      setAttachments([]); // Clear old attachments before fetch
     } else {
       setEditingId(null);
+      setAttachments([]);
+      setPendingFiles([]); // Also clear pending files
       setFormData({
         entityType: 'department',
         departmentId: '',
@@ -252,6 +282,7 @@ export const RealizationManager: React.FC = () => {
         notes: '',
       });
     }
+    setPendingFiles([]);
     setIsModalOpen(true);
   };
 
@@ -271,8 +302,9 @@ export const RealizationManager: React.FC = () => {
     try {
       const payload = {
         ...formData,
-        projectId: formData.entityType === 'project' ? formData.projectId : null,
-        departmentId: formData.entityType === 'department' ? formData.departmentId : null
+        amount: Number(formData.amount),
+        projectId: formData.entityType === 'project' ? (formData.projectId || undefined) : undefined,
+        departmentId: formData.departmentId || undefined
       };
 
       const url = editingId ? `/api/cash-realizations/${editingId}` : '/api/cash-realizations';
@@ -284,6 +316,29 @@ export const RealizationManager: React.FC = () => {
       });
 
       if (res.ok) {
+        const record = await res.json();
+
+        // Handle pending files for new record
+        if (!editingId && pendingFiles.length > 0) {
+          setIsUploading(true);
+          try {
+            const fileFormData = new FormData();
+            pendingFiles.forEach(file => fileFormData.append('files', file));
+            fileFormData.append('entityType', 'cash_realization');
+            fileFormData.append('entityId', record.id);
+
+            await apiFetch(`/api/cash-realizations/${record.id}/attachments`, {
+              method: 'POST',
+              body: fileFormData
+            });
+          } catch (err) {
+            console.error('Failed to upload pending files:', err);
+            toast.error(t.alerts.errorUpload);
+          } finally {
+            setIsUploading(false);
+          }
+        }
+
         toast.success(editingId ? common.successUpdate : common.successSave);
         setIsModalOpen(false);
         fetchData();
@@ -317,56 +372,98 @@ export const RealizationManager: React.FC = () => {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editingId) return;
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
 
-    // Validation
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'image/jpeg',
-      'image/png'
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error(t.alerts.invalidFileType);
-      return;
+    // Validate files before processing
+    const validFiles: File[] = [];
+    for (const file of Array.from(files)) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
+        toast.error(`${file.name}: ${t.alerts.invalidFileType}`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name}: ${t.alerts.fileTooLarge}`);
+        continue;
+      }
+      validFiles.push(file);
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(t.alerts.fileTooLarge);
+
+    if (validFiles.length === 0) return;
+
+    if (!editingId) {
+      // In create mode, store files in pending state
+      setPendingFiles(prev => [...prev, ...validFiles]);
       return;
     }
 
     setIsUploading(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      // Add all valid files to the 'files' field
+      validFiles.forEach(file => {
+        formData.append('files', file);
+      });
+
       formData.append('entityType', 'cash_realization');
       formData.append('entityId', editingId);
 
-      const res = await apiFetch('/api/attachments', {
+      const res = await apiFetch(`/api/cash-realizations/${editingId}/attachments`, {
         method: 'POST',
         body: formData
       });
 
       if (res.ok) {
         toast.success(t.alerts.successUpload);
-        // Refresh editing item to show new attachment
         const refreshRes = await apiFetch(`/api/cash-realizations/${editingId}`);
         if (refreshRes.ok) {
           const updatedItem = await refreshRes.json();
+          setAttachments(updatedItem.attachments || []);
           setData(prev => prev.map(item => item.id === editingId ? updatedItem : item));
         }
       } else {
-        toast.error(t.alerts.errorUpload);
+        const err = await res.json();
+        toast.error(err.error?.message || t.alerts.errorUpload);
       }
     } catch {
       toast.error(common.errorNetwork);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileUpload(e.dataTransfer.files);
+  };
+
+  const handleDownload = async (att: Attachment) => {
+    try {
+      const res = await apiFetch(`/api/attachments/${att.id}/download`);
+      if (!res.ok) throw new Error();
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch {
+      toast.error(language === 'id' ? 'Gagal mengunduh file' : 'Failed to download file');
     }
   };
 
@@ -379,6 +476,7 @@ export const RealizationManager: React.FC = () => {
         const refreshRes = await apiFetch(`/api/cash-realizations/${editingId}`);
         if (refreshRes.ok) {
           const updatedItem = await refreshRes.json();
+          setAttachments(updatedItem.attachments || []);
           setData(prev => prev.map(item => item.id === editingId ? updatedItem : item));
         }
       } else {
@@ -390,19 +488,16 @@ export const RealizationManager: React.FC = () => {
   };
 
   const totalPages = Math.ceil(totalCount / pageSize);
-  const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
-  const showingTo = Math.min(page * pageSize, totalCount);
 
-  // Filter projects based on selected department in form
+
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="sticky top-0 z-20 bg-slate-50/90 backdrop-blur-md py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 -mx-4 px-4">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
             <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
-              <Wallet size={24} />
+              <ArrowUpRight size={24} />
             </div>
             {t.title}
           </h2>
@@ -417,13 +512,12 @@ export const RealizationManager: React.FC = () => {
             className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
           >
             <Plus size={18} />
-            {t.addNew}
+            {common.add}
           </button>
         )}
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+      <div className="sticky top-[88px] z-10 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex-1 min-w-[240px] relative group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
           <input
@@ -432,7 +526,7 @@ export const RealizationManager: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold"
           />
         </div>
 
@@ -497,7 +591,6 @@ export const RealizationManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -656,17 +749,11 @@ export const RealizationManager: React.FC = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {!loading && totalCount > 0 && (
-          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
+          <div className="sticky bottom-0 z-10 px-6 py-4 border-t border-slate-100 bg-white/95 backdrop-blur-sm flex items-center justify-between flex-wrap gap-4 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.05)] rounded-b-2xl">
             <div className="flex items-center gap-4">
-              <span className="text-xs font-bold text-slate-500">
-                {common.pagination.showing}{' '}
-                <span className="text-slate-800">{showingFrom}</span> -{' '}
-                <span className="text-slate-800">{showingTo}</span>{' '}
-                {common.pagination.of}{' '}
-                <span className="text-slate-800">{totalCount}</span>{' '}
-                {common.pagination.entries}
+              <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                {common.pagination.showing} <span className="text-slate-900 mx-0.5">{data.length > 0 ? (page - 1) * pageSize + 1 : 0}</span> - <span className="text-slate-900 mx-0.5">{Math.min(page * pageSize, totalCount)}</span> {common.pagination.of} <span className="text-slate-900 mx-0.5">{totalCount}</span> {common.pagination.entries}
               </span>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{common.pagination.rowsPerPage}</span>
@@ -735,277 +822,337 @@ export const RealizationManager: React.FC = () => {
                   : t.modal.viewTitle
             }
           >
-            <form onSubmit={handleSave} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left Column: Basic Info */}
-                <div className="space-y-5">
-                  <div className="flex items-center gap-2 mb-2 pb-1 border-b border-slate-100">
-                    <Info size={16} className="text-indigo-500" />
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-widest">{t.modal.basicInfo}</span>
-                  </div>
-
-                  {/* Entity Type */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.modal.entityType} <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex p-1 bg-slate-100 rounded-xl">
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => setFormData(p => ({ ...p, entityType: 'department', projectId: '' }))}
-                        className={cn(
-                          'flex-1 py-1.5 text-xs font-black rounded-lg transition-all',
-                          formData.entityType === 'department' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                        )}
-                      >
-                        {t.modal.department}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => setFormData(p => ({ ...p, entityType: 'project' }))}
-                        className={cn(
-                          'flex-1 py-1.5 text-xs font-black rounded-lg transition-all',
-                          formData.entityType === 'project' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                        )}
-                      >
-                        {t.modal.project}
-                      </button>
+            <form onSubmit={handleSave} className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Left Column: Basic Info */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-2 pb-1 border-b border-slate-100">
+                      <Info size={16} className="text-indigo-500" />
+                      <span className="text-xs font-black text-slate-800 uppercase tracking-widest">{t.modal.basicInfo}</span>
                     </div>
-                  </div>
 
-                  {/* Department */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.modal.department} <span className="text-red-500">*</span>
-                    </label>
-                    <SearchableSelect
-                      options={departments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
-                      value={formData.departmentId}
-                      onChange={(val) => setFormData(p => ({ ...p, departmentId: val, projectId: '' }))}
-                      placeholder={t.modal.department}
-                      disabled={isReadOnly || isDeptsLoading}
-                    />
-                  </div>
-
-                  {/* Project (Conditional) */}
-                  {formData.entityType === 'project' && (
-                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
+                    {/* Entity Type Selection */}
+                    <div className="space-y-1.5">
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        {t.modal.project} <span className="text-red-500">*</span>
+                        {t.modal.entityType} <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex p-1 bg-slate-100 rounded-xl">
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => setFormData(p => ({ ...p, entityType: 'department', projectId: '' }))}
+                          className={cn(
+                            "flex-1 py-1.5 text-xs font-black rounded-lg transition-all",
+                            formData.entityType === 'department' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          {t.modal.department}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => setFormData(p => ({ ...p, entityType: 'project' }))}
+                          className={cn(
+                            "flex-1 py-1.5 text-xs font-black rounded-lg transition-all",
+                            formData.entityType === 'project' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          {t.modal.project}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Department Select */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {t.modal.department} <span className="text-red-500">*</span>
                       </label>
                       <SearchableSelect
-                        options={projects
-                          .filter(p => p.departmentId === formData.departmentId)
-                          .map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
-                        value={formData.projectId}
-                        onChange={(val) => setFormData(p => ({ ...p, projectId: val }))}
-                        placeholder={t.modal.project}
-                        disabled={isReadOnly || !formData.departmentId || isProjsLoading}
+                        options={departments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
+                        value={formData.departmentId}
+                        onChange={(val) => setFormData(p => ({ ...p, departmentId: val, projectId: '' }))}
+                        placeholder={t.modal.department}
+                        disabled={isReadOnly || isDeptsLoading}
                       />
-                    </motion.div>
-                  )}
+                    </div>
 
-                  {/* Transaction Date */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.modal.transactionDate} <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.transactionDate}
-                      onChange={(e) => setFormData(p => ({ ...p, transactionDate: e.target.value }))}
-                      required
-                      disabled={isReadOnly}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                    />
-                  </div>
-                </div>
+                    {/* Project Select (Conditional) */}
+                    {formData.entityType === 'project' && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          {t.modal.project} <span className="text-red-500">*</span>
+                        </label>
+                        <SearchableSelect
+                          options={projects
+                            .filter(p => p.departmentId === formData.departmentId)
+                            .map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
+                          value={formData.projectId}
+                          onChange={(val) => setFormData(p => ({ ...p, projectId: val }))}
+                          placeholder={t.modal.project}
+                          disabled={isReadOnly || !formData.departmentId || isProjsLoading}
+                        />
+                      </motion.div>
+                    )}
 
-                {/* Right Column: Transaction Details */}
-                <div className="space-y-5">
-                  <div className="flex items-center gap-2 mb-2 pb-1 border-b border-slate-100">
-                    <ArrowUpRight size={16} className="text-indigo-500" />
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Detail Transaksi</span>
-                  </div>
-
-                  {/* Category */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.modal.category} <span className="text-red-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
+                    {/* Date Selection */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {t.modal.transactionDate} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.transactionDate}
+                        onChange={(e) => setFormData(p => ({ ...p, transactionDate: e.target.value }))}
+                        required
                         disabled={isReadOnly}
-                        onClick={() => setFormData(p => ({ ...p, category: 'cash-in' }))}
-                        className={cn(
-                          'py-2.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider',
-                          formData.category === 'cash-in'
-                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm'
-                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                        )}
-                      >
-                        <ArrowDownRight size={16} />
-                        {t.modal.cashIn}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => setFormData(p => ({ ...p, category: 'cash-out' }))}
-                        className={cn(
-                          'py-2.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider',
-                          formData.category === 'cash-out'
-                            ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm'
-                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                        )}
-                      >
-                        <ArrowUpRight size={16} />
-                        {t.modal.cashOut}
-                      </button>
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                      />
                     </div>
                   </div>
 
-                  {/* Amount */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.modal.amount} <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative group">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">IDR</div>
+                  {/* Right Column: Transaction Details */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 mb-2 pb-1 border-b border-slate-100">
+                      <ArrowUpRight size={16} className="text-indigo-500" />
+                      <span className="text-xs font-black text-slate-800 uppercase tracking-widest">{t.modal.transactionDetail}</span>
+                    </div>
+
+                    {/* Category Selection */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {t.modal.category} <span className="text-red-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => setFormData(p => ({ ...p, category: 'cash-in' }))}
+                          className={cn(
+                            "py-2.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider",
+                            formData.category === 'cash-in'
+                              ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm"
+                              : "bg-white border-slate-100 text-slate-400 hover:border-slate-200"
+                          )}
+                        >
+                          <ArrowDownRight size={16} />
+                          {t.modal.cashIn}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => setFormData(p => ({ ...p, category: 'cash-out' }))}
+                          className={cn(
+                            "py-2.5 rounded-xl border-2 transition-all flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider",
+                            formData.category === 'cash-out'
+                              ? "bg-rose-50 border-rose-500 text-rose-700 shadow-sm"
+                              : "bg-white border-slate-100 text-slate-400 hover:border-slate-200"
+                          )}
+                        >
+                          <ArrowUpRight size={16} />
+                          {t.modal.cashOut}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Amount Input */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {t.modal.amount} <span className="text-red-500">*</span>
+                      </label>
                       <input
-                        type="number"
-                        value={formData.amount}
-                        onChange={(e) => setFormData(p => ({ ...p, amount: e.target.value }))}
+                        type="text"
+                        value={formData.amount ? new Intl.NumberFormat(language === 'id' ? 'id-ID' : 'en-US').format(Number(formData.amount)) : ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          setFormData(p => ({ ...p, amount: val }));
+                        }}
                         required
                         disabled={isReadOnly}
                         placeholder="0"
-                        className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-black tabular-nums"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-black tabular-nums"
+                      />
+                    </div>
+
+                    {/* Notes Textarea */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {t.modal.notes}
+                      </label>
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
+                        disabled={isReadOnly}
+                        rows={3}
+                        placeholder="..."
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-medium resize-none"
                       />
                     </div>
                   </div>
-
-                  {/* Notes */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.modal.notes}
-                    </label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
-                      disabled={isReadOnly}
-                      rows={3}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-medium resize-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Attachments Section */}
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Paperclip size={16} className="text-indigo-500" />
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-widest">{t.modal.attachmentSection}</span>
-                  </div>
-                  {editingId && !isReadOnly && (
-                    <label className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-black cursor-pointer hover:bg-indigo-100 transition-all border border-indigo-200/50">
-                      <Upload size={14} />
-                      {t.modal.uploadAttachment}
-                      <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
-                    </label>
-                  )}
                 </div>
 
-                {/* Attachment List */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {editingId ? (
-                    data.find(item => item.id === editingId)?.attachments?.map(att => (
-                      <div key={att.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl group">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                          <div className="p-2 bg-white rounded-lg border border-slate-100 text-indigo-500 flex-shrink-0">
-                            <FileText size={16} />
-                          </div>
-                          <div className="overflow-hidden">
-                            <p className="text-xs font-bold text-slate-800 truncate" title={att.fileName}>{att.fileName}</p>
-                            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">
-                              {(att.fileSize / 1024).toFixed(1)} KB
-                            </p>
-                          </div>
+                {/* Attachments Section */}
+                {(editingId || modalMode === 'create') && (
+                  <div className="space-y-6 pt-8 border-t border-slate-100">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Paperclip size={18} className="text-indigo-500" />
+                      <span className="text-sm font-black text-slate-800 uppercase tracking-widest">{t.modal.attachmentSection}</span>
+                    </div>
+
+                    {!isReadOnly && (
+                      <div
+                        onDragOver={onDragOver}
+                        onDragLeave={onDragLeave}
+                        onDrop={onDrop}
+                        className={cn(
+                          "relative border-2 border-dashed rounded-2xl p-8 transition-all flex flex-col items-center justify-center text-center gap-3",
+                          isDragging
+                            ? "border-indigo-500 bg-indigo-50/50 scale-[1.01] shadow-inner"
+                            : "border-slate-200 bg-slate-50/30 hover:border-indigo-300 hover:bg-slate-50"
+                        )}
+                      >
+                        <input
+                          type="file"
+                          multiple
+                          accept=".png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.pdf"
+                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          id="file-upload"
+                          onChange={(e) => handleFileUpload(e.target.files)}
+                          disabled={isUploading}
+                        />
+                        <div className={cn(
+                          "p-4 rounded-2xl transition-all shadow-sm",
+                          isDragging ? "bg-indigo-600 text-white" : "bg-white text-slate-400 border border-slate-100"
+                        )}>
+                          {isUploading ? <RefreshCw size={32} className="animate-spin" /> : <Upload size={32} />}
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <a
-                            href={`/api/attachments/${att.id}/download`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-md transition-all shadow-sm border border-transparent hover:border-indigo-100"
-                            title={t.modal.downloadAttachment}
-                          >
-                            <Download size={14} />
-                          </a>
-                          {!isReadOnly && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAttachment(att.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded-md transition-all shadow-sm border border-transparent hover:border-rose-100"
-                              title={t.modal.deleteAttachment}
-                            >
-                              <X size={14} />
-                            </button>
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">{t.modal.dropOrClick}</p>
+                          <p className="text-[10px] text-slate-400 font-medium mt-1 whitespace-pre-line">{t.modal.fileHint}</p>
+                        </div>
+                      </div>
+                    )}
+
+
+                    {/* Attachment List */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {isDetailLoading ? (
+                        <div className="col-span-full py-10 flex flex-col items-center gap-3">
+                          <RefreshCw className="animate-spin text-indigo-500" size={32} />
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t.status.loading}</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Existing Attachments */}
+                          {editingId && attachments.map((att: Attachment) => (
+                            <div key={att.id} className="flex items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-2xl group hover:border-indigo-100 hover:bg-indigo-50/30 transition-all">
+                              <div className="flex items-center gap-4">
+                                <div className="p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm text-slate-400">
+                                  <FileText size={20} />
+                                </div>
+                                <div className="overflow-hidden">
+                                  <p className="text-sm font-bold text-slate-700 truncate max-w-[150px]">{att.fileName}</p>
+                                  <p className="text-[10px] text-slate-400 font-medium">{(att.fileSize / 1024).toFixed(1)} KB • {new Date(att.createdAt).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownload(att)}
+                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all shadow-sm border border-transparent hover:border-indigo-100 cursor-pointer"
+                                  title={t.modal.downloadAttachment}
+                                >
+                                  <Download size={16} />
+                                </button>
+                                {!isReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAttachment(att.id)}
+                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all shadow-sm border border-transparent hover:border-rose-100 cursor-pointer"
+                                    title={t.modal.deleteAttachment}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Pending Attachments (New Files) */}
+                          {!editingId && pendingFiles.map((file, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-indigo-50/30 border border-indigo-100 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                              <div className="flex items-center gap-4">
+                                <div className="p-2.5 bg-white rounded-xl border border-indigo-100 shadow-sm text-indigo-500">
+                                  <FileText size={20} />
+                                </div>
+                                <div className="overflow-hidden">
+                                  <p className="text-sm font-bold text-slate-700 truncate max-w-[150px]">{file.name}</p>
+                                  <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">{(file.size / 1024).toFixed(1)} KB • Ready to upload</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setPendingFiles(prev => prev.filter((_, i) => i !== idx))}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all shadow-sm border border-transparent hover:border-rose-100 cursor-pointer"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* Empty State for Attachments */}
+                          {/* Empty State for Attachments */}
+                          {((editingId && attachments.length === 0) || (!editingId && pendingFiles.length === 0)) && (
+                            <div className="col-span-full text-center py-10 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/30">
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="p-3 bg-white rounded-full text-slate-300 shadow-sm border border-slate-50">
+                                  <Paperclip size={32} />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-black text-slate-400">{t.modal.noAttachments}</p>
+                                  <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">Ready for upload</p>
+                                </div>
+                              </div>
+                            </div>
                           )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="col-span-2 py-8 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
-                      <div className="p-2 bg-white rounded-full text-slate-300">
-                        <Paperclip size={24} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-400">{t.modal.noAttachments}</p>
+                        </>
+                      )}
                     </div>
-                  )}
-                  {editingId && (!data.find(item => item.id === editingId)?.attachments || data.find(item => item.id === editingId)?.attachments?.length === 0) && (
-                    <div className="col-span-2 py-8 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
-                      <div className="p-2 bg-white rounded-full text-slate-300">
-                        <Paperclip size={24} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-400">{t.modal.noAttachments}</p>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
-              {/* Actions */}
-              {!isReadOnly ? (
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              {/* Actions (Sticky Footer) */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                {!isReadOnly ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      disabled={isSaving}
+                      className="px-6 py-2.5 text-sm font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all cursor-pointer disabled:opacity-50 active:scale-95 shadow-sm"
+                    >
+                      {common.cancel}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="px-8 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-70 min-w-[120px] justify-center"
+                    >
+                      {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                      {isSaving ? common.saving : common.save}
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    disabled={isSaving}
-                    className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {common.cancel}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-70"
-                  >
-                    {isSaving ? t.status.submitting : common.save}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex justify-end pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                    className="px-6 py-2.5 text-sm font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all cursor-pointer active:scale-95 shadow-sm"
                   >
                     {common.close}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </form>
           </Modal>
         )}

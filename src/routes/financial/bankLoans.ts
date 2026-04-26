@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { bankLoans, bankLoanInstallments } from '../../db/schema/cfd';
+import { banks, corporates } from '../../db/schema/public';
 import { requirePermission } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
@@ -116,8 +117,27 @@ export function createBankLoansRouter(): Router {
 
     const [records, [{ totalCount }]] = await Promise.all([
       db
-        .select()
+        .select({
+          id: bankLoans.id,
+          bankId: bankLoans.bankId,
+          corporateId: bankLoans.corporateId,
+          amount: bankLoans.amount,
+          startDate: bankLoans.startDate,
+          tenor: bankLoans.tenor,
+          interestType: bankLoans.interestType,
+          interestRate: bankLoans.interestRate,
+          status: bankLoans.status,
+          alertMinDays: bankLoans.alertMinDays,
+          createdBy: bankLoans.createdBy,
+          createdAt: bankLoans.createdAt,
+          updatedBy: bankLoans.updatedBy,
+          updatedAt: bankLoans.updatedAt,
+          bankName: banks.name,
+          corporateName: corporates.name,
+        })
         .from(bankLoans)
+        .leftJoin(banks, eq(bankLoans.bankId, banks.id))
+        .leftJoin(corporates, eq(bankLoans.corporateId, corporates.id))
         .where(where)
         .orderBy(bankLoans.createdAt)
         .limit(pageSize)
@@ -125,7 +145,31 @@ export function createBankLoansRouter(): Router {
       db.select({ totalCount: count() }).from(bankLoans).where(where),
     ]);
 
-    return res.json({ records, totalCount: Number(totalCount) });
+    // Fetch installment counts for each loan
+    const enrichedRecords = await Promise.all(
+      records.map(async (record) => {
+        const [paidCount] = await db
+          .select({ count: count() })
+          .from(bankLoanInstallments)
+          .where(and(
+            eq(bankLoanInstallments.bankLoanId, record.id),
+            eq(bankLoanInstallments.status, 'paid')
+          ));
+
+        const [totalCount] = await db
+          .select({ count: count() })
+          .from(bankLoanInstallments)
+          .where(eq(bankLoanInstallments.bankLoanId, record.id));
+
+        return {
+          ...record,
+          paidInstallmentsCount: paidCount?.count || 0,
+          totalInstallmentsCount: totalCount?.count || 0,
+        };
+      })
+    );
+
+    return res.json({ records: enrichedRecords, totalCount: Number(totalCount) });
   }));
 
   /**
@@ -230,8 +274,27 @@ export function createBankLoansRouter(): Router {
    */
   router.get('/:id', requirePermission('cfd.bank_loans.read'), asyncHandler(async (req: Request, res: Response) => {
     const [loan] = await db
-      .select()
+      .select({
+        id: bankLoans.id,
+        bankId: bankLoans.bankId,
+        corporateId: bankLoans.corporateId,
+        amount: bankLoans.amount,
+        startDate: bankLoans.startDate,
+        tenor: bankLoans.tenor,
+        interestType: bankLoans.interestType,
+        interestRate: bankLoans.interestRate,
+        status: bankLoans.status,
+        alertMinDays: bankLoans.alertMinDays,
+        createdBy: bankLoans.createdBy,
+        createdAt: bankLoans.createdAt,
+        updatedBy: bankLoans.updatedBy,
+        updatedAt: bankLoans.updatedAt,
+        bankName: banks.name,
+        corporateName: corporates.name,
+      })
       .from(bankLoans)
+      .leftJoin(banks, eq(bankLoans.bankId, banks.id))
+      .leftJoin(corporates, eq(bankLoans.corporateId, corporates.id))
       .where(eq(bankLoans.id, req.params.id))
       .limit(1);
 
@@ -241,7 +304,28 @@ export function createBankLoansRouter(): Router {
       });
     }
 
-    return res.json(loan);
+    // Fetch installments
+    const installments = await db
+      .select()
+      .from(bankLoanInstallments)
+      .where(eq(bankLoanInstallments.bankLoanId, req.params.id))
+      .orderBy(bankLoanInstallments.installmentDate);
+
+    // Count paid installments
+    const [paidCount] = await db
+      .select({ count: count() })
+      .from(bankLoanInstallments)
+      .where(and(
+        eq(bankLoanInstallments.bankLoanId, req.params.id),
+        eq(bankLoanInstallments.status, 'paid')
+      ));
+
+    return res.json({
+      ...loan,
+      installments,
+      paidInstallmentsCount: paidCount?.count || 0,
+      totalInstallmentsCount: installments.length,
+    });
   }));
 
   /**

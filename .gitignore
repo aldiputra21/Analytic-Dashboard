@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Uploaded assets (not publicly accessible)
+assets/

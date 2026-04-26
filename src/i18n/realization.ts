@@ -39,6 +39,7 @@ export interface RealizationCopy {
     notes: string;
     basicInfo: string;
     attachmentSection: string;
+    transactionDetail: string;
     dropOrClick: string;
     fileHint: string;
     uploadAttachment: string;
@@ -119,6 +120,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       notes: 'Catatan',
       basicInfo: 'Informasi Dasar',
       attachmentSection: 'Lampiran File',
+      transactionDetail: 'Detail Transaksi',
       dropOrClick: 'Lepas atau klik',
       fileHint: 'Dokumen pendukung (PDF, Excel, Word, Gambar)\nMax 10MB',
       uploadAttachment: 'Unggah Lampiran',
@@ -197,6 +199,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       notes: 'Notes',
       basicInfo: 'Basic Information',
       attachmentSection: 'File Attachments',
+      transactionDetail: 'Transaction Details',
       dropOrClick: 'Drop or click',
       fileHint: 'Supporting documents (PDF, Excel, Word, Image)\nMax 10MB',
       uploadAttachment: 'Upload Attachment',

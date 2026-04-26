@@ -139,6 +139,20 @@ export function createCorporateSectorsRouter(): Router {
   }));
 
   /**
+   * GET /api/corporate-sectors/dropdown-items
+   * Fetch active sectors for dropdown selection.
+   */
+  router.get('/dropdown-items', requirePermission('public.corporate_sectors.read'), asyncHandler(async (req: Request, res: Response) => {
+    const records = await db
+      .select()
+      .from(corporateSectors)
+      .where(eq(corporateSectors.status, 'active'))
+      .orderBy(corporateSectors.labelId);
+
+    res.json(records);
+  }));
+
+  /**
    * GET /api/corporate-sectors/:id
    * Get a single corporate sector by ID.
    */

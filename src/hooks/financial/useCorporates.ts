@@ -7,7 +7,7 @@ const API_BASE = '/api/frs';
 
 interface UseCorporatesResult {
   corporates: Corporate[];
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; sublabel?: string }[];
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;

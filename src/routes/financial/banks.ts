@@ -139,6 +139,20 @@ export function createBanksRouter(): Router {
   }));
 
   /**
+   * GET /api/banks/dropdown-items
+   * Fetch active banks for dropdown selection.
+   */
+  router.get('/dropdown-items', requirePermission('public.banks.read'), asyncHandler(async (req: Request, res: Response) => {
+    const records = await db
+      .select()
+      .from(banks)
+      .where(eq(banks.status, 'active'))
+      .orderBy(banks.name);
+
+    res.json(records);
+  }));
+
+  /**
    * GET /api/banks/:id
    * Get a single bank by ID.
    */

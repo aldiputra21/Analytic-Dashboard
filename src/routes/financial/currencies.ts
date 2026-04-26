@@ -135,6 +135,20 @@ export function createCurrenciesRouter(): Router {
   }));
 
   /**
+   * GET /api/currencies/dropdown-items
+   * Fetch active currencies for dropdown selection.
+   */
+  router.get('/dropdown-items', requirePermission('public.currencies.read'), asyncHandler(async (req: Request, res: Response) => {
+    const records = await db
+      .select()
+      .from(currencies)
+      .where(eq(currencies.status, 'active'))
+      .orderBy(currencies.code);
+
+    res.json(records);
+  }));
+
+  /**
    * GET /api/currencies/:id
    * Get a single currency by ID.
    */

@@ -93,10 +93,24 @@ const Modal: React.FC<{
   );
 };
 
+// Helper function to format currency with thousand separator
+const formatCurrencyDisplay = (value: string | number): string => {
+  if (value === undefined || value === null || value === "" || value === 0) {
+    return value === 0 ? "0" : "";
+  }
+  const num = Math.floor(Number(value));
+  return isNaN(num) ? "" : num.toLocaleString('id-ID');
+};
+
+// Helper function to parse currency input (remove thousand separator)
+const parseCurrencyInput = (value: string): string => {
+  return value.replace(/[^0-9-]/g, "");
+};
+
 export const BankLoanManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const { options: bankOptions, isLoading: isBanksLoading } = useBanks();
-  const { corporates, options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
+  const { options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
   const t = bankLoanI18n[language];
   const common = commonsI18n[language];
 
@@ -129,7 +143,7 @@ export const BankLoanManager: React.FC = () => {
   });
 
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [_pageSize, _setPageSize] = useState(10);
 
 
   // Modal State
@@ -147,7 +161,7 @@ export const BankLoanManager: React.FC = () => {
     startDate: new Date().toISOString().split('T')[0],
     tenor: 12,
     interestType: 'flat' as 'flat' | 'effective',
-    interestRate: '',
+    interestRate: '5',
     alertMinDays: 5,
   });
 
@@ -162,7 +176,7 @@ export const BankLoanManager: React.FC = () => {
     try {
       const query = new URLSearchParams({
         page: page.toString(),
-        pageSize: pageSize.toString(),
+        pageSize: _pageSize.toString(),
       });
       if (appliedFilters.search) query.set('search', appliedFilters.search);
       if (appliedFilters.status) query.set('status', appliedFilters.status);
@@ -181,7 +195,7 @@ export const BankLoanManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, appliedFilters, common.errorLoadTable]);
+  }, [page, _pageSize, appliedFilters, common.errorLoadTable]);
 
 
   useEffect(() => {
@@ -200,12 +214,13 @@ export const BankLoanManager: React.FC = () => {
     setPage(1);
   };
 
-  // Auto-generate installments for Flat interest
+  // Auto-generate installments based on loan amount / tenor
   const generateInstallments = useCallback(() => {
-    if (formData.interestType !== 'flat' || !formData.amount || !formData.tenor || !formData.startDate) return;
+    if (!formData.amount || !formData.tenor || !formData.startDate) return;
 
     const totalAmount = parseFloat(formData.amount);
     const tenorMonths = parseInt(formData.tenor.toString());
+    
     if (isNaN(totalAmount) || isNaN(tenorMonths) || tenorMonths <= 0) return;
 
     const monthlyAmount = Math.round(totalAmount / tenorMonths);
@@ -216,25 +231,20 @@ export const BankLoanManager: React.FC = () => {
       const date = new Date(startDate);
       date.setMonth(date.getMonth() + i);
       
-      // Handle the case where the amount doesn't divide perfectly
-      const currentAmount = (i === tenorMonths) 
-        ? totalAmount - (monthlyAmount * (tenorMonths - 1))
-        : monthlyAmount;
-
       newInstallments.push({
         installmentDate: date.toISOString().split('T')[0],
-        amount: currentAmount,
+        amount: monthlyAmount,
         status: 'unpaid'
       });
     }
     setInstallments(newInstallments);
-  }, [formData.amount, formData.tenor, formData.startDate, formData.interestType]);
+  }, [formData.amount, formData.tenor, formData.startDate]);
 
   useEffect(() => {
-    if (modalMode === 'create' && formData.interestType === 'flat') {
+    if (modalMode === 'create') {
       generateInstallments();
     }
-  }, [generateInstallments, modalMode, formData.interestType]);
+  }, [generateInstallments, modalMode]);
 
   const openModal = async (mode: 'create' | 'edit' | 'view', item?: BankLoan) => {
     setModalMode(mode);
@@ -288,25 +298,27 @@ export const BankLoanManager: React.FC = () => {
       return;
     }
 
-    // Validation for installments
-    const totalInstallmentAmount = installments.reduce((sum, inst) => sum + parseFloat(inst.amount.toString()), 0);
-    if (Math.abs(totalInstallmentAmount - parseFloat(formData.amount)) > 1) {
-      toast.error(t.alerts.errorInstallmentSum);
-      return;
-    }
-    if (installments.length !== parseInt(formData.tenor.toString())) {
-      toast.error(t.alerts.errorInstallmentCount);
-      return;
-    }
-
     setIsSaving(true);
     try {
-      const payload = {
+      const basePayload = {
         ...validation.data,
         amount: parseFloat(validation.data.amount),
         interestRate: parseFloat(validation.data.interestRate) / 100, // Convert from 5 to 0.05
-        installments: installments
       };
+
+      // For flat interest, send installmentAmount; for effective, send installments array
+      const payload = formData.interestType === 'flat'
+        ? {
+            ...basePayload,
+            installmentAmount: installments.length > 0 ? parseFloat(installments[0].amount.toString()) : 0,
+          }
+        : {
+            ...basePayload,
+            installments: installments.map(inst => ({
+              installmentDate: inst.installmentDate,
+              amount: parseFloat(inst.amount.toString()),
+            })),
+          };
 
       const url = editingId ? `/api/bank-loans/${editingId}` : '/api/bank-loans';
       const method = editingId ? 'PUT' : 'POST';
@@ -380,9 +392,9 @@ export const BankLoanManager: React.FC = () => {
     }
   };
 
-  const totalPages = Math.ceil(totalCount / pageSize);
-  const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
-  const showingTo = Math.min(page * pageSize, totalCount);
+  const totalPages = Math.ceil(totalCount / _pageSize);
+  const showingFrom = totalCount === 0 ? 0 : (page - 1) * _pageSize + 1;
+  const showingTo = Math.min(page * _pageSize, totalCount);
 
   return (
     <div className="space-y-6">
@@ -728,17 +740,15 @@ export const BankLoanManager: React.FC = () => {
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                         {t.modal.amount} <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative group">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">IDR</div>
-                        <input
-                          type="number"
-                          value={formData.amount}
-                          onChange={(e) => setFormData(p => ({ ...p, amount: e.target.value }))}
-                          required
-                          disabled={isReadOnly}
-                          className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-black tabular-nums"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formatCurrencyDisplay(formData.amount)}
+                        onChange={(e) => setFormData(p => ({ ...p, amount: parseCurrencyInput(e.target.value) }))}
+                        required
+                        disabled={isReadOnly}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-black tabular-nums"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -865,7 +875,7 @@ export const BankLoanManager: React.FC = () => {
                   <div className="max-h-[300px] overflow-y-auto overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 sticky top-0 z-10">
+                        <tr className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.installment.tableHead.no}</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.installment.tableHead.installmentDate}</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.installment.tableHead.amount}</th>
@@ -905,18 +915,19 @@ export const BankLoanManager: React.FC = () => {
                                 )}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                {isReadOnly || (editingId && inst.status === 'paid') || formData.interestType === 'flat' ? (
+                                {isReadOnly || (editingId && inst.status === 'paid') ? (
                                   <span className="text-slate-800 font-black tabular-nums">
                                     {new Intl.NumberFormat(language === 'id' ? 'id-ID' : 'en-US').format(Number(inst.amount))}
                                   </span>
                                 ) : (
                                   <div className="flex items-center justify-end">
                                     <input
-                                      type="number"
-                                      value={inst.amount}
+                                      type="text"
+                                      inputMode="numeric"
+                                      value={formatCurrencyDisplay(inst.amount)}
                                       onChange={(e) => {
                                         const newInsts = [...installments];
-                                        newInsts[idx].amount = e.target.value;
+                                        newInsts[idx].amount = parseCurrencyInput(e.target.value);
                                         setInstallments(newInsts);
                                       }}
                                       className="w-28 px-2 py-1 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-xs font-black text-right tabular-nums"
@@ -959,25 +970,17 @@ export const BankLoanManager: React.FC = () => {
                   </div>
                   {/* Summary Footer */}
                   {formData.amount && (
-                    <div className="bg-slate-50/80 px-4 py-3 border-t border-slate-100 flex items-center justify-between">
-                      <div className="flex gap-6">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.installment.totalLabel}</span>
-                          <span className={cn(
-                            'text-xs font-black tabular-nums',
-                            Math.abs(installments.reduce((sum, i) => sum + parseFloat(i.amount.toString()), 0) - parseFloat(formData.amount)) < 1
-                              ? 'text-emerald-600'
-                              : 'text-rose-600'
-                          )}>
-                            {new Intl.NumberFormat(language === 'id' ? 'id-ID' : 'en-US').format(installments.reduce((sum, i) => sum + parseFloat(i.amount.toString() || '0'), 0))}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.installment.remainingLabel}</span>
-                          <span className="text-xs font-black tabular-nums text-slate-600">
-                            {new Intl.NumberFormat(language === 'id' ? 'id-ID' : 'en-US').format(parseFloat(formData.amount || '0') - installments.reduce((sum, i) => sum + parseFloat(i.amount.toString() || '0'), 0))}
-                          </span>
-                        </div>
+                    <div className="bg-slate-50/80 px-4 py-3 border-t border-slate-100">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.installment.totalLabel}</span>
+                        <span className={cn(
+                          'text-xs font-black tabular-nums',
+                          Math.abs(installments.reduce((sum, i) => sum + parseFloat(i.amount.toString()), 0) - parseFloat(formData.amount)) < 1
+                            ? 'text-emerald-600'
+                            : 'text-rose-600'
+                        )}>
+                          {new Intl.NumberFormat(language === 'id' ? 'id-ID' : 'en-US').format(installments.reduce((sum, i) => sum + parseFloat(i.amount.toString() || '0'), 0))}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -991,15 +994,16 @@ export const BankLoanManager: React.FC = () => {
                     type="button"
                     onClick={() => setIsModalOpen(false)}
                     disabled={isSaving}
-                    className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                    className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm disabled:opacity-50"
                   >
                     {common.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-70"
+                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer disabled:opacity-70"
                   >
+                    {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
                     {isSaving ? common.saving : common.save}
                   </button>
                 </div>
@@ -1008,7 +1012,7 @@ export const BankLoanManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                    className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm"
                   >
                     {common.close}
                   </button>

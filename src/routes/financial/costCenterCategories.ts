@@ -139,6 +139,20 @@ export function createCostCenterCategoriesRouter(): Router {
   }));
 
   /**
+   * GET /api/cost-center-categories/dropdown-items
+   * Fetch active categories for dropdown selection.
+   */
+  router.get('/dropdown-items', requirePermission('public.cost_center_categories.read'), asyncHandler(async (req: Request, res: Response) => {
+    const records = await db
+      .select()
+      .from(costCenterCategories)
+      .where(eq(costCenterCategories.status, 'active'))
+      .orderBy(costCenterCategories.labelId);
+
+    res.json(records);
+  }));
+
+  /**
    * GET /api/cost-center-categories/:id
    * Get a single cost center category by ID.
    */

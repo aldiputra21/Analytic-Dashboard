@@ -56,12 +56,7 @@ interface CashFlow {
   createdBy: string;
 }
 
-interface Project {
-  id: string;
-  name: string;
-  corporateId?: string;
-  departmentId?: string;
-}
+
 
 // --- Validation Schema ---
 const cashFlowSchema = (t: any) => z.object({
@@ -181,7 +176,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { corporates, isLoading: isCorpsLoading } = useCorporates();
+  const { corporates, options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
   const { projects, isLoading: isProjsLoading } = useProjects();
 
   // Filters
@@ -377,10 +372,12 @@ export const WeeklyCashFlowManager: React.FC = () => {
   const entityOptions = useMemo(() => {
     if (formData.entityType === 'project') {
       if (!formData.corporateId) return [];
-      return projects.filter(p => p.corporateId === formData.corporateId);
+      return projects
+        .filter(p => p.corporateId === formData.corporateId)
+        .map(p => ({ value: p.id, label: p.name, sublabel: p.code }));
     }
-    return corporates;
-  }, [formData.entityType, formData.corporateId, projects, corporates]);
+    return corporateOptions;
+  }, [formData.entityType, formData.corporateId, projects, corporateOptions]);
 
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-full font-bold">
@@ -419,13 +416,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
           {(hasFullCorporateAccess || user?.role === 'owner' || subsidiaryIds.length > 1) && (
             <div className="flex-1 min-w-[200px]">
               <SearchableSelect
-                options={corporates
-                  .filter(corp => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(corp.id)))
-                  .map(corp => ({
-                    value: corp.id,
-                    label: corp.name,
-                    sublabel: corp.code
-                  }))}
+                options={corporateOptions}
                 value={filterCorporate}
                 onChange={(val) => setFilterCorporate(val)}
                 placeholder={t.modal.corporate}
@@ -776,13 +767,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       </div>
                     ) : (
                       <SearchableSelect
-                        options={corporates
-                          .filter(corp => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(corp.id)))
-                          .map(corp => ({
-                            value: corp.id,
-                            label: corp.name,
-                            sublabel: corp.code
-                          }))}
+                        options={corporateOptions}
                         value={formData.corporateId || ''}
                         onChange={(val) => setFormData({ ...formData, corporateId: val, entityId: '' })}
                         placeholder={t.modal.selectEntity + ' ' + t.modal.corporate}
@@ -831,11 +816,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                         <Briefcase size={12} /> {t.modal.project}
                       </label>
                       <SearchableSelect
-                        options={entityOptions.map(opt => ({
-                          value: opt.id,
-                          label: opt.name,
-                          sublabel: opt.code
-                        }))}
+                        options={entityOptions}
                         value={formData.entityId || ''}
                         onChange={(val) => setFormData(p => ({ ...p, entityId: val }))}
                         placeholder={t.modal.selectEntity}

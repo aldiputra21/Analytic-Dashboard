@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Search, Edit2, Trash2, Eye,
   ChevronLeft, ChevronRight, Building2, X, AlertCircle, CheckCircle2,
-  RefreshCw, FilterX, Users, Briefcase, Hash, Info, ChevronDown
+  RefreshCw, FilterX, Users, Briefcase, Hash, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
@@ -22,6 +22,7 @@ import {
 import { departmentI18n } from '../../../i18n/department';
 import { commonsI18n } from '../../../i18n/commons';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
+import { SearchableSelect } from '../shared/SearchableSelect';
 import { z } from 'zod';
 
 interface Department {
@@ -113,7 +114,7 @@ export const DepartmentManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const t = departmentI18n[language];
   const common = commonsI18n[language];
-  const { corporates } = useCorporates(); // Active corporates for dropdown
+  const { options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
 
   // Validation Schema
   const departmentSchema = z.object({
@@ -140,7 +141,6 @@ export const DepartmentManager: React.FC = () => {
   });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterCorporate, setFilterCorporate] = useState('');
 
   // Modal State
@@ -152,7 +152,6 @@ export const DepartmentManager: React.FC = () => {
   // Delete State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteAffectedProjects, setDeleteAffectedProjects] = useState<any[]>([]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -165,19 +164,19 @@ export const DepartmentManager: React.FC = () => {
   });
 
   const fetchDepartments = useCallback(async (isSilent = false) => {
-    if (!filterCorporate) return;
-
     if (!isSilent) setLoading(true);
-    else setIsRefreshing(true);
     setError(null);
 
     try {
       const query = new URLSearchParams({
-        corporateId: appliedFilters.corporateId,
         page: page.toString(),
         pageSize: pageSize.toString(),
         search: appliedFilters.search.trim(),
       });
+
+      if (appliedFilters.corporateId) {
+        query.set('corporateId', appliedFilters.corporateId);
+      }
 
       const res = await apiFetch(`/api/departments?${query.toString()}`);
       if (!res.ok) {
@@ -193,22 +192,15 @@ export const DepartmentManager: React.FC = () => {
       toast.error(err.message || common.errorLoadTable);
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
     }
   }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
+  // Fetch departments when filters or pagination changes
+  // Note: fetchDepartments is intentionally excluded from dependencies to prevent infinite loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (corporates.length > 0 && !appliedFilters.corporateId) {
-      setAppliedFilters(prev => ({ ...prev, corporateId: corporates[0].id }));
-      setFilterCorporate(corporates[0].id);
-    }
-  }, [corporates, appliedFilters.corporateId]);
-
-  useEffect(() => {
-    if (appliedFilters.corporateId) {
-      fetchDepartments();
-    }
-  }, [fetchDepartments]);
+    fetchDepartments();
+  }, [appliedFilters, page, pageSize]);
 
   const handleApplyFilter = () => {
     setPage(1);
@@ -220,10 +212,10 @@ export const DepartmentManager: React.FC = () => {
 
   const handleClearFilter = () => {
     setSearch('');
-    setFilterCorporate(corporates.length > 0 ? corporates[0].id : '');
+    setFilterCorporate('');
     setAppliedFilters({
       search: '',
-      corporateId: corporates.length > 0 ? corporates[0].id : ''
+      corporateId: ''
     });
     setPage(1);
   };
@@ -243,7 +235,7 @@ export const DepartmentManager: React.FC = () => {
     } else {
       setEditingDept(null);
       setFormData({
-        corporateId: filterCorporate || corporates[0]?.id || '',
+        corporateId: filterCorporate || '',
         code: '',
         name: '',
         headName: '',
@@ -355,18 +347,14 @@ export const DepartmentManager: React.FC = () => {
 
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
-        <div className="w-full md:w-64 relative group">
-          <select
+        <div className="w-full md:w-64">
+          <SearchableSelect
+            options={corporateOptions}
             value={filterCorporate}
-            onChange={(e) => setFilterCorporate(e.target.value)}
-            className="w-full pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 active:bg-slate-100 transition-all cursor-pointer appearance-none"
-          >
-            <option value="">{t.modal.selectCorporate}</option>
-            {corporates.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" size={16} />
+            onChange={(val) => setFilterCorporate(val)}
+            placeholder={t.modal.selectCorporate}
+            disabled={isCorpsLoading}
+          />
         </div>
 
         <div className="flex-1 min-w-[240px] relative group">
@@ -659,20 +647,13 @@ export const DepartmentManager: React.FC = () => {
                 {/* Row 1: Perusahaan + Kode */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField label={t.modal.corporate} required>
-                    <div className="relative">
-                      <select
-                        value={formData.corporateId}
-                        onChange={(e) => setFormData({ ...formData, corporateId: e.target.value })}
-                        disabled={!!editingDept || isViewOnly}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
-                      >
-                        <option value="">{t.modal.selectCorporate}</option>
-                        {corporates.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                    </div>
+                    <SearchableSelect
+                      options={corporateOptions}
+                      value={formData.corporateId}
+                      onChange={(val) => setFormData({ ...formData, corporateId: val })}
+                      disabled={!!editingDept || isViewOnly || isCorpsLoading}
+                      placeholder={t.modal.selectCorporate}
+                    />
                   </FormField>
 
                   <FormField label={t.modal.code} required>
