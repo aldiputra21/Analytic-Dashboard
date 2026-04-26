@@ -6,17 +6,6 @@ export interface IncomeStatementCopy {
   subtitle: string;
   inputNew: string;
   searchPlaceholder: string;
-  pagination: {
-    showing: string;
-    of: string;
-    entries: string;
-    rowsPerPage: string;
-  };
-  actions: {
-    view: string;
-    edit: string;
-    delete: string;
-  };
   tableHead: {
     period: string;
     corporate: string;
@@ -26,13 +15,9 @@ export interface IncomeStatementCopy {
     margin: string;
     actions: string;
   };
-  apply: string;
-  clear: string;
   status: {
     empty: string;
     emptyDesc: string;
-    loading: string;
-    submitting: string;
   };
   modal: {
     createTitle: string;
@@ -50,8 +35,6 @@ export interface IncomeStatementCopy {
     notes: string;
     notesPlaceholder: string;
     selectCorporate: string;
-    cancel: string;
-    submit: string;
     month: string;
     year: string;
     expensesAndOthers: string;
@@ -60,7 +43,6 @@ export interface IncomeStatementCopy {
     taxAndResult: string;
     overwriteConfirm: string;
     overwrite: string;
-    saveBtn: string;
   };
   fields: {
     revenue: string;
@@ -70,22 +52,10 @@ export interface IncomeStatementCopy {
     tax: string;
   };
   alerts: {
-    errorRequired: string;
-    success: string;
-    error: string;
-    warning: string;
     deleteTitle: string;
     deleteDesc: string;
     deleteConfirm: string;
-    deleteCancel: string;
     deleteDeleting: string;
-    successDelete: string;
-    errorDelete: string;
-    successSave: string;
-    successUpdate: string;
-    errorSave: string;
-    errorFetch: string;
-    errorNetwork: string;
   };
   validation: {
     corporateRequired: string;
@@ -100,17 +70,6 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
     subtitle: 'Lacak pendapatan, pengeluaran, dan profitabilitas operasional.',
     inputNew: 'Input Laba Rugi Baru',
     searchPlaceholder: 'Cari perusahaan...',
-    pagination: {
-      showing: 'Menampilkan',
-      of: 'dari',
-      entries: 'entri',
-      rowsPerPage: 'Baris per halaman'
-    },
-    actions: {
-      view: 'Detail',
-      edit: 'Edit',
-      delete: 'Hapus'
-    },
     tableHead: {
       period: 'Periode',
       corporate: 'Perusahaan',
@@ -120,13 +79,9 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       margin: 'NPM',
       actions: 'Aksi',
     },
-    apply: 'Terapkan',
-    clear: 'Bersihkan',
     status: {
       empty: 'Data Kosong',
       emptyDesc: 'Coba sesuaikan filter atau tambahkan data baru.',
-      loading: 'Memuat Data...',
-      submitting: 'Menyimpan...',
     },
     modal: {
       createTitle: 'Input Laba Rugi',
@@ -144,17 +99,14 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       notes: 'Catatan tambahan',
       notesPlaceholder: 'Tambahkan catatan jika diperlukan...',
       selectCorporate: 'Pilih Perusahaan',
-      cancel: 'Batal',
-      submit: 'Simpan',
       month: 'Bulan',
       year: 'Tahun',
       expensesAndOthers: 'Beban & Lain-lain',
       otherIncome: 'Pendapatan Lain',
       otherIncExp: 'Pend. & Beban Lain',
       taxAndResult: 'Pajak & Hasil',
-      overwriteConfirm: 'Timpa data periode {period}?',
-      overwrite: 'Timpa',
-      saveBtn: 'Simpan Laba Rugi',
+      overwriteConfirm: 'Data untuk periode ini sudah ada. Ingin menimpa?',
+      overwrite: 'Timpa Data',
     },
     fields: {
       revenue: 'Pendapatan (Revenue)',
@@ -164,22 +116,10 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       tax: 'Pajak',
     },
     alerts: {
-      errorRequired: 'Mohon lengkapi semua field yang wajib diisi',
-      success: 'Berhasil',
-      error: 'Error',
-      warning: 'Peringatan',
       deleteTitle: 'Hapus laporan laba rugi?',
       deleteDesc: 'Tindakan ini permanen. Data laba rugi untuk periode ini akan dihapus dari sistem.',
       deleteConfirm: 'Ya, Hapus Laba Rugi',
-      deleteCancel: 'Batal',
       deleteDeleting: 'Menghapus...',
-      successDelete: 'Data laba rugi berhasil dihapus',
-      errorDelete: 'Gagal menghapus data',
-      successSave: 'Laporan laba rugi berhasil disimpan',
-      successUpdate: 'Laporan laba rugi diperbarui',
-      errorSave: 'Gagal menyimpan laporan',
-      errorFetch: 'Gagal memuat data laba rugi',
-      errorNetwork: 'Kesalahan jaringan',
     },
     validation: {
       corporateRequired: 'Perusahaan wajib dipilih',
@@ -192,17 +132,6 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
     subtitle: 'Track revenue, expenses, and operational profitability.',
     inputNew: 'Input New Income Statement',
     searchPlaceholder: 'Search corporate...',
-    pagination: {
-      showing: 'Showing',
-      of: 'of',
-      entries: 'entries',
-      rowsPerPage: 'Rows per page'
-    },
-    actions: {
-      view: 'Details',
-      edit: 'Edit',
-      delete: 'Delete'
-    },
     tableHead: {
       period: 'Period',
       corporate: 'Corporate',
@@ -212,13 +141,9 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       margin: 'NPM',
       actions: 'Actions',
     },
-    apply: 'Apply',
-    clear: 'Clear',
     status: {
       empty: 'No Data',
       emptyDesc: 'Try adjusting filters or add new data.',
-      loading: 'Loading Data...',
-      submitting: 'Saving...',
     },
     modal: {
       createTitle: 'Input Income Statement',
@@ -236,17 +161,14 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       notes: 'Additional Notes',
       notesPlaceholder: 'Add notes if needed...',
       selectCorporate: 'Select Corporate',
-      cancel: 'Cancel',
-      submit: 'Save',
       month: 'Month',
       year: 'Year',
       expensesAndOthers: 'Expenses & Others',
       otherIncome: 'Other Income',
       otherIncExp: 'Other Inc. & Exp.',
       taxAndResult: 'Tax & Result',
-      overwriteConfirm: 'Overwrite data for period {period}?',
-      overwrite: 'Overwrite',
-      saveBtn: 'Save Income Statement',
+      overwriteConfirm: 'Data for this period already exists. Overwrite?',
+      overwrite: 'Overwrite Data',
     },
     fields: {
       revenue: 'Revenue',
@@ -256,22 +178,10 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       tax: 'Tax',
     },
     alerts: {
-      errorRequired: 'Please fill in all required fields',
-      success: 'Success',
-      error: 'Error',
-      warning: 'Warning',
       deleteTitle: 'Delete income statement report?',
       deleteDesc: 'This action is permanent. Income statement data for this period will be deleted from the system.',
       deleteConfirm: 'Yes, Delete Income Statement',
-      deleteCancel: 'Cancel',
       deleteDeleting: 'Deleting...',
-      successDelete: 'Income statement data deleted successfully',
-      errorDelete: 'Failed to delete data',
-      successSave: 'Income statement report saved successfully',
-      successUpdate: 'Income statement report updated',
-      errorSave: 'Failed to save report',
-      errorFetch: 'Failed to load income statement data',
-      errorNetwork: 'Network error',
     },
     validation: {
       corporateRequired: 'Corporate is required',

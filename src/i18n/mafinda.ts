@@ -118,7 +118,6 @@ export interface MafindaCopy {
       kind: string;
       revenueTarget: string;
       opsCostTarget: string;
-      actions: string;
       entityType: string;
       selectEntity: string;
       periodKind: string;
@@ -133,6 +132,7 @@ export interface MafindaCopy {
       deleteSuccess: string;
       saveError: string;
       deleteError: string;
+      actions: string;
     };
     management: {
       title: string;
@@ -265,7 +265,6 @@ export const mafindaI18n: Record<Locale, MafindaCopy> = {
         kind: 'Jenis',
         revenueTarget: 'Target Revenue',
         opsCostTarget: 'Target Biaya Ops',
-        actions: 'Aksi',
         entityType: 'Tipe Entitas',
         selectEntity: 'Pilih...',
         periodKind: 'Jenis Periode',
@@ -280,6 +279,7 @@ export const mafindaI18n: Record<Locale, MafindaCopy> = {
         deleteSuccess: 'Target berhasil dihapus',
         saveError: 'Gagal menyimpan target',
         deleteError: 'Gagal menghapus target',
+        actions: 'Aksi',
       },
       management: {
         title: 'Manajemen Proyek & Target',
@@ -410,7 +410,6 @@ export const mafindaI18n: Record<Locale, MafindaCopy> = {
         kind: 'Kind',
         revenueTarget: 'Revenue Target',
         opsCostTarget: 'Ops Cost Target',
-        actions: 'Actions',
         entityType: 'Entity Type',
         selectEntity: 'Select...',
         periodKind: 'Period Kind',
@@ -425,6 +424,7 @@ export const mafindaI18n: Record<Locale, MafindaCopy> = {
         deleteSuccess: 'Target deleted successfully',
         saveError: 'Failed to save target',
         deleteError: 'Failed to delete target',
+        actions: 'Actions',
       },
       management: {
         title: 'Projects & Targets Management',

@@ -220,7 +220,7 @@ export const IncomeStatementManager: React.FC = () => {
         setTotalCount(d.totalCount || 0);
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorFetch);
+        throw new Error(errData.error?.message || common.errorLoadTable);
       }
     } catch (err: any) {
       setError(err.message || common.errorLoadTable);
@@ -259,15 +259,8 @@ export const IncomeStatementManager: React.FC = () => {
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/financial-statements/income-statement/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        toast.success(t.alerts.successDelete);
-        fetchData();
-      } else {
-        const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorDelete);
-      }
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorNetwork);
+      toast.error(err.message || common.errorNetwork);
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -319,15 +312,15 @@ export const IncomeStatementManager: React.FC = () => {
       });
 
       if (res.ok) {
-        toast.success(modalMode === 'create' ? t.alerts.successSave : t.alerts.successUpdate);
+        toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
         setIsModalOpen(false);
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorSave);
+        throw new Error(errData.error?.message || common.errorSave);
       }
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorNetwork);
+      toast.error(err.message || common.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -414,14 +407,14 @@ export const IncomeStatementManager: React.FC = () => {
               className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
             >
               <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-              {t.apply}
+              {common.apply}
             </button>
             <button
               onClick={handleClearFilter}
               className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
             >
               <FilterX size={14} />
-              {t.clear}
+              {common.clear}
             </button>
           </div>
         </div>
@@ -541,7 +534,7 @@ export const IncomeStatementManager: React.FC = () => {
                             <button
                               onClick={() => openModal('view', item)}
                               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                              title={t.actions.view}
+                              title={common.view}
                             >
                               <Eye size={16} />
                             </button>
@@ -549,7 +542,7 @@ export const IncomeStatementManager: React.FC = () => {
                               <button
                                 onClick={() => openModal('edit', item)}
                                 className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                                title={t.actions.edit}
+                                title={common.edit}
                               >
                                 <Edit2 size={16} />
                               </button>
@@ -558,7 +551,7 @@ export const IncomeStatementManager: React.FC = () => {
                               <button
                                 onClick={() => setDeleteConfirmId(item.id)}
                                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                title={t.actions.delete}
+                                title={common.delete}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -579,12 +572,12 @@ export const IncomeStatementManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing} {Math.min(totalCount, (currentPage - 1) * pageSize + 1)} - {Math.min(totalCount, currentPage * pageSize)} {t.pagination.of} {totalCount} {t.pagination.entries}
+                {common.pagination.showing} {Math.min(totalCount, (currentPage - 1) * pageSize + 1)} - {Math.min(totalCount, currentPage * pageSize)} {common.pagination.of} {totalCount} {common.pagination.total}
               </span>
 
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {t.pagination.rowsPerPage}
+                  {common.pagination.rowsPerPage}
                 </span>
                 <select
                   value={pageSize}
@@ -665,8 +658,8 @@ export const IncomeStatementManager: React.FC = () => {
             title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : t.modal.viewTitle}
             size="xl"
           >
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-              <form onSubmit={handleSave} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-8">
+            <form onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 scrollbar-hide space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
@@ -767,29 +760,29 @@ export const IncomeStatementManager: React.FC = () => {
                     placeholder={t.modal.notesPlaceholder}
                   />
                 </div>
+              </div>
 
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSaving}
+                  className="px-8 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer shadow-sm"
+                >
+                  {common.cancel}
+                </button>
                 {modalMode !== 'view' && (
-                  <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setIsModalOpen(false)}
-                      disabled={isSaving}
-                      className="px-8 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer shadow-sm"
-                    >
-                      {t.modal.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      {isSaving ? t.status.submitting : t.modal.submit}
-                    </button>
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? <RefreshCw className="animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    {isSaving ? common.saving : common.save}
+                  </button>
                 )}
-              </form>
-            </div>
+              </div>
+            </form>
           </Modal>
         )}
       </AnimatePresence>
@@ -811,14 +804,14 @@ export const IncomeStatementManager: React.FC = () => {
               onClick={() => setDeleteConfirmId(null)}
               className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
             >
-              {t.alerts.deleteCancel}
+              {common.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
             >
               {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+              {isDeleting ? common.deleting : t.alerts.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,8 +6,6 @@ export interface RealizationCopy {
   subtitle: string;
   addNew: string;
   searchPlaceholder: string;
-  apply: string;
-  clear: string;
   tableHead: {
     entityType: string;
     entity: string;
@@ -15,7 +13,6 @@ export interface RealizationCopy {
     category: string;
     amount: string;
     attachments: string;
-    actions: string;
   };
   status: {
     loading: string;
@@ -24,12 +21,6 @@ export interface RealizationCopy {
     emptyDesc: string;
     uploading: string;
     deleting: string;
-  };
-  pagination: {
-    showing: string;
-    of: string;
-    entries: string;
-    rowsPerPage: string;
   };
   modal: {
     createTitle: string;
@@ -50,9 +41,6 @@ export interface RealizationCopy {
     attachmentSection: string;
     dropOrClick: string;
     fileHint: string;
-    cancel: string;
-    submit: string;
-    close: string;
     uploadAttachment: string;
     downloadAttachment: string;
     deleteAttachment: string;
@@ -70,15 +58,10 @@ export interface RealizationCopy {
     deleteTitle: string;
     deleteDesc: string;
     deleteConfirm: string;
-    deleteCancel: string;
     deleteDeleting: string;
-    successSave: string;
-    successUpdate: string;
-    successDelete: string;
     errorSave: string;
     errorDelete: string;
     errorFetch: string;
-    errorNetwork: string;
     invalidFileType: string;
     invalidFileDesc: string;
     fileTooLarge: string;
@@ -103,8 +86,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     subtitle: 'Catat realisasi kas (cash-in/cash-out) per departemen atau proyek.',
     addNew: 'Tambah Realisasi',
     searchPlaceholder: 'Cari departemen, proyek, atau catatan...',
-    apply: 'Terapkan',
-    clear: 'Bersihkan',
     tableHead: {
       entityType: 'Tipe Entitas',
       entity: 'Departemen / Proyek',
@@ -112,7 +93,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       category: 'Kategori',
       amount: 'Jumlah',
       attachments: 'Lampiran',
-      actions: 'Aksi',
     },
     status: {
       loading: 'Memuat Data...',
@@ -121,12 +101,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       emptyDesc: 'Belum ada data realisasi kas yang terdaftar.',
       uploading: 'Mengunggah...',
       deleting: 'Menghapus...',
-    },
-    pagination: {
-      showing: 'Menampilkan',
-      of: 'dari',
-      entries: 'entri',
-      rowsPerPage: 'Baris per halaman',
     },
     modal: {
       createTitle: 'Tambah Realisasi Kas Baru',
@@ -147,9 +121,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       attachmentSection: 'Lampiran File',
       dropOrClick: 'Lepas atau klik',
       fileHint: 'Dokumen pendukung (PDF, Excel, Word, Gambar)\nMax 10MB',
-      cancel: 'Batal',
-      submit: 'Simpan',
-      close: 'Tutup',
       uploadAttachment: 'Unggah Lampiran',
       downloadAttachment: 'Unduh',
       deleteAttachment: 'Hapus',
@@ -167,15 +138,10 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       deleteTitle: 'Hapus realisasi?',
       deleteDesc: 'Tindakan ini tidak dapat dibatalkan. Realisasi dan lampiran terkait akan dihapus.',
       deleteConfirm: 'Ya, Hapus Realisasi',
-      deleteCancel: 'Batal',
       deleteDeleting: 'Menghapus...',
-      successSave: 'Realisasi berhasil ditambahkan',
-      successUpdate: 'Realisasi berhasil diperbarui',
-      successDelete: 'Realisasi berhasil dihapus',
       errorSave: 'Gagal menyimpan realisasi',
       errorDelete: 'Gagal menghapus realisasi',
       errorFetch: 'Gagal memuat data realisasi',
-      errorNetwork: 'Kesalahan jaringan',
       invalidFileType: 'Tipe file tidak valid',
       invalidFileDesc: 'Hanya file PDF, Excel, Word, dan Gambar yang diperbolehkan.',
       fileTooLarge: 'Ukuran file terlalu besar',
@@ -198,8 +164,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     subtitle: 'Record cash realizations (cash-in/cash-out) per department or project.',
     addNew: 'Add Realization',
     searchPlaceholder: 'Search department, project, or notes...',
-    apply: 'Apply',
-    clear: 'Clear',
     tableHead: {
       entityType: 'Entity Type',
       entity: 'Department / Project',
@@ -207,7 +171,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       category: 'Category',
       amount: 'Amount',
       attachments: 'Attachments',
-      actions: 'Actions',
     },
     status: {
       loading: 'Loading Data...',
@@ -216,12 +179,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       emptyDesc: 'No cash realizations registered yet.',
       uploading: 'Uploading...',
       deleting: 'Deleting...',
-    },
-    pagination: {
-      showing: 'Showing',
-      of: 'of',
-      entries: 'entries',
-      rowsPerPage: 'Rows per page',
     },
     modal: {
       createTitle: 'Add New Cash Realization',
@@ -242,9 +199,6 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       attachmentSection: 'File Attachments',
       dropOrClick: 'Drop or click',
       fileHint: 'Supporting documents (PDF, Excel, Word, Image)\nMax 10MB',
-      cancel: 'Cancel',
-      submit: 'Save',
-      close: 'Close',
       uploadAttachment: 'Upload Attachment',
       downloadAttachment: 'Download',
       deleteAttachment: 'Delete',
@@ -262,15 +216,10 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       deleteTitle: 'Delete realization?',
       deleteDesc: 'This action cannot be undone. Realization and related attachments will be deleted.',
       deleteConfirm: 'Yes, Delete Realization',
-      deleteCancel: 'Cancel',
       deleteDeleting: 'Deleting...',
-      successSave: 'Realization added successfully',
-      successUpdate: 'Realization updated successfully',
-      successDelete: 'Realization deleted successfully',
       errorSave: 'Failed to save realization',
       errorDelete: 'Failed to delete realization',
       errorFetch: 'Failed to load realization data',
-      errorNetwork: 'Network error',
       invalidFileType: 'Invalid file type',
       invalidFileDesc: 'Only PDF, Excel, Word, and Image files are allowed.',
       fileTooLarge: 'File too large',

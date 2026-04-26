@@ -6,17 +6,6 @@ export interface BalanceSheetCopy {
   subtitle: string;
   inputNew: string;
   searchPlaceholder: string;
-  pagination: {
-    showing: string;
-    of: string;
-    entries: string;
-    rowsPerPage: string;
-  };
-  actions: {
-    view: string;
-    edit: string;
-    delete: string;
-  };
   tableHead: {
     period: string;
     corporate: string;
@@ -26,15 +15,11 @@ export interface BalanceSheetCopy {
     status: string;
     actions: string;
   };
-  apply: string;
-  clear: string;
   status: {
     balanced: string;
     unbalanced: string;
     empty: string;
     emptyDesc: string;
-    loading: string;
-    submitting: string;
   };
   modal: {
     createTitle: string;
@@ -59,16 +44,13 @@ export interface BalanceSheetCopy {
     notes: string;
     notesPlaceholder: string;
     selectCorporate: string;
-    cancel: string;
-    submit: string;
     month: string;
     year: string;
     totalLiab: string;
     totalLiabEquityCompact: string;
+    noData: string;
     overwriteConfirm: string;
     overwrite: string;
-    saveBtn: string;
-    noData: string;
   };
   fields: {
     cashAndBank: string;
@@ -92,22 +74,10 @@ export interface BalanceSheetCopy {
     dividends: string;
   };
   alerts: {
-    errorRequired: string;
-    success: string;
-    error: string;
-    warning: string;
     deleteTitle: string;
     deleteDesc: string;
     deleteConfirm: string;
-    deleteCancel: string;
     deleteDeleting: string;
-    successDelete: string;
-    errorDelete: string;
-    successSave: string;
-    successUpdate: string;
-    errorSave: string;
-    errorFetch: string;
-    errorNetwork: string;
   };
   validation: {
     corporateRequired: string;
@@ -123,17 +93,6 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
     subtitle: 'Pantau dan kelola laporan neraca keuangan anak perusahaan.',
     inputNew: 'Input Neraca Baru',
     searchPlaceholder: 'Cari perusahaan...',
-    pagination: {
-      showing: 'Menampilkan',
-      of: 'dari',
-      entries: 'entri',
-      rowsPerPage: 'Baris per halaman'
-    },
-    actions: {
-      view: 'Detail',
-      edit: 'Edit',
-      delete: 'Hapus'
-    },
     tableHead: {
       period: 'Periode',
       corporate: 'Perusahaan',
@@ -143,15 +102,11 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       status: 'Status',
       actions: 'Aksi',
     },
-    apply: 'Terapkan',
-    clear: 'Bersihkan',
     status: {
       balanced: 'Seimbang',
       unbalanced: 'Tidak Seimbang',
       empty: 'Data Kosong',
       emptyDesc: 'Coba sesuaikan filter atau tambahkan data baru.',
-      loading: 'Memuat Data...',
-      submitting: 'Menyimpan...',
     },
     modal: {
       createTitle: 'Input Neraca',
@@ -176,16 +131,13 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       notes: 'Catatan tambahan',
       notesPlaceholder: 'Tambahkan catatan jika diperlukan...',
       selectCorporate: 'Pilih Perusahaan',
-      cancel: 'Batal',
-      submit: 'Simpan',
       month: 'Bulan',
       year: 'Tahun',
       totalLiab: 'TOTAL KEWAJIBAN',
       totalLiabEquityCompact: 'Kwjbn + Ekuitas',
-      overwriteConfirm: 'Timpa data periode {period}?',
-      overwrite: 'Timpa',
-      saveBtn: 'Simpan Neraca',
       noData: 'Belum ada data',
+      overwriteConfirm: 'Data untuk periode ini sudah ada. Ingin menimpa?',
+      overwrite: 'Timpa Data',
     },
     fields: {
       cashAndBank: 'Kas & Bank',
@@ -209,22 +161,10 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       dividends: 'Dividen',
     },
     alerts: {
-      errorRequired: 'Mohon lengkapi semua field yang wajib diisi',
-      success: 'Berhasil',
-      error: 'Error',
-      warning: 'Peringatan',
       deleteTitle: 'Hapus laporan neraca?',
       deleteDesc: 'Tindakan ini tidak dapat dibatalkan. Data neraca untuk periode ini akan dihapus permanen dari sistem.',
       deleteConfirm: 'Ya, Hapus Neraca',
-      deleteCancel: 'Batal',
       deleteDeleting: 'Menghapus...',
-      successDelete: 'Data neraca berhasil dihapus',
-      errorDelete: 'Gagal menghapus data neraca',
-      successSave: 'Laporan neraca berhasil disimpan',
-      successUpdate: 'Laporan neraca diperbarui',
-      errorSave: 'Gagal menyimpan laporan',
-      errorFetch: 'Gagal memuat data neraca',
-      errorNetwork: 'Terjadi kesalahan jaringan',
     },
     validation: {
       corporateRequired: 'Perusahaan wajib dipilih',
@@ -238,17 +178,6 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
     subtitle: 'Monitor and manage subsidiary balance sheet reports.',
     inputNew: 'Input New Balance Sheet',
     searchPlaceholder: 'Search corporate...',
-    pagination: {
-      showing: 'Showing',
-      of: 'of',
-      entries: 'entries',
-      rowsPerPage: 'Rows per page'
-    },
-    actions: {
-      view: 'Details',
-      edit: 'Edit',
-      delete: 'Delete'
-    },
     tableHead: {
       period: 'Period',
       corporate: 'Corporate',
@@ -258,15 +187,11 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       status: 'Status',
       actions: 'Actions',
     },
-    apply: 'Apply',
-    clear: 'Clear',
     status: {
       balanced: 'Balanced',
       unbalanced: 'Unbalanced',
       empty: 'No Data',
       emptyDesc: 'Try adjusting filters or add new data.',
-      loading: 'Loading Data...',
-      submitting: 'Saving...',
     },
     modal: {
       createTitle: 'Input Balance Sheet',
@@ -291,16 +216,13 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       notes: 'Additional Notes',
       notesPlaceholder: 'Add notes if needed...',
       selectCorporate: 'Select Corporate',
-      cancel: 'Cancel',
-      submit: 'Save',
       month: 'Month',
       year: 'Year',
       totalLiab: 'TOTAL LIABILITIES',
       totalLiabEquityCompact: 'Liab + Equity',
-      overwriteConfirm: 'Overwrite data for period {period}?',
-      overwrite: 'Overwrite',
-      saveBtn: 'Save Balance Sheet',
       noData: 'No data yet',
+      overwriteConfirm: 'Data for this period already exists. Overwrite?',
+      overwrite: 'Overwrite Data',
     },
     fields: {
       cashAndBank: 'Cash & Bank',
@@ -324,22 +246,10 @@ export const balanceSheetI18n: Record<Locale, BalanceSheetCopy> = {
       dividends: 'Dividends',
     },
     alerts: {
-      errorRequired: 'Please fill in all required fields',
-      success: 'Success',
-      error: 'Error',
-      warning: 'Warning',
       deleteTitle: 'Delete balance sheet report?',
       deleteDesc: 'This action cannot be undone. Balance sheet data for this period will be permanently deleted from the system.',
       deleteConfirm: 'Yes, Delete Balance Sheet',
-      deleteCancel: 'Cancel',
       deleteDeleting: 'Deleting...',
-      successDelete: 'Balance sheet data deleted successfully',
-      errorDelete: 'Failed to delete balance sheet data',
-      successSave: 'Balance sheet report saved successfully',
-      successUpdate: 'Balance sheet report updated',
-      errorSave: 'Failed to save report',
-      errorFetch: 'Failed to load balance sheet data',
-      errorNetwork: 'Network error',
     },
     validation: {
       corporateRequired: 'Corporate is required',

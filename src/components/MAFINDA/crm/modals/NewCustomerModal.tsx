@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Search, Building2 } from 'lucide-react';
-import { useAuth } from '../../financial/useAuth';
+import { useAuth } from '../../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../../i18n/commons';
 import { crmI18n } from '../../../../i18n/crm';
 

@@ -3,13 +3,12 @@ export const auditLogI18n = {
     title: 'Audit Trail',
     subtitle: 'Pantau semua riwayat perubahan dan aktivitas sistem',
     refresh: 'Segarkan',
+    entriesHint: 'Menampilkan hingga 200 entri terbaru.',
     filters: {
       from: 'Dari:',
       to: 'Sampai:',
       action: 'Aksi:',
       entity: 'Entitas:',
-      apply: 'Terapkan',
-      all: 'Semua',
       create: 'Tambah',
       update: 'Ubah',
       delete: 'Hapus',
@@ -35,25 +34,21 @@ export const auditLogI18n = {
       ipAddress: 'Alamat IP'
     },
     status: {
-      loading: 'Memuat...',
       empty: 'Tidak ada data audit log',
       emptyDesc: 'Belum ada aktivitas yang terekam atau tidak ada data yang sesuai filter.'
     },
-    alerts: {
-      errorFetch: 'Gagal memuat audit log'
-    }
+    alerts: {}
   },
   en: {
     title: 'Audit Trail',
     subtitle: 'Monitor all system changes and activity logs',
     refresh: 'Refresh',
+    entriesHint: 'Showing up to 200 most recent entries.',
     filters: {
       from: 'From:',
       to: 'To:',
       action: 'Action:',
       entity: 'Entity:',
-      apply: 'Apply',
-      all: 'All',
       create: 'Create',
       update: 'Update',
       delete: 'Delete',
@@ -79,12 +74,9 @@ export const auditLogI18n = {
       ipAddress: 'IP Address'
     },
     status: {
-      loading: 'Loading...',
       empty: 'No audit log entries found',
       emptyDesc: 'No activity has been recorded yet or no data matches the filters.'
     },
-    alerts: {
-      errorFetch: 'Failed to load audit log'
-    }
+    alerts: {}
   }
 };

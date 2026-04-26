@@ -83,7 +83,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ subsidiaryId }) => {
 
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error?.message || t.alerts.errorFetch);
+        throw new Error(body.error?.message || common.errorLoadTable);
       }
 
       const data = await res.json();
@@ -94,7 +94,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ subsidiaryId }) => {
     } finally {
       setLoading(false);
     }
-  }, [subsidiaryId, startDate, endDate, actionFilter, entityTypeFilter, t.alerts.errorFetch, common.errorLoadTable]);
+  }, [subsidiaryId, startDate, endDate, actionFilter, entityTypeFilter, common.errorLoadTable]);
 
   useEffect(() => {
     fetchAuditLog();
@@ -171,7 +171,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ subsidiaryId }) => {
               onChange={(e) => setActionFilter(e.target.value)}
               className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
             >
-              <option value="">{t.filters.all}</option>
+              <option value="">{common.all}</option>
               <option value="create">{t.filters.create}</option>
               <option value="update">{t.filters.update}</option>
               <option value="delete">{t.filters.delete}</option>
@@ -204,7 +204,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ subsidiaryId }) => {
             onClick={() => fetchAuditLog()}
             className="w-full px-4 py-2 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer"
           >
-            {t.filters.apply}
+            {common.apply}
           </button>
         </div>
       </div>
@@ -408,7 +408,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ subsidiaryId }) => {
       </div>
 
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center pt-4">
-        Showing up to 200 most recent entries.
+        {t.entriesHint}
       </p>
     </div>
   );

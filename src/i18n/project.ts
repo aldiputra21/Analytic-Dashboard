@@ -6,32 +6,19 @@ export interface ProjectCopy {
   subtitle: string;
   addNew: string;
   searchPlaceholder: string;
-  apply: string;
-  clear: string;
   tableHead: {
     code: string;
     name: string;
     department: string;
     duration: string;
     status: string;
-    actions: string;
-  };
-  status: {
-    active: string;
-    inactive: string;
-    loading: string;
-    submitting: string;
-    empty: string;
-    emptyDesc: string;
-  };
-  pagination: {
-    showing: string;
-    of: string;
-    entries: string;
-    rowsPerPage: string;
   };
   filter: {
     allDepartments: string;
+  };
+  status: {
+    empty: string;
+    emptyDesc: string;
   };
   modal: {
     createTitle: string;
@@ -39,32 +26,22 @@ export interface ProjectCopy {
     viewTitle: string;
     corporate: string;
     department: string;
-    code: string;
-    name: string;
-    startDate: string;
-    endDate: string;
-    description: string;
-    status: string;
-    cancel: string;
-    submit: string;
     selectCorporate: string;
     selectDepartment: string;
-    close: string;
+    code: string;
+    name: string;
+    description: string;
+    startDate: string;
+    endDate: string;
   };
   alerts: {
-    errorRequired: string;
     deleteTitle: string;
     deleteDesc: string;
-    deleteConfirm: string;
-    deleteCancel: string;
-    deleteDeleting: string;
     successSave: string;
     successUpdate: string;
     successDelete: string;
     errorSave: string;
     errorDelete: string;
-    errorFetch: string;
-    errorNetwork: string;
   };
   validation: {
     corporateRequired: string;
@@ -77,146 +54,100 @@ export interface ProjectCopy {
 
 export const projectI18n: Record<Locale, ProjectCopy> = {
   id: {
-    title: 'Pengelolaan Proyek',
-    subtitle: 'Kelola dan pantau proyek operasional.',
+    title: 'Manajemen Proyek',
+    subtitle: 'Kelola proyek-proyek perusahaan dan alokasi departemennya.',
     addNew: 'Tambah Proyek',
-    searchPlaceholder: 'Cari nama atau kode...',
-    apply: 'Terapkan',
-    clear: 'Bersihkan',
+    searchPlaceholder: 'Cari kode atau nama proyek...',
     tableHead: {
-      code: 'Kode Proyek',
+      code: 'Kode',
       name: 'Nama Proyek',
       department: 'Departemen',
       duration: 'Durasi',
       status: 'Status',
-      actions: 'Aksi',
-    },
-    status: {
-      active: 'Aktif',
-      inactive: 'Nonaktif',
-      loading: 'Memuat Data...',
-      submitting: 'Menyimpan...',
-      empty: 'Data Kosong',
-      emptyDesc: 'Belum ada proyek yang terdaftar.',
-    },
-    pagination: {
-      showing: 'Menampilkan',
-      of: 'dari',
-      entries: 'entri',
-      rowsPerPage: 'Baris per halaman',
     },
     filter: {
       allDepartments: 'Semua Departemen',
     },
+    status: {
+      empty: 'Tidak ada data proyek',
+      emptyDesc: 'Belum ada data proyek yang terdaftar atau tidak ditemukan.',
+    },
     modal: {
       createTitle: 'Tambah Proyek Baru',
-      editTitle: 'Edit Proyek',
+      editTitle: 'Edit Data Proyek',
       viewTitle: 'Detail Proyek',
       corporate: 'Perusahaan',
       department: 'Departemen',
-      code: 'Kode Proyek',
-      name: 'Nama Proyek',
-      startDate: 'Tanggal Mulai',
-      endDate: 'Tanggal Selesai',
-      description: 'Deskripsi',
-      status: 'Status',
-      cancel: 'Batal',
-      submit: 'Simpan',
       selectCorporate: 'Pilih Perusahaan',
       selectDepartment: 'Pilih Departemen',
-      close: 'Tutup',
+      code: 'Kode Proyek',
+      name: 'Nama Proyek',
+      description: 'Deskripsi Proyek',
+      startDate: 'Tanggal Mulai',
+      endDate: 'Tanggal Selesai',
     },
     alerts: {
-      errorRequired: 'Mohon lengkapi semua field yang wajib diisi',
       deleteTitle: 'Hapus proyek?',
-      deleteDesc: 'Tindakan ini tidak dapat dibatalkan. Data terkait proyek ini akan dihapus.',
-      deleteConfirm: 'Ya, Hapus Proyek',
-      deleteCancel: 'Batal',
-      deleteDeleting: 'Menghapus...',
+      deleteDesc: 'Tindakan ini tidak dapat dibatalkan. Data proyek akan dihapus permanen.',
       successSave: 'Proyek berhasil ditambahkan',
       successUpdate: 'Proyek berhasil diperbarui',
       successDelete: 'Proyek berhasil dihapus',
       errorSave: 'Gagal menyimpan proyek',
       errorDelete: 'Gagal menghapus proyek',
-      errorFetch: 'Gagal memuat data proyek',
-      errorNetwork: 'Kesalahan jaringan',
     },
     validation: {
-      corporateRequired: 'Perusahaan wajib dipilih',
-      departmentRequired: 'Departemen wajib dipilih',
+      corporateRequired: 'Perusahaan harus dipilih',
+      departmentRequired: 'Departemen harus dipilih',
       codeMin: 'Kode minimal 2 karakter',
       nameMin: 'Nama minimal 3 karakter',
-      startDateRequired: 'Tanggal mulai wajib diisi',
+      startDateRequired: 'Tanggal mulai harus diisi',
     },
   },
   en: {
     title: 'Project Management',
-    subtitle: 'Track and manage operational projects.',
-    addNew: 'Add Project',
-    searchPlaceholder: 'Search name or code...',
-    apply: 'Apply',
-    clear: 'Clear',
+    subtitle: 'Manage company projects and their department allocations.',
+    addNew: 'Add New Project',
+    searchPlaceholder: 'Search project code or name...',
     tableHead: {
-      code: 'Project Code',
+      code: 'Code',
       name: 'Project Name',
       department: 'Department',
       duration: 'Duration',
       status: 'Status',
-      actions: 'Actions',
-    },
-    status: {
-      active: 'Active',
-      inactive: 'Inactive',
-      loading: 'Loading Data...',
-      submitting: 'Saving...',
-      empty: 'No Data',
-      emptyDesc: 'No projects registered yet.',
-    },
-    pagination: {
-      showing: 'Showing',
-      of: 'of',
-      entries: 'entries',
-      rowsPerPage: 'Rows per page',
     },
     filter: {
       allDepartments: 'All Departments',
     },
+    status: {
+      empty: 'No projects found',
+      emptyDesc: 'No projects have been registered yet or no results found.',
+    },
     modal: {
       createTitle: 'Add New Project',
-      editTitle: 'Edit Project',
-      viewTitle: 'Project Detail',
+      editTitle: 'Edit Project Data',
+      viewTitle: 'Project Details',
       corporate: 'Corporate',
       department: 'Department',
-      code: 'Project Code',
-      name: 'Project Name',
-      startDate: 'Start Date',
-      endDate: 'End Date',
-      description: 'Description',
-      status: 'Status',
-      cancel: 'Cancel',
-      submit: 'Save',
       selectCorporate: 'Select Corporate',
       selectDepartment: 'Select Department',
-      close: 'Close',
+      code: 'Project Code',
+      name: 'Project Name',
+      description: 'Project Description',
+      startDate: 'Start Date',
+      endDate: 'End Date',
     },
     alerts: {
-      errorRequired: 'Please fill in all required fields',
       deleteTitle: 'Delete project?',
-      deleteDesc: 'This action cannot be undone. Project related data will be deleted.',
-      deleteConfirm: 'Yes, Delete Project',
-      deleteCancel: 'Cancel',
-      deleteDeleting: 'Deleting...',
+      deleteDesc: 'This action cannot be undone. Project data will be permanently deleted.',
       successSave: 'Project added successfully',
       successUpdate: 'Project updated successfully',
       successDelete: 'Project deleted successfully',
       errorSave: 'Failed to save project',
       errorDelete: 'Failed to delete project',
-      errorFetch: 'Failed to load project data',
-      errorNetwork: 'Network error',
     },
     validation: {
-      corporateRequired: 'Corporate is required',
-      departmentRequired: 'Department is required',
+      corporateRequired: 'Corporate must be selected',
+      departmentRequired: 'Department must be selected',
       codeMin: 'Code must be at least 2 characters',
       nameMin: 'Name must be at least 3 characters',
       startDateRequired: 'Start date is required',

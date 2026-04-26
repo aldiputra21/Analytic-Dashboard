@@ -314,15 +314,15 @@ export const RealizationManager: React.FC = () => {
       });
 
       if (res.ok) {
-        toast.success(editingId ? t.alerts.successUpdate : t.alerts.successSave);
+        toast.success(editingId ? common.successUpdate : common.successSave);
         setIsModalOpen(false);
         fetchData();
       } else {
         const err = await res.json();
-        toast.error(err.error?.message || t.alerts.errorSave);
+        toast.error(err.error?.message || common.errorSave);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -333,7 +333,7 @@ export const RealizationManager: React.FC = () => {
     try {
       const res = await apiFetch(`/api/cash-realizations/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success(t.alerts.successDelete);
+        toast.success(common.successDelete);
         setDeleteConfirmId(null);
         fetchData();
       } else {
@@ -341,7 +341,7 @@ export const RealizationManager: React.FC = () => {
         toast.error(d.error?.message || t.alerts.errorDelete);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.errorNetwork);
     } finally {
       setIsDeleting(false);
     }
@@ -394,7 +394,7 @@ export const RealizationManager: React.FC = () => {
         toast.error(t.alerts.errorUpload);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.errorNetwork);
     } finally {
       setIsUploading(false);
     }
@@ -415,7 +415,7 @@ export const RealizationManager: React.FC = () => {
         toast.error(t.alerts.errorDeleteAttachment);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.errorNetwork);
     }
   };
 
@@ -516,14 +516,14 @@ export const RealizationManager: React.FC = () => {
             className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            {t.apply}
+            {common.apply}
           </button>
           <button
             onClick={handleClearFilter}
             className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
           >
             <FilterX size={14} />
-            {t.clear}
+            {common.clear}
           </button>
         </div>
       </div>
@@ -539,7 +539,7 @@ export const RealizationManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.tableHead.category}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.amount}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{t.tableHead.attachments}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -692,15 +692,15 @@ export const RealizationManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing}{' '}
+                {common.pagination.showing}{' '}
                 <span className="text-slate-800">{showingFrom}</span> -{' '}
                 <span className="text-slate-800">{showingTo}</span>{' '}
-                {t.pagination.of}{' '}
+                {common.pagination.of}{' '}
                 <span className="text-slate-800">{totalCount}</span>{' '}
-                {t.pagination.entries}
+                {common.pagination.entries}
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.pagination.rowsPerPage}</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{common.pagination.rowsPerPage}</span>
                 <select
                   value={pageSize}
                   onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
@@ -1014,14 +1014,14 @@ export const RealizationManager: React.FC = () => {
                     disabled={isSaving}
                     className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {t.modal.cancel}
+                    {common.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={isSaving}
                     className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-70"
                   >
-                    {isSaving ? t.status.submitting : t.modal.submit}
+                    {isSaving ? t.status.submitting : common.save}
                   </button>
                 </div>
               ) : (
@@ -1031,7 +1031,7 @@ export const RealizationManager: React.FC = () => {
                     onClick={() => setIsModalOpen(false)}
                     className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
                   >
-                    {t.modal.close}
+                    {common.close}
                   </button>
                 </div>
               )}
@@ -1048,7 +1048,7 @@ export const RealizationManager: React.FC = () => {
             <AlertDialogDescription>{t.alerts.deleteDesc}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>{t.alerts.deleteCancel}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{common.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               disabled={isDeleting}

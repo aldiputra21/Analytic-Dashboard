@@ -213,7 +213,7 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({ subsidiaryId, 
             className="px-6 py-2 text-xs font-black text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-50 min-w-[140px] justify-center"
           >
             {saving ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-            {saving ? t.saving : t.saveChanges}
+            {saving ? common.saving : t.saveChanges}
           </button>
         </div>
       </div>
@@ -227,7 +227,7 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({ subsidiaryId, 
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-1/3">{t.tableHead.ratio}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.healthy}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.moderate}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.status}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 font-bold">

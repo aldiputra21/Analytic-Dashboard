@@ -117,7 +117,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
             >
               <option value="achievement">Sort: {t.fields.achievement}</option>
               <option value="realization">Sort: {t.fields.realization}</option>
-              <option value="name">Sort: {t.fields.name || 'Name'}</option>
+              <option value="name">Sort: {t.sortLabels.name}</option>
             </select>
 
             {/* View toggle */}
@@ -138,7 +138,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
         {!isLoading && departments.length > 0 && (
           <div className="mt-4 grid grid-cols-4 gap-3">
             <div className="bg-slate-50 rounded-lg p-3 text-center">
-              <div className="text-xs text-slate-500 mb-0.5">{t.overallAchievement}</div>
+              <div className="text-xs text-slate-500 mb-0.5">{t.fields.overallAchievement}</div>
               <div className={`text-xl font-bold ${getAchievementColor(overallRate).text}`}>
                 {overallRate.toFixed(1)}%
               </div>
@@ -228,7 +228,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
                   {/* Gap */}
                   {dept.target > 0 && (
                     <div className="mt-2 text-xs text-slate-500 text-right">
-                      {t.gap}: <span className={`font-semibold ${dept.realization >= dept.target ? 'text-green-600' : 'text-red-600'}`}>
+                      {t.fields.gap}: <span className={`font-semibold ${dept.realization >= dept.target ? 'text-green-600' : 'text-red-600'}`}>
                         {dept.realization >= dept.target ? '+' : ''}{formatRupiah(dept.realization - dept.target, false)}
                       </span>
                     </div>
@@ -243,7 +243,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['#', t.allDepartments.replace(/All |Semua /, ''), t.fields.target, t.fields.realization, t.fields.achievement, t.gap, 'Status'].map(h => (
+                  {['#', t.allDepartments.replace(/All |Semua /, ''), t.fields.target, t.fields.realization, t.fields.achievement, t.fields.gap, 'Status'].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -284,7 +284,7 @@ export const DepartmentPerformance: React.FC<Props> = ({
               {/* Footer totals */}
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200">
-                  <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-700">{t.total}</td>
+                  <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-700">{t.fields.total}</td>
                   <td className="px-4 py-3 text-xs font-bold text-slate-700">{formatRupiah(totalTarget, false)}</td>
                   <td className="px-4 py-3 text-xs font-bold text-slate-700">{formatRupiah(totalRealization, false)}</td>
                   <td className="px-4 py-3">

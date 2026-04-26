@@ -171,7 +171,7 @@ const SummaryCard: React.FC<{ label: string; value: number; color: 'indigo' | 'e
       fullWidth ? "col-span-2 w-full" : ""
     )}>
       <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">{label}</span>
-      <span className="text-sm font-black">{formatRupiah(value, false)}</span>
+      <span className="text-lg font-black">{formatRupiah(value, false)}</span>
     </div>
   );
 };
@@ -269,8 +269,7 @@ export const BalanceSheetManager: React.FC = () => {
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
       } else {
-        const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorFetch);
+        throw new Error(common.errorLoadTable);
       }
     } catch (err: any) {
       setError(err.message || common.errorLoadTable);
@@ -309,15 +308,8 @@ export const BalanceSheetManager: React.FC = () => {
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/financial-statements/balance-sheet/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        toast.success(t.alerts.successDelete);
-        fetchData();
-      } else {
-        const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorDelete);
-      }
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorNetwork);
+      toast.error(err.message || common.errorNetwork);
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -387,15 +379,15 @@ export const BalanceSheetManager: React.FC = () => {
       });
 
       if (res.ok) {
-        toast.success(modalMode === 'create' ? t.alerts.successSave : t.alerts.successUpdate);
+        toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
         setIsModalOpen(false);
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorSave);
+        throw new Error(errData.error?.message || common.errorSave);
       }
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorNetwork);
+      toast.error(err.message || common.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -490,14 +482,14 @@ export const BalanceSheetManager: React.FC = () => {
               className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
             >
               <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-              {t.apply}
+              {common.apply}
             </button>
             <button
               onClick={handleClearFilter}
               className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
             >
               <FilterX size={14} />
-              {t.clear}
+              {common.clear}
             </button>
           </div>
         </div>
@@ -514,8 +506,8 @@ export const BalanceSheetManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.totalAssets}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.totalLiabilities}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.totalEquity}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{t.tableHead.status}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{common.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-sm font-bold">
@@ -623,7 +615,7 @@ export const BalanceSheetManager: React.FC = () => {
                             <button
                               onClick={() => openModal('view', item)}
                               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                              title={t.actions.view}
+                              title={common.view}
                             >
                               <Eye size={16} />
                             </button>
@@ -631,7 +623,7 @@ export const BalanceSheetManager: React.FC = () => {
                               <button
                                 onClick={() => openModal('edit', item)}
                                 className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                                title={t.actions.edit}
+                                title={common.edit}
                               >
                                 <Edit2 size={16} />
                               </button>
@@ -642,7 +634,7 @@ export const BalanceSheetManager: React.FC = () => {
                                   setDeleteConfirmId(item.id);
                                 }}
                                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                title={t.actions.delete}
+                                title={common.delete}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -663,12 +655,12 @@ export const BalanceSheetManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing} {Math.min(totalCount, (currentPage - 1) * pageSize + 1)} - {Math.min(totalCount, currentPage * pageSize)} {t.pagination.of} {totalCount} {t.pagination.entries}
+                {common.pagination.showing} {Math.min(totalCount, (currentPage - 1) * pageSize + 1)} - {Math.min(totalCount, currentPage * pageSize)} {common.pagination.of} {totalCount} {common.pagination.total}
               </span>
 
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {t.pagination.rowsPerPage}
+                  {common.pagination.rowsPerPage}
                 </span>
                 <select
                   value={pageSize}
@@ -750,7 +742,7 @@ export const BalanceSheetManager: React.FC = () => {
             size="2xl"
           >
             <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-              <form id="balanceSheetForm" onSubmit={handleSave} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-8">
+              <form id="balanceSheetForm" onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="space-y-8">
                 {/* Header Info */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 items-end">
                   <div className="space-y-1.5">
@@ -890,35 +882,18 @@ export const BalanceSheetManager: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Footer Totals */}
                 <div className="pt-8 border-t border-slate-100">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 shadow-inner">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t.modal.totalAssets}</span>
-                        <span className="text-2xl font-black text-slate-800">{formatRupiah(totalAssets, false)}</span>
-                      </div>
-                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <motion.div 
-                          className="h-full bg-indigo-500" 
-                          initial={{ width: 0 }}
-                          animate={{ width: '100%' }}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t.modal.totalLiabEquity}</span>
-                        <span className="text-2xl font-black text-slate-800">{formatRupiah(totalLiabilitiesEquity, false)}</span>
-                      </div>
-                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <motion.div 
-                          className={cn("h-full transition-all", isBalanced ? "bg-emerald-500" : "bg-rose-500")}
-                          initial={{ width: 0 }}
-                          animate={{ width: totalAssets > 0 ? `${(totalLiabilitiesEquity / totalAssets) * 100}%` : '0%' }}
-                        />
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <SummaryCard 
+                      label={t.modal.totalAssets} 
+                      value={totalAssets} 
+                      color="indigo" 
+                    />
+                    <SummaryCard 
+                      label={t.modal.totalLiabEquity} 
+                      value={totalLiabilitiesEquity} 
+                      color="emerald" 
+                    />
                   </div>
                 </div>
 
@@ -940,19 +915,19 @@ export const BalanceSheetManager: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
+                disabled={isSaving}
                 className="px-6 py-2.5 bg-white border border-slate-200 text-sm font-bold text-slate-600 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm"
               >
-                {modalMode === 'view' ? t.modal.cancel : t.modal.cancel}
+                {common.cancel}
               </button>
               {modalMode !== 'view' && (
                 <button
                   type="submit"
-                  form="balanceSheetForm"
                   disabled={isSaving}
-                  className="px-8 py-2.5 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2 min-w-[140px] justify-center cursor-pointer disabled:opacity-50"
+                  className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isSaving ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
-                  {isSaving ? t.status.submitting : t.modal.submit}
+                  {isSaving ? common.saving : common.save}
                 </button>
               )}
             </div>
@@ -971,7 +946,7 @@ export const BalanceSheetManager: React.FC = () => {
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="rounded-xl border-slate-200 font-bold hover:bg-slate-50">
-              {t.alerts.deleteCancel}
+              {common.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}

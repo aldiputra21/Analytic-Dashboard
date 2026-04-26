@@ -8,7 +8,7 @@ import {
   Mail, MapPin, Star, ChevronRight, Tag, Percent, Hash,
   Activity, Shield, Handshake, FileSignature, BarChart2, Trash2, ArrowLeft,
 } from 'lucide-react';
-import { useAuth } from '../../financial/useAuth';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 import { crmI18n } from '../../../i18n/crm';
 import {
@@ -332,15 +332,16 @@ const OPPORTUNITIES: Opportunity[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const STAGE_CONFIG: Record<Stage, { color: string; bg: string; border: string; icon: React.ElementType }> = {
+  Lead:          { color: 'text-slate-700',  bg: 'bg-slate-100',   border: 'border-slate-300',  icon: Target },
+  Qualification: { color: 'text-blue-700',   bg: 'bg-blue-100',    border: 'border-blue-300',   icon: CheckCircle },
+  Proposal:      { color: 'text-purple-700', bg: 'bg-purple-100',  border: 'border-purple-300', icon: FileText },
+  Negotiation:   { color: 'text-orange-700', bg: 'bg-orange-100',  border: 'border-orange-300', icon: Handshake },
+  Contract:      { color: 'text-emerald-700',bg: 'bg-emerald-100', border: 'border-emerald-300',icon: FileSignature },
+};
+
 function getStageConfig(stage: Stage, tc: any): { color: string; bg: string; border: string; icon: React.ElementType; label: string } {
-  const configs: Record<Stage, { color: string; bg: string; border: string; icon: React.ElementType }> = {
-    Lead:          { color: 'text-slate-700',  bg: 'bg-slate-100',   border: 'border-slate-300',  icon: Target },
-    Qualification: { color: 'text-blue-700',   bg: 'bg-blue-100',    border: 'border-blue-300',   icon: CheckCircle },
-    Proposal:      { color: 'text-purple-700', bg: 'bg-purple-100',  border: 'border-purple-300', icon: FileText },
-    Negotiation:   { color: 'text-orange-700', bg: 'bg-orange-100',  border: 'border-orange-300', icon: Handshake },
-    Contract:      { color: 'text-emerald-700',bg: 'bg-emerald-100', border: 'border-emerald-300',icon: FileSignature },
-  };
-  return { ...configs[stage], label: tc.page.stages[stage] };
+  return { ...STAGE_CONFIG[stage], label: tc.page.stages[stage] };
 }
 
 const PRIORITY_CONFIG: Record<string, string> = {
@@ -873,10 +874,10 @@ function OpportunityDetailDrawer({ opp, onClose, tc, language }: { opp: Opportun
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Quick Actions</h3>
                   <div className="space-y-2">
-                    <button className="w-full px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">Update Stage</button>
-                    <button className="w-full px-3 py-2 border border-gray-300 text-xs rounded-lg hover:bg-gray-50">Schedule Meeting</button>
-                    <button className="w-full px-3 py-2 border border-gray-300 text-xs rounded-lg hover:bg-gray-50">Log Activity</button>
-                    <button className="w-full px-3 py-2 border border-gray-300 text-xs rounded-lg hover:bg-gray-50">Generate Report</button>
+                    <button className="w-full px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">{language === 'id' ? 'Perbarui Tahap' : 'Update Stage'}</button>
+                    <button className="w-full px-3 py-2 border border-gray-300 text-xs rounded-lg hover:bg-gray-50">{language === 'id' ? 'Jadwalkan Pertemuan' : 'Schedule Meeting'}</button>
+                    <button className="w-full px-3 py-2 border border-gray-300 text-xs rounded-lg hover:bg-gray-50">{language === 'id' ? 'Catat Aktivitas' : 'Log Activity'}</button>
+                    <button className="w-full px-3 py-2 border border-gray-300 text-xs rounded-lg hover:bg-gray-50">{language === 'id' ? 'Buat Laporan' : 'Generate Report'}</button>
                   </div>
                 </div>
               </div>
@@ -914,7 +915,7 @@ function OpportunityDetailDrawer({ opp, onClose, tc, language }: { opp: Opportun
                 </div>
               ))}
               <button className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-sm text-blue-600 hover:border-blue-400 hover:bg-blue-50">
-                + Log Activity Baru
+                + {language === 'id' ? 'Log Aktivitas Baru' : 'Log New Activity'}
               </button>
             </div>
           )}
@@ -950,6 +951,8 @@ function OpportunityDetailDrawer({ opp, onClose, tc, language }: { opp: Opportun
 
 // ─── Opportunities List ───────────────────────────────────────────────────────
 function Opportunities({ onViewDetail, tc }: { onViewDetail: (o: Opportunity) => void; tc: any }) {
+  const { language } = useAuth();
+  const common = commonsI18n[language];
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState<Stage | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -1025,7 +1028,7 @@ function Opportunities({ onViewDetail, tc }: { onViewDetail: (o: Opportunity) =>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Opportunity', 'Customer', 'Value', 'Stage', 'Priority', 'Probability', 'Close Date', 'Owner', 'Actions'].map(h => (
+                {['Opportunity', 'Customer', 'Value', 'Stage', 'Priority', 'Probability', 'Close Date', 'Owner', common.actions].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -1093,11 +1096,11 @@ function Opportunities({ onViewDetail, tc }: { onViewDetail: (o: Opportunity) =>
           </table>
         </div>
         <div className="p-4 border-t border-gray-200 flex items-center justify-between text-xs text-gray-500">
-          <span>Menampilkan {filtered.length} dari {OPPORTUNITIES.length} opportunities</span>
+          <span>{common.pagination.showing} {filtered.length} {common.pagination.of} {OPPORTUNITIES.length} opportunities</span>
           <div className="flex gap-1">
-            <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">Previous</button>
+            <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">{common.pagination.previous}</button>
             <button className="px-3 py-1 bg-blue-600 text-white rounded">1</button>
-            <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">Next</button>
+            <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">{common.pagination.next}</button>
           </div>
         </div>
       </div>
@@ -1888,7 +1891,7 @@ export const CRMPage: React.FC<CRMPageProps> = ({ activeTab = 'dashboard' }) => 
     switch (activeTab) {
       case 'dashboard': return <CRMDashboard tc={tc} />;
       case 'opportunities': return <Opportunities onViewDetail={setSelectedOpp} tc={tc} />;
-      case 'customers': return <Customers onViewDetail={setSelectedCustomer} tc={tc} language={language} />;
+      case 'customers': return <Customers onViewDetail={setSelectedCustomer} />;
       case 'proposals': return <Proposals tc={tc} />;
       case 'contracts': return <Contracts tc={tc} />;
       case 'approvals': return <Approvals tc={tc} language={language} />;

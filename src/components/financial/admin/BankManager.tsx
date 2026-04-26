@@ -65,7 +65,7 @@ const Modal: React.FC<{
             <X size={20} className="text-slate-500" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {children}
         </div>
       </motion.div>
@@ -136,7 +136,7 @@ export const BankManager: React.FC = () => {
       if (appliedFilters.status) query.set('status', appliedFilters.status);
 
       const res = await apiFetch(`/api/banks?${query.toString()}`);
-      if (!res.ok) throw new Error(t.alerts.errorFetch);
+      if (!res.ok) throw new Error(common.errorLoadTable);
       const d = await res.json();
       setData(d.records || []);
       setTotalCount(d.totalCount || 0);
@@ -146,7 +146,7 @@ export const BankManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, appliedFilters, t.alerts.errorFetch]);
+  }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
   useEffect(() => {
     fetchData();
@@ -205,7 +205,7 @@ export const BankManager: React.FC = () => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        toast.success(modalMode === 'create' ? t.alerts.successSave : t.alerts.successUpdate);
+        toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
         setIsModalOpen(false);
         fetchData();
       } else {
@@ -213,11 +213,11 @@ export const BankManager: React.FC = () => {
         if (res.status === 409) {
           toast.error(t.alerts.errorDuplicate);
         } else {
-          toast.error(err.error?.message || t.alerts.errorSave);
+          toast.error(err.error?.message || common.errorSave);
         }
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.error);
     } finally {
       setIsSaving(false);
     }
@@ -228,16 +228,16 @@ export const BankManager: React.FC = () => {
     try {
       const res = await apiFetch(`/api/banks/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success(t.alerts.successDelete);
+        toast.success(common.successDelete);
         setDeleteConfirmId(null);
         fetchData();
       } else {
         const d = await res.json();
-        toast.error(d.error?.message || t.alerts.errorDelete);
+        toast.error(d.error?.message || common.errorDelete);
         setDeleteConfirmId(null);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.error);
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);
@@ -270,7 +270,7 @@ export const BankManager: React.FC = () => {
             className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
           >
             <Plus size={18} />
-            {t.addNew}
+            {common.add}
           </button>
         )}
       </div>
@@ -296,9 +296,9 @@ export const BankManager: React.FC = () => {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="appearance-none pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer"
           >
-            <option value="">{t.tableHead.status}</option>
-            <option value="active">{t.status.active}</option>
-            <option value="inactive">{t.status.inactive}</option>
+            <option value="">{common.status}</option>
+            <option value="active">{common.active}</option>
+            <option value="inactive">{common.inactive}</option>
           </select>
           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         </div>
@@ -309,14 +309,14 @@ export const BankManager: React.FC = () => {
             className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            {t.apply}
+            {common.apply}
           </button>
           <button
             onClick={handleClearFilter}
             className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
           >
             <FilterX size={14} />
-            {t.clear}
+            {common.clear}
           </button>
         </div>
       </div>
@@ -330,8 +330,8 @@ export const BankManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.tableHead.code}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.tableHead.name}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.tableHead.swiftCode}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.tableHead.status}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{common.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -415,7 +415,7 @@ export const BankManager: React.FC = () => {
                             : 'bg-slate-50 text-slate-500 border-slate-100'
                         )}>
                           <div className={cn('w-1.5 h-1.5 rounded-full', bank.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400')} />
-                          {bank.status === 'active' ? t.status.active : t.status.inactive}
+                          {bank.status === 'active' ? common.active : common.inactive}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -423,7 +423,7 @@ export const BankManager: React.FC = () => {
                           <button
                             onClick={() => openModal('view', bank)}
                             className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                            title="View"
+                            title={common.view}
                           >
                             <Eye size={16} />
                           </button>
@@ -431,7 +431,7 @@ export const BankManager: React.FC = () => {
                             <button
                               onClick={() => openModal('edit', bank)}
                               className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                              title="Edit"
+                              title={common.edit}
                             >
                               <Edit2 size={16} />
                             </button>
@@ -440,7 +440,7 @@ export const BankManager: React.FC = () => {
                             <button
                               onClick={() => setDeleteConfirmId(bank.id)}
                               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                              title="Delete"
+                              title={common.delete}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -460,15 +460,14 @@ export const BankManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing}{' '}
+                {common.pagination.showing}{' '}
                 <span className="text-slate-800">{showingFrom}</span> -{' '}
                 <span className="text-slate-800">{showingTo}</span>{' '}
-                {t.pagination.of}{' '}
-                <span className="text-slate-800">{totalCount}</span>{' '}
-                {t.pagination.entries}
+                {common.pagination.of}{' '}
+                <span className="text-slate-800">{totalCount}</span>
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.pagination.rowsPerPage}</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{common.pagination.rowsPerPage}</span>
                 <select
                   value={pageSize}
                   onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
@@ -536,114 +535,106 @@ export const BankManager: React.FC = () => {
                   : t.modal.viewTitle
             }
           >
-            <form onSubmit={handleSave} className="space-y-5">
-              {/* Code */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  {t.modal.code} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => setFormData(p => ({ ...p, code: e.target.value.toUpperCase() }))}
-                  required
-                  disabled={isReadOnly}
-                  maxLength={20}
-                  placeholder="BCA"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm uppercase font-mono disabled:opacity-70 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Name */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  {t.modal.name} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
-                  required
-                  disabled={isReadOnly}
-                  maxLength={100}
-                  placeholder="Bank Central Asia"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm disabled:opacity-70 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* SWIFT Code */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  {t.modal.swiftCodeOptional}
-                </label>
-                <input
-                  type="text"
-                  value={formData.swiftCode}
-                  onChange={(e) => setFormData(p => ({ ...p, swiftCode: e.target.value.toUpperCase() }))}
-                  disabled={isReadOnly}
-                  maxLength={20}
-                  placeholder="CENAIDJA"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-mono uppercase disabled:opacity-70 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Status */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  {t.modal.status}
-                </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
+            <form onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Code */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {t.modal.code} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData(p => ({ ...p, code: e.target.value.toUpperCase() }))}
+                    required
                     disabled={isReadOnly}
-                    onClick={() => !isReadOnly && setFormData(p => ({ ...p, status: p.status === 'active' ? 'inactive' : 'active' }))}
-                    className={cn(
-                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
-                      formData.status === 'active' ? 'bg-indigo-600' : 'bg-slate-200',
-                      isReadOnly ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
-                    )}
-                  >
-                    <span className={cn(
-                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                      formData.status === 'active' ? 'translate-x-6' : 'translate-x-1'
-                    )} />
-                  </button>
-                  <span className={cn('text-xs font-black uppercase tracking-widest', formData.status === 'active' ? 'text-indigo-600' : 'text-slate-400')}>
-                    {formData.status === 'active' ? t.status.active : t.status.inactive}
-                  </span>
+                    maxLength={20}
+                    placeholder="BCA"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm uppercase font-mono disabled:opacity-70 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Name */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {t.modal.name} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                    required
+                    disabled={isReadOnly}
+                    maxLength={100}
+                    placeholder="Bank Central Asia"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* SWIFT Code */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {t.modal.swiftCodeOptional}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.swiftCode}
+                    onChange={(e) => setFormData(p => ({ ...p, swiftCode: e.target.value.toUpperCase() }))}
+                    disabled={isReadOnly}
+                    maxLength={20}
+                    placeholder="CENAIDJA"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-mono uppercase disabled:opacity-70 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Status */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {common.status}
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      onClick={() => !isReadOnly && setFormData(p => ({ ...p, status: p.status === 'active' ? 'inactive' : 'active' }))}
+                      className={cn(
+                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
+                        formData.status === 'active' ? 'bg-indigo-600' : 'bg-slate-200',
+                        isReadOnly ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+                      )}
+                    >
+                      <span className={cn(
+                        'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                        formData.status === 'active' ? 'translate-x-6' : 'translate-x-1'
+                      )} />
+                    </button>
+                    <span className={cn('text-xs font-black uppercase tracking-widest', formData.status === 'active' ? 'text-indigo-600' : 'text-slate-400')}>
+                      {formData.status === 'active' ? common.active : common.inactive}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Actions */}
-              {!isReadOnly ? (
-                <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    disabled={isSaving}
-                    className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {t.modal.cancel}
-                  </button>
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSaving}
+                  className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+                >
+                  {common.cancel}
+                </button>
+                {!isReadOnly && (
                   <button
                     type="submit"
                     disabled={isSaving}
                     className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-70"
                   >
-                    {isSaving ? t.status.submitting : t.modal.submit}
+                    {isSaving ? <RefreshCw size={16} className="animate-spin" /> : null}
+                    {isSaving ? common.saving : common.save}
                   </button>
-                </div>
-              ) : (
-                <div className="flex justify-end pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-                  >
-                    {t.modal.close}
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </form>
           </Modal>
         )}
@@ -657,13 +648,13 @@ export const BankManager: React.FC = () => {
             <AlertDialogDescription>{t.alerts.deleteDesc}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>{t.alerts.deleteCancel}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{common.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               disabled={isDeleting}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
-              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+              {isDeleting ? common.deleting : common.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,8 +1,35 @@
 // ProjectManager.tsx — CRUD UI for projects
 // Requirements: 7.2
 
-import React, { useState } from 'react';import { useAuth } from '../../financial/useAuth';
+import React, { useState } from 'react';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
+import { useToast } from '../../financial/shared/Toast';
+import type { Department, Project } from '../../../hooks/mafinda/useManagement';
+
+interface Props {
+  departments: Department[];
+  projects: Project[];
+  onCreateProject: (data: any) => Promise<void>;
+  onUpdateProject: (id: string, data: any) => Promise<void>;
+  onDeleteProject: (id: string) => Promise<void>;
+}
+
+interface FormState {
+  departmentId: string;
+  name: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+}
+
+const emptyForm = (deptId: string = ''): FormState => ({
+  departmentId: deptId,
+  name: '',
+  description: '',
+  startDate: '',
+  endDate: '',
+});
 
 export const ProjectManager: React.FC<Props> = ({
   departments,
@@ -293,7 +320,6 @@ export const ProjectManager: React.FC<Props> = ({
           </div>
         </div>
       )}
-  )}
     </div>
   );
 };

@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { useToast } from '../../financial/shared/Toast';
-import { useAuth } from '../../financial/useAuth';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 import { cashFlowI18n } from '../../../i18n/cash-flow';
 import type { Department, Project } from '../../../hooks/mafinda/useManagement';

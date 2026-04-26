@@ -286,7 +286,6 @@ export interface CRMCopy {
       value: string;
       probability: string;
       stage: string;
-      status: string;
       priority: string;
       customer: string;
       contact: string;
@@ -309,11 +308,11 @@ export interface CRMCopy {
       primaryContact: string;
       keyInformation: string;
       industry: string;
-      status: string;
       lastContact: string;
       parentCompany: string;
       viewAll: string;
       primary: string;
+      status: string;
     };
     customers: {
       title: string;
@@ -333,11 +332,9 @@ export interface CRMCopy {
         proposal: string;
         customer: string;
         value: string;
-        status: string;
         submitted: string;
         dueDate: string;
         version: string;
-        actions: string;
       };
       total: string;
       submitted: string;
@@ -515,7 +512,7 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         contactsSection: 'Contact Persons',
         addContact: 'Tambah Contact',
         notes: 'Catatan',
-        save: 'Simpan Customer',
+        save: 'Simpan Pelanggan',
       },
       proposal: {
         createTitle: 'New Proposal',
@@ -539,7 +536,7 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         summary: 'Executive Summary',
         upload: 'Upload Dokumen',
         saveDraft: 'Simpan Draft',
-        save: 'Buat Proposal',
+        save: 'Simpan Proposal',
       },
       contract: {
         createTitle: 'New Contract',
@@ -569,7 +566,7 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         scopeSection: 'Scope of Work',
         upload: 'Upload Dokumen Kontrak',
         saveDraft: 'Simpan Draft',
-        save: 'Buat Kontrak',
+        save: 'Simpan Kontrak',
       },
       reimburse: {
         createTitle: 'New Reimbursement Request',
@@ -601,7 +598,7 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         upload: 'Upload Bukti / Kwitansi',
         notes: 'Catatan Tambahan',
         saveDraft: 'Simpan Draft',
-        save: 'Ajukan Reimburse',
+        save: 'Simpan Pengajuan',
       },
     },
     page: {
@@ -642,7 +639,6 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         value: 'Nilai Deal',
         probability: 'Probabilitas',
         stage: 'Tahap Pipeline',
-        status: 'Status',
         priority: 'Prioritas',
         customer: 'Pelanggan',
         contact: 'Kontak Utama',
@@ -680,11 +676,11 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         primaryContact: 'Primary Contact',
         keyInformation: 'Key Information',
         industry: 'Industri',
-        status: 'Status',
         lastContact: 'Aktivitas Terakhir',
         parentCompany: 'Perusahaan Induk',
         viewAll: 'Lihat semua',
         primary: 'Primary',
+        status: 'Status',
       },
       customers: {
         title: 'Pelanggan',
@@ -704,11 +700,9 @@ export const crmI18n: Record<Locale, CRMCopy> = {
           proposal: 'Proposal',
           customer: 'Customer',
           value: 'Nilai',
-          status: 'Status',
           submitted: 'Dikirim',
           dueDate: 'Deadline',
           version: 'Versi',
-          actions: 'Aksi',
         },
         total: 'Total Proposal',
         submitted: 'Telah Dikirim',
@@ -908,7 +902,7 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         summary: 'Executive Summary',
         upload: 'Upload Document',
         saveDraft: 'Save Draft',
-        save: 'Create Proposal',
+        save: 'Save Proposal',
       },
       contract: {
         createTitle: 'New Contract',
@@ -938,7 +932,7 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         scopeSection: 'Scope of Work',
         upload: 'Upload Contract Documents',
         saveDraft: 'Save Draft',
-        save: 'Create Contract',
+        save: 'Save Contract',
       },
       reimburse: {
         createTitle: 'New Reimbursement Request',
@@ -970,7 +964,7 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         upload: 'Upload Evidence / Receipts',
         notes: 'Additional Notes',
         saveDraft: 'Save Draft',
-        save: 'Submit Reimburse',
+        save: 'Save Request',
       },
     },
     page: {
@@ -1011,7 +1005,6 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         value: 'Deal Value',
         probability: 'Probability',
         stage: 'Pipeline Stage',
-        status: 'Status',
         priority: 'Priority',
         customer: 'Customer',
         contact: 'Primary Contact',
@@ -1049,11 +1042,11 @@ export const crmI18n: Record<Locale, CRMCopy> = {
         primaryContact: 'Primary Contact',
         keyInformation: 'Key Information',
         industry: 'Industry',
-        status: 'Status',
         lastContact: 'Last Activity',
         parentCompany: 'Parent Company',
         viewAll: 'View all',
         primary: 'Primary',
+        status: 'Status',
       },
       customers: {
         title: 'Customers',
@@ -1073,11 +1066,9 @@ export const crmI18n: Record<Locale, CRMCopy> = {
           proposal: 'Proposal',
           customer: 'Customer',
           value: 'Value',
-          status: 'Status',
           submitted: 'Submitted',
           dueDate: 'Due Date',
           version: 'Version',
-          actions: 'Actions',
         },
         total: 'Total Proposals',
         submitted: 'Submitted',

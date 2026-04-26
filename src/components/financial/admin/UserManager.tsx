@@ -58,7 +58,7 @@ const Modal: React.FC<{
             <X size={20} className="text-slate-500" />
           </button>
         </div>
-        <div className="overflow-y-auto p-6 max-h-[calc(90vh-64px)]">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {children}
         </div>
       </motion.div>
@@ -151,7 +151,7 @@ export const UserManager: React.FC = () => {
 
     try {
       const res = await apiFetch('/api/frs/users');
-      if (!res.ok) throw new Error(t.alerts.errorFetch);
+      if (!res.ok) throw new Error(common.errorLoadTable);
 
       const data = await res.json();
       setUsers(data);
@@ -162,7 +162,7 @@ export const UserManager: React.FC = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [t.alerts.errorFetch, common.errorLoadTable]);
+  }, [common.errorLoadTable]);
 
   useEffect(() => {
     fetchUsers();
@@ -172,7 +172,7 @@ export const UserManager: React.FC = () => {
     setModalMode(mode);
     if (user) {
       setEditingUser(user);
-      
+
       // Fetch existing access
       let scopeIds: string[] = [];
       try {
@@ -223,7 +223,7 @@ export const UserManager: React.FC = () => {
     try {
       const url = editingUser ? `/api/frs/users/${editingUser.id}` : '/api/frs/users';
       const method = editingUser ? 'PUT' : 'POST';
-      
+
       const payload: any = { ...validation.data };
       if (editingUser && !payload.password) delete payload.password;
       if (payload.role === 'owner') payload.subsidiaryIds = [];
@@ -271,7 +271,7 @@ export const UserManager: React.FC = () => {
     setAccessUserId(user.id);
     try {
       const res = await apiFetch(`/api/frs/users/${user.id}/subsidiary-access`);
-      if (!res.ok) throw new Error(t.alerts.errorFetch);
+      if (!res.ok) throw new Error(common.errorLoadTable);
 
       const accessRows = await res.json() as Array<{ subsidiaryId: string }>;
       setSelectedSubsidiaryIds(accessRows.map((row) => row.subsidiaryId).filter(Boolean));
@@ -304,7 +304,7 @@ export const UserManager: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter(u =>
     u.fullName.toLowerCase().includes(search.toLowerCase()) ||
     u.username.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
@@ -356,7 +356,7 @@ export const UserManager: React.FC = () => {
           className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
         >
           <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-          {common.retry}
+          {common.search}
         </button>
       </div>
 
@@ -370,8 +370,8 @@ export const UserManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.username}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.email}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.role}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{common.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -472,7 +472,7 @@ export const UserManager: React.FC = () => {
                             : "bg-slate-50 text-slate-500 border-slate-100"
                         )}>
                           <div className={cn("w-1.5 h-1.5 rounded-full", user.isActive ? "bg-emerald-500" : "bg-slate-400")} />
-                          {user.isActive ? t.status.active : t.status.inactive}
+                          {user.isActive ? common.active : common.inactive}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -507,9 +507,9 @@ export const UserManager: React.FC = () => {
                               onClick={() => handleToggleStatus(user)}
                               className={cn(
                                 "p-2 rounded-lg transition-all cursor-pointer",
-                                user.isActive ? "text-slate-400 hover:text-rose-600 hover:bg-rose-50" : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
+                                user.isActive ? common.active : common.inactive
                               )}
-                              title={user.isActive ? 'Deactivate' : 'Activate'}
+                              title={user.isActive ? common.deactivate : common.activate}
                             >
                               <RefreshCw size={16} />
                             </button>
@@ -534,146 +534,152 @@ export const UserManager: React.FC = () => {
             title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : t.modal.viewTitle}
             size="lg"
           >
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField label={t.modal.fullName} required>
-                  <input
-                    type="text"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData(p => ({ ...p, fullName: e.target.value }))}
-                    disabled={modalMode === 'view'}
-                    placeholder="John Doe"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
-                  />
-                </FormField>
-
-                <FormField label={t.modal.username} required>
-                  <input
-                    type="text"
-                    value={formData.username}
-                    onChange={(e) => setFormData(p => ({ ...p, username: e.target.value }))}
-                    disabled={modalMode === 'view'}
-                    placeholder="johndoe"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
-                  />
-                </FormField>
-
-                <FormField label={t.modal.email} required>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
-                    disabled={modalMode === 'view'}
-                    placeholder="john@example.com"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
-                  />
-                </FormField>
-
-                <FormField label={t.modal.role} required>
-                  <div className="relative">
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData(p => ({ ...p, role: e.target.value as UserRole }))}
-                      disabled={modalMode === 'view'}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
-                    >
-                      <option value="bod">{t.roles.bod}</option>
-                      <option value="subsidiary_manager">{t.roles.subsidiary_manager}</option>
-                      <option value="owner">{t.roles.owner}</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                  </div>
-                </FormField>
-
-                <FormField label={t.modal.password} required={modalMode === 'create'}>
-                  <div className="relative">
+            <form onSubmit={handleSubmit} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField label={t.modal.fullName} required>
                     <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))}
+                      type="text"
+                      required
+                      value={formData.fullName}
+                      onChange={(e) => setFormData(p => ({ ...p, fullName: e.target.value }))}
                       disabled={modalMode === 'view'}
-                      placeholder={t.modal.passwordPlaceholder}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                      placeholder="John Doe"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                     />
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  </div>
-                  {modalMode === 'edit' && <p className="text-[10px] text-slate-400 mt-1 italic">{t.modal.passwordNote}</p>}
-                </FormField>
+                  </FormField>
 
-                <div className="space-y-1.5 pt-6">
-                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</span>
-                    <button
-                      type="button"
+                  <FormField label={t.modal.username} required>
+                    <input
+                      type="text"
+                      required
+                      value={formData.username}
+                      onChange={(e) => setFormData(p => ({ ...p, username: e.target.value }))}
                       disabled={modalMode === 'view'}
-                      onClick={() => setFormData(p => ({ ...p, isActive: !p.isActive }))}
-                      className={cn(
-                        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-                        formData.isActive ? "bg-indigo-600" : "bg-slate-200"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                          formData.isActive ? "translate-x-5" : "translate-x-0"
-                        )}
+                      placeholder="johndoe"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                    />
+                  </FormField>
+
+                  <FormField label={t.modal.email} required>
+                    <input
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                      disabled={modalMode === 'view'}
+                      placeholder="john@example.com"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                    />
+                  </FormField>
+
+                  <FormField label={t.modal.role} required>
+                    <div className="relative">
+                      <select
+                        value={formData.role}
+                        onChange={(e) => setFormData(p => ({ ...p, role: e.target.value as UserRole }))}
+                        disabled={modalMode === 'view'}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
+                      >
+                        <option value="bod">{t.roles.bod}</option>
+                        <option value="subsidiary_manager">{t.roles.subsidiary_manager}</option>
+                        <option value="owner">{t.roles.owner}</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                    </div>
+                  </FormField>
+
+                  <FormField label={t.modal.password} required={modalMode === 'create'}>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        required={modalMode === 'create'}
+                        value={formData.password}
+                        onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))}
+                        disabled={modalMode === 'view'}
+                        placeholder={t.modal.passwordPlaceholder}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                       />
-                    </button>
-                    <span className={cn("text-[10px] font-black uppercase tracking-widest", formData.isActive ? "text-indigo-600" : "text-slate-400")}>
-                      {formData.isActive ? t.status.active : t.status.inactive}
-                    </span>
+                      <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    </div>
+                    {modalMode === 'edit' && <p className="text-[10px] text-slate-400 mt-1 italic">{t.modal.passwordNote}</p>}
+                  </FormField>
+
+                  <div className="space-y-1.5 pt-6">
+                    <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{common.status}</span>
+                      <button
+                        type="button"
+                        disabled={modalMode === 'view'}
+                        onClick={() => setFormData(p => ({ ...p, isActive: !p.isActive }))}
+                        className={cn(
+                          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+                          formData.isActive ? "bg-indigo-600" : "bg-slate-200"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                            formData.isActive ? "translate-x-5" : "translate-x-0"
+                          )}
+                        />
+                      </button>
+                      <span className={cn("text-[10px] font-black uppercase tracking-widest", formData.isActive ? "text-indigo-600" : "text-slate-400")}>
+                        {formData.isActive ? common.active : common.inactive}
+                      </span>
+                    </div>
                   </div>
                 </div>
+
+                {formData.role !== 'owner' && (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">
+                      {t.modal.subsidiaryAccess} {modalMode === 'create' && <span className="text-red-500">*</span>}
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                      {subsidiaries.map((sub) => (
+                        <label key={sub.id} className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group",
+                          formData.subsidiaryIds.includes(sub.id)
+                            ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
+                            : "bg-white border-slate-100 text-slate-600 hover:border-slate-200"
+                        )}>
+                          <input
+                            type="checkbox"
+                            checked={formData.subsidiaryIds.includes(sub.id)}
+                            disabled={modalMode === 'view'}
+                            onChange={(e) => {
+                              setFormData((current) => ({
+                                ...current,
+                                subsidiaryIds: e.target.checked
+                                  ? [...current.subsidiaryIds, sub.id]
+                                  : current.subsidiaryIds.filter((id) => id !== sub.id),
+                              }));
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <div className="flex-1">
+                            <p className="text-xs font-black">{sub.name}</p>
+                            <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Building2 size={10} />
+                              {sub.industrySector}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-400 ml-1 italic">{t.modal.subsidiaryNote}</p>
+                  </div>
+                )}
               </div>
 
-              {formData.role !== 'owner' && (
-                <div className="space-y-3">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">
-                    {t.modal.subsidiaryAccess} {modalMode === 'create' && <span className="text-red-500">*</span>}
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                    {subsidiaries.map((sub) => (
-                      <label key={sub.id} className={cn(
-                        "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group",
-                        formData.subsidiaryIds.includes(sub.id) 
-                          ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm" 
-                          : "bg-white border-slate-100 text-slate-600 hover:border-slate-200"
-                      )}>
-                        <input
-                          type="checkbox"
-                          checked={formData.subsidiaryIds.includes(sub.id)}
-                          disabled={modalMode === 'view'}
-                          onChange={(e) => {
-                            setFormData((current) => ({
-                              ...current,
-                              subsidiaryIds: e.target.checked
-                                ? [...current.subsidiaryIds, sub.id]
-                                : current.subsidiaryIds.filter((id) => id !== sub.id),
-                            }));
-                          }}
-                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div className="flex-1">
-                          <p className="text-xs font-black">{sub.name}</p>
-                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                            <Building2 size={10} />
-                            {sub.industrySector}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-slate-400 ml-1 italic">{t.modal.subsidiaryNote}</p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-8 py-3 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                  className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 shadow-sm cursor-pointer"
                 >
-                  {modalMode === 'view' ? t.modal.close : t.modal.cancel}
+                  {modalMode === 'view' ? common.close : common.cancel}
                 </button>
                 {modalMode !== 'view' && (
                   <button
@@ -682,7 +688,7 @@ export const UserManager: React.FC = () => {
                     className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
                   >
                     {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-                    {isSaving ? t.status.submitting : t.modal.submit}
+                    {isSaving ? common.saving : common.save}
                   </button>
                 )}
               </div>
@@ -700,48 +706,50 @@ export const UserManager: React.FC = () => {
             title={t.modal.accessTitle}
             size="md"
           >
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <p className="text-xs text-slate-500 italic ml-1">{t.modal.subsidiaryNote}</p>
-                <div className="space-y-2 max-h-72 overflow-y-auto p-2">
-                  {subsidiaries.map((sub) => (
-                    <label key={sub.id} className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group",
-                      selectedSubsidiaryIds.includes(sub.id) 
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm" 
-                        : "bg-white border-slate-100 text-slate-600 hover:border-slate-200"
-                    )}>
-                      <input
-                        type="checkbox"
-                        checked={selectedSubsidiaryIds.includes(sub.id)}
-                        onChange={(e) => {
-                          setSelectedSubsidiaryIds((prev) =>
-                            e.target.checked
-                              ? [...prev, sub.id]
-                              : prev.filter((id) => id !== sub.id)
-                          );
-                        }}
-                        className="w-4 h-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div className="flex-1">
-                        <p className="text-xs font-black">{sub.name}</p>
-                        <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                          <Building2 size={10} />
-                          {sub.industrySector}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500 italic ml-1">{t.modal.subsidiaryNote}</p>
+                  <div className="space-y-2 p-1">
+                    {subsidiaries.map((sub) => (
+                      <label key={sub.id} className={cn(
+                        "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group",
+                        selectedSubsidiaryIds.includes(sub.id)
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                          : "bg-white border-slate-100 text-slate-600 hover:border-slate-200"
+                      )}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSubsidiaryIds.includes(sub.id)}
+                          onChange={(e) => {
+                            setSelectedSubsidiaryIds((prev) =>
+                              e.target.checked
+                                ? [...prev, sub.id]
+                                : prev.filter((id) => id !== sub.id)
+                            );
+                          }}
+                          className="w-4 h-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-xs font-black">{sub.name}</p>
+                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <Building2 size={10} />
+                            {sub.industrySector}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsAccessModalOpen(false)}
-                  className="px-6 py-2.5 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                  className="px-6 py-2.5 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 shadow-sm cursor-pointer"
                 >
-                  {t.modal.cancel}
+                  {common.cancel}
                 </button>
                 <button
                   onClick={handleSaveAccess}
@@ -749,7 +757,7 @@ export const UserManager: React.FC = () => {
                   className="px-8 py-2.5 bg-emerald-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[150px] cursor-pointer"
                 >
                   {isSavingAccess ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-                  {isSavingAccess ? t.status.submitting : t.modal.saveAccess}
+                  {isSavingAccess ? common.saving : t.modal.saveAccess}
                 </button>
               </div>
             </div>

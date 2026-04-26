@@ -194,17 +194,20 @@ export const BankLoanManager: React.FC = () => {
       if (appliedFilters.status) query.set('status', appliedFilters.status);
 
       const res = await apiFetch(`/api/bank-loans?${query.toString()}`);
-      if (!res.ok) throw new Error(t.alerts.errorFetch);
-      const d = await res.json();
-      setData(d.records || []);
-      setTotalCount(d.totalCount || 0);
+      if (res.ok) {
+        const d = await res.json();
+        setData(d.records || []);
+        setTotalCount(d.totalCount || 0);
+      } else {
+        throw new Error(common.errorLoadTable);
+      }
     } catch (err: any) {
       setError(err.message || common.errorLoadTable);
       toast.error(err.message || common.errorLoadTable);
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, appliedFilters, t.alerts.errorFetch]);
+  }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
   useEffect(() => {
     fetchMasterData();
@@ -343,15 +346,15 @@ export const BankLoanManager: React.FC = () => {
       });
 
       if (res.ok) {
-        toast.success(editingId ? t.alerts.successUpdate : t.alerts.successSave);
+        toast.success(editingId ? common.successUpdate : common.successSave);
         setIsModalOpen(false);
         fetchData();
       } else {
         const err = await res.json();
-        toast.error(err.error?.message || t.alerts.errorSave);
+        toast.error(err.error?.message || common.errorSave);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -383,7 +386,7 @@ export const BankLoanManager: React.FC = () => {
         toast.error(t.alerts.errorMarkPaid);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.errorNetwork);
     }
   };
 
@@ -392,15 +395,15 @@ export const BankLoanManager: React.FC = () => {
     try {
       const res = await apiFetch(`/api/bank-loans/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success(t.alerts.successDelete);
+        toast.success(common.successDelete);
         setDeleteConfirmId(null);
         fetchData();
       } else {
         const d = await res.json();
-        toast.error(d.error?.message || t.alerts.errorDelete);
+        toast.error(d.error?.message || common.errorDelete);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.errorNetwork);
     } finally {
       setIsDeleting(false);
     }
@@ -432,7 +435,7 @@ export const BankLoanManager: React.FC = () => {
             className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
           >
             <Plus size={18} />
-            {t.addNew}
+            {common.add}
           </button>
         )}
       </div>
@@ -468,14 +471,14 @@ export const BankLoanManager: React.FC = () => {
             className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            {t.apply}
+            {common.apply}
           </button>
           <button
             onClick={handleClearFilter}
             className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
           >
             <FilterX size={14} />
-            {t.clear}
+            {common.clear}
           </button>
         </div>
       </div>
@@ -492,7 +495,7 @@ export const BankLoanManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{t.tableHead.tenor}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{t.tableHead.progress}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{t.tableHead.status}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -613,7 +616,7 @@ export const BankLoanManager: React.FC = () => {
                           <button
                             onClick={() => openModal('view', item)}
                             className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                            title="View"
+                            title={common.view}
                           >
                             <Eye size={16} />
                           </button>
@@ -621,7 +624,7 @@ export const BankLoanManager: React.FC = () => {
                             <button
                               onClick={() => openModal('edit', item)}
                               className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                              title="Edit"
+                              title={common.edit}
                             >
                               <Edit2 size={16} />
                             </button>
@@ -630,7 +633,7 @@ export const BankLoanManager: React.FC = () => {
                             <button
                               onClick={() => setDeleteConfirmId(item.id)}
                               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                              title="Delete"
+                              title={common.delete}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -650,12 +653,12 @@ export const BankLoanManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing}{' '}
+                {common.pagination.showing}{' '}
                 <span className="text-slate-800">{showingFrom}</span> -{' '}
                 <span className="text-slate-800">{showingTo}</span>{' '}
-                {t.pagination.of}{' '}
+                {common.pagination.of}{' '}
                 <span className="text-slate-800">{totalCount}</span>{' '}
-                {t.pagination.entries}
+                {common.pagination.total}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -1019,14 +1022,14 @@ export const BankLoanManager: React.FC = () => {
                     disabled={isSaving}
                     className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {t.modal.cancel}
+                    {common.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={isSaving}
                     className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-70"
                   >
-                    {isSaving ? t.status.submitting : t.modal.submit}
+                    {isSaving ? common.saving : common.save}
                   </button>
                 </div>
               ) : (
@@ -1036,7 +1039,7 @@ export const BankLoanManager: React.FC = () => {
                     onClick={() => setIsModalOpen(false)}
                     className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
                   >
-                    {t.modal.close}
+                    {common.close}
                   </button>
                 </div>
               )}
@@ -1053,7 +1056,7 @@ export const BankLoanManager: React.FC = () => {
             <AlertDialogDescription>{t.installment.markPaidConfirmDesc}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t.installment.markPaidCancel}</AlertDialogCancel>
+            <AlertDialogCancel>{common.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => markPaidConfirmId && handleMarkAsPaid(markPaidConfirmId)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -1072,13 +1075,13 @@ export const BankLoanManager: React.FC = () => {
             <AlertDialogDescription>{t.alerts.deleteDesc}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>{t.alerts.deleteCancel}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{common.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               disabled={isDeleting}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
-              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+              {isDeleting ? common.deleting : t.alerts.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

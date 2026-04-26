@@ -16,7 +16,7 @@ export interface ReportsCopy {
     empty: string;
     emptyDesc: string;
     best: string;
-    ranks: Record<number, string>;
+    ranks: Record<number | string, string>;
     ratioLabels: Record<string, string>;
   };
   trends: {

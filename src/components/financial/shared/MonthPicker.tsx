@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '../../../utils/cn';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { formatPeriod } from '../../../utils/format';
+import { commonsI18n, Locale } from '../../../i18n/commons';
 
 interface MonthPickerProps {
   value: string; // YYYY-MM or empty
@@ -45,9 +46,8 @@ export const MonthPicker: React.FC<MonthPickerProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const monthsId = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-  const monthsEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const months = language === 'id' ? monthsId : monthsEn;
+  const common = commonsI18n[language as Locale] || commonsI18n.id;
+  const months = common.shortMonths;
 
   const handleSelect = (monthIndex: number) => {
     const monthStr = (monthIndex + 1).toString().padStart(2, '0');

@@ -6,9 +6,10 @@ import { Briefcase, Building2, FolderOpen, Target, Plus, Edit2, Trash2, ChevronR
 import { motion, AnimatePresence } from 'motion/react';
 import { useManagement } from '../../../hooks/mafinda/useManagement';
 import { useToast } from '../../financial/shared/Toast';
-import { useAuth } from '../../financial/useAuth';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 import { formatRupiah } from '../../../utils/format';
+import { mafindaI18n } from '../../../i18n/mafinda';
 import type { Department, Project, FinancialTarget } from '../../../hooks/mafinda/useManagement';
 
 type Tab = 'departments' | 'projects' | 'targets';
@@ -604,7 +605,6 @@ const TargetsTab: React.FC<{
             <option value="project">{tm.project}</option>
           </select>
         </div>
-        </div>
         <button onClick={openCreate} disabled={departments.length === 0}
           className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
           <Plus className="w-4 h-4" /> {tm.setTarget}
@@ -734,17 +734,32 @@ const TargetsTab: React.FC<{
 
 type TabDef = { id: Tab; label: string; icon: React.ElementType };
 
+export const ManagementPage: React.FC = () => {
+  const { language } = useAuth();
+
   const TABS: TabDef[] = [
     { id: 'departments', label: mafindaI18n[language].dashboard.management.tabs.departments, icon: Building2 },
     { id: 'projects', label: mafindaI18n[language].dashboard.management.tabs.projects, icon: FolderOpen },
     { id: 'targets', label: mafindaI18n[language].dashboard.management.tabs.targets, icon: Target },
   ];
 
-export const ManagementPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('departments');
 
+  const {
+    departments,
+    projects,
+    targets,
+    isLoading,
+    error,
+    createDepartment,
+    updateDepartment,
+    deleteDepartment,
+    createProject,
+    updateProject,
+    deleteProject,
+    upsertTarget,
+    deleteTarget,
   } = useManagement();
-  const { language } = useAuth();
   const t = commonsI18n[language];
 
   return (

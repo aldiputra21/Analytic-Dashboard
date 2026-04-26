@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useToast } from '../../financial/shared/Toast';
-import { useAuth } from '../../financial/useAuth';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 import { balanceSheetI18n } from '../../../i18n/balance-sheet';
 
@@ -154,10 +154,10 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeri
       });
       const data = await res.json();
       if (!res.ok) { showError(data.error ?? t.errorSave); return; }
-      showSuccess(tb.alerts.successSave);
+      showSuccess(t.successSave);
       setForm(empty);
       onSaved?.();
-    } catch { showError(tb.alerts.errorNetwork); }
+    } catch { showError(t.errorNetwork); }
     finally { setSaving(false); setConfirm(false); }
   }
 
@@ -280,14 +280,14 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({ existingPeri
 
         <button type="submit" disabled={saving || !form.period.trim()}
           className="mt-4 w-full py-2 text-xs font-semibold text-white bg-slate-800 rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors">
-          {saving ? t.saving : tb.modal.saveBtn}
+          {saving ? t.saving : t.save}
         </button>
       </form>
 
       {confirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-xs p-5 space-y-3">
-            <p className="text-sm font-semibold text-slate-900">{tb.modal.overwriteConfirm.replace('{period}', form.period)}</p>
+            <p className="text-sm font-semibold text-slate-900">{tb.modal.overwriteConfirm}</p>
             <div className="flex gap-2">
               <button onClick={() => setConfirm(false)} className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50">{t.cancel}</button>
               <button onClick={doSave} disabled={saving} className="flex-1 py-1.5 text-xs text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">

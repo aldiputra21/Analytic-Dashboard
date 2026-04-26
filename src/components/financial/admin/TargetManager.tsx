@@ -88,7 +88,7 @@ const Modal: React.FC<{
             <X size={20} className="text-slate-500" />
           </button>
         </div>
-        <div className="overflow-y-auto p-6">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {children}
         </div>
       </motion.div>
@@ -235,7 +235,7 @@ export const TargetManager: React.FC = () => {
       if (appliedFilters.departmentId) query.set('departmentId', appliedFilters.departmentId);
 
       const res = await apiFetch(`/api/targets?${query.toString()}`);
-      if (!res.ok) throw new Error(t.alerts.errorFetch);
+      if (!res.ok) throw new Error(common.errorLoadTable);
 
       const data = await res.json();
       setSummaries(data.records);
@@ -247,7 +247,7 @@ export const TargetManager: React.FC = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [page, pageSize, appliedFilters, t.alerts.errorFetch]);
+  }, [page, pageSize, appliedFilters, common.errorLoadTable]);
 
   useEffect(() => {
     fetchMasterData();
@@ -376,10 +376,10 @@ export const TargetManager: React.FC = () => {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || t.alerts.errorSave);
+        throw new Error(errorData.error || common.error);
       }
 
-      toast.success(t.alerts.successSave);
+      toast.success(common.successSave);
       setIsModalOpen(false);
       fetchSummaries(true);
     } catch (err: any) {
@@ -399,16 +399,16 @@ export const TargetManager: React.FC = () => {
       });
 
       if (res.ok) {
-        toast.success(t.alerts.successDelete);
+        toast.success(common.successDelete);
         setTargetToDelete(null);
         fetchSummaries(true);
       } else {
         const errorData = await res.json();
-        toast.error(errorData.error || t.alerts.errorDelete);
+        toast.error(errorData.error || common.errorDelete);
         setTargetToDelete(null);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.error);
       setTargetToDelete(null);
     } finally {
       setIsDeleting(false);
@@ -482,14 +482,14 @@ export const TargetManager: React.FC = () => {
             className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            {t.apply}
+            {common.apply}
           </button>
           <button
             onClick={handleClearFilter}
             className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
           >
             <FilterX size={14} />
-            {t.clear}
+            {common.clear}
           </button>
         </div>
       </div>
@@ -505,7 +505,7 @@ export const TargetManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.year}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.revenueTarget}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.costTarget}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -663,12 +663,12 @@ export const TargetManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing} <span className="text-slate-800 mx-0.5">{showingFrom}</span> - <span className="text-slate-800 mx-0.5">{showingTo}</span> {t.pagination.of} <span className="text-slate-800 mx-0.5">{totalCount}</span> {t.pagination.entries}
+                {common.pagination.showing} <span className="text-slate-800 mx-0.5">{showingFrom}</span> - <span className="text-slate-800 mx-0.5">{showingTo}</span> {common.pagination.of} <span className="text-slate-800 mx-0.5">{totalCount}</span>
               </span>
 
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {t.pagination.rowsPerPage}
+                  {common.pagination.rowsPerPage}
                 </span>
                 <select
                   value={pageSize}
@@ -749,7 +749,7 @@ export const TargetManager: React.FC = () => {
             title={isViewOnly ? t.modal.viewTitle : (editingSummary ? t.modal.editTitle : t.modal.createTitle)}
             size="xl"
           >
-            <form onSubmit={handleSubmit} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-8">
+            <form onSubmit={handleSubmit} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="space-y-8">
 
               {/* Entity Selection Section */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
@@ -802,7 +802,7 @@ export const TargetManager: React.FC = () => {
 
                   <div className="sm:col-span-3 flex flex-col gap-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                      {t.modal.relatedToProject}
+                      {t.fields.relatedToProject}
                     </label>
                     <button
                       type="button"
@@ -839,315 +839,327 @@ export const TargetManager: React.FC = () => {
                       </FormField>
                     </div>
                   )}
-                </div>
-              </div>
 
-              {/* Master-Detail Grid */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                {/* Revenue Table */}
-                <div className="xl:col-span-5 space-y-4">
-                  <SectionHeader title={t.fields.revenueTarget} icon={<TrendingUp size={14} className="text-emerald-600" />} color="border-emerald-100">
-                    {!isViewOnly && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({
-                          ...formData,
-                          revenueDetails: [...formData.revenueDetails, { month: formData.revenueDetails.length + 1, amount: '0' }]
-                        })}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-lg hover:bg-emerald-100 transition-all border border-emerald-100 tracking-wider cursor-pointer"
+                  <FormField label={t.fields.year} required>
+                    <div className="relative">
+                      <select
+                        value={formData.fiscalYear}
+                        onChange={(e) => setFormData({ ...formData, fiscalYear: parseInt(e.target.value) })}
+                        disabled={!!editingSummary || isViewOnly}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer"
                       >
-                        <Plus size={12} strokeWidth={3} />
-                        {t.modal.addRow}
-                      </button>
-                    )}
-                  </SectionHeader>
-
-                  <div className="bg-white border border-slate-100 rounded-lg overflow-hidden shadow-sm">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-50">
-                          <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">{t.fields.month}</th>
-                          <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.revenue}</th>
-                          {!isViewOnly && <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-12">Aksi</th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {formData.revenueDetails.map((r, idx) => (
-                          <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
-                            <td className="px-1.5 py-1">
-                              <div className="relative">
-                                <select
-                                  value={r.month}
-                                  disabled={isViewOnly}
-                                  onChange={(e) => {
-                                    const newRevs = [...formData.revenueDetails];
-                                    newRevs[idx].month = parseInt(e.target.value);
-                                    setFormData({ ...formData, revenueDetails: newRevs });
-                                  }}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
-                                >
-                                  {t.months.map((name, mIdx) => (
-                                    <option key={mIdx + 1} value={mIdx + 1}>{name}</option>
-                                  ))}
-                                </select>
-                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
-                              </div>
-                            </td>
-                            <td className="px-1.5 py-1">
-                              <div className="relative group/input flex items-center">
-                                <input
-                                  type="text"
-                                  value={r.amount === '0' ? '' : (parseInt(r.amount) || 0).toLocaleString('id-ID')}
-                                  disabled={isViewOnly}
-                                  onChange={(e) => {
-                                    const rawValue = e.target.value.replace(/\D/g, '');
-                                    const newRevs = [...formData.revenueDetails];
-                                    newRevs[idx].amount = rawValue || '0';
-                                    setFormData({ ...formData, revenueDetails: newRevs });
-                                  }}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
-                                  placeholder="0"
-                                />
-                                {!isViewOnly && (
-                                  <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const val = (parseInt(r.amount) || 0) + 1000000;
-                                        const newRevs = [...formData.revenueDetails];
-                                        newRevs[idx].amount = val.toString();
-                                        setFormData({ ...formData, revenueDetails: newRevs });
-                                      }}
-                                      className="p-0.5 hover:text-indigo-600 transition-colors"
-                                    >
-                                      <ChevronUp size={10} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const val = Math.max(0, (parseInt(r.amount) || 0) - 1000000);
-                                        const newRevs = [...formData.revenueDetails];
-                                        newRevs[idx].amount = val.toString();
-                                        setFormData({ ...formData, revenueDetails: newRevs });
-                                      }}
-                                      className="p-0.5 hover:text-indigo-600 transition-colors"
-                                    >
-                                      <ChevronDown size={10} />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            {!isViewOnly && (
-                              <td className="px-1 py-1 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newRevs = formData.revenueDetails.filter((_, i) => i !== idx);
-                                    setFormData({ ...formData, revenueDetails: newRevs });
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                >
-                                  <Trash size={12} />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
+                        {YEAR_OPTIONS.map(y => (
+                          <option key={y} value={y}>{y}</option>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Cost Table */}
-                <div className="xl:col-span-7 space-y-4">
-                  <SectionHeader title={t.fields.costTarget} icon={<TrendingDown size={14} className="text-red-600" />} color="border-red-100">
-                    {!isViewOnly && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({
-                          ...formData,
-                          costDetails: [...formData.costDetails, { month: formData.costDetails.length + 1, costCenter: 'operational', amount: '0' }]
-                        })}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-[10px] font-black rounded-lg hover:bg-red-100 transition-all border border-red-100 tracking-wider cursor-pointer"
-                      >
-                        <Plus size={12} strokeWidth={3} />
-                        {t.modal.addRow}
-                      </button>
-                    )}
-                  </SectionHeader>
-
-                  <div className="bg-white border border-slate-100 rounded-lg overflow-hidden shadow-sm">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-50">
-                          <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">{t.fields.month}</th>
-                          <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-54">Cost Center</th>
-                          <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.cost}</th>
-                          {!isViewOnly && <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-12">Aksi</th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {formData.costDetails.map((c, idx) => (
-                          <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
-                            <td className="px-1.5 py-1">
-                              <div className="relative">
-                                <select
-                                  value={c.month}
-                                  disabled={isViewOnly}
-                                  onChange={(e) => {
-                                    const newCosts = [...formData.costDetails];
-                                    newCosts[idx].month = parseInt(e.target.value);
-                                    setFormData({ ...formData, costDetails: newCosts });
-                                  }}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
-                                >
-                                  {t.months.map((name, mIdx) => (
-                                    <option key={mIdx + 1} value={mIdx + 1}>{name}</option>
-                                  ))}
-                                </select>
-                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
-                              </div>
-                            </td>
-                            <td className="px-1.5 py-1">
-                              <div className="relative">
-                                <select
-                                  value={c.costCenter}
-                                  disabled={isViewOnly}
-                                  onChange={(e) => {
-                                    const newCosts = [...formData.costDetails];
-                                    newCosts[idx].costCenter = e.target.value;
-                                    setFormData({ ...formData, costDetails: newCosts });
-                                  }}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
-                                >
-                                  {costCenters.map(cat => (
-                                    <option key={cat.code} value={cat.code}>
-                                      {language === 'id' ? cat.labelId : cat.labelEn}
-                                    </option>
-                                  ))}
-                                </select>
-                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
-                              </div>
-                            </td>
-                            <td className="px-1.5 py-1">
-                              <div className="relative group/input flex items-center">
-                                <input
-                                  type="text"
-                                  value={c.amount === '0' ? '' : (parseInt(c.amount) || 0).toLocaleString('id-ID')}
-                                  disabled={isViewOnly}
-                                  onChange={(e) => {
-                                    const rawValue = e.target.value.replace(/\D/g, '');
-                                    const newCosts = [...formData.costDetails];
-                                    newCosts[idx].amount = rawValue || '0';
-                                    setFormData({ ...formData, costDetails: newCosts });
-                                  }}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
-                                  placeholder="0"
-                                />
-                                {!isViewOnly && (
-                                  <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const val = (parseInt(c.amount) || 0) + 1000000;
-                                        const newCosts = [...formData.costDetails];
-                                        newCosts[idx].amount = val.toString();
-                                        setFormData({ ...formData, costDetails: newCosts });
-                                      }}
-                                      className="p-0.5 hover:text-indigo-600 transition-colors"
-                                    >
-                                      <ChevronUp size={10} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const val = Math.max(0, (parseInt(c.amount) || 0) - 1000000);
-                                        const newCosts = [...formData.costDetails];
-                                        newCosts[idx].amount = val.toString();
-                                        setFormData({ ...formData, costDetails: newCosts });
-                                      }}
-                                      className="p-0.5 hover:text-indigo-600 transition-colors"
-                                    >
-                                      <ChevronDown size={10} />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            {!isViewOnly && (
-                              <td className="px-1 py-1 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newCosts = formData.costDetails.filter((_, i) => i !== idx);
-                                    setFormData({ ...formData, costDetails: newCosts });
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                >
-                                  <Trash size={12} />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t.modal.notes}</label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  disabled={isViewOnly}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all min-h-[80px]"
-                  placeholder={t.modal.notesPlaceholder}
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-4 pt-6 border-t border-slate-100">
-                <div className="mr-auto hidden sm:block">
-                  <div className="flex items-center gap-4 px-6 py-3 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.modal.total} {t.fields.revenueTarget}</p>
-                      <p className="text-sm font-black text-emerald-600">
-                        {formatRupiah(formData.revenueDetails.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0))}
-                      </p>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                     </div>
-                    <div className="w-px h-8 bg-slate-200" />
-                    <div>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.modal.total} {t.fields.costTarget}</p>
-                      <p className="text-sm font-black text-red-500">
-                        {formatRupiah(formData.costDetails.reduce((acc, c) => acc + (parseFloat(c.amount) || 0), 0))}
-                      </p>
+                  </FormField>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+                  {/* Revenue Table */}
+                  <div className="xl:col-span-5 space-y-4">
+                    <SectionHeader title={t.fields.revenueTarget} icon={<TrendingUp size={14} className="text-emerald-600" />} color="border-emerald-100">
+                      {!isViewOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({
+                            ...formData,
+                            revenueDetails: [...formData.revenueDetails, { month: formData.revenueDetails.length + 1, amount: '0' }]
+                          })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-lg hover:bg-emerald-100 transition-all border border-emerald-100 tracking-wider cursor-pointer"
+                        >
+                          <Plus size={12} strokeWidth={3} />
+                          {t.modal.addRow}
+                        </button>
+                      )}
+                    </SectionHeader>
+
+                    <div className="bg-white border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-50">
+                            <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">{t.fields.month}</th>
+                            <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.revenueTarget}</th>
+                            {!isViewOnly && <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-12">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {formData.revenueDetails.map((r, idx) => (
+                            <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
+                              <td className="px-1.5 py-1">
+                                <div className="relative">
+                                  <select
+                                    value={r.month}
+                                    disabled={isViewOnly}
+                                    onChange={(e) => {
+                                      const newRevs = [...formData.revenueDetails];
+                                      newRevs[idx].month = parseInt(e.target.value);
+                                      setFormData({ ...formData, revenueDetails: newRevs });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
+                                  >
+                                    {common.months.map((name, mIdx) => (
+                                      <option key={mIdx + 1} value={mIdx + 1}>{name}</option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                                </div>
+                              </td>
+                              <td className="px-1.5 py-1">
+                                <div className="relative group/input flex items-center">
+                                  <input
+                                    type="text"
+                                    value={r.amount === '0' ? '' : (parseInt(r.amount) || 0).toLocaleString('id-ID')}
+                                    disabled={isViewOnly}
+                                    onChange={(e) => {
+                                      const rawValue = e.target.value.replace(/\D/g, '');
+                                      const newRevs = [...formData.revenueDetails];
+                                      newRevs[idx].amount = rawValue || '0';
+                                      setFormData({ ...formData, revenueDetails: newRevs });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
+                                    placeholder="0"
+                                  />
+                                  {!isViewOnly && (
+                                    <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const val = (parseInt(r.amount) || 0) + 1000000;
+                                          const newRevs = [...formData.revenueDetails];
+                                          newRevs[idx].amount = val.toString();
+                                          setFormData({ ...formData, revenueDetails: newRevs });
+                                        }}
+                                        className="p-0.5 hover:text-indigo-600 transition-colors"
+                                      >
+                                        <ChevronUp size={10} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const val = Math.max(0, (parseInt(r.amount) || 0) - 1000000);
+                                          const newRevs = [...formData.revenueDetails];
+                                          newRevs[idx].amount = val.toString();
+                                          setFormData({ ...formData, revenueDetails: newRevs });
+                                        }}
+                                        className="p-0.5 hover:text-indigo-600 transition-colors"
+                                      >
+                                        <ChevronDown size={10} />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              {!isViewOnly && (
+                                <td className="px-1 py-1 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newRevs = formData.revenueDetails.filter((_, i) => i !== idx);
+                                      setFormData({ ...formData, revenueDetails: newRevs });
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                  >
+                                    <Trash size={12} />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Cost Table */}
+                  <div className="xl:col-span-7 space-y-4">
+                    <SectionHeader title={t.fields.costTarget} icon={<TrendingDown size={14} className="text-red-600" />} color="border-red-100">
+                      {!isViewOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({
+                            ...formData,
+                            costDetails: [...formData.costDetails, { month: formData.costDetails.length + 1, costCenter: 'operational', amount: '0' }]
+                          })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-[10px] font-black rounded-lg hover:bg-red-100 transition-all border border-red-100 tracking-wider cursor-pointer"
+                        >
+                          <Plus size={12} strokeWidth={3} />
+                          {t.modal.addRow}
+                        </button>
+                      )}
+                    </SectionHeader>
+
+                    <div className="bg-white border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-50">
+                            <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">{t.fields.month}</th>
+                            <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-54">Cost Center</th>
+                            <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.costTarget}</th>
+                            {!isViewOnly && <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-12">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {formData.costDetails.map((c, idx) => (
+                            <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
+                              <td className="px-1.5 py-1">
+                                <div className="relative">
+                                  <select
+                                    value={c.month}
+                                    disabled={isViewOnly}
+                                    onChange={(e) => {
+                                      const newCosts = [...formData.costDetails];
+                                      newCosts[idx].month = parseInt(e.target.value);
+                                      setFormData({ ...formData, costDetails: newCosts });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
+                                  >
+                                    {common.months.map((name, mIdx) => (
+                                      <option key={mIdx + 1} value={mIdx + 1}>{name}</option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                                </div>
+                              </td>
+                              <td className="px-1.5 py-1">
+                                <div className="relative">
+                                  <select
+                                    value={c.costCenter}
+                                    disabled={isViewOnly}
+                                    onChange={(e) => {
+                                      const newCosts = [...formData.costDetails];
+                                      newCosts[idx].costCenter = e.target.value;
+                                      setFormData({ ...formData, costDetails: newCosts });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
+                                  >
+                                    {costCenters.map(cat => (
+                                      <option key={cat.code} value={cat.code}>
+                                        {language === 'id' ? cat.labelId : cat.labelEn}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                                </div>
+                              </td>
+                              <td className="px-1.5 py-1">
+                                <div className="relative group/input flex items-center">
+                                  <input
+                                    type="text"
+                                    value={c.amount === '0' ? '' : (parseInt(c.amount) || 0).toLocaleString('id-ID')}
+                                    disabled={isViewOnly}
+                                    onChange={(e) => {
+                                      const rawValue = e.target.value.replace(/\D/g, '');
+                                      const newCosts = [...formData.costDetails];
+                                      newCosts[idx].amount = rawValue || '0';
+                                      setFormData({ ...formData, costDetails: newCosts });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
+                                    placeholder="0"
+                                  />
+                                  {!isViewOnly && (
+                                    <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const val = (parseInt(c.amount) || 0) + 1000000;
+                                          const newCosts = [...formData.costDetails];
+                                          newCosts[idx].amount = val.toString();
+                                          setFormData({ ...formData, costDetails: newCosts });
+                                        }}
+                                        className="p-0.5 hover:text-indigo-600 transition-colors"
+                                      >
+                                        <ChevronUp size={10} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const val = Math.max(0, (parseInt(c.amount) || 0) - 1000000);
+                                          const newCosts = [...formData.costDetails];
+                                          newCosts[idx].amount = val.toString();
+                                          setFormData({ ...formData, costDetails: newCosts });
+                                        }}
+                                        className="p-0.5 hover:text-indigo-600 transition-colors"
+                                      >
+                                        <ChevronDown size={10} />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              {!isViewOnly && (
+                                <td className="px-1 py-1 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newCosts = formData.costDetails.filter((_, i) => i !== idx);
+                                      setFormData({ ...formData, costDetails: newCosts });
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                  >
+                                    <Trash size={12} />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t.modal.notes}</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    disabled={isViewOnly}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all min-h-[80px]"
+                    placeholder={t.modal.notesPlaceholder}
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons & Totals Fixed Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4 px-5 py-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.revenueTarget}</p>
+                    <p className="text-sm font-black text-emerald-600">
+                      {formatRupiah(formData.revenueDetails.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0))}
+                    </p>
+                  </div>
+                  <div className="w-px h-8 bg-slate-100" />
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.costTarget}</p>
+                    <p className="text-sm font-black text-red-500">
+                      {formatRupiah(formData.costDetails.reduce((acc, c) => acc + (parseFloat(c.amount) || 0), 0))}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={handleCloseModal}
                     disabled={isSaving}
-                    className="px-8 py-3 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95"
+                    className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 shadow-sm cursor-pointer"
                   >
-                    {t.modal.cancel}
+                    {isViewOnly ? common.close : common.cancel}
                   </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving || isViewOnly}
-                    className={cn(
-                      "px-10 py-3 text-sm font-bold text-white rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px]",
-                      isViewOnly ? "bg-slate-300 cursor-not-allowed shadow-none" : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100"
-                    )}
-                  >
-                    {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-                    {isSaving ? t.status.submitting : t.modal.submit}
-                  </button>
+                  {!isViewOnly && (
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
+                    >
+                      {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                      {isSaving ? common.saving : common.save}
+                    </button>
+                  )}
                 </div>
               </div>
             </form>
@@ -1172,14 +1184,14 @@ export const TargetManager: React.FC = () => {
               onClick={() => setTargetToDelete(null)}
               className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
             >
-              {t.alerts.deleteCancel}
+              {common.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => targetToDelete && handleDelete(targetToDelete)}
               className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
             >
               {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+              {isDeleting ? common.deleting : common.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

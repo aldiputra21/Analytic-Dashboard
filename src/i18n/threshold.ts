@@ -4,12 +4,10 @@ export const thresholdI18n = {
     subtitle: 'Atur ambang batas nilai untuk indikator rasio keuangan',
     resetDefaults: 'Reset ke Default',
     saveChanges: 'Simpan Perubahan',
-    saving: 'Menyimpan...',
     tableHead: {
       ratio: 'Rasio',
       healthy: 'Ambang Batas Sehat',
       moderate: 'Ambang Batas Moderat',
-      status: 'Status'
     },
     status: {
       default: 'Default',
@@ -40,7 +38,6 @@ export const thresholdI18n = {
     alerts: {
       successSave: 'Threshold berhasil disimpan',
       successReset: 'Threshold berhasil direset ke default',
-      errorFetch: 'Gagal memuat threshold',
       errorSave: 'Gagal menyimpan threshold',
       errorReset: 'Gagal mereset threshold'
     },
@@ -53,12 +50,10 @@ export const thresholdI18n = {
     subtitle: 'Configure threshold values for financial ratio indicators',
     resetDefaults: 'Reset Defaults',
     saveChanges: 'Save Changes',
-    saving: 'Saving...',
     tableHead: {
       ratio: 'Ratio',
       healthy: 'Healthy Threshold',
       moderate: 'Moderate Threshold',
-      status: 'Status'
     },
     status: {
       default: 'Default',
@@ -89,7 +84,6 @@ export const thresholdI18n = {
     alerts: {
       successSave: 'Thresholds saved successfully',
       successReset: 'Thresholds reset to defaults successfully',
-      errorFetch: 'Failed to load thresholds',
       errorSave: 'Failed to save thresholds',
       errorReset: 'Failed to reset thresholds'
     },

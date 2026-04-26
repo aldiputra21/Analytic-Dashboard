@@ -9,7 +9,7 @@ interface UseCorporatesResult {
   corporates: Corporate[];
   isLoading: boolean;
   error: string | null;
-  refetch: () => void;
+  refetch: () => Promise<void>;
 }
 
 /** Returns all active corporates for dropdowns. Always uses the dedicated /dropdown-items endpoint. */

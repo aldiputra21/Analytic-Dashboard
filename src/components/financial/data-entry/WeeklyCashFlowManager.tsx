@@ -245,7 +245,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
         setTotalCount(d.totalCount || 0);
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorFetch);
+        throw new Error(errData.error?.message || common.errorLoadTable);
       }
     } catch (err: any) {
       setError(err.message || common.errorLoadTable);
@@ -298,14 +298,14 @@ export const WeeklyCashFlowManager: React.FC = () => {
     try {
       const res = await apiFetch(`/api/financial-statements/cash-flow/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        toast.success(t.alerts.successDelete);
+        toast.success(common.successDelete);
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorDelete);
+        throw new Error(errData.error?.message || common.errorDelete);
       }
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorNetwork);
+      toast.error(err.message || common.errorNetwork);
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -364,15 +364,15 @@ export const WeeklyCashFlowManager: React.FC = () => {
       });
 
       if (res.ok) {
-        toast.success(modalMode === 'create' ? t.alerts.successSave : t.alerts.successUpdate);
+        toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
         setIsModalOpen(false);
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || t.alerts.errorSave);
+        throw new Error(errData.error?.message || common.errorSave);
       }
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorNetwork);
+      toast.error(err.message || common.errorNetwork);
     } finally {
       setIsSaving(false);
     }
@@ -420,7 +420,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
               className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
             >
               <Plus size={18} />
-              {t.inputNew}
+              {common.add}
             </button>
           </div>
         )}
@@ -478,14 +478,14 @@ export const WeeklyCashFlowManager: React.FC = () => {
               className="flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-blue-200/50 cursor-pointer"
             >
               <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-              {t.apply}
+              {common.apply}
             </button>
             <button
               onClick={handleClearFilter}
               className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
             >
               <FilterX size={14} />
-              {t.clear}
+              {common.clear}
             </button>
           </div>
         </div>
@@ -503,7 +503,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                 <th className="px-6 py-4 text-right">{t.tableHead.cashIn}</th>
                 <th className="px-6 py-4 text-right">{t.tableHead.cashOut}</th>
                 <th className="px-6 py-4 text-right">{t.tableHead.netFlow}</th>
-                <th className="px-6 py-4 text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-sm font-bold">
@@ -611,7 +611,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                             <button
                               onClick={() => handleOpenModal('view', item)}
                               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                              title={t.actions.view}
+                              title={common.view}
                             >
                               <Eye size={16} />
                             </button>
@@ -619,7 +619,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                               <button
                                 onClick={() => handleOpenModal('edit', item)}
                                 className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                                title={t.actions.edit}
+                                title={common.edit}
                               >
                                 <Edit2 size={16} />
                               </button>
@@ -628,7 +628,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                               <button
                                 onClick={() => setDeleteConfirmId(item.id)}
                                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                title={t.actions.delete}
+                                title={common.delete}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -649,12 +649,12 @@ export const WeeklyCashFlowManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing} {Math.min(totalCount, (currentPage - 1) * pageSize + 1)} - {Math.min(totalCount, currentPage * pageSize)} {t.pagination.of} {totalCount} {t.pagination.entries}
+                {common.pagination.showing} {Math.min(totalCount, (currentPage - 1) * pageSize + 1)} - {Math.min(totalCount, currentPage * pageSize)} {common.pagination.of} {totalCount} {common.pagination.total}
               </span>
 
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {t.pagination.rowsPerPage}
+                  {common.pagination.rowsPerPage}
                 </span>
                 <select
                   value={pageSize}
@@ -735,10 +735,9 @@ export const WeeklyCashFlowManager: React.FC = () => {
             title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : t.modal.viewTitle}
             size="xl"
           >
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-              <form onSubmit={handleSave} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-8">
-                {/* Header Inputs */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <form onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 scrollbar-hide space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
                   {/* Period */}
                   <div className="md:col-span-4 space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
@@ -878,10 +877,10 @@ export const WeeklyCashFlowManager: React.FC = () => {
                   <div className="space-y-6">
                     <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-500">
                       <TrendingUp size={18} className="text-blue-500" />
-                      <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.operating}</h4>
+                      <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.operatingActivity}</h4>
                     </div>
-                    <FormField label={t.modal.cashIn} value={formData.operatingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                    <FormField label={t.modal.cashOut} value={formData.operatingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.fields.cashIn} value={formData.operatingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.fields.cashOut} value={formData.operatingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                     <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netOperating >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
                       <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Operating</span>
                       <span className="text-sm font-black">{formatRupiah(netOperating, false)}</span>
@@ -894,8 +893,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       <ArrowUpCircle size={18} className="text-amber-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.investing}</h4>
                     </div>
-                    <FormField label={t.modal.cashIn} value={formData.investingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                    <FormField label={t.modal.cashOut} value={formData.investingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.fields.cashIn} value={formData.investingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.fields.cashOut} value={formData.investingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                     <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netInvesting >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
                       <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Investing</span>
                       <span className="text-sm font-black">{formatRupiah(netInvesting, false)}</span>
@@ -908,8 +907,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       <Landmark size={18} className="text-indigo-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.financing}</h4>
                     </div>
-                    <FormField label={t.modal.cashIn} value={formData.financingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                    <FormField label={t.modal.cashOut} value={formData.financingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.fields.cashIn} value={formData.financingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <FormField label={t.fields.cashOut} value={formData.financingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                     <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netFinancing >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
                       <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Financing</span>
                       <span className="text-sm font-black">{formatRupiah(netFinancing, false)}</span>
@@ -943,29 +942,29 @@ export const WeeklyCashFlowManager: React.FC = () => {
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none shadow-sm"
                   />
                 </div>
+              </div>
 
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSaving}
+                  className="px-8 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer shadow-sm"
+                >
+                  {common.cancel}
+                </button>
                 {modalMode !== 'view' && (
-                  <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setIsModalOpen(false)}
-                      disabled={isSaving}
-                      className="px-8 py-3 bg-slate-100 text-xs font-black text-slate-500 uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
-                    >
-                      {t.modal.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="px-10 py-3 bg-indigo-600 text-xs font-black text-white uppercase tracking-widest rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2 min-w-[180px] justify-center cursor-pointer disabled:opacity-50"
-                    >
-                      {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                      {isSaving ? t.status.submitting : t.modal.submit}
-                    </button>
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-blue-600 rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? <RefreshCw className="animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    {isSaving ? common.saving : common.save}
+                  </button>
                 )}
-              </form>
-            </div>
+              </div>
+            </form>
           </Modal>
         )}
       </AnimatePresence>
@@ -981,7 +980,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="rounded-xl border-slate-200 font-bold hover:bg-slate-50">
-              {t.alerts.deleteCancel}
+              {common.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
@@ -989,7 +988,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
               disabled={isDeleting}
             >
               {isDeleting ? <RefreshCw size={16} className="animate-spin mr-2" /> : <Trash2 size={16} className="mr-2" />}
-              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+              {isDeleting ? common.deleting : t.alerts.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

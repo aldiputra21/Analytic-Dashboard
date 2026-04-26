@@ -1,246 +1,168 @@
 // i18n/target.ts
-import { Locale } from './balance-sheet';
+import { Locale } from './commons';
 
 export interface TargetCopy {
   title: string;
   subtitle: string;
   addNew: string;
   searchPlaceholder: string;
-  apply: string;
-  clear: string;
   tableHead: {
     entity: string;
     type: string;
-    description: string;
     year: string;
-    actions: string;
+  };
+  types: {
+    project: string;
+    department: string;
+  };
+  filter: {
+    allDepartments: string;
   };
   status: {
-    loading: string;
-    submitting: string;
     empty: string;
     emptyDesc: string;
   };
-  pagination: {
-    showing: string;
-    of: string;
-    entries: string;
-    rowsPerPage: string;
-  };
   fields: {
-    type: string;
     department: string;
     project: string;
     year: string;
-    month: string;
-    revenue: string;
-    cost: string;
+    relatedToProject: string;
     revenueTarget: string;
     costTarget: string;
-  };
-  types: {
-    department: string;
-    project: string;
+    month: string;
+    amount: string;
+    costCenter: string;
+    notes: string;
+    total: string;
   };
   modal: {
     createTitle: string;
     editTitle: string;
     viewTitle: string;
-    cancel: string;
-    submit: string;
-    selectEntity: string;
-    selectYear: string;
-    addRow: string;
-    total: string;
-    relatedToProject: string;
-    notes: string;
-    notesPlaceholder: string;
     contextTitle: string;
     contextDesc: string;
+    selectEntity: string;
+    revenueTitle: string;
+    costTitle: string;
+    addRow: string;
+    notes: string;
+    notesPlaceholder: string;
+    total: string;
   };
-  filter: {
-    allDepartments: string;
-    allProjects: string;
-  };
-  months: string[];
   alerts: {
-    errorRequired: string;
     deleteTitle: string;
     deleteDesc: string;
-    deleteConfirm: string;
-    deleteCancel: string;
-    deleteDeleting: string;
-    successDelete: string;
-    errorDelete: string;
-    successSave: string;
-    errorSave: string;
-    errorFetch: string;
-    errorNetwork: string;
     duplicateMonth: string;
   };
 }
 
 export const targetI18n: Record<Locale, TargetCopy> = {
   id: {
-    title: 'Manajemen Target',
-    subtitle: 'Atur target pendapatan dan biaya tahunan untuk departemen atau proyek.',
-    addNew: 'Input Target Baru',
-    searchPlaceholder: 'Cari proyek...',
-    apply: 'Terapkan',
-    clear: 'Bersihkan',
+    title: 'Target Finansial',
+    subtitle: 'Kelola target pendapatan dan biaya operasional per periode.',
+    addNew: 'Buat Target Baru',
+    searchPlaceholder: 'Cari departemen atau proyek...',
     tableHead: {
       entity: 'Entitas',
       type: 'Tipe',
-      description: 'Keterangan',
-      year: 'Tahun',
-      actions: 'Aksi',
-    },
-    status: {
-      loading: 'Memuat Data...',
-      submitting: 'Menyimpan...',
-      empty: 'Data Target Kosong',
-      emptyDesc: 'Belum ada target yang diatur atau hasil pencarian tidak ditemukan.',
-    },
-    pagination: {
-      showing: 'Menampilkan',
-      of: 'dari',
-      entries: 'entri',
-      rowsPerPage: 'Baris per halaman',
-    },
-    fields: {
-      type: 'Tipe Target',
-      department: 'Departemen',
-      project: 'Proyek',
-      year: 'Tahun Target',
-      month: 'Bulan',
-      revenue: 'Target Pendapatan',
-      cost: 'Target Biaya',
-      revenueTarget: 'Pendapatan',
-      costTarget: 'Biaya',
+      year: 'Tahun Fiskal',
     },
     types: {
-      department: 'Departemen',
       project: 'Proyek',
-    },
-    modal: {
-      createTitle: 'Input Target Tahunan',
-      editTitle: 'Ubah Target Tahunan',
-      viewTitle: 'Detail Target',
-      cancel: 'Batal',
-      submit: 'Simpan',
-      selectEntity: 'Pilih Departemen/Proyek',
-      selectYear: 'Pilih Tahun',
-      addRow: 'Tambah Baris',
-      total: 'Total Tahunan',
-      relatedToProject: 'Terkait Proyek?',
-      notes: 'Catatan (Opsional)',
-      notesPlaceholder: 'Catatan tambahan untuk target tahunan ini...',
-      contextTitle: 'Konteks Target',
-      contextDesc: 'Tentukan departemen, tahun, dan asosiasi proyek opsional.',
+      department: 'Departemen',
     },
     filter: {
       allDepartments: 'Semua Departemen',
-      allProjects: 'Semua Proyek',
     },
-    months: [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ],
+    status: {
+      empty: 'Tidak ada data target',
+      emptyDesc: 'Belum ada data target yang terdaftar untuk periode ini.',
+    },
+    fields: {
+      department: 'Departemen',
+      project: 'Proyek',
+      year: 'Tahun Fiskal',
+      relatedToProject: 'Terkait Proyek?',
+      revenueTarget: 'Target Pendapatan',
+      costTarget: 'Target Biaya',
+      month: 'Bulan',
+      amount: 'Nilai (Rp)',
+      costCenter: 'Cost Center',
+      notes: 'Catatan',
+      total: 'Total Keseluruhan',
+    },
+    modal: {
+      createTitle: 'Buat Target Baru',
+      editTitle: 'Edit Data Target',
+      viewTitle: 'Detail Target Finansial',
+      contextTitle: 'Konteks Target',
+      contextDesc: 'Tentukan departemen, proyek (opsional), dan tahun fiskal untuk target ini.',
+      selectEntity: 'Pilih entitas...',
+      revenueTitle: 'Target Pendapatan',
+      costTitle: 'Target Biaya (Expenses)',
+      addRow: 'Tambah Baris',
+      notes: 'Catatan',
+      notesPlaceholder: 'Tambahkan catatan opsional di sini...',
+      total: 'Total Keseluruhan',
+    },
     alerts: {
-      errorRequired: 'Mohon lengkapi semua field yang wajib diisi',
-      deleteTitle: 'Hapus Target Tahunan?',
-      deleteDesc: 'Semua target pendapatan dan biaya untuk entitas dan tahun ini akan dihapus.',
-      deleteConfirm: 'Ya, Hapus Target Tahunan',
-      deleteCancel: 'Batal',
-      deleteDeleting: 'Menghapus...',
-      successDelete: 'Target berhasil dihapus',
-      errorDelete: 'Gagal menghapus target',
-      successSave: 'Target berhasil disimpan',
-      errorSave: 'Gagal menyimpan target',
-      errorFetch: 'Gagal memuat data target',
-      errorNetwork: 'Gagal menghubungkan ke server',
-      duplicateMonth: 'Bulan sudah ada dalam daftar',
+      deleteTitle: 'Hapus data target?',
+      deleteDesc: 'Tindakan ini akan menghapus seluruh rincian target pendapatan dan biaya untuk entitas ini di tahun fiskal yang dipilih.',
+      duplicateMonth: 'Terdapat duplikasi bulan pada rincian target',
     },
   },
   en: {
-    title: 'Target Management',
-    subtitle: 'Set annual revenue and cost targets for departments or projects.',
-    addNew: 'Input New Target',
-    searchPlaceholder: 'Search project...',
-    apply: 'Apply',
-    clear: 'Clear',
+    title: 'Financial Targets',
+    subtitle: 'Manage revenue and operational cost targets per period.',
+    addNew: 'Create New Target',
+    searchPlaceholder: 'Search department or project...',
     tableHead: {
       entity: 'Entity',
       type: 'Type',
-      description: 'Description',
-      year: 'Year',
-      actions: 'Actions',
-    },
-    status: {
-      loading: 'Loading Data...',
-      submitting: 'Saving...',
-      empty: 'No Target Data',
-      emptyDesc: 'No targets set yet or no results found for your search.',
-    },
-    pagination: {
-      showing: 'Showing',
-      of: 'of',
-      entries: 'entries',
-      rowsPerPage: 'Rows per page',
-    },
-    fields: {
-      type: 'Target Type',
-      department: 'Department',
-      project: 'Project',
-      year: 'Target Year',
-      month: 'Month',
-      revenue: 'Revenue Target',
-      cost: 'Cost Target',
-      revenueTarget: 'Revenue',
-      costTarget: 'Cost',
+      year: 'Fiscal Year',
     },
     types: {
-      department: 'Department',
       project: 'Project',
-    },
-    modal: {
-      createTitle: 'Input Annual Target',
-      editTitle: 'Edit Annual Target',
-      viewTitle: 'Target Details',
-      cancel: 'Cancel',
-      submit: 'Save',
-      selectEntity: 'Select Department/Project',
-      selectYear: 'Select Year',
-      addRow: 'Add Row',
-      total: 'Annual Total',
-      relatedToProject: 'Related to Project?',
-      notes: 'Notes (Optional)',
-      notesPlaceholder: 'Additional notes for this annual target...',
-      contextTitle: 'Target Context',
-      contextDesc: 'Identify the department, year, and optional project association.',
+      department: 'Department',
     },
     filter: {
       allDepartments: 'All Departments',
-      allProjects: 'All Projects',
     },
-    months: [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ],
+    status: {
+      empty: 'No target data found',
+      emptyDesc: 'No target data has been registered for this period.',
+    },
+    fields: {
+      department: 'Department',
+      project: 'Project',
+      year: 'Fiscal Year',
+      relatedToProject: 'Related to Project?',
+      revenueTarget: 'Revenue Target',
+      costTarget: 'Cost Target',
+      month: 'Month',
+      amount: 'Amount (IDR)',
+      costCenter: 'Cost Center',
+      notes: 'Notes',
+      total: 'Grand Total',
+    },
+    modal: {
+      createTitle: 'Create New Target',
+      editTitle: 'Edit Target Data',
+      viewTitle: 'Financial Target Details',
+      contextTitle: 'Target Context',
+      contextDesc: 'Define the department, project (optional), and fiscal year for this target.',
+      selectEntity: 'Select entity...',
+      revenueTitle: 'Revenue Target',
+      costTitle: 'Cost Target (Expenses)',
+      addRow: 'Add Row',
+      notes: 'Notes',
+      notesPlaceholder: 'Add optional notes here...',
+      total: 'Grand Total',
+    },
     alerts: {
-      errorRequired: 'Please fill in all required fields',
-      deleteTitle: 'Delete Annual Target?',
-      deleteDesc: 'All revenue and cost targets for this entity and year will be deleted.',
-      deleteConfirm: 'Yes, Delete Annual Target',
-      deleteCancel: 'Cancel',
-      deleteDeleting: 'Deleting...',
-      successDelete: 'Target deleted successfully',
-      errorDelete: 'Failed to delete target',
-      successSave: 'Target saved successfully',
-      errorSave: 'Failed to save target',
-      errorFetch: 'Failed to load target data',
-      errorNetwork: 'Failed to connect to server',
-      duplicateMonth: 'Month already exists in the list',
+      deleteTitle: 'Delete target data?',
+      deleteDesc: 'This action will delete all revenue and cost target details for this entity in the selected fiscal year.',
+      duplicateMonth: 'Duplicate month found in target details',
     },
   },
 };

@@ -1,8 +1,26 @@
 // DepartmentManager.tsx — CRUD UI for departments
 // Requirements: 7.1, 7.5
 
-import React, { useState } from 'react';import { useAuth } from '../../financial/useAuth';
+import React, { useState } from 'react';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
+import { useToast } from '../../financial/shared/Toast';
+import type { Department, Project } from '../../../hooks/mafinda/useManagement';
+
+interface Props {
+  departments: Department[];
+  onCreateDepartment: (data: { name: string; description?: string }) => Promise<void>;
+  onUpdateDepartment: (id: string, data: { name?: string; description?: string }) => Promise<void>;
+  onDeleteDepartment: (id: string) => Promise<void>;
+  projects: Project[];
+}
+
+interface FormState {
+  name: string;
+  description: string;
+}
+
+const emptyForm: FormState = { name: '', description: '' };
 
 export const DepartmentManager: React.FC<Props> = ({
   departments,
@@ -245,7 +263,6 @@ export const DepartmentManager: React.FC<Props> = ({
           </div>
         </div>
       )}
-)}
     </div>
   );
 };

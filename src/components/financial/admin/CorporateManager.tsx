@@ -115,7 +115,7 @@ export const CorporateManager: React.FC = () => {
   const [filterSearch, setFilterSearch] = useState('');
   const [appliedFilters, setAppliedFilters] = useState({ search: '' });
   const [error, setError] = useState<string | null>(null);
-  
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -247,8 +247,8 @@ export const CorporateManager: React.FC = () => {
 
       if (file.size > maxLogoSize) {
         toast.error(language === 'id'
-            ? `Ukuran logo maksimal adalah ${Math.round(maxLogoSize / 1024 / 1024)}MB.`
-            : `Maximum logo size is ${Math.round(maxLogoSize / 1024 / 1024)}MB.`);
+          ? `Ukuran logo maksimal adalah ${Math.round(maxLogoSize / 1024 / 1024)}MB.`
+          : `Maximum logo size is ${Math.round(maxLogoSize / 1024 / 1024)}MB.`);
         e.target.value = '';
         return;
       }
@@ -347,7 +347,7 @@ export const CorporateManager: React.FC = () => {
         toast.error(errData.error?.message || t.alerts.errorSave);
       }
     } catch (err) {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.error);
     } finally {
       setIsSaving(false);
     }
@@ -365,7 +365,7 @@ export const CorporateManager: React.FC = () => {
         fetchData();
       }
     } catch (err) {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.error);
     }
   };
 
@@ -383,7 +383,7 @@ export const CorporateManager: React.FC = () => {
         setDeleteConfirmId(null);
       }
     } catch {
-      toast.error(t.alerts.errorNetwork);
+      toast.error(common.error);
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);
@@ -440,14 +440,14 @@ export const CorporateManager: React.FC = () => {
             className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-indigo-200/50 cursor-pointer"
           >
             <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-            {t.apply}
+            {common.apply}
           </button>
           <button
             onClick={handleClearFilter}
             className="flex items-center gap-2 bg-slate-50 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 border border-slate-200/50 cursor-pointer"
           >
             <FilterX size={14} />
-            {t.clear}
+            {common.clear}
           </button>
         </div>
       </div>
@@ -462,8 +462,8 @@ export const CorporateManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.sector}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.currency}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.fiscalYear}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{common.status}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -564,7 +564,7 @@ export const CorporateManager: React.FC = () => {
                           )}
                         >
                           <div className={cn("w-1.5 h-1.5 rounded-full", corp.isActive ? "bg-emerald-500" : "bg-slate-400")} />
-                          {corp.isActive ? t.status.active : t.status.inactive}
+                          {corp.isActive ? common.active : common.inactive}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -609,12 +609,12 @@ export const CorporateManager: React.FC = () => {
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-500">
-                {t.pagination.showing} <span className="text-slate-800 mx-0.5">{Math.min(totalCount, (currentPage - 1) * pageSize + 1)}</span> - <span className="text-slate-800 mx-0.5">{Math.min(totalCount, currentPage * pageSize)}</span> {t.pagination.of} <span className="text-slate-800 mx-0.5">{totalCount}</span> {t.pagination.entries}
+                {common.pagination.showing} <span className="text-slate-800 mx-0.5">{Math.min(totalCount, (currentPage - 1) * pageSize + 1)}</span> - <span className="text-slate-800 mx-0.5">{Math.min(totalCount, currentPage * pageSize)}</span> {common.pagination.of} <span className="text-slate-800 mx-0.5">{totalCount}</span> {t.pagination.entries}
               </span>
 
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {t.pagination.rowsPerPage}
+                  {common.pagination.rowsPerPage}
                 </span>
                 <select
                   value={pageSize}
@@ -692,10 +692,14 @@ export const CorporateManager: React.FC = () => {
           <Modal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : 'View Corporate'}
+            title={
+              modalMode === 'create' ? t.modal.createTitle
+                : modalMode === 'edit' ? t.modal.editTitle
+                  : t.modal.viewTitle
+            }
           >
-            <div className="flex-1 overflow-y-auto p-6">
-              <form onSubmit={handleSave} onInvalid={() => toast.error(t.alerts.errorRequired, { id: 'errorRequired' })} className="space-y-8">
+            <form onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 scrollbar-hide space-y-8">
                 <div className="flex items-start gap-8">
                   <div className="flex flex-col items-center gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.modal.logo}</label>
@@ -762,7 +766,7 @@ export const CorporateManager: React.FC = () => {
                       {/* Status Toggle - dibawah nama */}
                       <div className="col-span-12">
                         <div className="flex items-center gap-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 w-fit">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.tableHead.status}</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{common.status}</span>
                           <button
                             type="button"
                             disabled={isReadOnly}
@@ -780,7 +784,7 @@ export const CorporateManager: React.FC = () => {
                             />
                           </button>
                           <span className={cn("text-[10px] font-black uppercase tracking-widest", formData.isActive ? "text-indigo-600" : "text-slate-400")}>
-                            {formData.isActive ? t.status.active : t.status.inactive}
+                            {formData.isActive ? common.active : common.inactive}
                           </span>
                         </div>
                       </div>
@@ -844,29 +848,29 @@ export const CorporateManager: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSaving}
+                  className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm"
+                >
+                  {isReadOnly ? common.close : common.cancel}
+                </button>
+                {!isReadOnly && (
                   <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    type="submit"
                     disabled={isSaving}
-                    className="px-8 py-3 bg-slate-100 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
                   >
-                    {isReadOnly ? 'Close' : t.modal.cancel}
+                    {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                    {isSaving ? common.saving : common.save}
                   </button>
-                  {!isReadOnly && (
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
-                    >
-                      {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-                      {isSaving ? t.status.submitting : t.modal.submit}
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
+                )}
+              </div>
+            </form>
           </Modal>
         )}
       </AnimatePresence>
@@ -888,14 +892,14 @@ export const CorporateManager: React.FC = () => {
               onClick={() => setDeleteConfirmId(null)}
               className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
             >
-              {t.alerts.deleteCancel}
+              {common.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
               className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
             >
               {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+              {isDeleting ? common.deleting : common.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

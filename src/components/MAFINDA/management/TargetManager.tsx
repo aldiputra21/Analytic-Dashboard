@@ -2,12 +2,12 @@
 // Requirements: 7.3, 7.4
 
 import React, { useState } from 'react';
-import { useAuth } from '../../financial/useAuth';
+import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
 import { mafindaI18n } from '../../../i18n/mafinda';
-import { useToast } from '../../../hooks/useToast';
-import { formatRupiah } from '../../../utils/formatters';
-import { FinancialTarget, Project, Department } from '../../../types/financial';
+import { useToast } from '../../financial/shared/Toast';
+import { formatRupiah } from '../../../utils/format';
+import type { FinancialTarget, Project, Department } from '../../../hooks/mafinda/useManagement';
 
 interface Props {
   departments: Department[];
