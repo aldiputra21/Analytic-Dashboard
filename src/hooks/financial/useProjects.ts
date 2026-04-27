@@ -44,7 +44,8 @@ export function useProjects() {
     options: projects.map(p => ({
       value: p.id,
       label: p.name,
-      sublabel: p.code ? `${p.code}${p.departmentName ? ` • ${p.departmentName}` : ''}` : p.departmentName
+      sublabel: p.code ? `${p.code}${p.departmentName ? ` • ${p.departmentName}` : ''}` : p.departmentName,
+      departmentId: p.departmentId
     }))
   };
 }

@@ -14,14 +14,14 @@ import {
 } from 'recharts';
 import { formatRupiah } from '../../../utils/format';
 import type { CashFlowDataPoint } from '../../../services/mafinda/dashboardService';
-import type { Department, Project } from '../../../hooks/mafinda/useManagement';
+import { SearchableSelect } from '../../financial/shared/SearchableSelect';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface CashFlowChartProps {
   data: CashFlowDataPoint[];
-  departments: Department[];
-  projects: Project[];
+  departments: { value: string; label: string; sublabel?: string }[];
+  projects: { value: string; label: string; sublabel?: string; departmentId: string }[];
   selectedDepartmentId: string;
   selectedProjectId: string;
   onDepartmentChange: (id: string) => void;
@@ -59,9 +59,8 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
   const { language } = useAuth();
   const t = mafindaI18n[language].dashboard.cashFlow;
   const common = mafindaI18n[language].dashboard;
-  const safeProjects = Array.isArray(projects) ? projects : [];
-  const filteredProjects = safeProjects.filter(
-    (p) => p.departmentId === selectedDepartmentId && p.isActive
+  const filteredProjects = projects.filter(
+    (p) => p.departmentId === selectedDepartmentId
   );
 
   const safeData = Array.isArray(data) ? data : [];
@@ -82,30 +81,26 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className="text-sm font-semibold text-slate-800">{t.title}</h3>
         <div className="flex items-center gap-2">
-          <select
-            value={selectedDepartmentId}
-            onChange={(e) => {
-              onDepartmentChange(e.target.value);
-              onProjectChange('');
-            }}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="">{common.allDepartments}</option>
-            {(Array.isArray(departments) ? departments : []).map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
+          <div className="w-40">
+            <SearchableSelect
+              options={departments}
+              value={selectedDepartmentId}
+              onChange={(val) => {
+                onDepartmentChange(val);
+                onProjectChange('');
+              }}
+              placeholder={common.allDepartments}
+            />
+          </div>
           {selectedDepartmentId && (
-            <select
-              value={selectedProjectId}
-              onChange={(e) => onProjectChange(e.target.value)}
-              className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="">{common.allProjects}</option>
-              {filteredProjects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <div className="w-40">
+              <SearchableSelect
+                options={filteredProjects}
+                value={selectedProjectId}
+                onChange={onProjectChange}
+                placeholder={common.allProjects}
+              />
+            </div>
           )}
         </div>
       </div>

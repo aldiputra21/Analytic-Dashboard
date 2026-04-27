@@ -9,7 +9,7 @@ import { authenticate } from '../middleware/auth.js';
 import { createCustomerRouter, createContactRouter, createContactStandaloneRouter } from '../routes/crm/customers.js';
 import { createInteractionRouter } from '../routes/crm/interactions.js';
 import { createFRSRouter } from '../routes/financial/index.js';
-import { createRolesRouter } from '../routes/financial/users.js';
+import { createRolesRouter } from '../routes/financial/roles.js';
 import { createCorporatesRouter } from '../routes/financial/corporates.js';
 import { createDepartmentRouter } from '../routes/management/departments.js';
 import { createProjectRouter } from '../routes/management/projects.js';
@@ -28,6 +28,9 @@ import { createCashRealizationsRouter } from '../routes/financial/cashRealizatio
 import { createBankLoansRouter } from '../routes/financial/bankLoans.js';
 import { createNotificationConfigsRouter } from '../routes/financial/notificationConfigs.js';
 import { createAttachmentsRouter } from '../routes/financial/attachments.js';
+import { createPermissionsRouter } from '../routes/financial/permissions.js';
+import { createUsersRouter } from '../routes/financial/users.js';
+import { createProfileRouter } from '../routes/profile/index.js';
 
 import { getFRSConfig } from '../config/frsConfig.js';
 
@@ -109,6 +112,8 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use('/api/bank-loans', authenticate, createBankLoansRouter());
   app.use('/api/notification-configs', authenticate, createNotificationConfigsRouter());
   app.use('/api/attachments', authenticate, createAttachmentsRouter());
+  app.use('/api/permissions', authenticate, createPermissionsRouter());
+  app.use('/api/users', authenticate, createUsersRouter());
 
   // CRM routes require authentication
   app.use('/api/crm/customers', authenticate, createCustomerRouter());
@@ -118,6 +123,9 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use('/api/crm/opportunities', authenticate, createOpportunityRouter());
   app.use('/api/crm/opportunities/:id/qualification', authenticate, createQualificationRouter());
   app.use('/api/crm/pipeline', authenticate, createPipelineRouter());
+
+  // Profile routes require authentication
+  app.use('/api/profile', authenticate, createProfileRouter());
 
   // FRS router handles its own public/private route separation
   app.use('/api/frs', createFRSRouter());

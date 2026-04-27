@@ -36,6 +36,8 @@ Entry point: `src/main.tsx` → `src/components/financial/FRSApp.tsx`
 - Proyek mendukung akses **multi perusahaan** (multi-corporate).
 - Pemetaan akses disimpan dalam tabel `user_corporate_accesses`.
 - Satu user dapat mengakses lebih dari satu perusahaan.
+- **RBAC Policy**: Guided by Matrix Access Control (Role + Scope). Detail: [docs/architecture/rbac-system.md](file:///d:/Projects/Financial%20Dashboard/source-code/docs/architecture/rbac-system.md)
+
 
 ---
 
@@ -130,10 +132,12 @@ updatedAt: timestamp('updated_at', { withTimezone: true }).$onUpdate(() => new D
 - **Dynamic Strings**: Gunakan placeholder untuk string dinamis dan ganti menggunakan `.replace()`. Contoh: `t.saveSuccess.replace('{period}', period)`.
 - **Centralized Ratios**: Gunakan `ratiosI18n` dari `src/i18n/ratios.ts` untuk semua label, unit, dan deskripsi rasio keuangan agar konsisten di seluruh dashboard.
 
-### 5.6 API Design (Dropdowns)
+### 5.6 API Design (Dropdowns & RBAC)
 - **No Paging**: Endpoint yang digunakan untuk memuat data dropdown/selector **tidak boleh** menggunakan pagination.
 - **Active Data Only**: Tampilkan seluruh data yang memiliki status aktif secara otomatis.
 - **No Status Parameter**: Frontend tidak perlu mengirimkan parameter `status` untuk menyaring data aktif; backend harus menanganinya secara internal.
+- **Context Filtering**: Setiap API yang mengambil data transaksional (keuangan, CRM, target) **wajib** melakukan filtering berdasarkan `corporate_id` atau `department_id` yang ada pada session/token user sesuai dengan scope yang diberikan.
+- **Role Verification**: Gunakan middleware untuk memverifikasi `permissions` bukan hanya `role_name`.
 
 ---
 

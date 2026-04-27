@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { useRoles } from '../../../hooks/financial/useRoles';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -89,19 +90,21 @@ export const NotificationConfigManager: React.FC = () => {
   const configSchema = z.object({
     module: z.string().min(1, t.validation.moduleRequired),
     eventType: z.string().min(1, t.validation.eventTypeRequired),
-    role: z.string().min(1, t.validation.roleRequired),
+    roleId: z.string().min(1, t.validation.roleRequired),
     isActive: z.boolean()
   });
 
-  const canWrite = hasPermission('cfd.corporates.write');
-  const canDelete = hasPermission('cfd.corporates.delete');
+  const canWrite = hasPermission('public.notification_configs.write');
+  const canDelete = hasPermission('public.notification_configs.delete');
+
+  // Roles data from hook
+  const { data: roles = [] } = useRoles({ isActive: true });
 
   // Data state
   const [data, setData] = useState<NotificationConfig[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [roles, setRoles] = useState<Role[]>([]);
 
   // Filter state
   const [filterModule, setFilterModule] = useState('');
@@ -131,18 +134,6 @@ export const NotificationConfigManager: React.FC = () => {
     isActive: true,
   });
 
-  const fetchRoles = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/roles');
-      if (res.ok) {
-        const d = await res.json();
-        setRoles(d);
-      }
-    } catch {
-      // non-critical
-    }
-  }, []);
-
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -164,10 +155,6 @@ export const NotificationConfigManager: React.FC = () => {
       setLoading(false);
     }
   }, [page, pageSize, appliedFilters, common.errorLoadTable]);
-
-  useEffect(() => {
-    fetchRoles();
-  }, [fetchRoles]);
 
   useEffect(() => {
     fetchData();
@@ -268,7 +255,7 @@ export const NotificationConfigManager: React.FC = () => {
   const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const showingTo = Math.min(page * pageSize, totalCount);
 
-  const roleOptions = roles.map((r) => ({
+  const roleOptions = (roles || []).map((r) => ({
     value: r.id,
     label: r.name,
     sublabel: r.description ?? undefined,
@@ -298,9 +285,9 @@ export const NotificationConfigManager: React.FC = () => {
         {canWrite && (
           <button
             onClick={() => openModal('create')}
-            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
           >
-            <Plus size={18} />
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
             {t.addNew}
           </button>
         )}

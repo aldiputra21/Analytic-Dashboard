@@ -4,6 +4,7 @@ export const thresholdI18n = {
     subtitle: 'Atur ambang batas nilai untuk indikator rasio keuangan',
     resetDefaults: 'Reset ke Default',
     saveChanges: 'Simpan Perubahan',
+    subsidiary: 'Anak Perusahaan',
     tableHead: {
       ratio: 'Rasio',
       healthy: 'Ambang Batas Sehat',
@@ -50,6 +51,7 @@ export const thresholdI18n = {
     subtitle: 'Configure threshold values for financial ratio indicators',
     resetDefaults: 'Reset Defaults',
     saveChanges: 'Save Changes',
+    subsidiary: 'Subsidiary',
     tableHead: {
       ratio: 'Ratio',
       healthy: 'Healthy Threshold',

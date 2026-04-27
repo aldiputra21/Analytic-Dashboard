@@ -14,6 +14,11 @@ declare global {
   namespace Express {
     interface Request {
       user?: JWTPayload;
+      accessContext?: {
+        scope: 'system' | 'corporate' | 'department';
+        corporateIds: string[];
+        departmentIds: string[];
+      };
     }
   }
 }
@@ -97,6 +102,10 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
 
   // Attach to the unified user context
   req.user = payload;
+
+  // Fetch and attach access context
+  const { getUserAccessContext } = await import('../services/financial/permissionService');
+  req.accessContext = await getUserAccessContext(user.id);
 
   // Sliding Expiration (Stay-alive) logic
   // If more than 50% of session time has passed, issue a new token

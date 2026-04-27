@@ -470,7 +470,7 @@ export async function reevaluateAlertsForSubsidiary(
 // ============================================================
 
 export interface AlertFilters {
-  corporateId?: string;
+  corporateId?: string | string[];
   severity?: string;
   status?: string;
   limit?: number;
@@ -492,7 +492,17 @@ export async function listAlerts(filters: AlertFilters): Promise<Alert[]> {
   if (filters.status === 'active') conditions.push(eq(notifications.status, 'unread'));
   if (filters.status === 'acknowledged') conditions.push(eq(notifications.status, 'read'));
   if (filters.status === 'resolved') conditions.push(eq(notifications.status, 'archived'));
-  if (filters.corporateId) conditions.push(sql`${notifications.payload} ->> 'corporateId' = ${filters.corporateId}`);
+  
+  if (filters.corporateId) {
+    if (Array.isArray(filters.corporateId)) {
+      const { inArray } = await import('drizzle-orm');
+      if (filters.corporateId.length > 0) {
+        conditions.push(inArray(sql`${notifications.payload} ->> 'corporateId'`, filters.corporateId));
+      }
+    } else {
+      conditions.push(eq(sql`${notifications.payload} ->> 'corporateId'`, filters.corporateId));
+    }
+  }
 
   const rows = await db.select().from(notifications)
     .where(and(...conditions))
@@ -578,7 +588,17 @@ export async function getAlertHistory(filters: AlertFilters): Promise<Alert[]> {
     conditions.push(eq(notifications.recipientUserId, filters.recipientUserId));
   }
 
-  if (filters.corporateId) conditions.push(sql`${notifications.payload} ->> 'corporateId' = ${filters.corporateId}`);
+  if (filters.corporateId) {
+    if (Array.isArray(filters.corporateId)) {
+      const { inArray } = await import('drizzle-orm');
+      if (filters.corporateId.length > 0) {
+        conditions.push(inArray(sql`${notifications.payload} ->> 'corporateId'`, filters.corporateId));
+      }
+    } else {
+      conditions.push(eq(sql`${notifications.payload} ->> 'corporateId'`, filters.corporateId));
+    }
+  }
+
   if (filters.severity) conditions.push(eq(notifications.severity, filters.severity));
 
   const rows = await db.select().from(notifications)

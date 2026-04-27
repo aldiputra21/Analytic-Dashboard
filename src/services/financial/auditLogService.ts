@@ -59,6 +59,7 @@ export async function createFRSAuditLog(
  * Retrieves audit log entries with optional filters.
  */
 export async function getFRSAuditLog(
+  access: { scope: string; corporateIds: string[]; departmentIds: string[] },
   filters: {
     userId?: string;
     departmentId?: string;
@@ -78,6 +79,23 @@ export async function getFRSAuditLog(
   if (filters.action) conditions.push(eq(auditLogs.action, filters.action));
   if (filters.startDate) conditions.push(gte(auditLogs.createdAt, filters.startDate));
   if (filters.endDate) conditions.push(lte(auditLogs.createdAt, filters.endDate));
+
+  // Apply access context filtering
+  if (access.scope === 'department') {
+    const { inArray } = await import('drizzle-orm');
+    if (access.departmentIds.length === 0) return [];
+    conditions.push(inArray(auditLogs.departmentId, access.departmentIds));
+  } else if (access.scope === 'corporate') {
+    const { inArray } = await import('drizzle-orm');
+    const { departments } = await import('../../db/schema/public.js');
+    
+    // Subquery to get all departments for allowed corporates
+    const allowedDeptIds = db.select({ id: departments.id })
+      .from(departments)
+      .where(inArray(departments.corporateId, access.corporateIds));
+      
+    conditions.push(inArray(auditLogs.departmentId, allowedDeptIds));
+  }
 
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;

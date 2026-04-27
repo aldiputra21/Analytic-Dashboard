@@ -7,7 +7,9 @@ import rateLimit from 'express-rate-limit';
 import { createFRSAuthRouter } from './auth';
 import { createCorporatesRouter } from './corporates';
 import { createFinancialDataRouter } from './financialData';
-import { createUsersRouter, createRolesRouter } from './users';
+import { createUsersRouter } from './users';
+import { createRolesRouter } from './roles';
+import { createPermissionsRouter } from './permissions';
 import { createRatiosRouter } from './ratios';
 import { createThresholdsRouter } from './thresholds';
 import { createAlertsRouter } from './alerts';
@@ -79,6 +81,9 @@ export function createFRSRouter(): Router {
 
   // Roles listing (for dropdowns)
   router.use('/roles', createRolesRouter());
+
+  // Permissions management
+  router.use('/permissions', createPermissionsRouter());
 
   // Calculated ratios (with caching)
   router.use('/ratios', createRatiosRouter());

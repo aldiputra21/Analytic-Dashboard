@@ -297,7 +297,7 @@ export async function saveBalanceSheet(input: BalanceSheetInput, userId: string)
  * Results are restricted based on user's corporate access.
  */
 export async function getBalanceSheets(
-  userId: string,
+  access: { scope: string; corporateIds: string[] },
   filter?: { 
     corporateId?: string; 
     period?: string; 
@@ -306,30 +306,22 @@ export async function getBalanceSheets(
     page?: number; 
     pageSize?: number 
   },
-): Promise<{ data: BalanceSheet[]; totalCount: number }> {
-  const { corporates, userCorporateAccesses } = await import('../../db/schema/public.js');
+): Promise<{ data: BalanceSheet[]; records: BalanceSheet[]; totalCount: number }> {
+  const { corporates } = await import('../../db/schema/public.js');
   const { inArray } = await import('drizzle-orm');
-
-  // 1. Get user corporate access
-  const accessRows = await db.select({ corporateId: userCorporateAccesses.corporateId })
-    .from(userCorporateAccesses)
-    .where(eq(userCorporateAccesses.userId, userId));
-
-  const hasFullAccess = accessRows.some(a => a.corporateId === null);
-  const allowedCorpIds = accessRows.map(a => a.corporateId).filter((id): id is string => id !== null);
 
   const conditions = [];
 
   // Apply corporate filter with respect to user access
   if (filter?.corporateId) {
-    if (hasFullAccess || allowedCorpIds.includes(filter.corporateId)) {
+    if (access.scope === 'system' || access.corporateIds.includes(filter.corporateId)) {
       conditions.push(eq(balanceSheets.corporateId, filter.corporateId));
     } else {
-      return { data: [], totalCount: 0 };
+      return { data: [], records: [], totalCount: 0 };
     }
-  } else if (!hasFullAccess) {
-    if (allowedCorpIds.length === 0) return { data: [], totalCount: 0 };
-    conditions.push(inArray(balanceSheets.corporateId, allowedCorpIds));
+  } else if (access.scope !== 'system') {
+    if (access.corporateIds.length === 0) return { data: [], records: [], totalCount: 0 };
+    conditions.push(inArray(balanceSheets.corporateId, access.corporateIds));
   }
 
   if (filter?.period) conditions.push(eq(balanceSheets.period, filter.period));
@@ -359,14 +351,23 @@ export async function getBalanceSheets(
     .offset(offset);
 
   return {
+    records: rows.map(r => mapBalanceSheetRow({ ...r.data, corporateName: r.corporateName ?? undefined })),
     data: rows.map(r => mapBalanceSheetRow({ ...r.data, corporateName: r.corporateName ?? undefined })),
     totalCount
   };
 }
 
-/** Deletes a balance sheet by ID. */
-export async function deleteBalanceSheet(id: string): Promise<void> {
-  await db.delete(balanceSheets).where(eq(balanceSheets.id, id));
+/** Deletes a balance sheet by ID with corporate context check. */
+export async function deleteBalanceSheet(id: string, corporateId: string): Promise<void> {
+  const result = await db.delete(balanceSheets)
+    .where(and(
+      eq(balanceSheets.id, id),
+      eq(balanceSheets.corporateId, corporateId)
+    ));
+  
+  if (result.rowCount === 0) {
+    throw new NotFoundError('Data neraca tidak ditemukan atau Anda tidak memiliki akses');
+  }
 }
 
 // ─── Income Statement ─────────────────────────────────────────────────────────
@@ -459,7 +460,7 @@ export async function saveIncomeStatement(
  * Results are restricted based on user's corporate access.
  */
 export async function getIncomeStatements(
-  userId: string,
+  access: { scope: string; corporateIds: string[] },
   filter?: { 
     corporateId?: string; 
     period?: string; 
@@ -468,30 +469,22 @@ export async function getIncomeStatements(
     page?: number; 
     pageSize?: number 
   },
-): Promise<{ data: IncomeStatement[]; totalCount: number }> {
-  const { corporates, userCorporateAccesses } = await import('../../db/schema/public.js');
+): Promise<{ data: IncomeStatement[]; records: IncomeStatement[]; totalCount: number }> {
+  const { corporates } = await import('../../db/schema/public.js');
   const { inArray } = await import('drizzle-orm');
-
-  // 1. Get user corporate access
-  const accessRows = await db.select({ corporateId: userCorporateAccesses.corporateId })
-    .from(userCorporateAccesses)
-    .where(eq(userCorporateAccesses.userId, userId));
-
-  const hasFullAccess = accessRows.some(a => a.corporateId === null);
-  const allowedCorpIds = accessRows.map(a => a.corporateId).filter((id): id is string => id !== null);
 
   const conditions = [];
 
   // Apply corporate filter with respect to user access
   if (filter?.corporateId) {
-    if (hasFullAccess || allowedCorpIds.includes(filter.corporateId)) {
+    if (access.scope === 'system' || access.corporateIds.includes(filter.corporateId)) {
       conditions.push(eq(incomeStatements.corporateId, filter.corporateId));
     } else {
-      return { data: [], totalCount: 0 };
+      return { data: [], records: [], totalCount: 0 };
     }
-  } else if (!hasFullAccess) {
-    if (allowedCorpIds.length === 0) return { data: [], totalCount: 0 };
-    conditions.push(inArray(incomeStatements.corporateId, allowedCorpIds));
+  } else if (access.scope !== 'system') {
+    if (access.corporateIds.length === 0) return { data: [], records: [], totalCount: 0 };
+    conditions.push(inArray(incomeStatements.corporateId, access.corporateIds));
   }
 
   if (filter?.period) conditions.push(eq(incomeStatements.period, filter.period));
@@ -521,14 +514,23 @@ export async function getIncomeStatements(
     .offset(offset);
 
   return {
+    records: rows.map(r => mapIncomeStatementRow({ ...r.data, corporateName: r.corporateName ?? undefined })),
     data: rows.map(r => mapIncomeStatementRow({ ...r.data, corporateName: r.corporateName ?? undefined })),
     totalCount
   };
 }
 
-/** Deletes an income statement by ID. */
-export async function deleteIncomeStatement(id: string): Promise<void> {
-  await db.delete(incomeStatements).where(eq(incomeStatements.id, id));
+/** Deletes an income statement by ID with corporate context check. */
+export async function deleteIncomeStatement(id: string, corporateId: string): Promise<void> {
+  const result = await db.delete(incomeStatements)
+    .where(and(
+      eq(incomeStatements.id, id),
+      eq(incomeStatements.corporateId, corporateId)
+    ));
+
+  if (result.rowCount === 0) {
+    throw new NotFoundError('Data laba rugi tidak ditemukan atau Anda tidak memiliki akses');
+  }
 }
 
 // ─── Cash Flow (Weekly) ─────────────────────────────────────────────────────
@@ -634,7 +636,7 @@ export async function saveCashFlow(input: CashFlowInput, userId: string): Promis
  * Results are restricted based on user's corporate access.
  */
 export async function getCashFlows(
-  userId: string,
+  access: { scope: string; corporateIds: string[] },
   filter?: { 
     corporateId?: string; 
     entityType?: string; 
@@ -646,30 +648,22 @@ export async function getCashFlows(
     page?: number; 
     pageSize?: number 
   },
-): Promise<{ data: CashFlow[]; totalCount: number }> {
-  const { corporates, userCorporateAccesses, projects } = await import('../../db/schema/public.js');
+): Promise<{ data: CashFlow[]; records: CashFlow[]; totalCount: number }> {
+  const { corporates, projects } = await import('../../db/schema/public.js');
   const { inArray, or } = await import('drizzle-orm');
-
-  // 1. Get user corporate access
-  const accessRows = await db.select({ corporateId: userCorporateAccesses.corporateId })
-    .from(userCorporateAccesses)
-    .where(eq(userCorporateAccesses.userId, userId));
-
-  const hasFullAccess = accessRows.some(a => a.corporateId === null);
-  const allowedCorpIds = accessRows.map(a => a.corporateId).filter((id): id is string => id !== null);
 
   const conditions = [];
 
   // Apply corporate filter with respect to user access
   if (filter?.corporateId) {
-    if (hasFullAccess || allowedCorpIds.includes(filter.corporateId)) {
+    if (access.scope === 'system' || access.corporateIds.includes(filter.corporateId)) {
       conditions.push(eq(weeklyCashFlows.corporateId, filter.corporateId));
     } else {
-      return { data: [], totalCount: 0 };
+      return { data: [], records: [], totalCount: 0 };
     }
-  } else if (!hasFullAccess) {
-    if (allowedCorpIds.length === 0) return { data: [], totalCount: 0 };
-    conditions.push(inArray(weeklyCashFlows.corporateId, allowedCorpIds));
+  } else if (access.scope !== 'system') {
+    if (access.corporateIds.length === 0) return { data: [], records: [], totalCount: 0 };
+    conditions.push(inArray(weeklyCashFlows.corporateId, access.corporateIds));
   }
 
   if (filter?.entityType) conditions.push(eq(weeklyCashFlows.entityType, filter.entityType));
@@ -732,11 +726,23 @@ export async function getCashFlows(
     });
   });
 
-  return { data, totalCount };
+  return {
+    records: data,
+    data: data,
+    totalCount
+  };
 }
 
-/** Deletes a cash flow record by ID. */
-export async function deleteCashFlow(id: string): Promise<void> {
-  await db.delete(weeklyCashFlows).where(eq(weeklyCashFlows.id, id));
+/** Deletes a cash flow record by ID with corporate context check. */
+export async function deleteCashFlow(id: string, corporateId: string): Promise<void> {
+  const result = await db.delete(weeklyCashFlows)
+    .where(and(
+      eq(weeklyCashFlows.id, id),
+      eq(weeklyCashFlows.corporateId, corporateId)
+    ));
+
+  if (result.rowCount === 0) {
+    throw new NotFoundError('Data arus kas tidak ditemukan atau Anda tidak memiliki akses');
+  }
 }
 

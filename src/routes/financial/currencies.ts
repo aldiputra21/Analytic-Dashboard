@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { currencies } from '../../db/schema/public';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 
 // ---------------------------------------------------------------------------
@@ -50,7 +50,7 @@ export function createCurrenciesRouter(): Router {
    * GET /api/currencies
    * List currencies with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('public.currencies.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.currencies.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -95,7 +95,11 @@ export function createCurrenciesRouter(): Router {
    * POST /api/currencies
    * Create a new currency.
    */
-  router.post('/', requirePermission('public.currencies.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.post('/', 
+    requirePermission('public.currencies.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = createCurrencySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -138,7 +142,7 @@ export function createCurrenciesRouter(): Router {
    * GET /api/currencies/dropdown-items
    * Fetch active currencies for dropdown selection.
    */
-  router.get('/dropdown-items', requirePermission('public.currencies.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/dropdown-items', requirePermission('public.currencies.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const records = await db
       .select()
       .from(currencies)
@@ -152,7 +156,7 @@ export function createCurrenciesRouter(): Router {
    * GET /api/currencies/:id
    * Get a single currency by ID.
    */
-  router.get('/:id', requirePermission('public.currencies.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('public.currencies.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [currency] = await db
       .select()
       .from(currencies)
@@ -172,7 +176,11 @@ export function createCurrenciesRouter(): Router {
    * PUT /api/currencies/:id
    * Update a currency.
    */
-  router.put('/:id', requirePermission('public.currencies.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.put('/:id', 
+    requirePermission('public.currencies.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateCurrencySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -225,7 +233,11 @@ export function createCurrenciesRouter(): Router {
    * DELETE /api/currencies/:id
    * Delete a currency.
    */
-  router.delete('/:id', requirePermission('public.currencies.delete'), asyncHandler(async (req: Request, res: Response) => {
+  router.delete('/:id', 
+    requirePermission('public.currencies.delete'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(currencies)

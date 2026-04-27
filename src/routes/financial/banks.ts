@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { banks } from '../../db/schema/public';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 
 // ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ export function createBanksRouter(): Router {
    * GET /api/banks
    * List banks with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('public.banks.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.banks.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -98,7 +98,11 @@ export function createBanksRouter(): Router {
    * POST /api/banks
    * Create a new bank.
    */
-  router.post('/', requirePermission('public.banks.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.post('/', 
+    requirePermission('public.banks.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = createBankSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -142,7 +146,7 @@ export function createBanksRouter(): Router {
    * GET /api/banks/dropdown-items
    * Fetch active banks for dropdown selection.
    */
-  router.get('/dropdown-items', requirePermission('public.banks.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/dropdown-items', requirePermission('public.banks.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const records = await db
       .select()
       .from(banks)
@@ -156,7 +160,7 @@ export function createBanksRouter(): Router {
    * GET /api/banks/:id
    * Get a single bank by ID.
    */
-  router.get('/:id', requirePermission('public.banks.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('public.banks.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [bank] = await db
       .select()
       .from(banks)
@@ -176,7 +180,11 @@ export function createBanksRouter(): Router {
    * PUT /api/banks/:id
    * Update a bank.
    */
-  router.put('/:id', requirePermission('public.banks.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.put('/:id', 
+    requirePermission('public.banks.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateBankSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -229,7 +237,11 @@ export function createBanksRouter(): Router {
    * DELETE /api/banks/:id
    * Delete a bank.
    */
-  router.delete('/:id', requirePermission('public.banks.delete'), asyncHandler(async (req: Request, res: Response) => {
+  router.delete('/:id', 
+    requirePermission('public.banks.delete'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(banks)

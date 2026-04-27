@@ -58,9 +58,16 @@ interface RatioRow {
 }
 
 /**
- * Fetches the latest ratio values for all active corporates from the view.
+ * Fetches the latest ratio values for active corporates from the view.
  */
-async function fetchLatestRatios(): Promise<RatioRow[]> {
+async function fetchLatestRatios(corporateIds?: string[]): Promise<RatioRow[]> {
+  const conditions = [sql`c.is_active = true` ];
+  if (corporateIds && corporateIds.length > 0) {
+    conditions.push(sql`vr.corporate_id IN (${sql.join(corporateIds.map(id => sql`${id}`), sql`, `)})`);
+  }
+  
+  const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+
   const result = await db.execute(sql`
     SELECT DISTINCT ON (vr.corporate_id)
       vr.corporate_id,
@@ -70,7 +77,7 @@ async function fetchLatestRatios(): Promise<RatioRow[]> {
       vr.current_ratio, vr.quick_ratio, vr.cash_ratio
     FROM cfd.v_financial_ratios vr
     JOIN public.corporates c ON c.id = vr.corporate_id
-    WHERE c.is_active = true
+    ${whereClause}
     ORDER BY vr.corporate_id, vr.period DESC
   `);
   return result.rows as unknown as RatioRow[];
@@ -89,8 +96,10 @@ const COL_MAP: Record<RatioName, keyof RatioRow> = {
 /**
  * Calculates performance rankings, portfolio averages, and gaps for all ratios.
  */
-export async function calculateBenchmarks(): Promise<BenchmarkResult[]> {
-  const rows = await fetchLatestRatios();
+export async function calculateBenchmarks(
+  access: { scope: string; corporateIds: string[] }
+): Promise<BenchmarkResult[]> {
+  const rows = await fetchLatestRatios(access.scope !== 'system' ? access.corporateIds : undefined);
 
   return ALL_RATIOS.map((ratioName) => {
     const col = COL_MAP[ratioName];
@@ -150,8 +159,10 @@ export async function calculateBenchmarks(): Promise<BenchmarkResult[]> {
 /**
  * Compares subsidiary ratios against industry benchmarks.
  */
-export async function getIndustryBenchmarkComparison(): Promise<IndustryBenchmarkEntry[]> {
-  const rows = await fetchLatestRatios();
+export async function getIndustryBenchmarkComparison(
+  access: { scope: string; corporateIds: string[] }
+): Promise<IndustryBenchmarkEntry[]> {
+  const rows = await fetchLatestRatios(access.scope !== 'system' ? access.corporateIds : undefined);
   const results: IndustryBenchmarkEntry[] = [];
 
   for (const row of rows) {

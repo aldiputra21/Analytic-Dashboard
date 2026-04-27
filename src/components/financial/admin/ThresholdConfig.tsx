@@ -16,10 +16,13 @@ import { commonsI18n } from '../../../i18n/commons';
 import { cn } from '../../../utils/cn';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { SearchableSelect } from '../shared/SearchableSelect';
 
 interface ThresholdConfigProps {
   subsidiaryId: string;
   subsidiaryName: string;
+  subsidiaries?: Array<{ id: string; name: string }>;
+  onSubsidiaryChange?: (id: string, name: string) => void;
 }
 
 const LOWER_IS_BETTER: RatioName[] = ['der'];
@@ -39,7 +42,12 @@ type EditableThreshold = {
   moderateMax?: string;
 };
 
-export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({ subsidiaryId, subsidiaryName }) => {
+export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({ 
+  subsidiaryId, 
+  subsidiaryName,
+  subsidiaries = [],
+  onSubsidiaryChange
+}) => {
   const { language } = useAuth();
   const t = thresholdI18n[language];
   const common = commonsI18n[language];
@@ -167,16 +175,33 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({ subsidiaryId, 
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
-              <Settings2 size={24} />
+          {subsidiaries.length > 1 ? (
+            <div className="w-64">
+              <SearchableSelect
+                options={subsidiaries.map(s => ({ value: s.id, label: s.name }))}
+                value={subsidiaryId}
+                onChange={(val) => {
+                  const sub = subsidiaries.find(s => s.id === val);
+                  if (sub && onSubsidiaryChange) onSubsidiaryChange(sub.id, sub.name);
+                }}
+                placeholder={common.search}
+                label={t.subsidiary}
+              />
             </div>
-            {t.title}
-          </h2>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
-            <Building2 size={14} className="text-indigo-400" />
-            {subsidiaryName}
-          </p>
+          ) : (
+            <>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
+                  <Settings2 size={24} />
+                </div>
+                {t.title}
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
+                <Building2 size={14} className="text-indigo-400" />
+                {subsidiaryName}
+              </p>
+            </>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

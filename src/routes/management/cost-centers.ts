@@ -1,6 +1,6 @@
 // src/routes/management/cost-centers.ts
 import { Router, Request, Response } from 'express';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
   listCostCenters,
@@ -14,7 +14,7 @@ import {
 export function createCostCenterRouter(): Router {
   const router = Router();
 
-  router.get('/', requirePermission('cfd.cost_centers.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.cost_centers.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { search, activeOnly, page, pageSize } = req.query as Record<string, string>;
     const result = await listCostCenters({ 
       search, 
@@ -25,13 +25,13 @@ export function createCostCenterRouter(): Router {
     res.json(result);
   }));
 
-  router.get('/dropdown-items', requirePermission('cfd.cost_centers.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/dropdown-items', requirePermission('cfd.cost_centers.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { parentId } = req.query as Record<string, string>;
     const result = await getActiveCostCenters(parentId === undefined ? undefined : (parentId === 'null' ? null : parentId));
     res.json(result);
   }));
 
-  router.get('/:id', requirePermission('cfd.cost_centers.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.cost_centers.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const result = await getCostCenterById(req.params.id);
     if (!result) {
       res.status(404).json({ error: 'Cost center not found' });
@@ -40,7 +40,14 @@ export function createCostCenterRouter(): Router {
     res.json(result);
   }));
 
-  router.post('/', requirePermission('cfd.cost_centers.write'), asyncHandler(async (req: Request, res: Response) => {
+  // Write operations restricted to System scope
+  router.post('/', requirePermission('cfd.cost_centers.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      res.status(403).json({ error: 'Hanya administrator sistem atau global yang dapat mengelola cost center' });
+      return;
+    }
+
     const { parentId, category, name, code, description, isActive } = req.body;
     if (!name || !code || !category) {
       res.status(400).json({ error: 'Name, code, and category are required' });
@@ -55,7 +62,13 @@ export function createCostCenterRouter(): Router {
     res.status(201).json(result);
   }));
 
-  router.put('/:id', requirePermission('cfd.cost_centers.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.cost_centers.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      res.status(403).json({ error: 'Hanya administrator sistem atau global yang dapat mengelola cost center' });
+      return;
+    }
+
     const { parentId, category, name, code, description, isActive } = req.body;
     const updatedBy = req.user!.userId;
     const result = await updateCostCenter(
@@ -71,7 +84,13 @@ export function createCostCenterRouter(): Router {
     res.json(result);
   }));
 
-  router.delete('/:id', requirePermission('cfd.cost_centers.delete'), asyncHandler(async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.cost_centers.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      res.status(403).json({ error: 'Hanya administrator sistem atau global yang dapat mengelola cost center' });
+      return;
+    }
+
     const deletedBy = req.user!.userId;
     await deleteCostCenter(
       req.params.id, 

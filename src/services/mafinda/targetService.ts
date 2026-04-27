@@ -296,7 +296,7 @@ export async function saveAnnualTarget(
  */
 export async function getAnnualTargets(options: {
   search?: string;
-  departmentId?: string;
+  departmentId?: string | string[];
   projectId?: string;
   page?: number;
   pageSize?: number;
@@ -308,7 +308,13 @@ export async function getAnnualTargets(options: {
     conditions.push(sql`p.name ILIKE ${'%' + search + '%'}`)
   }
   if (departmentId) {
-    conditions.push(sql`th.department_id = ${departmentId}`);
+    if (Array.isArray(departmentId)) {
+      if (departmentId.length > 0) {
+        conditions.push(sql`th.department_id IN ${departmentId}`);
+      }
+    } else {
+      conditions.push(sql`th.department_id = ${departmentId}`);
+    }
   }
   if (projectId) {
     conditions.push(sql`th.project_id = ${projectId}`);

@@ -15,6 +15,13 @@
       "when": 1777059987307,
       "tag": "0001_grey_ultimates",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777192029193,
+      "tag": "0002_good_terror",
+      "breakpoints": true
     }
   ]
 }

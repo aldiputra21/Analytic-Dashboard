@@ -4,11 +4,11 @@
 
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { eq, ilike, or, and, count } from 'drizzle-orm';
+import { eq, ilike, or, and, count, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { bankLoans, bankLoanInstallments } from '../../db/schema/cfd';
 import { banks, corporates } from '../../db/schema/public';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
   generateFlatInstallments,
@@ -91,14 +91,20 @@ export function createBankLoansRouter(): Router {
    * GET /api/bank-loans
    * List bank loans with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('cfd.bank_loans.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.bank_loans.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
     const offset = (page - 1) * pageSize;
 
+    const access = req.accessContext!;
     const conditions = [];
+
+    if (access.scope !== 'system') {
+      if (access.corporateIds.length === 0) return res.json({ records: [], totalCount: 0 });
+      conditions.push(inArray(bankLoans.corporateId, access.corporateIds));
+    }
 
     if (search) {
       conditions.push(
@@ -177,7 +183,7 @@ export function createBankLoansRouter(): Router {
    * Create a new bank loan with installments (flat or effective).
    * Uses a DB transaction to insert loan + installments atomically.
    */
-  router.post('/', requirePermission('cfd.bank_loans.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.bank_loans.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const parsed = createLoanSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -193,6 +199,12 @@ export function createBankLoansRouter(): Router {
     }
 
     const data = parsed.data;
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system' && !access.corporateIds.includes(data.corporateId)) {
+      return res.status(403).json({ error: 'You do not have access to this corporate' });
+    }
 
     // For effective type, run additional validation via service
     if (data.interestType === 'effective') {
@@ -272,7 +284,7 @@ export function createBankLoansRouter(): Router {
    * GET /api/bank-loans/:id
    * Get a single bank loan by ID.
    */
-  router.get('/:id', requirePermission('cfd.bank_loans.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.bank_loans.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [loan] = await db
       .select({
         id: bankLoans.id,
@@ -304,6 +316,12 @@ export function createBankLoansRouter(): Router {
       });
     }
 
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system' && !access.corporateIds.includes(loan.corporateId)) {
+      return res.status(403).json({ error: 'Access denied to this corporate' });
+    }
+
     // Fetch installments
     const installments = await db
       .select()
@@ -332,7 +350,7 @@ export function createBankLoansRouter(): Router {
    * PUT /api/bank-loans/:id
    * Update a bank loan (header fields only; installments managed separately).
    */
-  router.put('/:id', requirePermission('cfd.bank_loans.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.bank_loans.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateLoanSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -357,6 +375,15 @@ export function createBankLoansRouter(): Router {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Bank loan not found' },
       });
+    }
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system' && !access.corporateIds.includes(existing.corporateId)) {
+      return res.status(403).json({ error: 'Access denied to this corporate' });
+    }
+    if (parsed.data.corporateId && access.scope !== 'system' && !access.corporateIds.includes(parsed.data.corporateId)) {
+      return res.status(403).json({ error: 'Access denied to target corporate' });
     }
 
     const updateData: Record<string, unknown> = {
@@ -387,7 +414,7 @@ export function createBankLoansRouter(): Router {
    * DELETE /api/bank-loans/:id
    * Delete a bank loan (installments cascade-deleted via FK).
    */
-  router.delete('/:id', requirePermission('cfd.bank_loans.delete'), asyncHandler(async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.bank_loans.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(bankLoans)
@@ -398,6 +425,12 @@ export function createBankLoansRouter(): Router {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Bank loan not found' },
       });
+    }
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system' && !access.corporateIds.includes(existing.corporateId)) {
+      return res.status(403).json({ error: 'Access denied to this corporate' });
     }
 
     await db.delete(bankLoans).where(eq(bankLoans.id, req.params.id));
@@ -412,6 +445,7 @@ export function createBankLoansRouter(): Router {
   router.get(
     '/:id/installments',
     requirePermission('cfd.bank_loans.read'),
+    injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       const [loan] = await db
         .select()
@@ -423,6 +457,12 @@ export function createBankLoansRouter(): Router {
         return res.status(404).json({
           error: { code: 'NOT_FOUND', message: 'Bank loan not found' },
         });
+      }
+
+      // Context Validation
+      const access = req.accessContext!;
+      if (access.scope !== 'system' && !access.corporateIds.includes(loan.corporateId)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
       }
 
       const installments = await db
@@ -443,6 +483,7 @@ export function createBankLoansRouter(): Router {
   router.patch(
     '/:id/installments/:installmentId/mark-paid',
     requirePermission('cfd.bank_loans.write'),
+    injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       const { id: loanId, installmentId } = req.params;
 
@@ -457,6 +498,12 @@ export function createBankLoansRouter(): Router {
         return res.status(404).json({
           error: { code: 'NOT_FOUND', message: 'Bank loan not found' },
         });
+      }
+
+      // Context Validation
+      const access = req.accessContext!;
+      if (access.scope !== 'system' && !access.corporateIds.includes(loan.corporateId)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
       }
 
       // Verify installment exists and belongs to this loan

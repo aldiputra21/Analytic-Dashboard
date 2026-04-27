@@ -31,27 +31,26 @@ export function createFinancialDataRouter(): Router {
    */
   router.get('/', requirePermission('cfd.reports.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, departmentId, period, limit, offset } = req.query as any;
+    const access = req.accessContext!;
 
-    if (!corporateId) {
-      const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
-      const data = await queryFinancialData({
-        corporateId: subsidiaryIds,
-        departmentId,
-        period,
-        limit: limit ? parseInt(limit) : undefined,
-        offset: offset ? parseInt(offset) : undefined,
-      } as any);
-      res.json(data);
-      return;
+    // Validation & Filtering
+    let targetCorporateIds: string[] | undefined;
+    if (corporateId) {
+      if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+        return res.json([]);
+      }
+      targetCorporateIds = [corporateId];
+    } else {
+      targetCorporateIds = access.scope !== 'system' ? access.corporateIds : undefined;
     }
 
     const data = await queryFinancialData({
-      corporateId,
+      corporateId: targetCorporateIds,
       departmentId,
       period,
       limit: limit ? parseInt(limit) : undefined,
       offset: offset ? parseInt(offset) : undefined,
-    });
+    } as any);
 
     res.json(data);
   }));
@@ -68,6 +67,14 @@ export function createFinancialDataRouter(): Router {
       });
       return;
     }
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system' && !access.corporateIds.includes(data.subsidiaryId)) {
+      res.status(403).json({ error: 'Access denied to this financial data' });
+      return;
+    }
+
     res.json(data);
   }));
 

@@ -7,11 +7,12 @@ import {
   Users, Upload, Bell, LogOut, Building2, ChevronLeft, ChevronRight,
   Shield, Menu, Target, Database, UserSquare2, FolderKanban,
   CheckCircle, Receipt, ChevronDown, Scale, FileBarChart, ArrowLeftRight,
-  ClipboardList, Landmark, DollarSign, Layers,
+  ClipboardList, Landmark, DollarSign, Layers, Languages,
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { UserRole } from '../../../types/financial/user';
+import { UserMenu } from '../UserMenu';
 import { balanceSheetI18n } from '../../../i18n/balance-sheet';
 import { incomeStatementI18n } from '../../../i18n/income-statement';
 import { weeklyCashFlowI18n } from '../../../i18n/weekly-cash-flow';
@@ -21,11 +22,14 @@ import { useNetworkResilience } from '../../../hooks/financial/useNetworkResilie
 export type FRSPage =
   | 'dashboard' | 'benchmarking' | 'trends' | 'reports' | 'alerts'
   | 'corporates' | 'cost-centers' | 'departments' | 'projects' | 'targets'
-  | 'users' | 'thresholds' | 'audit-log'
+  | 'users' | 'roles' | 'permissions' | 'thresholds' | 'audit-logs' | 'profile'
   | 'cfd-balance-sheets' | 'cfd-income-statements' | 'cfd-weekly-cash-flows'
   | 'cfd-realizations' | 'cfd-bank-loans'
+  | 'weekly-cashflow-manager' | 'realization-manager' | 'bank-loan-manager'
   | 'bank-manager' | 'corporate-sectors-manager' | 'currencies-manager'
   | 'cost-center-categories-manager' | 'notification-configs-manager'
+  | 'consolidated' | 'trend-analysis' | 'mafinda-management' | 'mafinda-data-entry'
+  | 'balance-sheet-manager' | 'income-statement-manager'
   // CRM sub-pages
   | 'crm-dashboard' | 'crm-opportunities' | 'crm-customers'
   | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse';
@@ -102,8 +106,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       },
       // Admin
       { id: 'users', label: t.menus.users, icon: Users, requiredPermissions: ['cfd.users.read'], group: 'admin' },
+      { id: 'roles', label: t.menus.roles, icon: Shield, requiredPermissions: ['cfd.roles.read'], group: 'admin' },
+      { id: 'permissions', label: t.menus.permissions, icon: Shield, requiredPermissions: ['cfd.permissions.read'], group: 'admin' },
       { id: 'thresholds', label: t.menus.thresholds, icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'admin' },
-      { id: 'audit-log', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'admin' },
+      { id: 'audit-logs', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'admin' },
       { id: 'bank-manager', label: t.menus.masterBank, icon: Building2, requiredPermissions: ['public.banks.read'], group: 'admin' },
       { id: 'corporate-sectors-manager', label: t.menus.corporateSectors, icon: Building2, requiredPermissions: ['public.corporate_sectors.read'], group: 'admin' },
       { id: 'currencies-manager', label: t.menus.currencies, icon: DollarSign, requiredPermissions: ['public.currencies.read'], group: 'admin' },
@@ -142,7 +148,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }, [language]);
 
   // User role label from database
-  const userRoleLabel = user?.roleDescription || (user?.role === 'owner' ? 'Owner' : user?.role === 'bod' ? 'Board of Directors' : 'Subsidiary Manager');
+  // User role label from database
+  const userRoleLabel = user?.roleDescription || (user?.role ? user.role.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'User');
 
   // Find label for header
   const getPageLabel = (): string => {
@@ -280,14 +287,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         })}
       </nav>
 
-      {/* User + Logout */}
+      {/* Logout Only (User Info moved to Header) */}
       <div className={cn('border-t border-slate-800 p-3', collapsed && 'px-2')}>
-        {!collapsed && user && (
-          <div className="mb-2 px-2">
-            <p className="text-white text-xs font-semibold truncate">{user.fullName}</p>
-            <p className="text-slate-400 text-[10px] truncate">{userRoleLabel}</p>
-          </div>
-        )}
         <button
           onClick={logout}
           className={cn(
@@ -337,11 +338,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </div>
           
           {/* Language Switcher */}
-          <div className="flex bg-slate-100 p-1 rounded-xl items-center">
+          <div className="flex bg-slate-100 p-1 rounded-xl items-center gap-0.5">
+            <div className="flex items-center justify-center w-6 h-6 text-slate-400 ml-1">
+              <Languages size={14} />
+            </div>
             <button 
               onClick={() => setLanguage('id')}
               className={cn(
-                "px-2 py-1 rounded-lg text-[10px] font-black uppercase transition-all",
+                "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer",
                 language === 'id' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >
@@ -350,7 +354,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <button 
               onClick={() => setLanguage('en')}
               className={cn(
-                "px-2 py-1 rounded-lg text-[10px] font-black uppercase transition-all",
+                "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer",
                 language === 'en' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >
@@ -365,6 +369,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               {navigationI18n[language].user.alertsHeader.replace('{count}', String(alertCount))}
             </button>
           )}
+
+          <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block" />
+          
+          <UserMenu onNavigate={onNavigate} />
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}

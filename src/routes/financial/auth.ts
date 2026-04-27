@@ -2,14 +2,45 @@
 // POST /api/frs/auth/login
 // POST /api/frs/auth/logout
 // GET  /api/frs/auth/me
-// Requirements: 9.6, 9.7, 9.8
+// POST /api/frs/auth/validate-activation-token
+// POST /api/frs/auth/activate-account
+// POST /api/frs/auth/validate-reset-token
+// POST /api/frs/auth/reset-password
+// Requirements: 9.6, 9.7, 9.8, 10.1–10.19, 13.1–13.18
 
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
+import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { authenticateUser, invalidateToken, getUserById, requestPasswordReset, resetPasswordWithToken } from '../../services/financial/authService';
 import { authenticate } from '../../middleware/auth';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { db } from '../../db/connection';
+import { users } from '../../db/schema/index';
+import { calculatePasswordStrength } from '../../services/financial/passwordStrength';
+
+const BCRYPT_ROUNDS = 10;
+
+// Rate limiting: 5 attempts per hour per IP
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + 60 * 60 * 1000 });
+    return true;
+  }
+
+  if (entry.count >= 5) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+}
 
 const forgotPasswordSchema = z.object({
   identifier: z.string().trim().min(1),
@@ -18,6 +49,34 @@ const forgotPasswordSchema = z.object({
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(1),
+});
+
+const validateActivationTokenSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+});
+
+const activateAccountSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const validateResetTokenSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+});
+
+const resetPasswordNewSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const updateProfileSchema = z.object({
+  fullName: z.string().min(1).max(100).optional(),
+  email: z.string().email().optional(),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
 });
 
 export function createFRSAuthRouter(): Router {
@@ -256,6 +315,590 @@ export function createFRSAuthRouter(): Router {
       roleName: user.roleName,
       roleDescription: user.roleDescription,
     });
+  }));
+
+  /**
+   * POST /api/frs/auth/validate-activation-token
+   * Public endpoint to validate an activation token
+   * Returns: { valid: boolean, username?: string, email?: string }
+   */
+  router.post('/validate-activation-token', asyncHandler(async (req: Request, res: Response) => {
+    const ip = req.ip || 'unknown';
+
+    if (!checkRateLimit(ip)) {
+      res.status(429).json({
+        error: {
+          code: 'FRS_RATE_LIMIT_EXCEEDED',
+          message: 'Too many attempts. Please try again later.',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    const parsed = validateActivationTokenSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: {
+          code: 'FRS_VALIDATION_ERROR',
+          message: 'Token is required',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    try {
+      const token = parsed.data.token;
+
+      // Find user with matching token (unactivated account)
+      const [user] = await db.select().from(users)
+        .where(
+          and(
+            eq(users.isActive, false),
+            eq(users.emailVerified, false),
+          )
+        )
+        .limit(1);
+
+      if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
+        res.json({ valid: false });
+        return;
+      }
+
+      // Check token expiry
+      if (user.passwordResetExpiresAt.getTime() < Date.now()) {
+        res.json({ valid: false });
+        return;
+      }
+
+      // Verify token with bcrypt
+      const tokenMatches = await bcrypt.compare(token, user.passwordResetTokenHash);
+      if (!tokenMatches) {
+        res.json({ valid: false });
+        return;
+      }
+
+      // Token is valid
+      res.json({
+        valid: true,
+        username: user.username || user.email,
+        email: user.email,
+      });
+    } catch (err) {
+      console.error('[FRS Auth] Validate activation token error:', err);
+      res.status(500).json({
+        error: {
+          code: 'FRS_SERVER_ERROR',
+          message: 'Internal server error',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+    }
+  }));
+
+  /**
+   * POST /api/frs/auth/activate-account
+   * Public endpoint to complete account activation
+   * Body: { token: string, newPassword: string }
+   */
+  router.post('/activate-account', asyncHandler(async (req: Request, res: Response) => {
+    const ip = req.ip || 'unknown';
+
+    if (!checkRateLimit(ip)) {
+      res.status(429).json({
+        error: {
+          code: 'FRS_RATE_LIMIT_EXCEEDED',
+          message: 'Too many attempts. Please try again later.',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    const parsed = activateAccountSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: {
+          code: 'FRS_VALIDATION_ERROR',
+          message: 'Token and password are required',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    try {
+      const { token, newPassword } = parsed.data;
+
+      // Validate password strength (minimum "fair" level)
+      const strengthResult = calculatePasswordStrength(newPassword);
+      if (strengthResult.score <= 25) {
+        res.status(400).json({
+          error: {
+            code: 'FRS_WEAK_PASSWORD',
+            message: 'Password does not meet security requirements',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Find user with matching token (unactivated account)
+      const [user] = await db.select().from(users)
+        .where(
+          and(
+            eq(users.isActive, false),
+            eq(users.emailVerified, false),
+          )
+        )
+        .limit(1);
+
+      if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
+        res.status(401).json({
+          error: {
+            code: 'FRS_INVALID_ACTIVATION_TOKEN',
+            message: 'Activation token is invalid or has expired',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Check token expiry
+      if (user.passwordResetExpiresAt.getTime() < Date.now()) {
+        res.status(401).json({
+          error: {
+            code: 'FRS_INVALID_ACTIVATION_TOKEN',
+            message: 'Activation token has expired',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Verify token with bcrypt
+      const tokenMatches = await bcrypt.compare(token, user.passwordResetTokenHash);
+      if (!tokenMatches) {
+        res.status(401).json({
+          error: {
+            code: 'FRS_INVALID_ACTIVATION_TOKEN',
+            message: 'Activation token is invalid',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+      // Update user: set password, activate account, verify email, clear token
+      await db.update(users)
+        .set({
+          passwordHash,
+          isActive: true,
+          emailVerified: true,
+          passwordResetTokenHash: null,
+          passwordResetExpiresAt: null,
+          passwordChangedAt: new Date(),
+          updatedAt: new Date(),
+          updatedBy: user.id,
+        })
+        .where(eq(users.id, user.id));
+
+      // Create audit log
+      await createFRSAuditLog({
+        userId: user.id,
+        action: 'account_activated',
+        entityType: 'user',
+        newValues: { isActive: true, emailVerified: true },
+        ipAddress: ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      res.json({
+        success: true,
+        message: 'Account activated successfully',
+      });
+    } catch (err) {
+      console.error('[FRS Auth] Activate account error:', err);
+      res.status(500).json({
+        error: {
+          code: 'FRS_SERVER_ERROR',
+          message: 'Internal server error',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+    }
+  }));
+
+  /**
+   * POST /api/frs/auth/validate-reset-token
+   * Public endpoint to validate a password reset token
+   * Returns: { valid: boolean }
+   */
+  router.post('/validate-reset-token', asyncHandler(async (req: Request, res: Response) => {
+    const ip = req.ip || 'unknown';
+
+    if (!checkRateLimit(ip)) {
+      res.status(429).json({
+        error: {
+          code: 'FRS_RATE_LIMIT_EXCEEDED',
+          message: 'Too many attempts. Please try again later.',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    const parsed = validateResetTokenSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: {
+          code: 'FRS_VALIDATION_ERROR',
+          message: 'Token is required',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    try {
+      const token = parsed.data.token;
+
+      // Find user with matching token (active account)
+      const [user] = await db.select().from(users)
+        .where(eq(users.isActive, true))
+        .limit(1);
+
+      if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
+        res.json({ valid: false });
+        return;
+      }
+
+      // Check token expiry
+      if (user.passwordResetExpiresAt.getTime() < Date.now()) {
+        res.json({ valid: false });
+        return;
+      }
+
+      // Verify token with bcrypt
+      const tokenMatches = await bcrypt.compare(token, user.passwordResetTokenHash);
+      if (!tokenMatches) {
+        res.json({ valid: false });
+        return;
+      }
+
+      // Token is valid
+      res.json({ valid: true });
+    } catch (err) {
+      console.error('[FRS Auth] Validate reset token error:', err);
+      res.status(500).json({
+        error: {
+          code: 'FRS_SERVER_ERROR',
+          message: 'Internal server error',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+    }
+  }));
+
+  /**
+   * POST /api/frs/auth/reset-password-new
+   * Public endpoint to complete password reset (new implementation)
+   * Body: { token: string, newPassword: string }
+   */
+  router.post('/reset-password-new', asyncHandler(async (req: Request, res: Response) => {
+    const ip = req.ip || 'unknown';
+
+    if (!checkRateLimit(ip)) {
+      res.status(429).json({
+        error: {
+          code: 'FRS_RATE_LIMIT_EXCEEDED',
+          message: 'Too many attempts. Please try again later.',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    const parsed = resetPasswordNewSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: {
+          code: 'FRS_VALIDATION_ERROR',
+          message: 'Token and password are required',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+      return;
+    }
+
+    try {
+      const { token, newPassword } = parsed.data;
+
+      // Validate password strength (minimum "fair" level)
+      const strengthResult = calculatePasswordStrength(newPassword);
+      if (strengthResult.score <= 25) {
+        res.status(400).json({
+          error: {
+            code: 'FRS_WEAK_PASSWORD',
+            message: 'Password does not meet security requirements',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Find user with matching token (active account)
+      const [user] = await db.select().from(users)
+        .where(eq(users.isActive, true))
+        .limit(1);
+
+      if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
+        res.status(401).json({
+          error: {
+            code: 'FRS_INVALID_RESET_TOKEN',
+            message: 'Reset token is invalid or has expired',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Check token expiry
+      if (user.passwordResetExpiresAt.getTime() < Date.now()) {
+        res.status(401).json({
+          error: {
+            code: 'FRS_INVALID_RESET_TOKEN',
+            message: 'Reset token has expired',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Verify token with bcrypt
+      const tokenMatches = await bcrypt.compare(token, user.passwordResetTokenHash);
+      if (!tokenMatches) {
+        res.status(401).json({
+          error: {
+            code: 'FRS_INVALID_RESET_TOKEN',
+            message: 'Reset token is invalid',
+            timestamp: new Date().toISOString(),
+            requestId: '',
+          },
+        });
+        return;
+      }
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+      // Update user: set password, clear token, update password_changed_at, increment authz_version
+      await db.update(users)
+        .set({
+          passwordHash,
+          passwordResetTokenHash: null,
+          passwordResetExpiresAt: null,
+          passwordChangedAt: new Date(),
+          authzVersion: (user.authzVersion ?? 1) + 1,
+          updatedAt: new Date(),
+          updatedBy: user.id,
+        })
+        .where(eq(users.id, user.id));
+
+      // Create audit log
+      await createFRSAuditLog({
+        userId: user.id,
+        action: 'password_reset_complete',
+        entityType: 'user',
+        newValues: { passwordChanged: true },
+        ipAddress: ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      res.json({
+        success: true,
+        message: 'Password reset successfully',
+      });
+    } catch (err) {
+      console.error('[FRS Auth] Reset password error:', err);
+      res.status(500).json({
+        error: {
+          code: 'FRS_SERVER_ERROR',
+          message: 'Internal server error',
+          timestamp: new Date().toISOString(),
+          requestId: '',
+        },
+      });
+    }
+  }));
+
+  /**
+   * PATCH /api/frs/auth/profile
+   * Updates the current authenticated user's profile info
+   */
+  router.patch('/profile', authenticate, asyncHandler(async (req: Request, res: Response) => {
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
+      return;
+    }
+
+    const { fullName, email } = parsed.data;
+    const userId = req.user!.userId;
+
+    // Check email uniqueness if changed
+    if (email) {
+      const [existing] = await db.select({ id: users.id }).from(users).where(and(eq(users.email, email), sql`${users.id} != ${userId}`)).limit(1);
+      if (existing) {
+        res.status(422).json({ error: 'Email already exists' });
+        return;
+      }
+    }
+
+    const [updated] = await db.update(users)
+      .set({
+        fullName: fullName || undefined,
+        email: email || undefined,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    await createFRSAuditLog({
+      userId: userId,
+      action: 'profile_updated',
+      entityType: 'User',
+      entityId: userId,
+      newValues: parsed.data,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      success: true,
+      user: {
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        fullName: updated.fullName,
+      }
+    });
+  }));
+
+  /**
+   * POST /api/frs/auth/change-password
+   * Changes the current authenticated user's password
+   */
+  router.post('/change-password', authenticate, asyncHandler(async (req: Request, res: Response) => {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
+      return;
+    }
+
+    const { currentPassword, newPassword } = parsed.data;
+    const userId = req.user!.userId;
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user || !user.passwordHash) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Verify current password
+    const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!matches) {
+      res.status(401).json({ error: 'Incorrect current password' });
+      return;
+    }
+
+    // Validate new password strength
+    const strength = calculatePasswordStrength(newPassword);
+    if (strength.score <= 25) {
+      res.status(400).json({ error: 'New password is too weak' });
+      return;
+    }
+
+    // Hash and update
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await db.update(users)
+      .set({
+        passwordHash,
+        passwordChangedAt: new Date(),
+        authzVersion: (user.authzVersion ?? 1) + 1,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      })
+      .where(eq(users.id, userId));
+
+    await createFRSAuditLog({
+      userId: userId,
+      action: 'password_changed',
+      entityType: 'User',
+      entityId: userId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  }));
+
+  /**
+   * POST /api/frs/auth/avatar
+   * Uploads or updates the current authenticated user's avatar
+   */
+  router.post('/avatar', authenticate, asyncHandler(async (req: Request, res: Response) => {
+    // For now, we'll just accept a URL in the body as a placeholder
+    // Real implementation would use multer/S3
+    const { avatarUrl } = req.body;
+    if (!avatarUrl) {
+      res.status(400).json({ error: 'avatarUrl is required' });
+      return;
+    }
+
+    const userId = req.user!.userId;
+    await db.update(users)
+      .set({
+        avatarUrl,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      })
+      .where(eq(users.id, userId));
+
+    await createFRSAuditLog({
+      userId: userId,
+      action: 'avatar_uploaded',
+      entityType: 'User',
+      entityId: userId,
+      newValues: { avatarUrl },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, avatarUrl });
   }));
 
   return router;

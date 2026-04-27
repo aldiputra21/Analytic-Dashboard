@@ -388,6 +388,73 @@ export function useAuth() {
     }
   }, []);
 
+  const updateProfile = useCallback(async (input: { fullName?: string; email?: string }) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/auth/profile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false as const, error: data.error?.code || 'NETWORK_ERROR' };
+      }
+      
+      // Update local user state
+      if (data.user && _state.user) {
+        const newUser = { ..._state.user, ...data.user };
+        localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+        setState(s => ({ ...s, user: newUser }));
+      }
+      
+      return { success: true as const, user: data.user };
+    } catch {
+      return { success: false as const, error: 'NETWORK_ERROR' };
+    }
+  }, []);
+
+  const changePassword = useCallback(async (input: { currentPassword: string; newPassword: string }) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false as const, error: data.error?.code || 'NETWORK_ERROR' };
+      }
+      return { success: true as const, message: data.message as string };
+    } catch {
+      return { success: false as const, error: 'NETWORK_ERROR' };
+    }
+  }, []);
+
+  const uploadAvatar = useCallback(async (avatarUrl: string) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/auth/avatar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false as const, error: data.error?.code || 'NETWORK_ERROR' };
+      }
+      
+      // Update local user state
+      if (_state.user) {
+        const newUser = { ..._state.user, avatarUrl };
+        localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+        setState(s => ({ ...s, user: newUser }));
+      }
+      
+      return { success: true as const, avatarUrl };
+    } catch {
+      return { success: false as const, error: 'NETWORK_ERROR' };
+    }
+  }, []);
+
   return {
     user: state.user,
     token: state.token,
@@ -397,6 +464,9 @@ export function useAuth() {
     login,
     forgotPassword,
     resetPassword,
+    updateProfile,
+    changePassword,
+    uploadAvatar,
     logout,
     hasPermission: (permission: string) => (state.user?.permissions ?? []).includes(permission),
     isOwner: state.user?.role === 'owner',
@@ -408,6 +478,7 @@ export function useAuth() {
     setLanguage: (lang: 'id' | 'en') => {
       localStorage.setItem('frs_lang', lang);
       setState(s => ({ ...s, language: lang }));
-    }
+    },
+    clearError: () => setState(s => ({ ...s, error: null }))
   };
 }

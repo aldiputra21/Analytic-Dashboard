@@ -61,36 +61,34 @@ export function requirePermission(...permissionKeys: string[]) {
 
 /**
  * Checks if a user has access to a specific corporate (subsidiary).
+ * Now uses the attached accessContext for efficiency.
  */
-export async function checkSubsidiaryAccess(
-  userId: string,
+export function checkSubsidiaryAccess(
+  req: Request,
   corporateId: string,
-): Promise<boolean> {
-  const [row] = await db.select({ id: userCorporateAccesses.id }).from(userCorporateAccesses)
-    .where(and(
-      eq(userCorporateAccesses.userId, userId),
-      eq(userCorporateAccesses.corporateId, corporateId),
-    ))
-    .limit(1);
-  return row != null;
+): boolean {
+  const access = req.accessContext;
+  if (!access) return false;
+  if (access.scope === 'system') return true;
+  return access.corporateIds.includes(corporateId);
 }
 
 /**
- * Middleware: for non-OWNER/BOD roles, verifies they have access to the
+ * Middleware: for non-SYSTEM scope roles, verifies they have access to the
  * subsidiaryId in req.params or req.query.
  */
 export function requireSubsidiaryAccess() {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const userId = req.user?.userId;
-    const role = req.user?.role;
+    const access = req.accessContext;
 
-    if (!userId) {
+    if (!userId || !access) {
       res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
       return;
     }
 
-    // Owner and BOD bypass specific subsidiary constraints as they have global view
-    if (role === 'owner' || role === 'bod') {
+    // System scope bypasses specific subsidiary constraints
+    if (access.scope === 'system') {
       next();
       return;
     }
@@ -104,7 +102,7 @@ export function requireSubsidiaryAccess() {
       return;
     }
 
-    if (!(await checkSubsidiaryAccess(userId, subsidiaryId))) {
+    if (!access.corporateIds.includes(subsidiaryId)) {
       res.status(403).json({
         error: {
           code: 'SUBSIDIARY_ACCESS_DENIED',
@@ -114,6 +112,51 @@ export function requireSubsidiaryAccess() {
       return;
     }
 
+    next();
+  };
+}
+
+/**
+ * Middleware: ensures req.accessContext is populated.
+ * Note: The main 'authenticate' middleware already does this, 
+ * but this is provided for explicit route-level clarity or manual re-injection.
+ */
+export async function injectAccessContext(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.accessContext) {
+    next();
+    return;
+  }
+
+  const userId = req.user?.userId;
+  if (!userId) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+    return;
+  }
+
+  try {
+    const { getUserAccessContext } = await import('../services/financial/permissionService');
+    req.accessContext = await getUserAccessContext(userId);
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Middleware: requires the user to have a specific access scope.
+ */
+export function requireScope(scope: 'system' | 'corporate' | 'department') {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const access = req.accessContext;
+    if (!access || access.scope !== scope) {
+      res.status(403).json({ 
+        error: { 
+          code: 'FORBIDDEN_SCOPE', 
+          message: `Required scope: ${scope}. Your scope: ${access?.scope ?? 'none'}` 
+        } 
+      });
+      return;
+    }
     next();
   };
 }

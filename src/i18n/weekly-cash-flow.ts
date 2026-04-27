@@ -4,6 +4,7 @@ import { Locale } from './commons';
 export interface WeeklyCashFlowCopy {
   title: string;
   subtitle: string;
+  inputNew: string;
   searchPlaceholder: string;
   tableHead: {
     period: string;
@@ -66,6 +67,7 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
   id: {
     title: 'Arus Kas Mingguan',
     subtitle: 'Monitoring likuiditas mingguan per perusahaan atau proyek.',
+    inputNew: 'Tambah Arus Kas',
     searchPlaceholder: 'Cari proyek...',
     tableHead: {
       period: 'Periode',
@@ -126,6 +128,7 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
   en: {
     title: 'Weekly Cash Flow',
     subtitle: 'Weekly liquidity monitoring per corporate or project.',
+    inputNew: 'Add Cash Flow',
     searchPlaceholder: 'Search project...',
     tableHead: {
       period: 'Period',

@@ -44,6 +44,7 @@ export interface CommonsCopy {
   activate: string;
   deactivate: string;
   close: string;
+  logout: string;
   months: string[];
   pagination: {
     page: string;
@@ -56,6 +57,12 @@ export interface CommonsCopy {
     entries: string;
   };
   shortMonths: string[];
+  passwordStrength: {
+    weak: string;
+    fair: string;
+    good: string;
+    strong: string;
+  };
 }
 
 export const commonsI18n: Record<Locale, CommonsCopy> = {
@@ -102,6 +109,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     activate: 'Aktifkan',
     deactivate: 'Nonaktifkan',
     close: 'Tutup',
+    logout: 'Keluar',
     months: [
       'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
@@ -117,6 +125,12 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       entries: 'entri',
     },
     shortMonths: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
+    passwordStrength: {
+      weak: 'Lemah',
+      fair: 'Cukup',
+      good: 'Baik',
+      strong: 'Kuat',
+    },
   },
   en: {
     networkOnline: 'Network connection restored',
@@ -161,6 +175,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     activate: 'Activate',
     deactivate: 'Deactivate',
     close: 'Close',
+    logout: 'Log Out',
     months: [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -176,5 +191,11 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       entries: 'entries',
     },
     shortMonths: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    passwordStrength: {
+      weak: 'Weak',
+      fair: 'Fair',
+      good: 'Good',
+      strong: 'Strong',
+    },
   },
 };

@@ -337,10 +337,10 @@ export const DepartmentManager: React.FC = () => {
         {canWrite && (
           <button
             onClick={() => handleOpenModal()}
-            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
           >
-            <Plus size={18} />
-            {common.add}
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+            {t.inputNew}
           </button>
         )}
       </div>

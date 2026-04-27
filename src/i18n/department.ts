@@ -4,6 +4,7 @@ import { Locale } from './commons';
 export interface DepartmentCopy {
   title: string;
   subtitle: string;
+  inputNew: string;
   searchPlaceholder: string;
   tableHead: {
     code: string;
@@ -46,6 +47,7 @@ export const departmentI18n: Record<Locale, DepartmentCopy> = {
   id: {
     title: 'Manajemen Departemen',
     subtitle: 'Kelola departemen dan unit kerja perusahaan.',
+    inputNew: 'Tambah Departemen',
     searchPlaceholder: 'Cari kode atau nama departemen...',
     tableHead: {
       code: 'Kode',
@@ -86,6 +88,7 @@ export const departmentI18n: Record<Locale, DepartmentCopy> = {
   en: {
     title: 'Department Management',
     subtitle: 'Manage company departments and work units.',
+    inputNew: 'Add Department',
     searchPlaceholder: 'Search department code or name...',
     tableHead: {
       code: 'Code',

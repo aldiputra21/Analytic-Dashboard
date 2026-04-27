@@ -235,12 +235,27 @@ async function resolvePrimaryRole(userId: string): Promise<{ role: UserRole; nam
     .where(eq(userCorporateAccesses.userId, userId))
     .orderBy(asc(userCorporateAccesses.scope));
 
-  const prioritizedRoles: UserRole[] = ['owner', 'bod', 'subsidiary_manager'];
-  for (const roleId of prioritizedRoles) {
-    const matched = rows.find((row) => row.roleName === roleId);
+  const prioritizedRoles: UserRole[] = [
+    'system_admin',
+    'global_admin',
+    'corporate_admin',
+    'global_executive',
+    'corporate_executive',
+    'finance_leader',
+    'finance_manager',
+    'finance_staff',
+    'dept_leader',
+    'dept_manager',
+    'dept_staff',
+    'owner',
+    'bod',
+    'subsidiary_manager'
+  ];
+  for (const roleName of prioritizedRoles) {
+    const matched = rows.find((row) => row.roleName === roleName);
     if (matched) {
       return {
-        role: roleId as UserRole,
+        role: roleName as UserRole,
         name: matched.roleName,
         description: matched.description
       };
@@ -282,6 +297,7 @@ export async function mapRowToUser(row: typeof users.$inferSelect): Promise<FRSU
     authzVersion: row.authzVersion,
     fullName: row.fullName,
     isActive: row.isActive,
+    emailVerified: row.emailVerified,
     lastLogin: row.lastLogin ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? row.createdAt,

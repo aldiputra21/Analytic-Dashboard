@@ -88,16 +88,22 @@ export async function getAllProjects(options: {
   search?: string;
   page?: number;
   pageSize?: number;
+  subsidiaryIds?: string[] | null;
+  allowedDepartmentIds?: string[] | null;
 } = {}): Promise<{ records: Project[]; totalCount: number }> {
-  const { corporateId, departmentId, search, page = 1, pageSize = 0 } = options;
+  const { corporateId, departmentId, search, page = 1, pageSize = 0, subsidiaryIds, allowedDepartmentIds } = options;
 
   let baseFilters: any[] = [];
   if (departmentId) {
     baseFilters.push(eq(projects.departmentId, departmentId));
+  } else if (allowedDepartmentIds && allowedDepartmentIds.length > 0) {
+    baseFilters.push(inArray(projects.departmentId, allowedDepartmentIds));
   }
   
   if (corporateId) {
     baseFilters.push(eq(departments.corporateId, corporateId));
+  } else if (subsidiaryIds && subsidiaryIds.length > 0) {
+    baseFilters.push(inArray(departments.corporateId, subsidiaryIds));
   }
   
   if (search) {

@@ -46,6 +46,7 @@ export interface ConsolidatedReport {
  */
 export async function generateConsolidatedReport(
   period: string,
+  access: { scope: string; corporateIds: string[] },
 ): Promise<ConsolidatedReport> {
   interface ReportRow {
     corporate_id: string;
@@ -62,6 +63,18 @@ export async function generateConsolidatedReport(
     total_liabilities: string;
     total_equity: string;
   }
+
+  const conditions = [
+    sql`vs.period = ${period}`,
+    sql`c.is_active = true`
+  ];
+
+  if (access.scope !== 'system') {
+    if (access.corporateIds.length === 0) return buildEmptyReport(period);
+    conditions.push(sql`vs.corporate_id IN (${sql.join(access.corporateIds.map(id => sql`${id}`), sql`, `)})`);
+  }
+
+  const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
   const rows = (await db.execute(sql`
     SELECT
@@ -80,7 +93,7 @@ export async function generateConsolidatedReport(
       SUM(vs.total_equity)::text AS total_equity
     FROM cfd.v_financial_summary vs
     JOIN public.corporates c ON vs.corporate_id = c.id
-    WHERE vs.period = ${period} AND c.is_active = true
+    ${whereClause}
     GROUP BY vs.corporate_id, c.name
   `)).rows as unknown as ReportRow[];
 

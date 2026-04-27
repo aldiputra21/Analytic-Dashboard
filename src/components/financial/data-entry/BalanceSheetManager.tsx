@@ -267,8 +267,9 @@ export const BalanceSheetManager: React.FC = () => {
       const res = await apiFetch(`/api/financial-statements/balance-sheet?${queryParams.toString()}`);
       if (res.ok) {
         const d = await res.json();
-        setData(d.records || []);
-        setTotalCount(d.totalCount || 0);
+        const records = d.records || d.data || [];
+        setData(records);
+        setTotalCount(d.totalCount || records.length || 0);
       } else {
         throw new Error(common.errorLoadTable);
       }
@@ -434,9 +435,9 @@ export const BalanceSheetManager: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => openModal('create')}
-              className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
             >
-              <Plus size={18} />
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
               {t.inputNew}
             </button>
           </div>
@@ -870,15 +871,15 @@ export const BalanceSheetManager: React.FC = () => {
 
                 <div className="pt-8 border-t border-slate-100">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <SummaryCard 
-                      label={t.modal.totalAssets} 
-                      value={totalAssets} 
-                      color="indigo" 
+                    <SummaryCard
+                      label={t.modal.totalAssets}
+                      value={totalAssets}
+                      color="indigo"
                     />
-                    <SummaryCard 
-                      label={t.modal.totalLiabEquity} 
-                      value={totalLiabilitiesEquity} 
-                      color="emerald" 
+                    <SummaryCard
+                      label={t.modal.totalLiabEquity}
+                      value={totalLiabilitiesEquity}
+                      color="emerald"
                     />
                   </div>
                 </div>

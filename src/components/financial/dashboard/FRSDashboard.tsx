@@ -29,6 +29,8 @@ import { CompositionPie3D } from '../../MAFINDA/dashboard/CompositionPie3D';
 import { DepartmentPerformance } from '../../MAFINDA/dashboard/DepartmentPerformance';
 import { useDashboard, type DashboardFilters } from '../../../hooks/mafinda/useDashboard';
 import { useManagement } from '../../../hooks/mafinda/useManagement';
+import { useDepartments } from '../../../hooks/financial/useDepartments';
+import { useProjects } from '../../../hooks/financial/useProjects';
 
 function parseDateSafe(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
@@ -38,11 +40,35 @@ function parseDateSafe(value: string | Date | null | undefined): Date | null {
 
 import { dashboardI18n } from '../../../i18n/dashboard';
 
-export const FRSDashboard: React.FC = () => {
+export interface FRSDashboardProps {
+  selectedSubsidiaryId?: string;
+  onSubsidiaryChange?: (id: string) => void;
+}
+
+export const FRSDashboard: React.FC<FRSDashboardProps> = ({ 
+  selectedSubsidiaryId, 
+  onSubsidiaryChange 
+}) => {
   const { language } = useAuth();
   const t = dashboardI18n[language];
   
-  const [selectedCompany, setSelectedCompany] = useState<string | 'all'>('all');
+  const [selectedCompany, setSelectedCompany] = React.useState<string | 'all'>(selectedSubsidiaryId || 'all');
+  
+  // Sync with global state if it changes outside
+  React.useEffect(() => {
+    if (selectedSubsidiaryId && selectedSubsidiaryId !== selectedCompany) {
+      setSelectedCompany(selectedSubsidiaryId);
+    } else if (!selectedSubsidiaryId && selectedCompany !== 'all') {
+      setSelectedCompany('all');
+    }
+  }, [selectedSubsidiaryId]);
+
+  const handleCompanyChange = (id: string | 'all') => {
+    setSelectedCompany(id);
+    if (onSubsidiaryChange) {
+      onSubsidiaryChange(id === 'all' ? '' : id);
+    }
+  };
   const [period, setPeriod] = useState<PeriodRange>('1y');
   const [comparisonRatio, setComparisonRatio] = useState<RatioName>('roa');
 
@@ -94,6 +120,8 @@ export const FRSDashboard: React.FC = () => {
   const mafindaMain = useDashboard(mainFilters);
   const mafindaRevCost = useDashboard(mafindaRevCostFilters);
   const mafindaCashFlow = useDashboard(mafindaCashFlowFilters);
+  const { options: departmentOptions, isLoading: isDeptsLoading } = useDepartments();
+  const { options: projectOptions, isLoading: isProjsLoading } = useProjects();
   const { departments: deptsData, projects: projsData } = useManagement();
   const departments = Array.isArray(deptsData) ? deptsData : [];
   const projects = Array.isArray(projsData) ? projsData : [];
@@ -219,7 +247,7 @@ export const FRSDashboard: React.FC = () => {
         <CompanySelector
           subsidiaries={subsidiaries}
           selectedId={selectedCompany}
-          onChange={setSelectedCompany}
+          onChange={handleCompanyChange}
         />
         <PeriodSelector value={period} onChange={setPeriod} />
         <button
@@ -367,22 +395,22 @@ export const FRSDashboard: React.FC = () => {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
             <RevenueCostCards
               summary={mafindaRevCost.revenueCostSummary}
-              departments={departments}
+              departments={departmentOptions}
               selectedDepartmentId={revenueDeptId}
               onDepartmentChange={setRevenueDeptId}
-              isLoading={mafindaRevCost.isLoading}
+              isLoading={mafindaRevCost.isLoading || isDeptsLoading}
             />
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
             <CashFlowChart
               data={mafindaCashFlow.cashFlowData?.data ?? []}
-              departments={departments}
-              projects={projects}
+              departments={departmentOptions}
+              projects={projectOptions}
               selectedDepartmentId={cashFlowDeptId}
               selectedProjectId={cashFlowProjectId}
               onDepartmentChange={setCashFlowDeptId}
               onProjectChange={setCashFlowProjectId}
-              isLoading={mafindaCashFlow.isLoading}
+              isLoading={mafindaCashFlow.isLoading || isDeptsLoading || isProjsLoading}
             />
           </div>
         </div>

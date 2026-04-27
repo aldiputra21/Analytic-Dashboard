@@ -77,13 +77,10 @@ export function createSubsidiariesRouter(): Router {
     const activeOnly = req.query.active === 'true';
     let subsidiaries = await listSubsidiaries(activeOnly);
 
-    // subsidiary_manager: filter to only their assigned corporates
-    if (req.user!.role === 'subsidiary_manager') {
-      const accessRows = await db
-        .select({ corporateId: userCorporateAccesses.corporateId })
-        .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.user!.userId));
-      const allowed = new Set(accessRows.map((r) => r.corporateId));
+    // Context Filtering
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      const allowed = new Set(access.corporateIds);
       subsidiaries = subsidiaries.filter((s) => allowed.has(s.id));
     }
 

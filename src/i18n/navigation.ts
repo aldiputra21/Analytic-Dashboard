@@ -9,7 +9,7 @@ export interface NavigationCopy {
     crm: string;
     admin: string;
   };
-  menus: {
+    menus: {
     dashboard: string;
     benchmarking: string;
     trends: string;
@@ -23,6 +23,8 @@ export interface NavigationCopy {
     projects: string;
     targets: string;
     users: string;
+    roles: string;
+    permissions: string;
     thresholds: string;
     auditLog: string;
     masterBank: string;
@@ -71,6 +73,8 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       projects: 'Proyek',
       targets: 'Target',
       users: 'Pengguna',
+      roles: 'Peran',
+      permissions: 'Izin',
       thresholds: 'Ambang Batas',
       auditLog: 'Log Audit',
       masterBank: 'Master Bank',
@@ -117,6 +121,8 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       projects: 'Projects',
       targets: 'Targets',
       users: 'Users',
+      roles: 'Roles',
+      permissions: 'Permissions',
       thresholds: 'Thresholds',
       auditLog: 'Audit Log',
       masterBank: 'Master Bank',

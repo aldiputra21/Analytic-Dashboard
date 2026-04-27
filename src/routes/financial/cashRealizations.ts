@@ -7,8 +7,8 @@ import { z } from 'zod';
 import { eq, ilike, and, count, gte, lte } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { cashRealizations } from '../../db/schema/cfd';
-import { attachments } from '../../db/schema/public';
-import { requirePermission } from '../../middleware/rbac';
+import { attachments, departments } from '../../db/schema/public';
+import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getAttachmentConfig,
@@ -75,7 +75,7 @@ export function createCashRealizationsRouter(): Router {
    * List realizations with filters: entityType, category, dateFrom, dateTo, search, pagination.
    * Also includes attachment count per record.
    */
-  router.get('/', requirePermission('cfd.realizations.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('cfd.realizations.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const entityType = req.query.entityType as string | undefined;
     const category = req.query.category as string | undefined;
@@ -105,6 +105,22 @@ export function createCashRealizationsRouter(): Router {
 
     if (dateTo) {
       conditions.push(lte(cashRealizations.transactionDate, dateTo));
+    }
+
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      const { inArray } = await import('drizzle-orm');
+      if (access.scope === 'department') {
+        if (access.departmentIds.length === 0) return res.json({ records: [], totalCount: 0 });
+        conditions.push(inArray(cashRealizations.departmentId, access.departmentIds));
+      } else if (access.scope === 'corporate') {
+        const { departments } = await import('../../db/schema/public.js');
+        if (access.corporateIds.length === 0) return res.json({ records: [], totalCount: 0 });
+        const deptSubquery = db.select({ id: departments.id })
+          .from(departments)
+          .where(inArray(departments.corporateId, access.corporateIds));
+        conditions.push(inArray(cashRealizations.departmentId, deptSubquery));
+      }
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -146,7 +162,7 @@ export function createCashRealizationsRouter(): Router {
    * POST /api/cash-realizations
    * Create a new cash realization.
    */
-  router.post('/', requirePermission('cfd.realizations.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.post('/', requirePermission('cfd.realizations.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const parsed = createRealizationSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -163,6 +179,21 @@ export function createCashRealizationsRouter(): Router {
 
     const { entityType, departmentId, projectId, transactionDate, category, amount, notes } =
       parsed.data;
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      if (access.scope === 'department' && !access.departmentIds.includes(departmentId)) {
+        return res.status(403).json({ error: 'You do not have access to this department' });
+      }
+      if (access.scope === 'corporate') {
+        const [dept] = await db.select({ corporateId: departments.corporateId })
+          .from(departments).where(eq(departments.id, departmentId)).limit(1);
+        if (!dept || !access.corporateIds.includes(dept.corporateId)) {
+          return res.status(403).json({ error: 'You do not have access to this corporate' });
+        }
+      }
+    }
 
     const [record] = await db
       .insert(cashRealizations)
@@ -185,7 +216,7 @@ export function createCashRealizationsRouter(): Router {
    * GET /api/cash-realizations/:id
    * Get a single realization by ID, including its attachments.
    */
-  router.get('/:id', requirePermission('cfd.realizations.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('cfd.realizations.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [record] = await db
       .select()
       .from(cashRealizations)
@@ -196,6 +227,22 @@ export function createCashRealizationsRouter(): Router {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Cash realization not found' },
       });
+    }
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      if (access.scope === 'department' && !access.departmentIds.includes(record.departmentId)) {
+        return res.status(403).json({ error: 'Access denied to this department' });
+      }
+      if (access.scope === 'corporate') {
+        const { departments } = await import('../../db/schema/public.js');
+        const [dept] = await db.select({ corporateId: departments.corporateId })
+          .from(departments).where(eq(departments.id, record.departmentId)).limit(1);
+        if (!dept || !access.corporateIds.includes(dept.corporateId)) {
+          return res.status(403).json({ error: 'Access denied to this corporate' });
+        }
+      }
     }
 
     const recordAttachments = await db
@@ -216,7 +263,7 @@ export function createCashRealizationsRouter(): Router {
    * PUT /api/cash-realizations/:id
    * Update a cash realization.
    */
-  router.put('/:id', requirePermission('cfd.realizations.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.put('/:id', requirePermission('cfd.realizations.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateRealizationSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -241,6 +288,22 @@ export function createCashRealizationsRouter(): Router {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Cash realization not found' },
       });
+    }
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      if (access.scope === 'department' && !access.departmentIds.includes(existing.departmentId)) {
+        return res.status(403).json({ error: 'Access denied to this department' });
+      }
+      if (access.scope === 'corporate') {
+        const { departments } = await import('../../db/schema/public.js');
+        const [dept] = await db.select({ corporateId: departments.corporateId })
+          .from(departments).where(eq(departments.id, existing.departmentId)).limit(1);
+        if (!dept || !access.corporateIds.includes(dept.corporateId)) {
+          return res.status(403).json({ error: 'Access denied to this corporate' });
+        }
+      }
     }
 
     const updateData: Record<string, unknown> = {
@@ -269,7 +332,7 @@ export function createCashRealizationsRouter(): Router {
    * DELETE /api/cash-realizations/:id
    * Delete a cash realization.
    */
-  router.delete('/:id', requirePermission('cfd.realizations.delete'), asyncHandler(async (req: Request, res: Response) => {
+  router.delete('/:id', requirePermission('cfd.realizations.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(cashRealizations)
@@ -280,6 +343,22 @@ export function createCashRealizationsRouter(): Router {
       return res.status(404).json({
         error: { code: 'NOT_FOUND', message: 'Cash realization not found' },
       });
+    }
+
+    // Context Validation
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      if (access.scope === 'department' && !access.departmentIds.includes(existing.departmentId)) {
+        return res.status(403).json({ error: 'Access denied to this department' });
+      }
+      if (access.scope === 'corporate') {
+        const { departments } = await import('../../db/schema/public.js');
+        const [dept] = await db.select({ corporateId: departments.corporateId })
+          .from(departments).where(eq(departments.id, existing.departmentId)).limit(1);
+        if (!dept || !access.corporateIds.includes(dept.corporateId)) {
+          return res.status(403).json({ error: 'Access denied to this corporate' });
+        }
+      }
     }
 
     await db.delete(cashRealizations).where(eq(cashRealizations.id, req.params.id));
@@ -295,6 +374,7 @@ export function createCashRealizationsRouter(): Router {
   router.post(
     '/:id/attachments',
     requirePermission('cfd.realizations.write'),
+    injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       // Verify the realization exists first
       const [existing] = await db

@@ -25,7 +25,7 @@ interface SearchableSelectProps {
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   options, value, onChange, placeholder = 'Select an option...', label, className, error, disabled,
-  size = 'md', usePortal = false
+  size = 'md', usePortal = true
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,14 +47,27 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isOpen && usePortal && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setCoords({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width
-      });
+    const updateCoords = () => {
+      if (isOpen && usePortal && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setCoords({
+          top: rect.bottom + window.scrollY,
+          left: rect.left + window.scrollX,
+          width: rect.width
+        });
+      }
+    };
+
+    if (isOpen && usePortal) {
+      updateCoords();
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
     }
+
+    return () => {
+      window.removeEventListener('scroll', updateCoords, true);
+      window.removeEventListener('resize', updateCoords);
+    };
   }, [isOpen, usePortal]);
 
   const filteredOptions = options.filter(o => 

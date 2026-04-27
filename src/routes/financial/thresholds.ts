@@ -2,7 +2,7 @@
 // Requirements: 5.10, 15.1, 15.5, 15.6
 
 import { Router, Request, Response } from 'express';
-import { requirePermission, requireSubsidiaryAccess } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import {
   getThresholds,
   updateThresholds,
@@ -25,147 +25,191 @@ export function createThresholdsRouter(): Router {
    * Get threshold change history (Owner only).
    * Requirements: 15.5
    */
-  router.get('/history', requirePermission('cfd.thresholds.read'), asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId, limit, offset } = req.query;
+  router.get(
+    '/history', 
+    requirePermission('cfd.thresholds.read'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { corporateId, limit, offset } = req.query;
 
-    if (!corporateId) {
-      res.status(400).json({
-        error: { code: 'FRS_VALIDATION_ERROR', message: 'corporateId query param is required', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
+      if (!corporateId) {
+        res.status(400).json({
+          error: { code: 'FRS_VALIDATION_ERROR', message: 'corporateId query param is required' },
+        });
+        return;
+      }
 
-    const history = await getThresholdHistory(
-      corporateId as string,
-      limit ? parseInt(limit as string, 10) : 100,
-      offset ? parseInt(offset as string, 10) : 0
-    );
+      // Context Validation
+      const access = req.accessContext!;
+      if (access.scope !== 'system' && !access.corporateIds.includes(corporateId as string)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
+      }
 
-    res.json(history);
-  }));
+      const history = await getThresholdHistory(
+        corporateId as string,
+        limit ? parseInt(limit as string, 10) : 100,
+        offset ? parseInt(offset as string, 10) : 0
+      );
+
+      res.json(history);
+    })
+  );
 
   /**
    * GET /api/frs/thresholds/:corporateId
    * Get thresholds for a corporate.
    * Requirements: 15.1
    */
-  router.get('/:corporateId', requirePermission('cfd.thresholds.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId } = req.params;
+  router.get(
+    '/:corporateId', 
+    requirePermission('cfd.thresholds.read'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { corporateId } = req.params;
 
-    const subsidiary = await getSubsidiaryById(corporateId);
-    if (!subsidiary) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
+      // Context Validation
+      const access = req.accessContext!;
+      if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
+      }
 
-    const thresholds = await getThresholds(corporateId);
-    res.json(thresholds);
-  }));
+      const subsidiary = await getSubsidiaryById(corporateId);
+      if (!subsidiary) {
+        res.status(404).json({
+          error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found' },
+        });
+        return;
+      }
+
+      const thresholds = await getThresholds(corporateId);
+      res.json(thresholds);
+    })
+  );
 
   /**
    * PUT /api/frs/thresholds/:corporateId
    * Update custom thresholds for a corporate (Owner only).
    * Requirements: 15.1, 15.3, 15.5
    */
-  router.put('/:corporateId', requirePermission('cfd.thresholds.write'), asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId } = req.params;
-    const { thresholds } = req.body;
+  router.put(
+    '/:corporateId', 
+    requirePermission('cfd.thresholds.write'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { corporateId } = req.params;
+      const { thresholds } = req.body;
 
-    if (!Array.isArray(thresholds) || thresholds.length === 0) {
-      res.status(400).json({
-        error: { code: 'FRS_VALIDATION_ERROR', message: 'thresholds array is required', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
+      // Context Validation
+      const access = req.accessContext!;
+      if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
+      }
 
-    const subsidiary = await getSubsidiaryById(corporateId);
-    if (!subsidiary) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
-
-    // Validate each threshold entry
-    for (const t of thresholds) {
-      if (!VALID_RATIO_NAMES.includes(t.ratioName)) {
+      if (!Array.isArray(thresholds) || thresholds.length === 0) {
         res.status(400).json({
-          error: { code: 'FRS_VALIDATION_ERROR', message: `Invalid ratioName: ${t.ratioName}`, timestamp: new Date().toISOString(), requestId: '' },
+          error: { code: 'FRS_VALIDATION_ERROR', message: 'thresholds array is required' },
         });
         return;
       }
-    }
 
-    const updates = thresholds.map((t: any) => ({
-      ratioName: t.ratioName,
-      healthyMin: t.healthyMin,
-      moderateMin: t.moderateMin,
-      riskyMax: t.riskyMax,
-      healthyMax: t.healthyMax,
-      moderateMax: t.moderateMax,
-      riskyMin: t.riskyMin,
-    }));
+      const subsidiary = await getSubsidiaryById(corporateId);
+      if (!subsidiary) {
+        res.status(404).json({
+          error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found' },
+        });
+        return;
+      }
 
-    const result = await updateThresholds(corporateId, updates, req.user!.userId);
+      // Validate each threshold entry
+      for (const t of thresholds) {
+        if (!VALID_RATIO_NAMES.includes(t.ratioName)) {
+          res.status(400).json({
+            error: { code: 'FRS_VALIDATION_ERROR', message: `Invalid ratioName: ${t.ratioName}` },
+          });
+          return;
+        }
+      }
 
-    if (!result.success) {
-      res.status(400).json({
-        error: { code: 'FRS_VALIDATION_ERROR', message: result.error, timestamp: new Date().toISOString(), requestId: '' },
+      const updates = thresholds.map((t: any) => ({
+        ratioName: t.ratioName,
+        healthyMin: t.healthyMin,
+        moderateMin: t.moderateMin,
+        riskyMax: t.riskyMax,
+        healthyMax: t.healthyMax,
+        moderateMax: t.moderateMax,
+        riskyMin: t.riskyMin,
+      }));
+
+      const result = await updateThresholds(corporateId, updates, req.user!.userId);
+
+      if (!result.success) {
+        res.status(400).json({
+          error: { code: 'FRS_VALIDATION_ERROR', message: result.error },
+        });
+        return;
+      }
+
+      await createFRSAuditLog({
+        userId: req.user!.userId,
+        action: 'update',
+        entityType: 'threshold',
+        newValues: { corporateId, count: updates.length },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
       });
-      return;
-    }
 
-    await createFRSAuditLog({
-      userId: req.user!.userId,
-      action: 'update',
-      entityType: 'threshold',
-      newValues: { corporateId, count: updates.length },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+      // Re-evaluate all current ratio values against new thresholds (Req 15.4)
+      await reevaluateAlertsForSubsidiary(corporateId);
 
-    // Re-evaluate all current ratio values against new thresholds (Req 15.4)
-    await reevaluateAlertsForSubsidiary(corporateId);
-
-    const updated = await getThresholds(corporateId);
-    res.json(updated);
-  }));
+      const updated = await getThresholds(corporateId);
+      res.json(updated);
+    })
+  );
 
   /**
    * POST /api/frs/thresholds/:corporateId/reset
    * Reset thresholds to industry defaults (Owner only).
    * Requirements: 15.6
    */
-  router.post('/:corporateId/reset', requirePermission('cfd.thresholds.configure'), asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId } = req.params;
+  router.post(
+    '/:corporateId/reset', 
+    requirePermission('cfd.thresholds.configure'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { corporateId } = req.params;
 
-    const subsidiary = await getSubsidiaryById(corporateId);
-    if (!subsidiary) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found', timestamp: new Date().toISOString(), requestId: '' },
+      // Context Validation
+      const access = req.accessContext!;
+      if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
+      }
+
+      const subsidiary = await getSubsidiaryById(corporateId);
+      if (!subsidiary) {
+        res.status(404).json({
+          error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found' },
+        });
+        return;
+      }
+
+      await resetThresholdsToDefaults(corporateId, subsidiary.industrySector, req.user!.userId);
+
+      await createFRSAuditLog({
+        userId: req.user!.userId,
+        action: 'update',
+        entityType: 'threshold',
+        newValues: { corporateId, action: 'reset_to_defaults', industrySector: subsidiary.industrySector },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
       });
-      return;
-    }
 
-    await resetThresholdsToDefaults(corporateId, subsidiary.industrySector, req.user!.userId);
+      // Re-evaluate alerts after reset (Req 15.4)
+      await reevaluateAlertsForSubsidiary(corporateId);
 
-    await createFRSAuditLog({
-      userId: req.user!.userId,
-      action: 'update',
-      entityType: 'threshold',
-      newValues: { corporateId, action: 'reset_to_defaults', industrySector: subsidiary.industrySector },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
-
-    // Re-evaluate alerts after reset (Req 15.4)
-    await reevaluateAlertsForSubsidiary(corporateId);
-
-    const updatedThresholds = await getThresholds(corporateId);
-    res.json({ message: 'Thresholds reset to industry defaults', thresholds: updatedThresholds });
-  }));
+      const updatedThresholds = await getThresholds(corporateId);
+      res.json({ message: 'Thresholds reset to industry defaults', thresholds: updatedThresholds });
+    })
+  );
 
   return router;
 }

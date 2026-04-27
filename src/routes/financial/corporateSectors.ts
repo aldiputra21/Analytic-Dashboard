@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { corporateSectors } from '../../db/schema/public';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 
 // ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ export function createCorporateSectorsRouter(): Router {
    * GET /api/corporate-sectors
    * List corporate sectors with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('public.corporate_sectors.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.corporate_sectors.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -98,7 +98,11 @@ export function createCorporateSectorsRouter(): Router {
    * POST /api/corporate-sectors
    * Create a new corporate sector.
    */
-  router.post('/', requirePermission('public.corporate_sectors.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.post('/', 
+    requirePermission('public.corporate_sectors.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = createSectorSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -142,7 +146,7 @@ export function createCorporateSectorsRouter(): Router {
    * GET /api/corporate-sectors/dropdown-items
    * Fetch active sectors for dropdown selection.
    */
-  router.get('/dropdown-items', requirePermission('public.corporate_sectors.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/dropdown-items', requirePermission('public.corporate_sectors.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const records = await db
       .select()
       .from(corporateSectors)
@@ -156,7 +160,7 @@ export function createCorporateSectorsRouter(): Router {
    * GET /api/corporate-sectors/:id
    * Get a single corporate sector by ID.
    */
-  router.get('/:id', requirePermission('public.corporate_sectors.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('public.corporate_sectors.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [sector] = await db
       .select()
       .from(corporateSectors)
@@ -176,7 +180,11 @@ export function createCorporateSectorsRouter(): Router {
    * PUT /api/corporate-sectors/:id
    * Update a corporate sector.
    */
-  router.put('/:id', requirePermission('public.corporate_sectors.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.put('/:id', 
+    requirePermission('public.corporate_sectors.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateSectorSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -229,7 +237,11 @@ export function createCorporateSectorsRouter(): Router {
    * DELETE /api/corporate-sectors/:id
    * Delete a corporate sector.
    */
-  router.delete('/:id', requirePermission('public.corporate_sectors.delete'), asyncHandler(async (req: Request, res: Response) => {
+  router.delete('/:id', 
+    requirePermission('public.corporate_sectors.delete'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(corporateSectors)

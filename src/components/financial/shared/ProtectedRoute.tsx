@@ -2,8 +2,8 @@
 // Requirements: 9.1
 
 import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../hooks/financial/useAuth';
-import { UserRole } from '../../../types/financial/user';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -17,6 +17,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   fallback,
 }) => {
   const { user, isLoading, hasPermission } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -33,11 +34,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return fallback ? (
       <>{fallback}</>
     ) : (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <div className="text-center">
-          <p className="text-slate-600 font-medium">Please log in to continue</p>
-        </div>
-      </div>
+      <Navigate to="/login" state={{ from: location }} replace />
     );
   }
 

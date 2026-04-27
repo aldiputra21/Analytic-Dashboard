@@ -220,7 +220,7 @@ export const BankLoanManager: React.FC = () => {
 
     const totalAmount = parseFloat(formData.amount);
     const tenorMonths = parseInt(formData.tenor.toString());
-    
+
     if (isNaN(totalAmount) || isNaN(tenorMonths) || tenorMonths <= 0) return;
 
     const monthlyAmount = Math.round(totalAmount / tenorMonths);
@@ -230,7 +230,7 @@ export const BankLoanManager: React.FC = () => {
     for (let i = 1; i <= tenorMonths; i++) {
       const date = new Date(startDate);
       date.setMonth(date.getMonth() + i);
-      
+
       newInstallments.push({
         installmentDate: date.toISOString().split('T')[0],
         amount: monthlyAmount,
@@ -309,16 +309,16 @@ export const BankLoanManager: React.FC = () => {
       // For flat interest, send installmentAmount; for effective, send installments array
       const payload = formData.interestType === 'flat'
         ? {
-            ...basePayload,
-            installmentAmount: installments.length > 0 ? parseFloat(installments[0].amount.toString()) : 0,
-          }
+          ...basePayload,
+          installmentAmount: installments.length > 0 ? parseFloat(installments[0].amount.toString()) : 0,
+        }
         : {
-            ...basePayload,
-            installments: installments.map(inst => ({
-              installmentDate: inst.installmentDate,
-              amount: parseFloat(inst.amount.toString()),
-            })),
-          };
+          ...basePayload,
+          installments: installments.map(inst => ({
+            installmentDate: inst.installmentDate,
+            amount: parseFloat(inst.amount.toString()),
+          })),
+        };
 
       const url = editingId ? `/api/bank-loans/${editingId}` : '/api/bank-loans';
       const method = editingId ? 'PUT' : 'POST';
@@ -354,7 +354,7 @@ export const BankLoanManager: React.FC = () => {
         if (updated.loanStatus === 'paid') {
           toast.success(t.alerts.successLoanPaid);
         }
-        
+
         // Refresh detail
         if (editingId) {
           const detailRes = await apiFetch(`/api/bank-loans/${editingId}`);
@@ -415,10 +415,10 @@ export const BankLoanManager: React.FC = () => {
         {canWrite && (
           <button
             onClick={() => openModal('create')}
-            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
           >
-            <Plus size={18} />
-            {common.add}
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+            {t.inputNew}
           </button>
         )}
       </div>
@@ -696,8 +696,8 @@ export const BankLoanManager: React.FC = () => {
             onClose={() => !isSaving && setIsModalOpen(false)}
             title={
               modalMode === 'create' ? t.modal.createTitle
-              : modalMode === 'edit' ? t.modal.editTitle
-              : t.modal.viewTitle
+                : modalMode === 'edit' ? t.modal.editTitle
+                  : t.modal.viewTitle
             }
           >
             <form onSubmit={handleSave} className="space-y-8">

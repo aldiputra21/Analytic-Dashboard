@@ -73,7 +73,11 @@ async function startServer() {
   });
 
   // Graceful shutdown for termination signals
+  let isShuttingDown = false;
   const shutdown = async (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
     console.log(`[Process] ${signal} received. Starting graceful shutdown...`);
 
     // Clear cron timers immediately
@@ -94,14 +98,39 @@ async function startServer() {
       }
     }
 
-    // Close server with timeout
-    const serverCloseTimeout = setTimeout(() => {
-      console.error('[Process] Server close timeout - forcing exit');
-      process.exit(1);
-    }, 10000); // 10 second timeout
+    // Hybrid shutdown strategy: Staged connection closure
+    const isProd = process.env.NODE_ENV === 'production';
+    const shutdownTimeout = isProd ? 10000 : 3000;
+
+    // 1. Close idle connections immediately to allow faster shutdown
+    if (typeof (server as any).closeIdleConnections === 'function') {
+      (server as any).closeIdleConnections();
+    }
+
+    // 2. Handle active connections based on environment
+    if (isProd) {
+      console.log(`[Process] Production mode: Giving active requests 5s to finish...`);
+      // In production, wait 5s before force-closing active connections
+      setTimeout(() => {
+        if (typeof (server as any).closeAllConnections === 'function') {
+          (server as any).closeAllConnections();
+        }
+      }, 5000);
+    } else {
+      // In development, close everything immediately for instant feedback
+      if (typeof (server as any).closeAllConnections === 'function') {
+        (server as any).closeAllConnections();
+      }
+    }
+
+    // Set a hard timeout to force exit if server.close() hangs indefinitely
+    const forceExitTimeout = setTimeout(() => {
+      console.warn('[Process] Graceful shutdown timed out - forcing exit');
+      process.exit(0);
+    }, shutdownTimeout);
 
     server.close(async () => {
-      clearTimeout(serverCloseTimeout);
+      clearTimeout(forceExitTimeout);
       console.log('[Process] HTTP server closed');
 
       try {
@@ -119,11 +148,10 @@ async function startServer() {
       process.exit(0);
     });
 
-    // Force close any remaining connections after timeout
-    setTimeout(() => {
-      console.warn('[Process] Forcing shutdown - some connections may not have closed gracefully');
-      process.exit(0);
-    }, 15000); // 15 second hard timeout
+    // Remove listeners so the next CTRL+C will kill the process immediately (default Node behavior)
+    // if the user gets impatient or if the graceful shutdown hangs
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

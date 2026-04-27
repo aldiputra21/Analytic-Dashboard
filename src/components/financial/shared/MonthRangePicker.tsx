@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../../utils/cn';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { formatPeriod } from '../../../utils/format';
@@ -15,6 +16,7 @@ interface MonthRangePickerProps {
     end?: string;
     apply?: string;
   };
+  usePortal?: boolean;
 }
 
 export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
@@ -24,9 +26,12 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
   className,
   language = 'id',
   labels,
+  usePortal = true
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
 
   // Parse values
   const parseValue = (val: string) => {
@@ -59,7 +64,8 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
   // Click outside to close
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node) && 
+          dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -68,6 +74,31 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
+
+  // Update coordinates on scroll/resize
+  useEffect(() => {
+    const updateCoords = () => {
+      if (isOpen && usePortal && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setCoords({
+          top: rect.bottom + window.scrollY,
+          left: rect.left + window.scrollX,
+          width: rect.width
+        });
+      }
+    };
+
+    if (isOpen && usePortal) {
+      updateCoords();
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', updateCoords, true);
+      window.removeEventListener('resize', updateCoords);
+    };
+  }, [isOpen, usePortal]);
 
   const common = commonsI18n[language as Locale] || commonsI18n.id;
   const months = common.shortMonths;
@@ -123,6 +154,7 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-2 mb-4">
           <button 
+            type="button"
             onClick={() => setViewYear(v => v - 1)}
             className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
           >
@@ -130,6 +162,7 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
           </button>
           <span className="text-sm font-medium text-slate-800">{viewYear}</span>
           <button 
+            type="button"
             onClick={() => setViewYear(v => v + 1)}
             className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
           >
@@ -145,6 +178,7 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
             
             return (
               <button
+                type="button"
                 key={monthStr}
                 onClick={() => setTemp({ year: viewYear, month: index + 1 })}
                 className={cn(
@@ -165,8 +199,38 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
     );
   };
 
+  const dropdownContent = (
+    <div 
+      ref={dropdownRef}
+      style={usePortal ? { 
+        position: 'absolute', 
+        top: coords.top, 
+        left: coords.left, 
+        zIndex: 9999 
+      } : {}}
+      className={cn(
+        "bg-white rounded-2xl shadow-xl border border-slate-200 p-4 flex flex-col gap-4 animate-in fade-in slide-in-from-top-2",
+        !usePortal && "absolute top-full left-0 mt-2 z-[100]"
+      )}
+    >
+      <div className="flex flex-col sm:flex-row gap-6">
+        {renderCalendar('start')}
+        {renderCalendar('end')}
+      </div>
+      <div className="flex justify-end pt-3 border-t border-slate-100">
+        <button
+          type="button"
+          onClick={handleApply}
+          className="px-4 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer"
+        >
+          {activeLabels.apply}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className={cn("relative inline-block", className)} ref={dropdownRef}>
+    <div className={cn("relative inline-block", className)} ref={containerRef}>
       <button 
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -174,7 +238,7 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
       >
         <div className="flex items-center gap-2">
           <Calendar size={16} className="text-slate-400" />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-left">
             <span>{startValue ? formatPeriod(startValue, language) : activeLabels.start}</span>
             <span className="text-slate-300 font-normal">—</span>
             <span>{endValue ? formatPeriod(endValue, language) : activeLabels.end}</span>
@@ -183,22 +247,7 @@ export const MonthRangePicker: React.FC<MonthRangePickerProps> = ({
         <ChevronDown size={16} className={cn("text-slate-400 transition-transform duration-200", isOpen && "rotate-180")} />
       </button>
 
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-[100] flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
-          <div className="flex flex-col sm:flex-row gap-6">
-            {renderCalendar('start')}
-            {renderCalendar('end')}
-          </div>
-          <div className="flex justify-end pt-3 border-t border-slate-100">
-            <button
-              onClick={handleApply}
-              className="px-4 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer"
-            >
-              {activeLabels.apply}
-            </button>
-          </div>
-        </div>
-      )}
+      {isOpen && (usePortal ? createPortal(dropdownContent, document.body) : dropdownContent)}
     </div>
   );
 };

@@ -81,18 +81,16 @@ export function createRatiosRouter(): Router {
       conditions.push(sql`department_id = ${departmentId}`);
     }
 
-    // subsidiary_manager: restrict to their corporates
-    if (req.user!.role === 'subsidiary_manager') {
-      const accessRows = await db
-        .select({ corporateId: userCorporateAccesses.corporateId })
-        .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.user!.userId));
-      if (accessRows.length === 0) {
+    // Context Filtering
+    const access = req.accessContext!;
+    if (access.scope !== 'system') {
+      if (corporateId && !access.corporateIds.includes(corporateId)) {
         res.json([]);
         return;
       }
-      const ids = accessRows.map((r) => r.corporateId);
-      conditions.push(sql`corporate_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`);
+      if (!corporateId) {
+        conditions.push(sql`corporate_id IN (${sql.join(access.corporateIds.map(id => sql`${id}`), sql`, `)})`);
+      }
     }
 
     if (startDate) {
@@ -119,7 +117,7 @@ export function createRatiosRouter(): Router {
     }));
 
     setCached(cacheKey, result);
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', 'HIT');
     res.json(result);
   }));
 
@@ -136,11 +134,18 @@ export function createRatiosRouter(): Router {
       return;
     }
 
+    const access = req.accessContext!;
+    let accessClause = sql`1=1`;
+    if (access.scope !== 'system') {
+      accessClause = sql`c.id IN (${sql.join(access.corporateIds.map(id => sql`${id}`), sql`, `)})`;
+    }
+
     const rows = (await db.execute(sql`
       SELECT vr.*
       FROM cfd.v_financial_ratios vr
       JOIN public.corporates c ON vr.corporate_id = c.id
       WHERE c.is_active = true
+        AND ${accessClause}
         AND vr.period = (
           SELECT MAX(vr2.period)
           FROM cfd.v_financial_ratios vr2
@@ -169,6 +174,8 @@ export function createRatiosRouter(): Router {
   router.get('/trends', requirePermission('cfd.trends.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, ratioName, period } = req.query as Record<string, string>;
 
+    const access = req.accessContext!;
+
     // Resolve date range from period shorthand
     let startDate: string | undefined;
     const now = new Date();
@@ -187,23 +194,22 @@ export function createRatiosRouter(): Router {
     // Determine which corporates to query
     let corporateIds: string[];
     if (corporateId) {
+      // Validate access to specific corporate
+      if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+        res.json([]);
+        return;
+      }
       corporateIds = [corporateId];
     } else {
-      const rows = await db
-        .select({ id: corporates.id })
-        .from(corporates)
-        .where(eq(corporates.isActive, true));
-      corporateIds = rows.map((r) => r.id);
-    }
-
-    // Restrict subsidiary_manager to their assigned corporates
-    if (req.user!.role === 'subsidiary_manager') {
-      const accessRows = await db
-        .select({ corporateId: userCorporateAccesses.corporateId })
-        .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.user!.userId));
-      const allowed = new Set(accessRows.map((r) => r.corporateId));
-      corporateIds = corporateIds.filter((id) => allowed.has(id));
+      if (access.scope === 'system') {
+        const rows = await db
+          .select({ id: corporates.id })
+          .from(corporates)
+          .where(eq(corporates.isActive, true));
+        corporateIds = rows.map((r) => r.id);
+      } else {
+        corporateIds = access.corporateIds;
+      }
     }
 
     const ratioNames: RatioName[] = ratioName
@@ -238,7 +244,8 @@ export function createRatiosRouter(): Router {
    * Requirements: 6.1, 6.4, 6.5, 6.6, 6.7
    */
   router.get('/benchmark', requirePermission('cfd.benchmarking.read'), asyncHandler(async (req: Request, res: Response) => {
-    const cacheKey = `benchmark:all`;
+    const access = req.accessContext!;
+    const cacheKey = `benchmark:${req.user!.userId}`;
     const cached = getCached<any>(cacheKey);
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -246,8 +253,8 @@ export function createRatiosRouter(): Router {
       return;
     }
 
-    const benchmarks = await calculateBenchmarks();
-    const industryComparisons = await getIndustryBenchmarkComparison();
+    const benchmarks = await calculateBenchmarks(access);
+    const industryComparisons = await getIndustryBenchmarkComparison(access);
 
     const result = { benchmarks, industryComparisons };
     setCached(cacheKey, result);

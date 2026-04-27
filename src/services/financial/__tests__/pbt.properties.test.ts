@@ -381,7 +381,7 @@ describe('P10-P14: Dashboard & Health Score', () => {
       },
     ] });
 
-    const report = await generateConsolidatedReport('2025-01');
+    const report = await generateConsolidatedReport('2025-01', { scope: 'system', corporateIds: [] });
 
     expect(report.consolidated.revenue).toBe(10000);
     expect(report.consolidated.netProfit).toBe(1200);
@@ -428,7 +428,7 @@ describe('P10-P14: Dashboard & Health Score', () => {
       },
     ] });
 
-    const rows = await getIndustryBenchmarkComparison();
+    const rows = await getIndustryBenchmarkComparison({ scope: 'system', corporateIds: [] });
     expect(rows.some((row) => row.industrySector === 'manufacturing')).toBe(true);
     expect(rows.some((row) => row.industrySector === 'retail')).toBe(true);
   });
@@ -537,7 +537,7 @@ describe('P20-P24: Benchmarking & Thresholds', () => {
       },
     ] });
 
-    const result = await calculateBenchmarks();
+    const result = await calculateBenchmarks({ scope: 'system', corporateIds: [] });
     const roaBenchmark = result.find((item) => item.ratioName === 'roa');
 
     expect(roaBenchmark).toBeTruthy();
@@ -614,7 +614,7 @@ describe('P25-P29: Consolidated Reporting', () => {
       },
     ] });
 
-    const report = await generateConsolidatedReport('2025-01');
+    const report = await generateConsolidatedReport('2025-01', { scope: 'system', corporateIds: [] });
     expect(report.consolidated.revenue).toBe(10000);
   });
   test('P26: contribution percentages sum to ~100%', async () => {
@@ -629,14 +629,14 @@ describe('P25-P29: Consolidated Reporting', () => {
       },
     ] });
 
-    const report = await generateConsolidatedReport('2025-01');
+    const report = await generateConsolidatedReport('2025-01', { scope: 'system', corporateIds: [] });
     const sum = report.contributions.reduce((acc, item) => acc + item.revenueContribution, 0);
     expect(sum).toBeCloseTo(100, 6);
   });
   test('P27: empty period returns zero-filled report', async () => {
     dbState.executeQueue.push({ rows: [] });
 
-    const report = await generateConsolidatedReport('2025-12');
+    const report = await generateConsolidatedReport('2025-12', { scope: 'system', corporateIds: [] });
     expect(report.subsidiaryCount).toBe(0);
     expect(report.consolidated.revenue).toBe(0);
     expect(report.contributions).toEqual([]);
@@ -649,7 +649,7 @@ describe('P25-P29: Consolidated Reporting', () => {
       },
     ] });
 
-    const report = await generateConsolidatedReport('2025-01');
+    const report = await generateConsolidatedReport('2025-01', { scope: 'system', corporateIds: [] });
     expect(report.consolidatedRatios.roa).not.toBeNull();
     expect(report.consolidatedRatios.currentRatio).not.toBeNull();
   });
@@ -660,8 +660,8 @@ describe('P25-P29: Consolidated Reporting', () => {
     };
     dbState.executeQueue.push({ rows: [row] }, { rows: [row] });
 
-    const first = await generateConsolidatedReport('2025-01');
-    const second = await generateConsolidatedReport('2025-01');
+    const first = await generateConsolidatedReport('2025-01', { scope: 'system', corporateIds: [] });
+    const second = await generateConsolidatedReport('2025-01', { scope: 'system', corporateIds: [] });
 
     expect(first.period).toBe(second.period);
     expect(first.consolidated).toEqual(second.consolidated);
@@ -780,7 +780,7 @@ describe('P40-P44: Audit Logging & Export', () => {
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
     }]);
 
-    const logs = await getFRSAuditLog({ userId: 'user-1', limit: 10, offset: 0 });
+    const logs = await getFRSAuditLog({ scope: 'system', corporateIds: [], departmentIds: [] }, { userId: 'user-1', limit: 10, offset: 0 });
 
     expect(logs).toHaveLength(1);
     expect(logs[0].userId).toBe('user-1');
@@ -828,7 +828,7 @@ describe('P40-P44: Audit Logging & Export', () => {
       },
     ]);
 
-    const logs = await getFRSAuditLog({ entityType: 'threshold' });
+    const logs = await getFRSAuditLog({ scope: 'system', corporateIds: [], departmentIds: [] }, { entityType: 'threshold' });
     expect(logs).toHaveLength(1);
     expect(logs[0].entityType).toBe('threshold');
   });
@@ -985,7 +985,7 @@ describe('P50-P57: Advanced Properties', () => {
       },
     ] });
 
-    const rows = await getIndustryBenchmarkComparison();
+    const rows = await getIndustryBenchmarkComparison({ scope: 'system', corporateIds: [] });
     const roaRow = rows.find((row) => row.ratioName === 'roa');
 
     expect(roaRow).toBeTruthy();

@@ -740,10 +740,10 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getBalanceSheets('tester');
+    const result = await getBalanceSheets({ scope: 'system', corporateIds: [] });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('bs-1');
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].id).toBe('bs-1');
   });
   test('getBalanceSheets — filters by period', async () => {
     dbState.selectQueue.push([{
@@ -776,10 +776,10 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getBalanceSheets('tester', { period: '2025-02' });
+    const result = await getBalanceSheets({ scope: 'system', corporateIds: [] }, { period: '2025-02' });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].period).toBe('2025-02');
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].period).toBe('2025-02');
   });
   test('saveIncomeStatement — saves and returns income statement', async () => {
     dbState.selectQueue.push([]);
@@ -877,10 +877,10 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getIncomeStatements('tester');
+    const result = await getIncomeStatements({ scope: 'system', corporateIds: [] });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('is-1');
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].id).toBe('is-1');
   });
   test('saveCashFlow — saves and returns cash flow', async () => {
     dbState.selectQueue.push([]);
@@ -1002,10 +1002,10 @@ describe('financialStatementService', () => {
       updatedAt: null,
     }]);
 
-    const result = await getCashFlows('tester', { period: '2025-02' });
+    const result = await getCashFlows({ scope: 'system', corporateIds: [] }, { period: '2025-02' });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].period).toBe('2025-02');
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].period).toBe('2025-02');
   });
 });
 

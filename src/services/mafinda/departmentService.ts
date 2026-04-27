@@ -65,13 +65,16 @@ export async function getAllDepartments(options: {
   search?: string;
   page?: number;
   pageSize?: number;
+  subsidiaryIds?: string[] | null;
 }): Promise<{ records: Department[]; totalCount: number }> {
-  const { corporateId, search, page = 1, pageSize = 0 } = options;
+  const { corporateId, search, page = 1, pageSize = 0, subsidiaryIds } = options;
 
   const conditions = [];
   
   if (corporateId) {
     conditions.push(eq(departments.corporateId, corporateId));
+  } else if (subsidiaryIds && subsidiaryIds.length > 0) {
+    conditions.push(inArray(departments.corporateId, subsidiaryIds));
   }
 
   if (search) {

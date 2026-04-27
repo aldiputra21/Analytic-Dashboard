@@ -2,7 +2,7 @@
 // Requirements: 5.8, 5.9
 
 import { Router, Request, Response } from 'express';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
   listAlerts,
@@ -10,9 +10,6 @@ import {
   acknowledgeAlert,
   getAlertHistory,
 } from '../../services/financial/alertEngine';
-import { db } from '../../db/connection';
-import { userCorporateAccesses } from '../../db/schema/public';
-import { eq } from 'drizzle-orm';
 
 export function createAlertsRouter(): Router {
   const router = Router();
@@ -22,119 +19,113 @@ export function createAlertsRouter(): Router {
    * Get alert history (non-active alerts).
    * Requirements: 5.8, 5.9
    */
-  router.get('/history', requirePermission('cfd.alerts.read'), asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId, severity, limit, offset } = req.query as any;
+  router.get(
+    '/history', 
+    requirePermission('cfd.alerts.read'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { corporateId, severity, limit, offset } = req.query as any;
 
-    // subsidiary_manager: restrict to their corporates
-    if (req.user!.role === 'subsidiary_manager' && !corporateId) {
-      const accessRows = await db
-        .select({ corporateId: userCorporateAccesses.corporateId })
-        .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.user!.userId));
-      if (accessRows.length === 0) {
-        res.json([]);
-        return;
+      const access = req.accessContext!;
+      
+      if (access.scope !== 'system' && corporateId && !access.corporateIds.includes(corporateId)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
       }
-      const allAlerts: any[] = [];
-      for (const r of accessRows) {
-        const alerts = await getAlertHistory({ corporateId: r.corporateId, severity, recipientUserId: req.user!.userId });
-        allAlerts.push(...alerts);
-      }
-      res.json(allAlerts);
-      return;
-    }
 
-    const alerts = await getAlertHistory({
-      corporateId,
-      severity,
-      recipientUserId: req.user!.userId,
-      limit: limit ? parseInt(limit) : undefined,
-      offset: offset ? parseInt(offset) : undefined,
-    });
+      const alerts = await getAlertHistory({
+        corporateId: corporateId || (access.scope !== 'system' ? access.corporateIds : undefined),
+        severity,
+        recipientUserId: req.user!.userId,
+        limit: limit ? parseInt(limit) : undefined,
+        offset: offset ? parseInt(offset) : undefined,
+      });
 
-    res.json(alerts);
-  }));
+      res.json(alerts);
+    })
+  );
 
   /**
    * GET /api/frs/alerts
    * List active alerts with filters.
    * Requirements: 5.8
    */
-  router.get('/', requirePermission('cfd.alerts.read'), asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId, severity, status, limit, offset } = req.query as any;
+  router.get(
+    '/', 
+    requirePermission('cfd.alerts.read'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { corporateId, severity, status, limit, offset } = req.query as any;
 
-    // subsidiary_manager: restrict to their corporates
-    if (req.user!.role === 'subsidiary_manager' && !corporateId) {
-      const accessRows = await db
-        .select({ corporateId: userCorporateAccesses.corporateId })
-        .from(userCorporateAccesses)
-        .where(eq(userCorporateAccesses.userId, req.user!.userId));
-      if (accessRows.length === 0) {
-        res.json([]);
-        return;
+      const access = req.accessContext!;
+      
+      if (access.scope !== 'system' && corporateId && !access.corporateIds.includes(corporateId)) {
+        return res.status(403).json({ error: 'Access denied to this corporate' });
       }
-      const allAlerts: any[] = [];
-      for (const r of accessRows) {
-        const alerts = await listAlerts({ corporateId: r.corporateId, severity, status: status ?? 'active', recipientUserId: req.user!.userId });
-        allAlerts.push(...alerts);
-      }
-      res.json(allAlerts);
-      return;
-    }
 
-    const alerts = await listAlerts({
-      corporateId,
-      severity,
-      status: status ?? 'active',
-      recipientUserId: req.user!.userId,
-      limit: limit ? parseInt(limit) : undefined,
-      offset: offset ? parseInt(offset) : undefined,
-    });
+      const alerts = await listAlerts({
+        corporateId: corporateId || (access.scope !== 'system' ? access.corporateIds : undefined),
+        severity,
+        status: status ?? 'active',
+        recipientUserId: req.user!.userId,
+        limit: limit ? parseInt(limit) : undefined,
+        offset: offset ? parseInt(offset) : undefined,
+      });
 
-    res.json(alerts);
-  }));
+      res.json(alerts);
+    })
+  );
 
   /**
    * GET /api/frs/alerts/:id
    * Get alert details.
    * Requirements: 5.9
    */
-  router.get('/:id', requirePermission('cfd.alerts.read'), asyncHandler(async (req: Request, res: Response) => {
-    const alert = await getUserAlertById(req.params.id, req.user!.userId);
-    if (!alert) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Alert not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
+  router.get(
+    '/:id', 
+    requirePermission('cfd.alerts.read'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const alert = await getUserAlertById(req.params.id, req.user!.userId);
+      if (!alert) {
+        res.status(404).json({
+          error: { code: 'FRS_NOT_FOUND', message: 'Alert not found' },
+        });
+        return;
+      }
 
-    res.json(alert);
-  }));
+      res.json(alert);
+    })
+  );
 
   /**
    * PATCH /api/frs/alerts/:id/acknowledge
    * Acknowledge an alert.
    * Requirements: 5.9
    */
-  router.patch('/:id/acknowledge', requirePermission('cfd.alerts.write'), asyncHandler(async (req: Request, res: Response) => {
-    const alert = await getUserAlertById(req.params.id, req.user!.userId);
-    if (!alert) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Alert not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
+  router.patch(
+    '/:id/acknowledge', 
+    requirePermission('cfd.alerts.write'), 
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const alert = await getUserAlertById(req.params.id, req.user!.userId);
+      if (!alert) {
+        res.status(404).json({
+          error: { code: 'FRS_NOT_FOUND', message: 'Alert not found' },
+        });
+        return;
+      }
 
-    if (alert.status !== 'active') {
-      res.status(422).json({
-        error: { code: 'FRS_INVALID_STATE', message: `Alert is already ${alert.status}`, timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
-    }
+      if (alert.status !== 'active') {
+        res.status(422).json({
+          error: { code: 'FRS_INVALID_STATE', message: `Alert is already ${alert.status}` },
+        });
+        return;
+      }
 
-    const updated = await acknowledgeAlert(req.params.id, req.user!.userId);
-    res.json(updated);
-  }));
+      const updated = await acknowledgeAlert(req.params.id, req.user!.userId);
+      res.json(updated);
+    })
+  );
 
   return router;
 }

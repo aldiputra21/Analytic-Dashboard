@@ -1,15 +1,5 @@
-// scripts/seed-public.ts — Seed public schema data
+// scripts/seed-public.ts — Seed public schema data with New RBAC Roles
 // Run with: npx tsx scripts/seed-public.ts
-//
-// Seeds:
-//   - roles (owner, bod, subsidiary_manager)
-//   - permissions (24 cfd.* keys)
-//   - role_permissions
-//   - users (admin, finance, banking, owner)
-//   - corporates (ASI, TSI)
-//   - departments (4 departments)
-//   - projects (5 projects)
-//   - user_corporate_accesses
 
 import 'dotenv/config';
 import { db } from '../src/db/connection';
@@ -34,12 +24,20 @@ import bcrypt from 'bcryptjs';
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
 async function main() {
-  console.log('🚀 Seeding public schema data...');
+  console.log('🚀 Seeding public schema data with New RBAC...');
 
   const permissionCatalog: Array<{ key: string; module: string; description: string }> = [
     // Dashboard & Global
     { key: 'cfd.dashboard.read', module: 'cfd', description: 'Read dashboard' },
     { key: 'approvals.read', module: 'public', description: 'Read approvals' },
+
+    // Admin Permission & Role Management
+    { key: 'cfd.permissions.read', module: 'cfd', description: 'Read permissions' },
+    { key: 'cfd.permissions.write', module: 'cfd', description: 'Manage permissions' },
+    { key: 'cfd.roles.read', module: 'cfd', description: 'Read roles' },
+    { key: 'cfd.roles.write', module: 'cfd', description: 'Manage roles' },
+    { key: 'cfd.users.reset_password', module: 'cfd', description: 'Force reset user password' },
+    { key: 'cfd.audit_log.read', module: 'cfd', description: 'Read audit logs' },
 
     // FRS / Corporate Finance
     { key: 'cfd.corporates.read', module: 'cfd', description: 'Read corporates' },
@@ -139,44 +137,119 @@ async function main() {
   ];
 
   const rolePermissionMap: Record<string, string[]> = {
-    owner: permissionCatalog.map((p) => p.key),
-    bod: permissionCatalog.filter(p => p.key.endsWith('.read')).map(p => p.key),
-    subsidiary_manager: [
+    system_admin: permissionCatalog.map((p) => p.key),
+    global_admin: [
       'cfd.dashboard.read',
       'approvals.read',
       'cfd.corporates.read',
-      'cfd.benchmarking.read',
-      'cfd.trends.read',
-      'cfd.alerts.read',
-      'cfd.alerts.write',
-      'cfd.thresholds.read',
-      'cfd.reports.read',
-      'cfd.reports.export',
+      'cfd.corporates.write',
+      'cfd.cost_centers.read',
+      'cfd.cost_centers.write',
+      'cfd.users.read',
+      'cfd.users.write',
+      'cfd.users.manage_users',
       'cfd.notifications.read',
       'cfd.notifications.write',
-      // Management
+      'cfd.audit_log.read',
+      'public.notification_configs.read',
+      'public.notification_configs.write',
+      'public.notification_configs.delete',
+      'public.banks.read',
+      'public.banks.write',
+      'public.corporate_sectors.read',
+      'public.corporate_sectors.write',
+      'public.currencies.read',
+      'public.currencies.write',
+      'public.cost_center_categories.read',
+      'public.cost_center_categories.write',
+      'crm.dashboard.read',
+      'crm.customers.read',
+      'crm.reports.read',
+    ],
+    global_executive: permissionCatalog.filter(p => p.key.endsWith('.read')).map(p => p.key),
+    corporate_admin: [
+      'cfd.dashboard.read',
+      'approvals.read',
+      'cfd.users.read',
+      'cfd.users.write',
+      'cfd.users.manage_users',
       'public.departments.read',
       'public.departments.write',
       'public.projects.read',
       'public.projects.write',
-      'public.targets.read',
-      'public.targets.write',
+      'cfd.notifications.read',
+      'cfd.notifications.write',
+      'cfd.audit_log.read',
+    ],
+    corporate_executive: permissionCatalog
+      .filter(p => p.key.endsWith('.read'))
+      .map(p => p.key),
+    finance_leader: [
+      'cfd.dashboard.read',
+      'approvals.read',
+      'cfd.statements.read',
+      'cfd.reports.read',
+      'cfd.reports.export',
+      'cfd.balance_sheets.read',
+      'cfd.income_statements.read',
+      'cfd.weekly_cash_flows.read',
+      'cfd.realizations.read',
+      'cfd.notifications.read',
+    ],
+    finance_manager: [
+      'cfd.dashboard.read',
+      'approvals.read',
+      'cfd.statements.read',
+      'cfd.reports.read',
+      'cfd.reports.export',
+      'cfd.balance_sheets.read',
+      'cfd.income_statements.read',
+      'cfd.weekly_cash_flows.read',
+      'cfd.realizations.read',
+      'cfd.notifications.read',
+    ],
+    finance_staff: [
+      'cfd.dashboard.read',
       'cfd.statements.read',
       'cfd.statements.write',
-      // Refined permissions
       'cfd.balance_sheets.read',
       'cfd.balance_sheets.write',
       'cfd.income_statements.read',
       'cfd.income_statements.write',
       'cfd.weekly_cash_flows.read',
       'cfd.weekly_cash_flows.write',
-      // Master tables (read only)
-      'public.banks.read',
-      'public.corporate_sectors.read',
-      'public.currencies.read',
-      'public.cost_center_categories.read',
-      'public.notification_configs.read',
-      // CRM write access for managers
+      'cfd.realizations.read',
+      'cfd.realizations.write',
+      'cfd.notifications.read',
+    ],
+    dept_leader: [
+      'cfd.dashboard.read',
+      'approvals.read',
+      'public.targets.read',
+      'crm.dashboard.read',
+      'crm.customers.read',
+      'crm.opportunities.read',
+      'crm.proposals.read',
+      'crm.contracts.read',
+      'crm.reports.read',
+      'cfd.notifications.read',
+    ],
+    dept_manager: [
+      'cfd.dashboard.read',
+      'approvals.read',
+      'public.targets.read',
+      'crm.dashboard.read',
+      'crm.customers.read',
+      'crm.opportunities.read',
+      'crm.proposals.read',
+      'crm.contracts.read',
+      'crm.reports.read',
+      'cfd.notifications.read',
+    ],
+    dept_staff: [
+      'cfd.dashboard.read',
+      'public.targets.read',
+      'public.targets.write',
       'crm.dashboard.read',
       'crm.customers.read',
       'crm.customers.write',
@@ -185,75 +258,75 @@ async function main() {
       'crm.proposals.read',
       'crm.proposals.write',
       'crm.contracts.read',
-      'crm.qualifications.read',
-      'crm.qualifications.write',
-      'crm.reimburse.read',
-      'crm.reimburse.write',
-      // CFD Financial Enhancements
-      'cfd.realizations.read',
-      'cfd.realizations.write',
-      'cfd.bank_loans.read',
-      'cfd.bank_loans.write',
+      'crm.contracts.write',
+      'crm.interactions.read',
+      'crm.interactions.write',
+      'cfd.notifications.read',
     ],
   };
 
   // ── Roles ─────────────────────────────────────────────────
   console.log('📋 Seeding roles...');
-  const [ownerRole] = await db
-    .insert(roles)
-    .values({ name: 'owner', scope: 'system', description: 'Owner', createdBy: SYSTEM_ACTOR_ID })
-    .onConflictDoNothing({ target: roles.name })
-    .returning();
+  const roleDefinitions = [
+    { name: 'system_admin', scope: 'system', description: 'System Administrator' },
+    { name: 'global_admin', scope: 'system', description: 'Holding Administrator' },
+    { name: 'global_executive', scope: 'system', description: 'Holding Executive' },
+    { name: 'corporate_admin', scope: 'corporate', description: 'Corporate Administrator' },
+    { name: 'corporate_executive', scope: 'corporate', description: 'Corporate BOD' },
+    { name: 'finance_leader', scope: 'corporate', description: 'Finance Leader' },
+    { name: 'finance_manager', scope: 'corporate', description: 'Finance Manager' },
+    { name: 'finance_staff', scope: 'corporate', description: 'Finance Staff' },
+    { name: 'dept_leader', scope: 'department', description: 'Department Leader' },
+    { name: 'dept_manager', scope: 'department', description: 'Department Manager' },
+    { name: 'dept_staff', scope: 'department', description: 'Department Staff' },
+  ];
 
-  const [bodRole] = await db
-    .insert(roles)
-    .values({ name: 'bod', scope: 'corporate', description: 'Board of Directors', createdBy: SYSTEM_ACTOR_ID })
-    .onConflictDoNothing({ target: roles.name })
-    .returning();
-
-  const [subsidiaryManagerRole] = await db
-    .insert(roles)
-    .values({ name: 'subsidiary_manager', scope: 'corporate', description: 'Subsidiary Manager', createdBy: SYSTEM_ACTOR_ID })
-    .onConflictDoNothing({ target: roles.name })
-    .returning();
+  for (const roleDef of roleDefinitions) {
+    await db
+      .insert(roles)
+      .values({ ...roleDef, createdBy: SYSTEM_ACTOR_ID })
+      .onConflictDoUpdate({
+        target: roles.name,
+        set: { scope: roleDef.scope, description: roleDef.description },
+      });
+  }
 
   const allRoles = await db.select().from(roles);
-  const ownerRoleId = ownerRole?.id ?? allRoles.find((r) => r.name === 'owner')!.id;
-  const bodRoleId = bodRole?.id ?? allRoles.find((r) => r.name === 'bod')!.id;
-  const subsidiaryManagerRoleId = subsidiaryManagerRole?.id ?? allRoles.find((r) => r.name === 'subsidiary_manager')!.id;
+  const roleMap = new Map(allRoles.map((r) => [r.name, r.id]));
   console.log('   ✅ Roles ready');
 
   // ── Users ─────────────────────────────────────────────────
   console.log('👥 Seeding users...');
-  const [adminUser] = await db
-    .insert(users)
-    .values({ username: 'admin', email: 'admin@cfd.local', passwordHash: await bcrypt.hash('admin123', 10), fullName: 'Administrator', createdBy: 'system' })
-    .onConflictDoNothing({ target: users.email })
-    .returning();
+  const userDefinitions = [
+    { username: 'admin_system', email: 'admin.system@cfd.local', fullName: 'System Administrator' },
+    { username: 'admin_global', email: 'admin.global@cfd.local', fullName: 'Global Administrator' },
+    { username: 'admin_tsi', email: 'admin.tsi@cfd.local', fullName: 'TSI IT Admin' },
+    { username: 'exec_global', email: 'exec.global@cfd.local', fullName: 'Global Executive' },
+    { username: 'exec_tsi', email: 'exec.tsi@cfd.local', fullName: 'TSI Executive' },
+    { username: 'finance_leader_tsi', email: 'finance.leader@tsi.local', fullName: 'TSI Finance Leader' },
+    { username: 'finance_staff_tsi', email: 'finance.staff@tsi.local', fullName: 'TSI Finance Staff' },
+    { username: 'dept_leader_onm_tsi', email: 'dept.leader.onm@tsi.local', fullName: 'TSI ONM Leader' },
+    { username: 'dept_staff_onm_tsi', email: 'dept.staff.onm@tsi.local', fullName: 'TSI ONM Staff' },
+  ];
 
-  const [financeUser] = await db
-    .insert(users)
-    .values({ username: 'finance', email: 'finance@cfd.local', passwordHash: await bcrypt.hash('finance123', 10), fullName: 'Finance Analyst', createdBy: 'system' })
-    .onConflictDoNothing({ target: users.email })
-    .returning();
+  const defaultPassword = await bcrypt.hash('Admin@123456', 10);
 
-  const [bankingUser] = await db
-    .insert(users)
-    .values({ username: 'banking', email: 'banking@cfd.local', passwordHash: await bcrypt.hash('banking123', 10), fullName: 'Banking Officer', createdBy: 'system' })
-    .onConflictDoNothing({ target: users.email })
-    .returning();
-
-  const [ownerUser] = await db
-    .insert(users)
-    .values({ username: 'owner', email: 'owner@holding.com', passwordHash: await bcrypt.hash('Admin@123456', 10), fullName: 'Owner', createdBy: 'system' })
-    .onConflictDoNothing({ target: users.email })
-    .returning();
+  for (const userDef of userDefinitions) {
+    await db
+      .insert(users)
+      .values({
+        ...userDef,
+        passwordHash: defaultPassword,
+        createdBy: 'system',
+      })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: { username: userDef.username, fullName: userDef.fullName },
+      });
+  }
 
   const allUsers = await db.select().from(users);
-  const adminUserId = adminUser?.id ?? allUsers.find((u) => u.email === 'admin@cfd.local')!.id;
-  const financeUserId = financeUser?.id ?? allUsers.find((u) => u.email === 'finance@cfd.local')!.id;
-  const bankingUserId = bankingUser?.id ?? allUsers.find((u) => u.email === 'banking@cfd.local')!.id;
-  const ownerUserId = ownerUser?.id ?? allUsers.find((u) => u.email === 'owner@holding.com')!.id;
+  const userMap = new Map(allUsers.map((u) => [u.username, u.id]));
   console.log('   ✅ Users ready');
 
   // ── Permissions ───────────────────────────────────────────
@@ -264,15 +337,18 @@ async function main() {
       module: permission.module,
       description: permission.description,
       createdBy: SYSTEM_ACTOR_ID,
-    }).onConflictDoNothing({ target: permissions.key });
+    }).onConflictDoUpdate({
+      target: permissions.key,
+      set: { description: permission.description },
+    });
   }
 
   const allPermissions = await db.select({ id: permissions.id, key: permissions.key }).from(permissions);
   const permissionByKey = new Map(allPermissions.map((p) => [p.key, p.id]));
 
-  const roleByName = new Map(allRoles.map((role) => [role.name, role.id]));
+  console.log('🔗 Mapping permissions to roles...');
   for (const [roleName, permissionKeys] of Object.entries(rolePermissionMap)) {
-    const roleId = roleByName.get(roleName);
+    const roleId = roleMap.get(roleName);
     if (!roleId) continue;
     for (const permissionKey of permissionKeys) {
       const permissionId = permissionByKey.get(permissionKey);
@@ -280,8 +356,8 @@ async function main() {
       await db.insert(rolePermissions).values({
         roleId,
         permissionId,
-        grantedBy: adminUserId,
-      }).onConflictDoNothing({ target: [rolePermissions.roleId, rolePermissions.permissionId] });
+        grantedBy: userMap.get('admin_system')!,
+      }).onConflictDoNothing();
     }
   }
   console.log('   ✅ Permissions ready');
@@ -291,13 +367,13 @@ async function main() {
   const [asiCorp] = await db
     .insert(corporates)
     .values({ name: 'PT Asia Serv Indonesia', code: 'ASI', industry: 'manufacturing', currency: 'IDR', createdBy: SYSTEM_ACTOR_ID })
-    .onConflictDoNothing({ target: corporates.code })
+    .onConflictDoUpdate({ target: corporates.code, set: { name: 'PT Asia Serv Indonesia' } })
     .returning();
 
   const [tsiCorp] = await db
     .insert(corporates)
     .values({ name: 'PT Titian Servis Indonesia', code: 'TSI', industry: 'services', currency: 'IDR', createdBy: SYSTEM_ACTOR_ID })
-    .onConflictDoNothing({ target: corporates.code })
+    .onConflictDoUpdate({ target: corporates.code, set: { name: 'PT Titian Servis Indonesia' } })
     .returning();
 
   const allCorps = await db.select().from(corporates);
@@ -317,192 +393,120 @@ async function main() {
   for (const dv of deptValues) {
     await db.insert(departments).values(dv).onConflictDoNothing();
   }
+  const allDepts = await db.select().from(departments);
+  const tsiOnmDeptId = allDepts.find(d => d.corporateId === tsiId && d.code === 'TSI-ONM')!.id;
   console.log('   ✅ Departments ready');
 
-  // ── System Configs ────────────────────────────────────────
-  console.log('⚙️  Seeding system configs...');
-  const configValues = [
-    {
-      key: 'corporate_sectors',
-      value: [
-        { code: 'technology', label: { id: 'Teknologi', en: 'Technology' } },
-        { code: 'retail', label: { id: 'Retail', en: 'Retail' } },
-        { code: 'services', label: { id: 'Jasa', en: 'Services' } },
-        { code: 'manufacturing', label: { id: 'Manufaktur', en: 'Manufacturing' } },
-      ],
-      description: 'Daftar sektor perusahaan',
-      createdBy: SYSTEM_ACTOR_ID,
-    },
-    {
-      key: 'currencies',
-      value: [
-        { code: 'IDR', label: 'Rupiah' },
-        { code: 'USD', label: 'US Dollar' },
-        { code: 'SGD', label: 'Singapore Dollar' },
-      ],
-      description: 'Daftar mata uang',
-      createdBy: SYSTEM_ACTOR_ID,
-    },
-    {
-      key: 'cost_center_categories',
-      value: [
-        { code: 'hrd', label: { id: 'HRD', en: 'HRD' } },
-        { code: 'atk', label: { id: 'Alat Tulis Kantor', en: 'Office Stationery' } },
-        { code: 'operational', label: { id: 'Operasional', en: 'Operational' } },
-        { code: 'marketing', label: { id: 'Pemasaran', en: 'Marketing' } },
-        { code: 'it', label: { id: 'IT', en: 'IT' } },
-      ],
-      description: 'Daftar kategori cost center',
-      createdBy: SYSTEM_ACTOR_ID,
-    },
-    {
-      key: 'max_logo_size',
-      value: 2097152,
-      description: 'Ukuran maksimal logo perusahaan (dalam bytes)',
-      createdBy: SYSTEM_ACTOR_ID,
-    },
-  ];
-
-  for (const config of configValues) {
-    await db.insert(systemConfigs).values(config).onConflictDoUpdate({
-      target: systemConfigs.key,
-      set: { value: config.value },
-    });
-  }
-  console.log('   ✅ System configs ready');
-
-  // ── Banks ─────────────────────────────────────────────────
-  console.log('🏦 Seeding banks...');
-  const bankValues = [
-    { code: 'BCA', name: 'Bank Central Asia', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'MANDIRI', name: 'Bank Mandiri', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'BNI', name: 'Bank Negara Indonesia', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'BRI', name: 'Bank Rakyat Indonesia', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'CIMB', name: 'CIMB Niaga', createdBy: SYSTEM_ACTOR_ID },
-  ];
-  for (const bv of bankValues) {
-    await db.insert(banks).values(bv).onConflictDoNothing({ target: banks.code });
-  }
-  console.log('   ✅ Banks ready');
-
-  // ── Corporate Sectors ─────────────────────────────────────
-  console.log('🏭 Seeding corporate sectors...');
-  const sectorValues = [
-    { code: 'technology', labelId: 'Teknologi', labelEn: 'Technology', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'retail', labelId: 'Retail', labelEn: 'Retail', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'services', labelId: 'Jasa', labelEn: 'Services', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'manufacturing', labelId: 'Manufaktur', labelEn: 'Manufacturing', createdBy: SYSTEM_ACTOR_ID },
-  ];
-  for (const sv of sectorValues) {
-    await db.insert(corporateSectors).values(sv).onConflictDoNothing({ target: corporateSectors.code });
-  }
-  console.log('   ✅ Corporate sectors ready');
-
-  // ── Currencies ────────────────────────────────────────────
-  console.log('💱 Seeding currencies...');
-  const currencyValues = [
-    { code: 'IDR', label: 'Rupiah', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'USD', label: 'US Dollar', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'EUR', label: 'Euro', createdBy: SYSTEM_ACTOR_ID },
-  ];
-  for (const cv of currencyValues) {
-    await db.insert(currencies).values(cv).onConflictDoNothing({ target: currencies.code });
-  }
-  console.log('   ✅ Currencies ready');
-
-  // ── Cost Center Categories ────────────────────────────────
-  console.log('📂 Seeding cost center categories...');
-  const categoryValues = [
-    { code: 'hrd', labelId: 'HRD', labelEn: 'HRD', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'atk', labelId: 'Alat Tulis Kantor', labelEn: 'Office Stationery', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'operational', labelId: 'Operasional', labelEn: 'Operational', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'marketing', labelId: 'Pemasaran', labelEn: 'Marketing', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'it', labelId: 'IT', labelEn: 'IT', createdBy: SYSTEM_ACTOR_ID },
-  ];
-  for (const cv of categoryValues) {
-    await db.insert(costCenterCategories).values(cv).onConflictDoNothing({ target: costCenterCategories.code });
-  }
-  console.log('   ✅ Cost center categories ready');
-
-  // ── Projects ──────────────────────────────────────────────
-  console.log('📊 Seeding projects...');
-  const allDepts = await db.select().from(departments);
-  const deptMap = Object.fromEntries(allDepts.map((d) => [`${d.corporateId}_${d.code}`, d.id]));
-
-  const asiOnmDeptId = deptMap[`${asiId}_ASI-ONM`];
-  const asiWsDeptId = deptMap[`${asiId}_ASI-WS`];
-  const tsiOnmDeptId = deptMap[`${tsiId}_TSI-ONM`];
-  const tsiWsDeptId = deptMap[`${tsiId}_TSI-WS`];
-
-  const projValues = [
-    { departmentId: asiOnmDeptId, code: 'ALPHA', name: 'Project Alpha', description: 'Main operational project for ASI', createdBy: SYSTEM_ACTOR_ID },
-    { departmentId: asiOnmDeptId, code: 'BETA', name: 'Project Beta', description: 'Secondary operational project', createdBy: SYSTEM_ACTOR_ID },
-    { departmentId: asiWsDeptId, code: 'MAINT', name: 'Workshop Maintenance', description: 'Regular maintenance services', createdBy: SYSTEM_ACTOR_ID },
-    { departmentId: tsiOnmDeptId, code: 'GAMMA', name: 'Project Gamma', description: 'Main operational project for TSI', createdBy: SYSTEM_ACTOR_ID },
-    { departmentId: tsiWsDeptId, code: 'WSSVC', name: 'Workshop Services', description: 'Workshop service operations', createdBy: SYSTEM_ACTOR_ID },
-  ];
-
-  for (const pv of projValues) {
-    await db.insert(projects).values(pv).onConflictDoNothing();
-  }
-  console.log('   ✅ Projects ready');
-
   // ── User-Corporate Access ─────────────────────────────────
-  console.log('🔐 Seeding user access...');
-  for (const userId of [adminUserId, ownerUserId, financeUserId, bankingUserId]) {
-    const roleId =
-      userId === adminUserId || userId === ownerUserId
-        ? ownerRoleId
-        : userId === financeUserId
-          ? bodRoleId
-          : subsidiaryManagerRoleId;
+  console.log('🔐 Seeding user access mappings...');
+  const accessMappings = [
+    { username: 'admin_system', role: 'system_admin', scope: 'system' },
+    { username: 'admin_global', role: 'global_admin', scope: 'system' },
+    { username: 'exec_global', role: 'global_executive', scope: 'system' },
+    // TSI Local Access
+    { username: 'admin_tsi', role: 'corporate_admin', scope: 'corporate', corpId: tsiId },
+    { username: 'exec_tsi', role: 'corporate_executive', scope: 'corporate', corpId: tsiId },
+    { username: 'finance_leader_tsi', role: 'finance_leader', scope: 'corporate', corpId: tsiId },
+    { username: 'finance_staff_tsi', role: 'finance_staff', scope: 'corporate', corpId: tsiId },
+    // TSI Department Access
+    { username: 'dept_leader_onm_tsi', role: 'dept_leader', scope: 'department', corpId: tsiId, deptId: tsiOnmDeptId },
+    { username: 'dept_staff_onm_tsi', role: 'dept_staff', scope: 'department', corpId: tsiId, deptId: tsiOnmDeptId },
+  ];
 
-    for (const corpId of [asiId, tsiId]) {
+  for (const mapping of accessMappings) {
+    const userId = userMap.get(mapping.username);
+    const roleId = roleMap.get(mapping.role);
+    if (userId && roleId) {
       await db
         .insert(userCorporateAccesses)
         .values({
           userId,
           roleId,
-          scope: userId === adminUserId || userId === ownerUserId ? 'system' : 'corporate',
-          corporateId: userId === adminUserId || userId === ownerUserId ? undefined : corpId,
+          scope: mapping.scope as any,
+          corporateId: mapping.corpId,
+          departmentId: mapping.deptId,
+          grantedBy: userMap.get('admin_system'),
         })
         .onConflictDoNothing();
     }
   }
-  console.log('   ✅ User access ready');
+  // ── System Configs ───────────────────────────────────────
+  console.log('⚙️ Seeding system configs...');
+  await db.insert(systemConfigs).values([
+    { key: 'company_name', value: 'PT Titian Servis Indonesia', description: 'Main Company Name', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'app_version', value: '1.0.0', description: 'Application Version', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'maintenance_mode', value: 'false', description: 'System Maintenance Mode', createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
+  // ── Banks ─────────────────────────────────────────────────
+  console.log('🏦 Seeding banks...');
+  await db.insert(banks).values([
+    { name: 'Bank Mandiri', code: 'MANDIRI', createdBy: SYSTEM_ACTOR_ID },
+    { name: 'Bank Central Asia', code: 'BCA', createdBy: SYSTEM_ACTOR_ID },
+    { name: 'Bank Rakyat Indonesia', code: 'BRI', createdBy: SYSTEM_ACTOR_ID },
+    { name: 'Bank Negara Indonesia', code: 'BNI', createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
+  // ── Corporate Sectors ─────────────────────────────────────
+  console.log('🏢 Seeding corporate sectors...');
+  await db.insert(corporateSectors).values([
+    { code: 'MFG', labelId: 'Manufaktur', labelEn: 'Manufacturing', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'SVC', labelId: 'Jasa', labelEn: 'Services', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'ONG', labelId: 'Minyak & Gas', labelEn: 'Oil & Gas', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'MIN', labelId: 'Pertambangan', labelEn: 'Mining', createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
+  // ── Currencies ────────────────────────────────────────────
+  console.log('💵 Seeding currencies...');
+  await db.insert(currencies).values([
+    { code: 'IDR', label: 'Indonesian Rupiah', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'USD', label: 'US Dollar', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'SGD', label: 'Singapore Dollar', createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
+  // ── Cost Center Categories ────────────────────────────────
+  console.log('🏷️ Seeding cost center categories...');
+  await db.insert(costCenterCategories).values([
+    { code: 'OPEX', labelId: 'Biaya Operasional', labelEn: 'Operational Expenses', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'CAPEX', labelId: 'Biaya Modal', labelEn: 'Capital Expenditure', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'ADM', labelId: 'Administrasi', labelEn: 'Administrative', createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
+  // ── Projects ──────────────────────────────────────────────
+  console.log('🏗️ Seeding initial projects...');
+  const projectValues = [
+    { departmentId: tsiOnmDeptId, name: 'Project Alpha (Maintenance)', code: 'PROJ-A', createdBy: SYSTEM_ACTOR_ID },
+    { departmentId: tsiOnmDeptId, name: 'Project Beta (Repair)', code: 'PROJ-B', createdBy: SYSTEM_ACTOR_ID },
+  ];
+  for (const pv of projectValues) {
+    await db.insert(projects).values(pv).onConflictDoNothing();
+  }
 
   // ── Notification Configs ──────────────────────────────────
   console.log('🔔 Seeding notification configs...');
-  const notifConfigValues = [
-    {
-      module: 'cfd',
-      eventType: 'loan_installment_due',
-      roleId: subsidiaryManagerRoleId,
-      isActive: true,
-      createdBy: SYSTEM_ACTOR_ID,
-    },
-    {
-      module: 'cfd',
-      eventType: 'loan_installment_due',
-      roleId: bodRoleId,
-      isActive: true,
-      createdBy: SYSTEM_ACTOR_ID,
-    },
-    {
-      module: 'cfd',
-      eventType: 'loan_installment_due',
-      roleId: ownerRoleId,
-      isActive: true,
-      createdBy: SYSTEM_ACTOR_ID,
-    },
-  ];
+  const globalAdminRoleId = roleMap.get('global_admin')!;
+  const financeLeaderRoleId = roleMap.get('finance_leader')!;
 
-  for (const ncv of notifConfigValues) {
-    await db.insert(notificationConfigs).values(ncv).onConflictDoNothing();
-  }
-  console.log('   ✅ Notification configs ready');
+  await db.insert(notificationConfigs).values([
+    {
+      module: 'cfd',
+      eventType: 'RATIO_ALERT',
+      roleId: globalAdminRoleId,
+      isActive: true,
+      createdBy: SYSTEM_ACTOR_ID
+    },
+    {
+      module: 'public',
+      eventType: 'APPROVAL_REQUEST',
+      roleId: financeLeaderRoleId,
+      isActive: true,
+      createdBy: SYSTEM_ACTOR_ID
+    },
+  ]).onConflictDoNothing();
 
-  console.log('\n🎉 Public schema seeding complete!');
+  console.log('   ✅ User access ready');
+
+  console.log('\n🎉 New RBAC Public schema seeding complete!');
   process.exit(0);
 }
 

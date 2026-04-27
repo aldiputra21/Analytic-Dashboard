@@ -2,6 +2,7 @@ export const auditLogI18n = {
   id: {
     title: 'Audit Trail',
     subtitle: 'Pantau semua riwayat perubahan dan aktivitas sistem',
+    subsidiary: 'Anak Perusahaan',
     refresh: 'Segarkan',
     entriesHint: 'Menampilkan hingga 200 entri terbaru.',
     filters: {
@@ -42,6 +43,7 @@ export const auditLogI18n = {
   en: {
     title: 'Audit Trail',
     subtitle: 'Monitor all system changes and activity logs',
+    subsidiary: 'Subsidiary',
     refresh: 'Refresh',
     entriesHint: 'Showing up to 200 most recent entries.',
     filters: {

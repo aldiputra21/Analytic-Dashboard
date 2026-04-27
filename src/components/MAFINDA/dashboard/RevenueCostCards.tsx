@@ -5,13 +5,13 @@ import React from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatRupiah, formatPercentage } from '../../../utils/format';
 import type { RevenueCostSummary } from '../../../services/mafinda/dashboardService';
-import type { Department } from '../../../hooks/mafinda/useManagement';
+import { SearchableSelect } from '../../financial/shared/SearchableSelect';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { mafindaI18n } from '../../../i18n/mafinda';
 
 interface RevenueCostCardsProps {
   summary: RevenueCostSummary | null;
-  departments: Department[];
+  departments: { value: string; label: string; sublabel?: string }[];
   selectedDepartmentId: string;
   onDepartmentChange: (id: string) => void;
   isLoading: boolean;
@@ -67,18 +67,16 @@ export const RevenueCostCards: React.FC<RevenueCostCardsProps> = ({
   return (
     <div className="space-y-3">
       {/* Department filter */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-800">{t.revenue} & {t.operationalCost}</h3>
-        <select
-          value={selectedDepartmentId}
-          onChange={(e) => onDepartmentChange(e.target.value)}
-          className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          <option value="">{t.allDepartments}</option>
-          {(Array.isArray(departments) ? departments : []).map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="text-sm font-semibold text-slate-800 shrink-0">{t.revenue} & {t.operationalCost}</h3>
+        <div className="w-48">
+          <SearchableSelect
+            options={departments}
+            value={selectedDepartmentId}
+            onChange={onDepartmentChange}
+            placeholder={t.allDepartments}
+          />
+        </div>
       </div>
 
       {noData && (

@@ -3,8 +3,9 @@ import {
   Plus, Search, Edit2, Trash2,
   ChevronLeft, ChevronRight, Building2, X, AlertCircle, CheckCircle2,
   RefreshCw, FilterX, Upload, DollarSign, Percent, Eye,
-  Info
+  Info, ChevronDown
 } from 'lucide-react';
+import { SearchableSelect } from '../shared/SearchableSelect';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
@@ -180,6 +181,18 @@ export const CorporateManager: React.FC = () => {
       toast.error(common.errorFetchMasterData);
     }
   };
+
+  const sectorOptions = sectors.map(s => ({
+    value: s.code,
+    label: language === 'id' ? s.labelId : s.labelEn,
+    sublabel: s.code
+  }));
+
+  const currencyOptions = currencies.map(c => ({
+    value: c.code,
+    label: c.label,
+    sublabel: c.code
+  }));
 
   const getSectorLabel = (code: string) => {
     const s = sectors.find(s => s.code === code);
@@ -421,9 +434,9 @@ export const CorporateManager: React.FC = () => {
         {canWrite && (
           <button
             onClick={() => openModal('create')}
-            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
           >
-            <Plus size={18} />
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
             {t.addNew}
           </button>
         )}
@@ -715,11 +728,11 @@ export const CorporateManager: React.FC = () => {
                     <div className="relative group">
                       <div className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-200 bg-white flex items-center justify-center overflow-hidden transition-all group-hover:border-indigo-500/50 shadow-inner">
                         {logoPreview ? (
-                          <img 
-                            src={logoPreview.startsWith('blob:') ? logoPreview : getLogoUrl(logoPreview, editingId || '')!} 
-                            alt="Preview" 
-                            className="w-full h-full object-contain p-2" 
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                          <img
+                            src={logoPreview.startsWith('blob:') ? logoPreview : getLogoUrl(logoPreview, editingId || '')!}
+                            alt="Preview"
+                            className="w-full h-full object-contain p-2"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
                           />
                         ) : (
                           <div className="text-center p-4">
@@ -751,19 +764,13 @@ export const CorporateManager: React.FC = () => {
                       </div>
                       <div className="col-span-7 space-y-1.5">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.sector} *</label>
-                        <div className="relative group/select">
-                          <select
-                            value={formData.sector}
-                            onChange={(e) => setFormData(p => ({ ...p, sector: e.target.value }))}
-                            disabled={isReadOnly}
-                            className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
-                          >
-                            {sectors.map(s => <option key={s.code} value={s.code}>{language === 'id' ? s.labelId : s.labelEn}</option>)}
-                          </select>
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover/select:text-indigo-500 transition-colors pointer-events-none">
-                            <ChevronRight size={14} className="rotate-90" />
-                          </div>
-                        </div>
+                        <SearchableSelect
+                          options={sectorOptions}
+                          value={formData.sector}
+                          onChange={(val) => setFormData(p => ({ ...p, sector: val }))}
+                          disabled={isReadOnly}
+                          placeholder={t.modal.sector}
+                        />
                       </div>
                       <div className="col-span-12 space-y-1.5">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.modal.name} *</label>
@@ -812,19 +819,13 @@ export const CorporateManager: React.FC = () => {
                     {/* Mata Uang — 5/12 */}
                     <div className="col-span-5 space-y-1.5">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap">{t.modal.currency}</label>
-                      <div className="relative group/select">
-                        <select
-                          value={formData.currency}
-                          onChange={(e) => setFormData(p => ({ ...p, currency: e.target.value }))}
-                          disabled={isReadOnly}
-                          className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm cursor-pointer appearance-none"
-                        >
-                          {currencies.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover/select:text-emerald-500 transition-colors pointer-events-none">
-                          <ChevronRight size={14} className="rotate-90" />
-                        </div>
-                      </div>
+                      <SearchableSelect
+                        options={currencyOptions}
+                        value={formData.currency}
+                        onChange={(val) => setFormData(p => ({ ...p, currency: val }))}
+                        disabled={isReadOnly}
+                        placeholder={t.modal.currency}
+                      />
                     </div>
                     {/* Tarif Pajak — 3/12 */}
                     <div className="col-span-3 space-y-1.5">

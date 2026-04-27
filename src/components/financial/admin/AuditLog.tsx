@@ -11,6 +11,7 @@ import { cn } from '../../../utils/cn';
 import { auditLogI18n } from '../../../i18n/audit-log';
 import { commonsI18n } from '../../../i18n/commons';
 import { toast } from 'sonner';
+import { SearchableSelect } from '../shared/SearchableSelect';
 
 interface AuditLogEntry {
   id: string;
@@ -28,6 +29,8 @@ interface AuditLogEntry {
 
 interface AuditLogProps {
   subsidiaryId?: string;
+  subsidiaries?: Array<{ id: string; name: string }>;
+  onSubsidiaryChange?: (id: string, name: string) => void;
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -50,7 +53,11 @@ function JsonViewer({ data }: { data?: Record<string, any> }) {
   );
 }
 
-export const AuditLog: React.FC<AuditLogProps> = ({ subsidiaryId }) => {
+export const AuditLog: React.FC<AuditLogProps> = ({ 
+  subsidiaryId,
+  subsidiaries = [],
+  onSubsidiaryChange
+}) => {
   const { language } = useAuth();
   const t = auditLogI18n[language];
   const common = commonsI18n[language];
@@ -112,16 +119,36 @@ export const AuditLog: React.FC<AuditLogProps> = ({ subsidiaryId }) => {
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
-              <History size={24} />
+          {subsidiaries.length > 1 ? (
+            <div className="w-64">
+              <SearchableSelect
+                options={[
+                  { value: '', label: common.all },
+                  ...subsidiaries.map(s => ({ value: s.id, label: s.name }))
+                ]}
+                value={subsidiaryId || ''}
+                onChange={(val) => {
+                  const sub = subsidiaries.find(s => s.id === val);
+                  if (onSubsidiaryChange) onSubsidiaryChange(val, sub?.name || '');
+                }}
+                placeholder={common.search}
+                label={t.subsidiary || 'Subsidiary'}
+              />
             </div>
-            {t.title}
-          </h2>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
-            <Info size={14} className="text-indigo-400" />
-            {subsidiaryId ? t.subtitle.replace('All system changes', 'Changes for selected subsidiary') : t.subtitle}
-          </p>
+          ) : (
+            <>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
+                  <History size={24} />
+                </div>
+                {t.title}
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
+                <Info size={14} className="text-indigo-400" />
+                {subsidiaryId ? t.subtitle.replace('All system changes', 'Changes for selected subsidiary') : t.subtitle}
+              </p>
+            </>
+          )}
         </div>
 
         <button

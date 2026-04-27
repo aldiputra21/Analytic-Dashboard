@@ -4,7 +4,7 @@ import { Locale } from './commons';
 export interface RealizationCopy {
   title: string;
   subtitle: string;
-  addNew: string;
+  inputNew: string;
   searchPlaceholder: string;
   tableHead: {
     entityType: string;
@@ -85,7 +85,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
   id: {
     title: 'Realisasi Kas',
     subtitle: 'Catat realisasi kas (cash-in/cash-out) per departemen atau proyek.',
-    addNew: 'Tambah Realisasi',
+    inputNew: 'Tambah Realisasi',
     searchPlaceholder: 'Cari departemen, proyek, atau catatan...',
     tableHead: {
       entityType: 'Tipe Entitas',
@@ -164,7 +164,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
   en: {
     title: 'Cash Realizations',
     subtitle: 'Record cash realizations (cash-in/cash-out) per department or project.',
-    addNew: 'Add Realization',
+    inputNew: 'Add Realization',
     searchPlaceholder: 'Search department, project, or notes...',
     tableHead: {
       entityType: 'Entity Type',

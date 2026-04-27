@@ -279,7 +279,7 @@ export const TrendAnalysis: React.FC<TrendAnalysisProps> = ({ className }) => {
                           stroke={color}
                           strokeWidth={3}
                           dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
-                          activeDot={{ r: 6, strokeWidth: 0, shadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                          activeDot={{ r: 6, strokeWidth: 0 }}
                           connectNulls={true}
                           filter={`url(#shadow-${idx % SUBSIDIARY_COLORS.length})`}
                           animationDuration={1500}

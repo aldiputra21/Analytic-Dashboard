@@ -62,15 +62,31 @@ export const users = pgTable('users', {
   fullName: varchar('full_name', { length: 100 }).notNull(),
   avatarUrl: text('avatar_url'),
   isActive: boolean('is_active').notNull().default(true),
+  emailVerified: boolean('email_verified').notNull().default(false),
   passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
   failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
   lockedUntil: timestamp('locked_until', { withTimezone: true }),
   lastLogin: timestamp('last_login', { withTimezone: true }),
+  lastLoginIp: varchar('last_login_ip', { length: 45 }),
+  lastLoginUserAgent: text('last_login_user_agent'),
   createdBy: varchar('created_by', { length: 100 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar('updated_by', { length: 100 }),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 });
+
+// --- 2b. user_login_activities -----------------------------------------------
+
+export const userLoginActivities = pgTable('user_login_activities', {
+  id: uuid().primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  loginAt: timestamp('login_at', { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: inet('ip_address'),
+  userAgent: text('user_agent'),
+  success: boolean().notNull().default(true),
+}, (table) => [
+  index('idx_user_login_activities_user_login').on(table.userId, table.loginAt),
+]);
 
 // --- 3. corporates ----------------------------------------------------------
 

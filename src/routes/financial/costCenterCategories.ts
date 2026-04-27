@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { costCenterCategories } from '../../db/schema/public';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 
 // ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ export function createCostCenterCategoriesRouter(): Router {
    * GET /api/cost-center-categories
    * List cost center categories with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('public.cost_center_categories.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.cost_center_categories.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -98,7 +98,11 @@ export function createCostCenterCategoriesRouter(): Router {
    * POST /api/cost-center-categories
    * Create a new cost center category.
    */
-  router.post('/', requirePermission('public.cost_center_categories.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.post('/', 
+    requirePermission('public.cost_center_categories.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = createCategorySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -142,7 +146,7 @@ export function createCostCenterCategoriesRouter(): Router {
    * GET /api/cost-center-categories/dropdown-items
    * Fetch active categories for dropdown selection.
    */
-  router.get('/dropdown-items', requirePermission('public.cost_center_categories.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/dropdown-items', requirePermission('public.cost_center_categories.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const records = await db
       .select()
       .from(costCenterCategories)
@@ -156,7 +160,7 @@ export function createCostCenterCategoriesRouter(): Router {
    * GET /api/cost-center-categories/:id
    * Get a single cost center category by ID.
    */
-  router.get('/:id', requirePermission('public.cost_center_categories.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', requirePermission('public.cost_center_categories.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const [category] = await db
       .select()
       .from(costCenterCategories)
@@ -176,7 +180,11 @@ export function createCostCenterCategoriesRouter(): Router {
    * PUT /api/cost-center-categories/:id
    * Update a cost center category.
    */
-  router.put('/:id', requirePermission('public.cost_center_categories.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.put('/:id', 
+    requirePermission('public.cost_center_categories.write'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const parsed = updateCategorySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -229,7 +237,11 @@ export function createCostCenterCategoriesRouter(): Router {
    * DELETE /api/cost-center-categories/:id
    * Delete a cost center category.
    */
-  router.delete('/:id', requirePermission('public.cost_center_categories.delete'), asyncHandler(async (req: Request, res: Response) => {
+  router.delete('/:id', 
+    requirePermission('public.cost_center_categories.delete'), 
+    injectAccessContext, 
+    requireScope('system'), 
+    asyncHandler(async (req: Request, res: Response) => {
     const [existing] = await db
       .select()
       .from(costCenterCategories)

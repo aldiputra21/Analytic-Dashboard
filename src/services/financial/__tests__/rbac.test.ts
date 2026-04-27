@@ -24,14 +24,38 @@ beforeEach(() => {
 
 describe('checkSubsidiaryAccess', () => {
   it('returns false when user has no access', async () => {
-    accessDbState.rows = [];
+    const mockReq = {
+      accessContext: {
+        scope: 'corporate',
+        corporateIds: ['other-corp'],
+        departmentIds: []
+      }
+    } as any;
 
-    await expect(checkSubsidiaryAccess('user-1', 'corp-1')).resolves.toBe(false);
+    expect(checkSubsidiaryAccess(mockReq, 'corp-1')).toBe(false);
   });
 
-  it('returns true when access is granted', async () => {
-    accessDbState.rows = [{ id: 'access-1' }];
+  it('returns true when access is granted via corporateIds', async () => {
+    const mockReq = {
+      accessContext: {
+        scope: 'corporate',
+        corporateIds: ['corp-1'],
+        departmentIds: []
+      }
+    } as any;
 
-    await expect(checkSubsidiaryAccess('user-1', 'corp-1')).resolves.toBe(true);
+    expect(checkSubsidiaryAccess(mockReq, 'corp-1')).toBe(true);
+  });
+
+  it('returns true when user has system scope', async () => {
+    const mockReq = {
+      accessContext: {
+        scope: 'system',
+        corporateIds: [],
+        departmentIds: []
+      }
+    } as any;
+
+    expect(checkSubsidiaryAccess(mockReq, 'corp-1')).toBe(true);
   });
 });

@@ -27,7 +27,7 @@ export function createAuditLogRouter(): Router {
       offset,
     } = req.query as Record<string, string>;
 
-    const entries = await getFRSAuditLog({
+    const entries = await getFRSAuditLog(req.accessContext!, {
       userId,
       departmentId,
       entityType,

@@ -4,6 +4,7 @@ import { Locale } from './commons';
 export interface BankLoanCopy {
   title: string;
   subtitle: string;
+  inputNew: string;
   searchPlaceholder: string;
   tableHead: {
     bank: string;
@@ -100,6 +101,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
   id: {
     title: 'Pengelolaan Pinjaman Bank',
     subtitle: 'Kelola data pinjaman bank beserta jadwal cicilan.',
+    inputNew: 'Tambah Pinjaman',
     searchPlaceholder: 'Cari nama bank atau perusahaan...',
     tableHead: {
       bank: 'Bank',
@@ -194,6 +196,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
   en: {
     title: 'Bank Loan Management',
     subtitle: 'Manage bank loan data along with installment schedules.',
+    inputNew: 'Add Loan',
     searchPlaceholder: 'Search bank or corporate name...',
     tableHead: {
       bank: 'Bank',

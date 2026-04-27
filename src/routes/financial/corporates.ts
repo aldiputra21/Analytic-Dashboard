@@ -68,8 +68,8 @@ export function createCorporatesRouter(): Router {
    * MUST be before /:id routes to avoid matching as ID
    */
   router.get('/dropdown-items', requirePermission('cfd.corporates.read'), asyncHandler(async (req: Request, res: Response) => {
-    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
-    const results = await getActiveCorporates(subsidiaryIds);
+    const access = req.accessContext!;
+    const results = await getActiveCorporates(access.scope !== 'system' ? access.corporateIds : undefined);
     res.json(results);
   }));
 
@@ -111,9 +111,15 @@ export function createCorporatesRouter(): Router {
     const search = req.query.search as string;
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.pageSize as string) || 0;
-    const subsidiaryIds = await getUserSubsidiaryIds(req.user!.userId);
+    const access = req.accessContext!;
 
-    const results = await listCorporates({ activeOnly, search, page, pageSize, subsidiaryIds });
+    const results = await listCorporates({ 
+      activeOnly, 
+      search, 
+      page, 
+      pageSize, 
+      subsidiaryIds: access.scope !== 'system' ? access.corporateIds : undefined 
+    });
     res.json(results);
   }));
 
@@ -149,6 +155,10 @@ export function createCorporatesRouter(): Router {
    * PUT /api/frs/corporates/:id
    */
   router.put('/:id', requirePermission('cfd.corporates.write'), asyncHandler(async (req: Request, res: Response) => {
+    const access = req.accessContext!;
+    if (access.scope !== 'system' && !access.corporateIds.includes(req.params.id)) {
+      return res.status(403).json({ error: 'Access denied to this corporate' });
+    }
     const result = await updateCorporate(req.params.id, req.body, req.user!.userId, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
@@ -161,6 +171,10 @@ export function createCorporatesRouter(): Router {
    * DELETE /api/frs/corporates/:id
    */
   router.delete('/:id', requirePermission('cfd.corporates.delete'), asyncHandler(async (req: Request, res: Response) => {
+    const access = req.accessContext!;
+    if (access.scope !== 'system' && !access.corporateIds.includes(req.params.id)) {
+      return res.status(403).json({ error: 'Access denied to this corporate' });
+    }
     const result = await deleteCorporate(req.params.id, req.user!.userId, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
