@@ -61,7 +61,12 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
             localStorage.removeItem(USER_KEY);
             window.dispatchEvent(new Event('frs:unauthorized'));
           }
-          return response;
+          
+          // SILENT REDIRECT: Return a pending promise that never resolves.
+          // This prevents the calling component from receiving the 401 response
+          // and triggering its own "Gagal memuat data" toast.
+          // The component will be unmounted anyway as the app redirects to /login.
+          return new Promise(() => {});
         }
       }
 
