@@ -16,3 +16,20 @@
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
 
+/* Global Toast Enhancements (Sonner) */
+[data-sonner-toast] {
+  --normal-bg: #fff !important;
+  --normal-border: rgba(0,0,0,0.05) !important;
+  --normal-text: #1e293b !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-family: var(--font-sans) !important;
+  line-height: 1.4 !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  top: 12px !important;
+  right: 12px !important;
+}
+
