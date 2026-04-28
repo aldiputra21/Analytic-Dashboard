@@ -3,18 +3,19 @@ import { db } from '../../db/connection';
 import { systemConfigs } from '../../db/schema/public';
 
 import { asyncHandler } from '../../utils/asyncHandler';
-import { AppError, ErrorCode } from '../../utils/errors.js';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 
 export function createSystemConfigRouter(): Router {
   const router = Router();
 
-  router.get('/', requirePermission('cfd.system.manage'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const access = req.accessContext!;
-    if (access.scope !== 'system') {
-      throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Only system admins can access system configs');
-    }
+  /**
+   * GET /api/system-configs
+   * Fetch all system configurations.
+   * Accessible to all authenticated users as needed by multiple modules.
+   */
+  router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const configs = await db.select().from(systemConfigs);
     res.json(configs);
   }));
