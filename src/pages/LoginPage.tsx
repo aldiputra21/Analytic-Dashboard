@@ -40,14 +40,7 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const success = await login({ username, password });
-      if (!success) {
-        // useAuth login will set the error code, but we show it here
-        // If error is already set, we could use it, but since login returns false,
-        // it's likely already in the state.
-        // However, toast might fire BEFORE state update is reflected in local scope.
-        // The current useAuth.login returns false AFTER updating state.
-      }
+      await login({ username, password });
     } finally {
       setIsSubmitting(false);
     }
@@ -57,8 +50,6 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     if (error && error !== 'SESSION_EXPIRED' && error !== 'AUTH_UNAUTHORIZED') {
       toast.error(getErrorMessage(error, language), { id: 'auth-error' });
-      // We don't clear error here automatically to keep it in the UI if needed, 
-      // but usually login page should clear it on next attempt.
     }
   }, [error, language]);
 
@@ -79,192 +70,228 @@ export const LoginPage: React.FC = () => {
   };
 
   const renderLoginView = () => (
-    <form onSubmit={handleLogin} className="space-y-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-[#1c1b1b] tracking-tight">{copy.title}</h1>
-        <p className="text-[13.5px] text-[#5f5e5e] leading-relaxed font-medium">{copy.subtitle}</p>
-      </div>
-
-      <div className="space-y-5">
+    <div className="space-y-5">
+      <header className="mb-8">
+        <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: '1.5rem', fontWeight: 700, color: 'rgb(28, 27, 27)', marginBottom: '0.5rem' }}>
+          {copy.title}
+        </h2>
+        <p style={{ color: 'rgb(95, 94, 94)', fontSize: '0.875rem' }}>
+          {copy.subtitle}
+        </p>
+      </header>
+      <form onSubmit={handleLogin} className="space-y-5">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-[#1c1b1b]">{copy.emailLabel}</label>
+          <label className="block text-sm font-medium" htmlFor="username" style={{ color: 'rgb(28, 27, 27)' }}>
+            {copy.emailLabel}
+          </label>
           <div className="relative group">
             <input
+              id="username"
               ref={usernameRef}
+              placeholder={copy.emailPlaceholder}
+              required
+              className="w-full h-14 px-4 rounded-lg border-none focus:outline-none focus:ring-0 transition-colors"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-14 px-4 rounded-lg border-none focus:outline-none focus:ring-0 transition-colors bg-[#f0eded] text-[#1c1b1b] font-medium"
-              placeholder="nama@perusahaan.com"
-              required
-              tabIndex={1}
+              style={{ background: 'rgb(240, 237, 237)', color: 'rgb(28, 27, 27)' }}
             />
-            <div className="absolute bottom-0 left-0 h-0.5 w-0 group-focus-within:w-full transition-all duration-300 bg-[#ba0015]"></div>
+            <div className="absolute bottom-0 left-0 h-0.5 w-0 group-focus-within:w-full transition-all duration-300" style={{ background: 'rgb(186, 0, 21)' }}></div>
           </div>
         </div>
 
         <div className="space-y-2 relative">
           <div className="flex justify-between items-center">
-            <label className="block text-sm font-medium text-[#1c1b1b]">{copy.passwordLabel}</label>
+            <label className="block text-sm font-medium" htmlFor="password" style={{ color: 'rgb(28, 27, 27)' }}>
+              {copy.passwordLabel}
+            </label>
           </div>
-          <div className="relative group flex items-center rounded-lg transition-colors bg-[#f0eded]">
+          <div className="relative group flex items-center rounded-lg transition-colors" style={{ background: 'rgb(240, 237, 237)' }}>
             <input
+              id="password"
+              placeholder={copy.passwordPlaceholder}
+              required
+              className="flex-1 h-14 px-4 bg-transparent border-none focus:outline-none focus:ring-0"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              tabIndex={2}
-              className="flex-1 h-14 px-4 bg-transparent border-none focus:outline-none focus:ring-0 text-[#1c1b1b] font-medium"
-              placeholder={copy.passwordPlaceholder || 'Masukkan kata sandi Anda'}
-              required
+              style={{ color: 'rgb(28, 27, 27)' }}
             />
-            <button
-              type="button"
+            <button 
+              type="button" 
+              className="px-4 transition-colors hover:opacity-70" 
+              aria-label="Show password" 
               onClick={() => setShowPassword(!showPassword)}
-              tabIndex={-1}
-              className="px-4 transition-colors hover:opacity-70 text-[#926f6b]"
+              style={{ color: 'rgb(146, 111, 107)' }}
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
-            <div className="absolute bottom-0 left-0 h-0.5 w-0 group-focus-within:w-full transition-all duration-300 bg-[#ba0015]"></div>
+            <div className="absolute bottom-0 left-0 h-0.5 w-0 group-focus-within:w-full transition-all duration-300" style={{ background: 'rgb(186, 0, 21)' }}></div>
           </div>
-          <button
-            type="button"
+          <button 
+            type="button" 
             onClick={() => setView('forgot-password')}
-            tabIndex={4}
-            className="absolute top-0 right-0 cursor-pointer text-xs font-semibold hover:underline underline-offset-4 text-[#ba0015]"
+            className="absolute top-0 right-0 cursor-pointer text-xs font-semibold hover:underline underline-offset-4" 
+            style={{ color: 'rgb(186, 0, 21)' }}
           >
             {copy.forgotPassword}
           </button>
         </div>
-      </div>
 
-      <button
-        type="submit"
-        disabled={isSubmitting || isLoading}
-        tabIndex={3}
-        className="flex h-[56px] w-full cursor-pointer items-center justify-center gap-3 rounded-lg font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_12px_24px_rgba(213,0,18,0.2)]"
-        style={{ backgroundColor: '#d50012' }}
-      >
-        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-          <>
-            <span className="text-[16px]">{copy.submit}</span>
-            <LogIn size={20} strokeWidth={2.5} />
-          </>
-        )}
-      </button>
+        <button 
+          type="submit" 
+          disabled={isSubmitting || isLoading}
+          className="flex h-14 w-full cursor-pointer items-center justify-center gap-3 rounded-lg font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" 
+          style={{ 
+            background: 'linear-gradient(135deg, rgb(213, 0, 18) 0%, rgb(238, 27, 35) 100%)', 
+            fontFamily: 'Manrope, sans-serif', 
+            fontSize: '0.9375rem', 
+            boxShadow: 'rgba(213, 0, 18, 0.18) 0px 8px 18px' 
+          }}
+        >
+          {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+            <>
+              <span>{copy.submit}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-log-in" aria-hidden="true">
+                <path d="m10 17 5-5-5-5"></path>
+                <path d="M15 12H3"></path>
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              </svg>
+            </>
+          )}
+        </button>
 
-      <div className="text-center pt-2">
-        <p className="text-[13px] text-[#5f5e5e] font-medium">
-          {copy.noAccount} <button type="button" className="text-[#d50012] font-bold hover:underline">{copy.contactAdministrator}</button>
-        </p>
-      </div>
-    </form>
+        <div className="mt-6 pt-6 text-center" style={{ borderTop: '1px solid rgb(234, 231, 231)' }}>
+          <p className="text-sm" style={{ color: 'rgb(95, 94, 94)' }}>
+            {copy.noAccount} <button type="button" className="font-bold hover:underline underline-offset-4" style={{ color: 'rgb(186, 0, 21)' }}>{copy.contactAdministrator}</button>
+          </p>
+        </div>
+      </form>
+    </div>
   );
 
   const renderForgotPasswordView = () => (
     <form onSubmit={handleForgotPassword} className="space-y-5">
-      <button
-        type="button"
-        onClick={() => setView('login')}
-        className="flex items-center gap-2 text-sm font-bold text-[#ee1b23] hover:underline transition-colors cursor-pointer"
-      >
-        <ArrowLeft size={14} />
-        <span>{common.back}</span>
-      </button>
-
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold text-[#1c1b1b] tracking-tight">{copy.forgotTitle}</h1>
-        <p className="text-sm text-[#5f5e5e] font-medium">{copy.forgotSubtitle}</p>
-      </div>
+      <header className="mb-8">
+        <button
+          type="button"
+          onClick={() => setView('login')}
+          className="flex items-center gap-2 text-sm font-bold transition-colors cursor-pointer mb-4"
+          style={{ color: 'rgb(186, 0, 21)' }}
+        >
+          <ArrowLeft size={14} />
+          <span>{common.back}</span>
+        </button>
+        <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: '1.5rem', fontWeight: 700, color: 'rgb(28, 27, 27)', marginBottom: '0.5rem' }}>
+          {copy.forgotTitle}
+        </h2>
+        <p style={{ color: 'rgb(95, 94, 94)', fontSize: '0.875rem' }}>
+          {copy.forgotSubtitle}
+        </p>
+      </header>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-[#1c1b1b]">{copy.emailLabel}</label>
-          <input
-            type="email"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            className="w-full h-14 px-4 rounded-lg border-none focus:outline-none focus:ring-0 transition-colors bg-[#f0eded] text-[#1c1b1b] font-medium"
-            placeholder="email@example.com"
-            required
-          />
+          <label className="block text-sm font-medium" style={{ color: 'rgb(28, 27, 27)' }}>
+            {copy.emailLabel}
+          </label>
+          <div className="relative group">
+            <input
+              type="email"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              className="w-full h-14 px-4 rounded-lg border-none focus:outline-none focus:ring-0 transition-colors"
+              placeholder={copy.emailPlaceholder}
+              required
+              style={{ background: 'rgb(240, 237, 237)', color: 'rgb(28, 27, 27)' }}
+            />
+            <div className="absolute bottom-0 left-0 h-0.5 w-0 group-focus-within:w-full transition-all duration-300" style={{ background: 'rgb(186, 0, 21)' }}></div>
+          </div>
         </div>
       </div>
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex h-14 w-full cursor-pointer items-center justify-center gap-3 rounded-lg font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 shadow-[0_8px_18px_rgba(213,0,18,0.18)]"
-        style={{ background: 'linear-gradient(135deg, #d50012 0%, #ee1b23 100%)' }}
+        className="flex h-14 w-full cursor-pointer items-center justify-center gap-3 rounded-lg font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+        style={{ 
+          background: 'linear-gradient(135deg, rgb(213, 0, 18) 0%, rgb(238, 27, 35) 100%)', 
+          fontFamily: 'Manrope, sans-serif', 
+          fontSize: '0.9375rem', 
+          boxShadow: 'rgba(213, 0, 18, 0.18) 0px 8px 18px' 
+        }}
       >
-        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : <span className="text-[15px]">{copy.sendResetLink}</span>}
+        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : <span>{copy.sendResetLink}</span>}
       </button>
     </form>
   );
 
   return (
-    <div className="flex min-h-[100svh] bg-[#f8f6f6]" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div className="flex overflow-hidden" style={{ background: 'rgb(252, 249, 248)', fontFamily: 'Inter, sans-serif', height: '100svh' }}>
       {/* Left side: branding/features */}
-      <div className="hidden lg:flex lg:w-[55%] relative flex-col justify-center px-24 bg-[#f8f6f6]">
-        <div className="absolute top-0 left-0 w-full h-1 bg-[#ba0015]" />
-        <div className="w-full max-w-lg">
-          <div className="mb-12">
-            <img src="/Logo.png" alt="Titian Think Solution" className="w-full max-w-[400px] object-contain" />
-          </div>
-
-          <div className="flex flex-col gap-6 mt-16">
-            {[
-              { text: copy.featureOne },
-              { text: copy.featureTwo }
-            ].map((feature, i) => (
-              <div key={i} className="flex items-center gap-5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#ba0015] text-white shadow-lg shadow-red-100">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <p className="text-[17px] font-black text-[#1c1b1b] tracking-wide uppercase">
-                  {feature.text}
-                </p>
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-center px-16" style={{ background: 'radial-gradient(circle at 10% 20%, rgba(226, 31, 38, 0.03) 0%, rgb(248, 246, 246) 90%)' }}>
+        <div className="absolute top-0 left-0 w-full h-1" style={{ background: 'rgb(186, 0, 21)' }}></div>
+        <div className="mx-auto flex w-full max-w-xl flex-col items-start">
+          <img alt="Titian Think Solution" className="w-full max-w-135 object-contain" src="/Logo.png" />
+          <div className="mt-16 flex flex-col gap-8">
+            <div className="flex items-center gap-4">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white" style={{ background: 'rgb(238, 27, 35)' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
               </div>
-            ))}
+              <p className="whitespace-nowrap text-[0.98rem] leading-none tracking-[0.08em]" style={{ color: 'rgb(31, 29, 29)', fontWeight: 700 }}>
+                {copy.featureOne}
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white" style={{ background: 'rgb(238, 27, 35)' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <p className="whitespace-nowrap text-[0.98rem] leading-none tracking-[0.08em]" style={{ color: 'rgb(31, 29, 29)', fontWeight: 700 }}>
+                {copy.featureTwo}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Right side: form */}
-      <div className="relative w-full lg:w-[45%] flex items-center justify-center bg-[#f8f6f6] px-6 py-12">
-        {/* Language selector */}
-        <div className="absolute right-10 top-8 flex bg-white/80 backdrop-blur-sm p-1 rounded-xl items-center gap-0.5 border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-center w-6 h-6 text-slate-400 ml-1">
-            <Languages size={14} />
+      <div className="relative w-full lg:w-1/2 flex items-center justify-center px-4 py-4 md:px-8 md:py-6 lg:px-12 lg:py-8" style={{ background: 'rgba(246, 243, 242, 0.5)' }}>
+        {/* Language switcher */}
+        <div className="absolute right-4 top-4 md:right-8 md:top-6 lg:right-12 lg:top-8">
+          <div className="flex bg-white/80 backdrop-blur-sm p-1 rounded-full items-center gap-0.5 border border-slate-200 shadow-[rgba(28,27,27,0.07)_0px_4px_16px]">
+            <div className="flex items-center justify-center w-6 h-6 text-slate-400 ml-1">
+              <Languages size={14} />
+            </div>
+            <button
+              onClick={() => setLanguage('id')}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all cursor-pointer",
+                language === 'id' ? "bg-[#ba0015] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              ID
+            </button>
+            <button
+              onClick={() => setLanguage('en')}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all cursor-pointer",
+                language === 'en' ? "bg-[#ba0015] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              EN
+            </button>
           </div>
-          <button
-            onClick={() => setLanguage('id')}
-            className={cn(
-              "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer",
-              language === 'id' ? "bg-white text-[#d50012] shadow-sm border border-slate-100" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            ID
-          </button>
-          <button
-            onClick={() => setLanguage('en')}
-            className={cn(
-              "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer",
-              language === 'en' ? "bg-white text-[#d50012] shadow-sm border border-slate-100" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            EN
-          </button>
         </div>
 
-        <div className="w-full max-w-[480px]">
-          <div className="flex justify-center lg:hidden mb-8">
-            <img src="/Logo.png" alt="Titian Think Solution" className="h-10 object-contain" />
+        <div className="flex w-full max-w-md flex-col gap-3 md:gap-4">
+          <div className="flex justify-center lg:hidden">
+            <img alt="Titian Think Solution" className="h-10 object-contain" src="/Logo.png" />
           </div>
-
-          <div className="w-full rounded-[1.25rem] bg-white p-10 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.06)] border-t-[4px] border-[#ba0015] animate-in zoom-in-95 duration-300">
+          <div className="w-full rounded-xl p-6 md:p-8" style={{ background: 'rgb(255, 255, 255)', boxShadow: 'rgba(28, 27, 27, 0.05) 0px 20px 40px', borderTop: '4px solid rgb(186, 0, 21)' }}>
             {view === 'login' && renderLoginView()}
             {view === 'forgot-password' && renderForgotPasswordView()}
           </div>
