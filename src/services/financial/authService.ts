@@ -59,6 +59,7 @@ export function issueToken(payload: JWTPayload): string {
       role: payload.role,
       roleName: payload.roleName,
       roleDescription: payload.roleDescription,
+      permissions: payload.permissions,
       authzVersion: payload.authzVersion ?? 1,
       origIat: origIat, // Preserve original session start
     },
@@ -208,6 +209,7 @@ export async function authenticateUser(
     role: user.role,
     roleName: user.roleName,
     roleDescription: user.roleDescription,
+    permissions: user.permissions,
     authzVersion: user.authzVersion,
   });
 

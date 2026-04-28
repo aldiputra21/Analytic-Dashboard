@@ -32,8 +32,35 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
       });
 
       // For transient errors (5xx or 429), retry with exponential backoff on GET requests
+      // EXCEPTION: Do not retry if it's a 503 Maintenance Mode error
       const isIdempotent = !options.method || options.method.toUpperCase() === 'GET';
-      if (isIdempotent && response.status !== 401 && (response.status >= 500 || response.status === 429) && attempt < maxRetries) {
+      const isRateLimit = response.status === 429;
+      const isServerError = response.status >= 500 && response.status !== 503; // Retry other 5xx
+      
+      // If 503, check if it's maintenance mode
+      if (response.status === 503) {
+        const clone = response.clone();
+        const body = await clone.json().catch(() => ({}));
+        if (body.error?.code === 'MAINTENANCE_MODE') {
+          const currentToken = localStorage.getItem(TOKEN_KEY);
+          if (tokenUsed === currentToken) {
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+            window.dispatchEvent(new Event('frs:maintenance'));
+          }
+          return new Promise(() => {}); // Silent redirect
+        }
+        
+        // If 503 but NOT maintenance (e.g. real overloaded server), retry it if idempotent
+        if (isIdempotent && attempt < maxRetries) {
+          lastError = response;
+          const delayMs = Math.min(500 * Math.pow(2, attempt) + Math.random() * 100, 2000);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+      }
+
+      if (isIdempotent && (isServerError || isRateLimit) && attempt < maxRetries) {
         lastError = response;
         const delayMs = Math.min(500 * Math.pow(2, attempt) + Math.random() * 100, 2000);
         await new Promise((resolve) => setTimeout(resolve, delayMs));

@@ -424,7 +424,7 @@ async function main() {
   console.log('⚙️ Seeding system configs...');
   await db.insert(systemConfigs).values([
     { key: 'app_version', value: '1.0.0', description: 'Application Version', createdBy: SYSTEM_ACTOR_ID },
-    { key: 'maintenance_mode', value: 'false', description: 'System Maintenance Mode', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'maintenance_mode', value: false, description: 'System Maintenance Mode', createdBy: SYSTEM_ACTOR_ID },
     { key: 'CORPORATE_LOGO_UPLOAD_DIR', value: 'assets/corporate-logos', description: 'Directory for corporate logos', createdBy: SYSTEM_ACTOR_ID },
     { key: 'CORPORATE_LOGO_MAX_SIZE', value: 2097152, description: 'Max size for corporate logos (bytes)', createdBy: SYSTEM_ACTOR_ID },
     { key: 'CORPORATE_LOGO_ALLOWED_FORMATS', value: ['jpg', 'jpeg', 'png', 'webp'], description: 'Allowed formats for corporate logos', createdBy: SYSTEM_ACTOR_ID },

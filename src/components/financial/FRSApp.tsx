@@ -279,6 +279,21 @@ export const FRSApp: React.FC = () => {
     };
   }, [common.rateLimit]);
 
+  useEffect(() => {
+    const handleMaintenance = () => {
+      toast.error(common.errors.MAINTENANCE_MODE, { 
+        id: 'maintenance-mode',
+        duration: 10000 
+      });
+      // Redirect to login is handled automatically because user is cleared in apiFetch
+    };
+
+    window.addEventListener('frs:maintenance', handleMaintenance);
+    return () => {
+      window.removeEventListener('frs:maintenance', handleMaintenance);
+    };
+  }, [common.errors.MAINTENANCE_MODE]);
+
   if (isLoading) return null;
 
   return (

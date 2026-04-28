@@ -31,6 +31,7 @@ import { createAttachmentsRouter } from '../routes/financial/attachments.js';
 import { createPermissionsRouter } from '../routes/financial/permissions.js';
 import { createUsersRouter } from '../routes/financial/users.js';
 import { createProfileRouter } from '../routes/profile/index.js';
+import { checkMaintenance } from '../middleware/maintenance.js';
 
 import { getFRSConfig } from '../config/frsConfig.js';
 import { configService } from '../services/management/configService.js';
@@ -96,40 +97,39 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
   }
 
-  // MAFINDA routes require authentication
-  app.use('/api/departments', authenticate, createDepartmentRouter());
-  app.use('/api/projects', authenticate, createProjectRouter());
-  app.use('/api/targets', authenticate, createTargetRouter());
-  app.use('/api/cost-centers', authenticate, createCostCenterRouter());
-  app.use('/api/system-configs', authenticate, createSystemConfigRouter());
-  app.use('/api/financial-statements', authenticate, createFinancialStatementRouter());
-  app.use('/api/dashboard', authenticate, createMafindaDashboardRouter());
+  // MAFINDA routes require authentication and maintenance check
+  app.use('/api/departments', authenticate, checkMaintenance, createDepartmentRouter());
+  app.use('/api/projects', authenticate, checkMaintenance, createProjectRouter());
+  app.use('/api/targets', authenticate, checkMaintenance, createTargetRouter());
+  app.use('/api/financial-statements', authenticate, checkMaintenance, createFinancialStatementRouter());
+  app.use('/api/dashboard/mafinda', authenticate, checkMaintenance, createMafindaDashboardRouter());
+  app.use('/api/cost-centers', authenticate, checkMaintenance, createCostCenterRouter());
 
   // Master Data & Financial Enhancement routes
-  app.use('/api/corporates', authenticate, createCorporatesRouter());
-  app.use('/api/roles', authenticate, createRolesRouter());
-  app.use('/api/banks', authenticate, createBanksRouter());
-  app.use('/api/corporate-sectors', authenticate, createCorporateSectorsRouter());
-  app.use('/api/currencies', authenticate, createCurrenciesRouter());
-  app.use('/api/cost-center-categories', authenticate, createCostCenterCategoriesRouter());
-  app.use('/api/cash-realizations', authenticate, createCashRealizationsRouter());
-  app.use('/api/bank-loans', authenticate, createBankLoansRouter());
-  app.use('/api/notification-configs', authenticate, createNotificationConfigsRouter());
-  app.use('/api/attachments', authenticate, createAttachmentsRouter());
-  app.use('/api/permissions', authenticate, createPermissionsRouter());
-  app.use('/api/users', authenticate, createUsersRouter());
+  app.use('/api/corporates', authenticate, checkMaintenance, createCorporatesRouter());
+  app.use('/api/roles', authenticate, checkMaintenance, createRolesRouter());
+  app.use('/api/banks', authenticate, checkMaintenance, createBanksRouter());
+  app.use('/api/corporate-sectors', authenticate, checkMaintenance, createCorporateSectorsRouter());
+  app.use('/api/currencies', authenticate, checkMaintenance, createCurrenciesRouter());
+  app.use('/api/cost-center-categories', authenticate, checkMaintenance, createCostCenterCategoriesRouter());
+  app.use('/api/cash-realizations', authenticate, checkMaintenance, createCashRealizationsRouter());
+  app.use('/api/bank-loans', authenticate, checkMaintenance, createBankLoansRouter());
+  app.use('/api/notification-configs', authenticate, checkMaintenance, createNotificationConfigsRouter());
+  app.use('/api/attachments', authenticate, checkMaintenance, createAttachmentsRouter());
+  app.use('/api/permissions', authenticate, checkMaintenance, createPermissionsRouter());
+  app.use('/api/users', authenticate, checkMaintenance, createUsersRouter());
+  app.use('/api/system-configs', authenticate, checkMaintenance, createSystemConfigRouter());
+  app.use('/api/profile', authenticate, checkMaintenance, createProfileRouter());
 
-  // CRM routes require authentication
-  app.use('/api/crm/customers', authenticate, createCustomerRouter());
-  app.use('/api/crm/customers/:customerId/contacts', authenticate, createContactRouter());
-  app.use('/api/crm/contacts', authenticate, createContactStandaloneRouter());
-  app.use('/api/crm/interactions', authenticate, createInteractionRouter());
-  app.use('/api/crm/opportunities', authenticate, createOpportunityRouter());
-  app.use('/api/crm/opportunities/:id/qualification', authenticate, createQualificationRouter());
-  app.use('/api/crm/pipeline', authenticate, createPipelineRouter());
+  // CRM routes require authentication and maintenance check
+  app.use('/api/crm/customers', authenticate, checkMaintenance, createCustomerRouter());
+  app.use('/api/crm/customers/:customerId/contacts', authenticate, checkMaintenance, createContactRouter());
+  app.use('/api/crm/contacts-standalone', authenticate, checkMaintenance, createContactStandaloneRouter());
+  app.use('/api/crm/interactions', authenticate, checkMaintenance, createInteractionRouter());
+  app.use('/api/crm/opportunities', authenticate, checkMaintenance, createOpportunityRouter());
+  app.use('/api/crm/pipelines', authenticate, checkMaintenance, createPipelineRouter());
+  app.use('/api/crm/qualifications', authenticate, checkMaintenance, createQualificationRouter());
 
-  // Profile routes require authentication
-  app.use('/api/profile', authenticate, createProfileRouter());
 
   // FRS router handles its own public/private route separation
   app.use('/api/frs', createFRSRouter());

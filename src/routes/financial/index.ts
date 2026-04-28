@@ -26,6 +26,7 @@ import { createAttachmentsRouter } from './attachments';
 import { createBankLoansRouter } from './bankLoans';
 import { createNotificationConfigsRouter } from './notificationConfigs';
 import { authenticate } from '../../middleware/auth';
+import { checkMaintenance } from '../../middleware/maintenance';
 
 import { getFRSConfig } from '../../config/frsConfig';
 
@@ -69,6 +70,7 @@ export function createFRSRouter(): Router {
 
   // Protect all following FRS routes
   router.use(authenticate);
+  router.use(checkMaintenance);
 
   // Corporate management
   router.use('/corporates', createCorporatesRouter());

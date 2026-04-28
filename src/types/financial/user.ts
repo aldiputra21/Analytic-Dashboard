@@ -96,6 +96,7 @@ export interface JWTPayload {
   role: UserRole;
   roleName?: string;
   roleDescription?: string;
+  permissions?: string[];
   authzVersion?: number;
   iat?: number;
   exp?: number;

@@ -176,6 +176,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       AUTH_RESET_FAILED: 'Gagal mereset password',
       EMAIL_SEND_FAILED: 'Gagal mengirim email',
       PERIOD_REQUIRED: 'Periode wajib diisi',
+      MAINTENANCE_MODE: 'Sistem sedang dalam pemeliharaan. Silakan coba beberapa saat lagi.',
     },
   },
   en: {
@@ -284,6 +285,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       AUTH_RESET_FAILED: 'Failed to reset password',
       EMAIL_SEND_FAILED: 'Failed to send email',
       PERIOD_REQUIRED: 'Period is required',
+      MAINTENANCE_MODE: 'System is currently under maintenance. Please try again later.',
     },
   },
 };

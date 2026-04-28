@@ -20,6 +20,7 @@ import { AppError, ErrorCode } from '../../utils/errors.js';
 import { db } from '../../db/connection';
 import { users } from '../../db/schema/index';
 import { calculatePasswordStrength } from '../../services/financial/passwordStrength';
+import { configService } from '../../services/management/configService';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -122,6 +123,16 @@ export function createFRSAuthRouter(): Router {
         });
 
         throw new AppError(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Invalid username or password', 401);
+      }
+
+      // Maintenance Mode Check
+      const isMaintenance = await configService.get<boolean>('maintenance_mode', false);
+      if (isMaintenance) {
+        const hasBypassRole = result.user.role === 'system_admin';
+        const hasBypassPermission = result.user.permissions?.includes('public.system_configs.write');
+        if (!hasBypassRole && !hasBypassPermission) {
+          throw new AppError(ErrorCode.MAINTENANCE_MODE, 'Sistem sedang dalam pemeliharaan. Hanya administrator yang dapat masuk.', 503);
+        }
       }
 
       // Log successful login
