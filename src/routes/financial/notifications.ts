@@ -13,7 +13,7 @@ import { requirePermission } from '../../middleware/rbac';
 import { verifyToken } from '../../services/financial/authService';
 import { asyncHandler } from '../../utils/asyncHandler';
 import type { JWTPayload } from '../../types/financial/user';
-import { AppError, ErrorCode } from '../../utils/errors.js';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 const VALID_STATUSES: NotificationStatus[] = ['unread', 'read', 'archived', 'dismissed'];
 
@@ -89,7 +89,7 @@ export function createNotificationsRouter(): Router {
     });
   }));
 
-  router.get('/', requirePermission('cfd.notifications.read'), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const status = parseStatus(req.query.status);
     const before = typeof req.query.before === 'string' ? req.query.before : undefined;
@@ -105,19 +105,19 @@ export function createNotificationsRouter(): Router {
     res.json(notifications);
   }));
 
-  router.patch('/:id/read', requirePermission('cfd.notifications.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.patch('/:id/read', asyncHandler(async (req: Request, res: Response) => {
     const updated = await markNotificationAsRead(req.params.id, req.user!.userId);
     if (!updated) {
-      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Notification not found');
+      throw AppError.notFound(ErrorCode.NOTIFICATION_NOT_FOUND, 'Notification not found');
     }
 
     res.json(updated);
   }));
 
-  router.patch('/:id/archive', requirePermission('cfd.notifications.write'), asyncHandler(async (req: Request, res: Response) => {
+  router.patch('/:id/archive', asyncHandler(async (req: Request, res: Response) => {
     const updated = await archiveNotification(req.params.id, req.user!.userId);
     if (!updated) {
-      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Notification not found');
+      throw AppError.notFound(ErrorCode.NOTIFICATION_NOT_FOUND, 'Notification not found');
     }
 
     res.json(updated);

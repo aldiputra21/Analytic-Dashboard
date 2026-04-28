@@ -61,8 +61,6 @@ async function main() {
     { key: 'cfd.users.write', module: 'cfd', description: 'Create/update users' },
     { key: 'cfd.users.delete', module: 'cfd', description: 'Delete users' },
     { key: 'cfd.users.manage_users', module: 'cfd', description: 'Manage user roles and access' },
-    { key: 'cfd.notifications.read', module: 'cfd', description: 'Read notifications' },
-    { key: 'cfd.notifications.write', module: 'cfd', description: 'Manage notifications' },
 
     // Management Modules
     { key: 'public.departments.read', module: 'public', description: 'Read departments' },
@@ -148,8 +146,6 @@ async function main() {
       'cfd.users.read',
       'cfd.users.write',
       'cfd.users.manage_users',
-      'cfd.notifications.read',
-      'cfd.notifications.write',
       'cfd.audit_log.read',
       'public.notification_configs.read',
       'public.notification_configs.write',
@@ -177,8 +173,6 @@ async function main() {
       'public.departments.write',
       'public.projects.read',
       'public.projects.write',
-      'cfd.notifications.read',
-      'cfd.notifications.write',
       'cfd.audit_log.read',
     ],
     corporate_executive: permissionCatalog
@@ -194,7 +188,6 @@ async function main() {
       'cfd.income_statements.read',
       'cfd.weekly_cash_flows.read',
       'cfd.realizations.read',
-      'cfd.notifications.read',
     ],
     finance_manager: [
       'cfd.dashboard.read',
@@ -206,7 +199,6 @@ async function main() {
       'cfd.income_statements.read',
       'cfd.weekly_cash_flows.read',
       'cfd.realizations.read',
-      'cfd.notifications.read',
     ],
     finance_staff: [
       'cfd.dashboard.read',
@@ -220,7 +212,6 @@ async function main() {
       'cfd.weekly_cash_flows.write',
       'cfd.realizations.read',
       'cfd.realizations.write',
-      'cfd.notifications.read',
     ],
     dept_leader: [
       'cfd.dashboard.read',
@@ -232,7 +223,6 @@ async function main() {
       'crm.proposals.read',
       'crm.contracts.read',
       'crm.reports.read',
-      'cfd.notifications.read',
     ],
     dept_manager: [
       'cfd.dashboard.read',
@@ -244,7 +234,6 @@ async function main() {
       'crm.proposals.read',
       'crm.contracts.read',
       'crm.reports.read',
-      'cfd.notifications.read',
     ],
     dept_staff: [
       'cfd.dashboard.read',
@@ -261,7 +250,6 @@ async function main() {
       'crm.contracts.write',
       'crm.interactions.read',
       'crm.interactions.write',
-      'cfd.notifications.read',
     ],
   };
 
