@@ -99,13 +99,13 @@ export function useDashboard(filters: DashboardFilters): DashboardData {
       const signal = abortControllerRef.current.signal;
       const [revTarget, revCost, cashFlow, assets, equity, historical] = await Promise.allSettled([
         apiFetch<DeptRevenueTargetResult>(
-          `/api/dashboard/dept-revenue-target${buildParams({ period: f.period, corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/dept-revenue-target${buildParams({ period: f.period, corporateId: f.corporateId })}`
         ),
         apiFetch<RevenueCostSummary>(
-          `/api/dashboard/revenue-cost-summary${buildParams({ period: f.period, corporateId: f.corporateId, departmentId: f.departmentId })}`
+          `/api/mafinda/dashboard/revenue-cost-summary${buildParams({ period: f.period, corporateId: f.corporateId, departmentId: f.departmentId })}`
         ),
         apiFetch<CashFlowResult>(
-          `/api/dashboard/cash-flow${buildParams({
+          `/api/mafinda/dashboard/cash-flow${buildParams({
             period: f.period,
             months: String(f.historicalMonths),
             corporateId: f.corporateId,
@@ -114,13 +114,13 @@ export function useDashboard(filters: DashboardFilters): DashboardData {
           })}`
         ),
         apiFetch<AssetComposition>(
-          `/api/dashboard/asset-composition${buildParams({ period: f.period, corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/asset-composition${buildParams({ period: f.period, corporateId: f.corporateId })}`
         ),
         apiFetch<EquityLiabilityComposition>(
-          `/api/dashboard/equity-liability-composition${buildParams({ period: f.period, corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/equity-liability-composition${buildParams({ period: f.period, corporateId: f.corporateId })}`
         ),
         apiFetch<HistoricalDataPoint[]>(
-          `/api/dashboard/historical-data${buildParams({ months: String(f.historicalMonths), corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/historical-data${buildParams({ months: String(f.historicalMonths), corporateId: f.corporateId })}`
         ),
       ]);
 

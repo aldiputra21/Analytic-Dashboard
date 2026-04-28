@@ -28,12 +28,17 @@ const createRealizationSchema = z
     projectId: z.string().uuid().optional().nullable(),
     transactionDate: z.string().date(),
     category: z.enum(['cash-in', 'cash-out']),
+    costCenterId: z.string().uuid().optional().nullable(),
     amount: z.number().positive(),
     notes: z.string().optional(),
   })
   .refine((data) => data.entityType !== 'project' || !!data.projectId, {
     message: 'project_id is required when entity_type is project',
     path: ['projectId'],
+  })
+  .refine((data) => data.category !== 'cash-out' || !!data.costCenterId, {
+    message: 'cost_center_id is required for cash-out',
+    path: ['costCenterId'],
   });
 
 const updateRealizationSchema = z
@@ -43,6 +48,7 @@ const updateRealizationSchema = z
     projectId: z.string().uuid().optional().nullable(),
     transactionDate: z.string().date().optional(),
     category: z.enum(['cash-in', 'cash-out']).optional(),
+    costCenterId: z.string().uuid().optional().nullable(),
     amount: z.number().positive().optional(),
     notes: z.string().optional().nullable(),
   })
@@ -56,6 +62,18 @@ const updateRealizationSchema = z
       message: 'project_id is required when entity_type is project',
       path: ['projectId'],
     },
+  )
+  .refine(
+    (data) => {
+      // If updating category to 'cash-out', costCenterId must be provided or exist
+      // Since this is update, it's a bit trickier, but usually we provide full object in PUT or check if it's being set.
+      if (data.category === 'cash-out' && data.costCenterId === undefined) return false; // This is a simplification
+      return true;
+    },
+    {
+      message: 'cost_center_id is required for cash-out',
+      path: ['costCenterId'],
+    }
   );
 
 // ---------------------------------------------------------------------------
@@ -165,7 +183,7 @@ export function createCashRealizationsRouter(): Router {
    */
   router.post('/', requirePermission('cfd.realizations.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const data = createRealizationSchema.parse(req.body);
-    const { entityType, departmentId, projectId, transactionDate, category, amount, notes } =
+    const { entityType, departmentId, projectId, costCenterId, transactionDate, category, amount, notes } =
       data;
 
     const access = req.accessContext!;
@@ -188,6 +206,7 @@ export function createCashRealizationsRouter(): Router {
         entityType,
         departmentId,
         projectId: projectId ?? null,
+        costCenterId: costCenterId ?? null,
         transactionDate,
         category,
         amount: String(amount),
@@ -288,6 +307,7 @@ export function createCashRealizationsRouter(): Router {
     if ('projectId' in data) updateData.projectId = data.projectId ?? null;
     if (data.transactionDate !== undefined) updateData.transactionDate = data.transactionDate;
     if (data.category !== undefined) updateData.category = data.category;
+    if (data.costCenterId !== undefined) updateData.costCenterId = data.costCenterId;
     if (data.amount !== undefined) updateData.amount = String(data.amount);
     if ('notes' in data) updateData.notes = data.notes ?? null;
 

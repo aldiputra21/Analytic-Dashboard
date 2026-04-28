@@ -102,7 +102,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use('/api/projects', authenticate, checkMaintenance, createProjectRouter());
   app.use('/api/targets', authenticate, checkMaintenance, createTargetRouter());
   app.use('/api/financial-statements', authenticate, checkMaintenance, createFinancialStatementRouter());
-  app.use('/api/dashboard/mafinda', authenticate, checkMaintenance, createMafindaDashboardRouter());
+  app.use('/api/mafinda/dashboard', authenticate, checkMaintenance, createMafindaDashboardRouter());
   app.use('/api/cost-centers', authenticate, checkMaintenance, createCostCenterRouter());
 
   // Master Data & Financial Enhancement routes

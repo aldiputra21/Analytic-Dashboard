@@ -16,8 +16,20 @@ export function createCostCenterRouter(): Router {
   const router = Router();
 
   router.get('/', requirePermission('cfd.cost_centers.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const { search, activeOnly, page, pageSize } = req.query as Record<string, string>;
+    const { search, activeOnly, page, pageSize, corporateId } = req.query as Record<string, string>;
+    const access = req.accessContext!;
+
+    let targetCorpId = corporateId;
+    if (access.scope === 'corporate') {
+      if (targetCorpId) {
+        if (!access.corporateIds.includes(targetCorpId)) throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Access denied to this corporate');
+      } else if (access.corporateIds.length === 1) {
+        targetCorpId = access.corporateIds[0];
+      }
+    }
+
     const result = await listCostCenters({ 
+      corporateId: targetCorpId,
       search, 
       activeOnly: activeOnly === 'true',
       page: page ? parseInt(page) : 1,
@@ -27,8 +39,22 @@ export function createCostCenterRouter(): Router {
   }));
 
   router.get('/dropdown-items', requirePermission('cfd.cost_centers.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const { parentId } = req.query as Record<string, string>;
-    const result = await getActiveCostCenters(parentId === undefined ? undefined : (parentId === 'null' ? null : parentId));
+    const { parentId, corporateId } = req.query as Record<string, string>;
+    const access = req.accessContext!;
+
+    let targetCorpId = corporateId;
+    if (access.scope === 'corporate') {
+      if (targetCorpId) {
+        if (!access.corporateIds.includes(targetCorpId)) throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Access denied to this corporate');
+      } else if (access.corporateIds.length === 1) {
+        targetCorpId = access.corporateIds[0];
+      }
+    }
+
+    const result = await getActiveCostCenters(
+      targetCorpId,
+      parentId === undefined ? undefined : (parentId === 'null' ? null : parentId)
+    );
     res.json(result);
   }));
 
@@ -43,17 +69,26 @@ export function createCostCenterRouter(): Router {
   // Write operations restricted to System scope
   router.post('/', requirePermission('cfd.cost_centers.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;
-    if (access.scope !== 'system') {
-      throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
+    const { corporateId, parentId, category, name, code, description, isActive } = req.body;
+
+    // Validation
+    if (!name || !code || !category || !corporateId) {
+      throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Name, code, category, and corporateId are required');
     }
 
-    const { parentId, category, name, code, description, isActive } = req.body;
-    if (!name || !code || !category) {
-      throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Name, code, and category are required');
+    if (access.scope !== 'system') {
+      if (access.scope === 'corporate') {
+        if (!access.corporateIds.includes(corporateId)) {
+          throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator korporasi yang sesuai dapat mengelola cost center ini');
+        }
+      } else {
+        throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
+      }
     }
+
     const createdBy = req.user!.userId;
     const result = await createCostCenter(
-      { parentId, category, name, code, description, isActive }, 
+      { corporateId, parentId, category, name, code, description, isActive }, 
       createdBy,
       { ip: req.ip, userAgent: req.headers['user-agent'] }
     );
@@ -62,8 +97,19 @@ export function createCostCenterRouter(): Router {
 
   router.put('/:id', requirePermission('cfd.cost_centers.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;
+    const existing = await getCostCenterById(req.params.id);
+    if (!existing) {
+      throw AppError.notFound(ErrorCode.COST_CENTER_NOT_FOUND, 'Cost center not found');
+    }
+
     if (access.scope !== 'system') {
-      throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
+      if (access.scope === 'corporate') {
+        if (!access.corporateIds.includes(existing.corporateId)) {
+          throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Akses ditolak untuk korporasi ini');
+        }
+      } else {
+        throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
+      }
     }
 
     const { parentId, category, name, code, description, isActive } = req.body;
@@ -74,16 +120,24 @@ export function createCostCenterRouter(): Router {
       updatedBy,
       { ip: req.ip, userAgent: req.headers['user-agent'] }
     );
-    if (!result) {
-      throw AppError.notFound(ErrorCode.COST_CENTER_NOT_FOUND, 'Cost center not found');
-    }
     res.json(result);
   }));
 
   router.delete('/:id', requirePermission('cfd.cost_centers.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;
+    const existing = await getCostCenterById(req.params.id);
+    if (!existing) {
+      throw AppError.notFound(ErrorCode.COST_CENTER_NOT_FOUND, 'Cost center not found');
+    }
+
     if (access.scope !== 'system') {
-      throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
+      if (access.scope === 'corporate') {
+        if (!access.corporateIds.includes(existing.corporateId)) {
+          throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Akses ditolak untuk korporasi ini');
+        }
+      } else {
+        throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
+      }
     }
 
     const deletedBy = req.user!.userId;

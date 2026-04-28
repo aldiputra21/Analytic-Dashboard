@@ -14,6 +14,7 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { useProjects } from '../../../hooks/financial/useProjects';
+import { useCostCenters } from '../../../hooks/financial/useCostCenters';
 import { toast } from 'sonner';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { z } from 'zod';
@@ -51,6 +52,7 @@ interface Realization {
   projectName?: string;
   transactionDate: string;
   category: 'cash-in' | 'cash-out';
+  costCenterId: string | null;
   amount: string | number;
   notes: string | null;
   createdBy: string;
@@ -98,6 +100,7 @@ export const RealizationManager: React.FC = () => {
   const { hasPermission, language } = useAuth();
   const { departments, isLoading: isDeptsLoading } = useDepartments();
   const { projects, isLoading: isProjsLoading } = useProjects();
+  const { options: costCenterOptions, isLoading: isCCLoading } = useCostCenters();
   const t = realizationI18n[language];
   const common = commonsI18n[language];
 
@@ -142,6 +145,7 @@ export const RealizationManager: React.FC = () => {
     projectId: '',
     transactionDate: new Date().toISOString().split('T')[0],
     category: 'cash-out' as 'cash-in' | 'cash-out',
+    costCenterId: '',
     amount: '',
     notes: '',
   });
@@ -163,11 +167,18 @@ export const RealizationManager: React.FC = () => {
     projectId: z.string().optional(),
     transactionDate: z.string().min(1, t.validation.transactionDateRequired),
     category: z.enum(['cash-in', 'cash-out']),
+    costCenterId: z.string().optional(),
     amount: z.string().refine(v => {
       const n = parseFloat(v);
       return !isNaN(n) && n > 0;
     }, { message: t.validation.amountMin }),
     notes: z.string().optional(),
+  }).refine(data => {
+    if (data.category === 'cash-out' && !data.costCenterId) return false;
+    return true;
+  }, {
+    message: language === 'id' ? 'Cost Center wajib dipilih untuk pengeluaran' : 'Cost Center is required for cash-out',
+    path: ['costCenterId']
   }).refine(data => {
     if (data.entityType === 'department' && !data.departmentId) return false;
     if (data.entityType === 'project' && !data.projectId) return false;
@@ -230,6 +241,12 @@ export const RealizationManager: React.FC = () => {
     }
   }, [isModalOpen, editingId, t.alerts.errorFetch]);
 
+  useEffect(() => {
+    if (formData.category === 'cash-in' && formData.costCenterId) {
+      setFormData(prev => ({ ...prev, costCenterId: '' }));
+    }
+  }, [formData.category]);
+
   const handleApplyFilter = () => {
     setAppliedFilters({
       search,
@@ -267,6 +284,7 @@ export const RealizationManager: React.FC = () => {
         projectId: item.projectId || '',
         transactionDate: item.transactionDate.split('T')[0],
         category: item.category,
+        costCenterId: item.costCenterId || '',
         amount: item.amount.toString(),
         notes: item.notes || '',
       });
@@ -281,6 +299,7 @@ export const RealizationManager: React.FC = () => {
         projectId: '',
         transactionDate: new Date().toISOString().split('T')[0],
         category: 'cash-out',
+        costCenterId: '',
         amount: '',
         notes: '',
       });
@@ -959,6 +978,22 @@ export const RealizationManager: React.FC = () => {
                         </button>
                       </div>
                     </div>
+
+                    {/* Cost Center Select (Conditional) */}
+                    {formData.category === 'cash-out' && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Cost Center <span className="text-red-500">*</span>
+                        </label>
+                        <SearchableSelect
+                          options={costCenterOptions}
+                          value={formData.costCenterId || ''}
+                          onChange={(val) => setFormData(p => ({ ...p, costCenterId: val }))}
+                          placeholder="Select Cost Center"
+                          disabled={isReadOnly || isCCLoading}
+                        />
+                      </motion.div>
+                    )}
 
                     {/* Amount Input */}
                     <div className="space-y-1.5">

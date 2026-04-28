@@ -15,7 +15,7 @@
 import 'dotenv/config';
 import { db } from '../src/db/connection';
 import { users, corporates, departments, projects } from '../src/db/schema/public';
-import { targetHeaders, targetDetails, weeklyCashFlows, balanceSheets, incomeStatements } from '../src/db/schema/cfd';
+import { targetHeaders, targetDetails, weeklyCashFlows, balanceSheets, incomeStatements, costCenters } from '../src/db/schema/cfd';
 import { eq } from 'drizzle-orm';
 
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
@@ -30,8 +30,8 @@ async function main() {
     process.exit(1);
   }
 
-  const financeUserId = allUsers.find((u) => u.email === 'finance@cfd.local')!.id;
-  const bankingUserId = allUsers.find((u) => u.email === 'banking@cfd.local')!.id;
+  const financeUserId = allUsers.find((u) => u.email === 'finance.leader@tsi.local' || u.email === 'admin.system@cfd.local')!.id;
+  const bankingUserId = allUsers.find((u) => u.email === 'finance.staff@tsi.local' || u.email === 'admin.system@cfd.local')!.id;
 
   // ── Additional corporates (SUB3, SUB4, SUB5) ─────────────
   console.log('🏢 Seeding additional corporates...');
@@ -54,6 +54,9 @@ async function main() {
   }
   console.log('   ✅ Additional corporates & departments ready');
 
+  // ── Cost Centers ──────────────────────────────────────────
+  console.log('🏷️ Seeding cost centers...');
+
   // ── Resolve existing departments & projects ───────────────
   const allDepts = await db.select().from(departments);
   const allProjects = await db.select().from(projects);
@@ -65,6 +68,18 @@ async function main() {
 
   const asiId = allCorps.find((c) => c.code === 'ASI')!.id;
   const tsiId = allCorps.find((c) => c.code === 'TSI')!.id;
+  const ccValues = [
+    { corporateId: asiId, name: 'General & Admin', code: 'ASI-ADM', category: 'General', createdBy: SYSTEM_ACTOR_ID },
+    { corporateId: asiId, name: 'Production', code: 'ASI-PROD', category: 'Production', createdBy: SYSTEM_ACTOR_ID },
+    { corporateId: tsiId, name: 'General & Admin', code: 'TSI-ADM', category: 'General', createdBy: SYSTEM_ACTOR_ID },
+    { corporateId: tsiId, name: 'Operations', code: 'TSI-OPS', category: 'Operation', createdBy: SYSTEM_ACTOR_ID },
+  ];
+
+  for (const cc of ccValues) {
+    await db.insert(costCenters).values(cc).onConflictDoNothing();
+  }
+  console.log('   ✅ Cost centers seeded');
+
   const deptMap = Object.fromEntries(allDepts.map((d) => [`${d.corporateId}_${d.code}`, d.id]));
   const asiOnmDeptId = deptMap[`${asiId}_ASI-ONM`];
   const tsiOnmDeptId = deptMap[`${tsiId}_TSI-ONM`];
@@ -201,8 +216,8 @@ async function main() {
   // ── Historical Financial Data (2024-01 to 2026-12) ───────
   console.log('📊 Seeding 36-month historical financial data...');
 
-  const financeUser = await db.select({ id: users.id }).from(users).where(eq(users.email, 'finance@cfd.local')).limit(1);
-  const seedActorId = financeUser[0]?.id ?? SYSTEM_ACTOR_ID;
+  const financeUser = allUsers.find((u) => u.email === 'finance.leader@tsi.local' || u.email === 'admin.system@cfd.local');
+  const seedActorId = financeUser?.id ?? SYSTEM_ACTOR_ID;
 
   const periods: string[] = [];
   for (let y = 2024; y <= 2026; y++) {

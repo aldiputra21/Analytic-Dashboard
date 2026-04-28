@@ -27,17 +27,20 @@ export const cfdSchema = pgSchema('cfd');
 
 export const costCenters = cfdSchema.table('cost_centers', {
   id: uuid().primaryKey().defaultRandom(),
+  corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
   parentId: uuid('parent_id').references((): AnyPgColumn => costCenters.id),
   category: varchar({ length: 50 }).notNull(),
   name: varchar({ length: 100 }).notNull(),
-  code: varchar({ length: 20 }).notNull().unique(),
+  code: varchar({ length: 20 }).notNull(),
   description: text(),
   isActive: boolean('is_active').notNull().default(true),
   createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
-});
+}, (table) => [
+  unique('uq_cost_center_corp_code').on(table.corporateId, table.code),
+]);
 
 // --- 1. target_headers (master) ---------------------------------------------
 
@@ -198,6 +201,7 @@ export const cashRealizations = cfdSchema.table('cash_realizations', {
   entityType: varchar('entity_type', { length: 20 }).notNull(),
   departmentId: uuid('department_id').notNull().references(() => departments.id),
   projectId: uuid('project_id').references(() => projects.id),
+  costCenterId: uuid('cost_center_id').references(() => costCenters.id),
   transactionDate: date('transaction_date').notNull(),
   category: varchar({ length: 20 }).notNull(),
   amount: numeric({ precision: 18, scale: 2 }).notNull(),

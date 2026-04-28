@@ -18,7 +18,7 @@ export function createMafindaDashboardRouter(): Router {
   const router = Router();
 
   /**
-   * GET /api/dashboard/dept-revenue-target
+   * GET /api/mafinda/dashboard/dept-revenue-target
    * Target vs realisasi revenue per departemen
    * Requirements: 1.6
    * Query params: period (required, format YYYY-MM), corporateId (optional for owner role)
@@ -47,7 +47,7 @@ export function createMafindaDashboardRouter(): Router {
 
 
   /**
-   * GET /api/dashboard/revenue-cost-summary
+   * GET /api/mafinda/dashboard/revenue-cost-summary
    * Ringkasan revenue & biaya operasional
    * Requirements: 2.5
    * Query params: period (required), departmentId (optional)
@@ -74,7 +74,7 @@ export function createMafindaDashboardRouter(): Router {
   }));
 
   /**
-   * GET /api/dashboard/cash-flow
+   * GET /api/mafinda/dashboard/cash-flow
    * Data arus kas dengan filter departemen & proyek
    * Requirements: 3.5
    * Query params: period (required), months (optional), departmentId (optional), entityType (optional), entityId (optional)
@@ -106,7 +106,7 @@ export function createMafindaDashboardRouter(): Router {
   }));
 
   /**
-   * GET /api/dashboard/asset-composition
+   * GET /api/mafinda/dashboard/asset-composition
    * Komposisi aset dari neraca
    * Requirements: 4.5
    * Query params: period (required, format YYYY-MM), departmentId (optional)
@@ -133,7 +133,7 @@ export function createMafindaDashboardRouter(): Router {
   }));
 
   /**
-   * GET /api/dashboard/equity-liability-composition
+   * GET /api/mafinda/dashboard/equity-liability-composition
    * Komposisi ekuitas & liabilitas dari neraca
    * Requirements: 5.5
    * Query params: period (required, format YYYY-MM), departmentId (optional)
@@ -160,7 +160,7 @@ export function createMafindaDashboardRouter(): Router {
   }));
 
   /**
-   * GET /api/dashboard/historical-data
+   * GET /api/mafinda/dashboard/historical-data
    * Data keuangan historis multi-metrik
    * Requirements: 6.5
    * Query params: months (required: 3|6|12|24)

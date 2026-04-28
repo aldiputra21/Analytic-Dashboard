@@ -10,6 +10,7 @@ import { AppError, ErrorCode } from '../../utils/errors.js';
 function mapRowToCostCenter(row: typeof costCenters.$inferSelect): CostCenter {
   return {
     id: row.id,
+    corporateId: row.corporateId,
     parentId: row.parentId,
     category: row.category,
     name: row.name,
@@ -34,6 +35,7 @@ export async function createCostCenter(input: CreateCostCenterInput, createdBy: 
   }
 
   const [inserted] = await db.insert(costCenters).values({
+    corporateId: input.corporateId,
     parentId: input.parentId,
     category,
     name: input.name,
@@ -60,14 +62,18 @@ export async function createCostCenter(input: CreateCostCenterInput, createdBy: 
 }
 
 export async function listCostCenters(options: { 
+  corporateId?: string;
   search?: string; 
   activeOnly?: boolean;
   page?: number;
   pageSize?: number;
 } = {}): Promise<{ records: CostCenter[]; totalCount: number }> {
-  const { search, activeOnly, page = 1, pageSize = 0 } = options;
+  const { corporateId, search, activeOnly, page = 1, pageSize = 0 } = options;
   
   let baseFilters: any[] = [];
+  if (corporateId) {
+    baseFilters.push(eq(costCenters.corporateId, corporateId));
+  }
   if (activeOnly) {
     baseFilters.push(eq(costCenters.isActive, true));
   }
@@ -170,8 +176,11 @@ export async function deleteCostCenter(id: string, deletedBy?: string, context?:
   return result.length > 0;
 }
 
-export async function getActiveCostCenters(parentId?: string | null): Promise<CostCenter[]> {
+export async function getActiveCostCenters(corporateId?: string, parentId?: string | null): Promise<CostCenter[]> {
   const conditions = [eq(costCenters.isActive, true)];
+  if (corporateId) {
+    conditions.push(eq(costCenters.corporateId, corporateId));
+  }
   if (parentId !== undefined) {
     if (parentId === null) {
       conditions.push(sql`${costCenters.parentId} IS NULL`);

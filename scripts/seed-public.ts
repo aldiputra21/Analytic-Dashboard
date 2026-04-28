@@ -175,6 +175,9 @@ async function main() {
       'public.departments.write',
       'public.projects.read',
       'public.projects.write',
+      'cfd.cost_centers.read',
+      'cfd.cost_centers.write',
+      'cfd.cost_centers.delete',
       'cfd.audit_log.read',
     ],
     corporate_executive: permissionCatalog
@@ -189,6 +192,8 @@ async function main() {
       'cfd.balance_sheets.read',
       'cfd.income_statements.read',
       'cfd.weekly_cash_flows.read',
+      'cfd.cost_centers.read',
+      'cfd.cost_centers.write',
       'cfd.realizations.read',
     ],
     finance_manager: [
@@ -200,6 +205,8 @@ async function main() {
       'cfd.balance_sheets.read',
       'cfd.income_statements.read',
       'cfd.weekly_cash_flows.read',
+      'cfd.cost_centers.read',
+      'cfd.cost_centers.write',
       'cfd.realizations.read',
     ],
     finance_staff: [
@@ -214,6 +221,8 @@ async function main() {
       'cfd.weekly_cash_flows.write',
       'cfd.realizations.read',
       'cfd.realizations.write',
+      'cfd.cost_centers.read',
+      'cfd.cost_centers.write',
     ],
     dept_leader: [
       'cfd.dashboard.read',

@@ -22,6 +22,20 @@
       "when": 1777192029193,
       "tag": "0002_good_terror",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777349101151,
+      "tag": "0003_tranquil_mystique",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777349200000,
+      "tag": "0004_cfd_views_and_functions",
+      "breakpoints": true
     }
   ]
 }

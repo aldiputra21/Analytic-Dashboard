@@ -69,10 +69,11 @@ async function main() {
     process.exit(1);
   }
 
-  const userAdmin = allUsers.find((u) => u.email.includes('admin'))!;
-  const userFinance = allUsers.find((u) => u.email.includes('finance'))!;
-  const userBanking = allUsers.find((u) => u.email.includes('banking'))!;
-  const userOwner = allUsers.find((u) => u.email.includes('owner'))!;
+  const userAdmin = allUsers.find((u) => u.email.includes('admin.system')) || allUsers[0];
+  const userFinance = allUsers.find((u) => u.email.includes('finance.leader')) || userAdmin;
+  const userBanking = allUsers.find((u) => u.email.includes('finance.staff')) || userAdmin;
+  const userOwner = allUsers.find((u) => u.email.includes('exec.global')) || userAdmin;
+
 
   const corpASI = allCorps.find((c) => c.code === 'ASI')!;
   const corpTSI = allCorps.find((c) => c.code === 'TSI')!;

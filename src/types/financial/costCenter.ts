@@ -2,6 +2,7 @@
 
 export interface CostCenter {
   id: string;
+  corporateId: string;
   parentId?: string | null;
   category: string;
   name: string;
@@ -14,6 +15,7 @@ export interface CostCenter {
 }
 
 export interface CreateCostCenterInput {
+  corporateId: string;
   parentId?: string | null;
   category: string;
   name: string;

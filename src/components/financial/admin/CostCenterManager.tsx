@@ -11,6 +11,7 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCostCenterCategories } from '../../../hooks/financial/useCostCenterCategories';
 import { useCostCenters } from '../../../hooks/financial/useCostCenters';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import {
@@ -30,6 +31,7 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 
 interface CostCenter {
   id: string;
+  corporateId: string;
   parentId: string | null;
   parentName?: string;
   code: string;
@@ -116,27 +118,29 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: str
 // --- Main Component ---
 
 export const CostCenterManager: React.FC = () => {
-  const { hasPermission, language } = useAuth();
-  const { options: categoryOptions, isLoading: isCatsLoading, categories } = useCostCenterCategories();
-  const { options: parentOptions, isLoading: isParentsLoading, costCenters: allActiveCostCenters } = useCostCenters();
+  const { options: categoryOptions, isLoading: isCatsLoading } = useCostCenterCategories();
+  const { options: parentOptions, isLoading: isParentsLoading } = useCostCenters();
+  const { options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
+  const { user, hasPermission, language } = useAuth();
   const t = costCenterI18n[language] as any;
   const common = commonsI18n[language];
 
   // Validation Schema
   const costCenterSchema = z.object({
+    corporateId: z.string().min(1, 'Corporate is required'),
     code: z.string().min(2, t.validation.codeMin),
     name: z.string().min(3, t.validation.nameMin),
-    parentCode: z.string().nullable().optional(),
-    categoryId: z.string().nullable().optional(),
+    parentId: z.string().nullable().optional(),
+    category: z.string().min(1, t.validation.categoryRequired),
     description: z.string().optional(),
     isActive: z.boolean()
   }).refine(data => {
     // If no parent, category is required
-    if (!data.parentCode && !data.categoryId) return false;
+    if (!data.parentId && !data.category) return false;
     return true;
   }, {
     message: t.validation.categoryRequired,
-    path: ['categoryId']
+    path: ['category']
   });
 
   const canWrite = hasPermission('cfd.cost_centers.write');
@@ -148,7 +152,8 @@ export const CostCenterManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({ search: '' });
+  const [filterCorporateId, setFilterCorporateId] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({ search: '', corporateId: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -164,6 +169,7 @@ export const CostCenterManager: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
+    corporateId: '',
     parentId: '',
     category: '',
     name: '',
@@ -183,6 +189,7 @@ export const CostCenterManager: React.FC = () => {
         page: page.toString(),
         pageSize: pageSize.toString(),
         search: appliedFilters.search.trim(),
+        corporateId: appliedFilters.corporateId,
       });
 
       const res = await apiFetch(`/api/cost-centers?${query.toString()}`);
@@ -212,12 +219,13 @@ export const CostCenterManager: React.FC = () => {
 
   const handleApplyFilter = () => {
     setPage(1);
-    setAppliedFilters({ search: search });
+    setAppliedFilters({ search, corporateId: filterCorporateId });
   };
 
   const handleClearFilter = () => {
     setSearch('');
-    setAppliedFilters({ search: '' });
+    setFilterCorporateId('');
+    setAppliedFilters({ search: '', corporateId: '' });
     setPage(1);
   };
 
@@ -226,6 +234,7 @@ export const CostCenterManager: React.FC = () => {
     if (cc) {
       setEditingCC(cc);
       setFormData({
+        corporateId: cc.corporateId,
         parentId: cc.parentId || '',
         category: cc.category,
         name: cc.name,
@@ -235,7 +244,14 @@ export const CostCenterManager: React.FC = () => {
       });
     } else {
       setEditingCC(null);
+      
+      let defaultCorpId = '';
+      if (!user?.hasFullCorporateAccess && user?.subsidiaryIds?.length === 1) {
+        defaultCorpId = user.subsidiaryIds[0];
+      }
+
       setFormData({
+        corporateId: defaultCorpId,
         parentId: '',
         category: categoryOptions[0]?.value || '',
         name: '',
@@ -366,6 +382,17 @@ export const CostCenterManager: React.FC = () => {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
           />
         </div>
+
+        {user?.hasFullCorporateAccess && (
+          <div className="min-w-[200px]">
+            <SearchableSelect
+              options={corporateOptions}
+              value={filterCorporateId}
+              onChange={setFilterCorporateId}
+              placeholder="Filter Corporate"
+            />
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <button
@@ -651,19 +678,25 @@ export const CostCenterManager: React.FC = () => {
                   color="border-indigo-200"
                 />
 
-                {/* Row 1: Induk + Kategori */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <FormField label="Corporate" required>
+                    <SearchableSelect
+                      options={corporateOptions}
+                      value={formData.corporateId}
+                      onChange={(val) => setFormData({ ...formData, corporateId: val, parentId: '' })}
+                      placeholder="Select Corporate"
+                      disabled={isViewOnly || (!user?.hasFullCorporateAccess && user?.subsidiaryIds?.length === 1)}
+                    />
+                  </FormField>
+
                   <FormField label={t.modal.parent}>
                     <SearchableSelect
                       options={parentOptions.filter(opt => opt.value !== editingCC?.id)}
                       value={formData.parentId}
                       onChange={(val) => setFormData({ ...formData, parentId: val })}
                       placeholder={t.modal.none}
-                      disabled={isViewOnly || isParentsLoading}
+                      disabled={isViewOnly || isParentsLoading || !formData.corporateId}
                     />
-                    {!formData.parentId && !isViewOnly && (
-                      <p className="text-[10px] text-slate-400 mt-1 pl-1 italic">{t.modal.parentNote}</p>
-                    )}
                   </FormField>
 
                   <FormField label={t.modal.category} required>

@@ -41,7 +41,10 @@ export function createCostCenterCategoriesRouter(): Router {
    * GET /api/cost-center-categories
    * List cost center categories with optional search, status filter, and pagination.
    */
-  router.get('/', requirePermission('public.cost_center_categories.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', 
+    requirePermission('public.cost_center_categories.read'), 
+    injectAccessContext, 
+    asyncHandler(async (req: Request, res: Response) => {
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -113,7 +116,10 @@ export function createCostCenterCategoriesRouter(): Router {
    * GET /api/cost-center-categories/dropdown-items
    * Fetch active categories for dropdown selection.
    */
-  router.get('/dropdown-items', requirePermission('public.cost_center_categories.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+  router.get('/dropdown-items', 
+    requirePermission('public.cost_center_categories.read', 'cfd.cost_centers.read', 'cfd.cost_centers.write'), 
+    injectAccessContext, 
+    asyncHandler(async (req: Request, res: Response) => {
     const records = await db
       .select()
       .from(costCenterCategories)
@@ -127,7 +133,10 @@ export function createCostCenterCategoriesRouter(): Router {
    * GET /api/cost-center-categories/:id
    * Get a single cost center category by ID.
    */
-  router.get('/:id', requirePermission('public.cost_center_categories.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+  router.get('/:id', 
+    requirePermission('public.cost_center_categories.read'), 
+    injectAccessContext, 
+    asyncHandler(async (req: Request, res: Response) => {
     const [category] = await db
       .select()
       .from(costCenterCategories)
