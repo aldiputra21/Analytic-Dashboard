@@ -33,6 +33,7 @@ import { createUsersRouter } from '../routes/financial/users.js';
 import { createProfileRouter } from '../routes/profile/index.js';
 
 import { getFRSConfig } from '../config/frsConfig.js';
+import { configService } from '../services/management/configService.js';
 
 interface CreateAppOptions {
   enableRequestLogger?: boolean;
@@ -49,6 +50,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   const app = express();
   const config = getFRSConfig();
+  
+  // Initialize System Config Cache
+  await configService.initialize();
   
   // Store Vite server instance for cleanup during shutdown
   (app as any).viteServer = null;

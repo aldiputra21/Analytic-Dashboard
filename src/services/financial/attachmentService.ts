@@ -1,12 +1,10 @@
-// Attachment Service
-// Handles file upload validation, storage, and metadata persistence for CFD realizations.
-
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { attachments, systemConfigs } from '../../db/schema/index.js';
+import { attachments } from '../../db/schema/index.js';
+import { configService } from '../management/configService.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,56 +37,25 @@ export interface UploadedFile {
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_ALLOWED_EXTENSIONS = ['png', 'jpg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
+const DEFAULT_ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-
-const BASE_UPLOAD_DIR = process.env.REALIZATION_ATTACHMENT_UPLOAD_DIR || 'assets/attachments/realisasi';
-const ALLOWED_EXTENSIONS = (process.env.REALIZATION_ATTACHMENT_ALLOWED_FORMATS || 'png,jpg,jpeg,doc,docx,xls,xlsx,pdf').split(',').map(f => f.trim());
+const DEFAULT_BASE_UPLOAD_DIR = 'assets/attachments/realisasi';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 /**
- * Reads attachment configuration from system_configs.
- * Falls back to defaults if keys are not found.
+ * Reads attachment configuration from system_configs via configService.
  */
-export async function getAttachmentConfig(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: NodePgDatabase<any>,
-): Promise<AttachmentConfig> {
-  const rows = await db
-    .select()
-    .from(systemConfigs)
-    .where(
-      eq(systemConfigs.key, 'attachment_config'),
-    );
-
-  if (rows.length > 0) {
-    const value = rows[0].value as Record<string, unknown>;
-    const allowedExtensions = Array.isArray(value.allowed_extensions)
-      ? (value.allowed_extensions as string[])
-      : ALLOWED_EXTENSIONS;
-    const maxFileSize =
-      typeof value.max_file_size === 'number'
-        ? value.max_file_size
-        : DEFAULT_MAX_FILE_SIZE;
-    return { allowedExtensions, maxFileSize };
-  }
-
-  // Try separate keys for backward compatibility
-  const [extRow, sizeRow] = await Promise.all([
-    db.select().from(systemConfigs).where(eq(systemConfigs.key, 'allowed_extensions')),
-    db.select().from(systemConfigs).where(eq(systemConfigs.key, 'max_file_size')),
-  ]);
-
-  const allowedExtensions =
-    extRow.length > 0 && Array.isArray(extRow[0].value)
-      ? (extRow[0].value as string[])
-      : ALLOWED_EXTENSIONS;
-
-  const maxFileSize =
-    sizeRow.length > 0 && typeof sizeRow[0].value === 'number'
-      ? (sizeRow[0].value as number)
-      : DEFAULT_MAX_FILE_SIZE;
+export async function getAttachmentConfig(): Promise<AttachmentConfig> {
+  const allowedExtensions = await configService.get<string[]>(
+    'REALIZATION_ATTACHMENT_ALLOWED_FORMATS', 
+    DEFAULT_ALLOWED_EXTENSIONS
+  );
+  
+  const maxFileSize = await configService.get<number>(
+    'REALIZATION_ATTACHMENT_MAX_SIZE', 
+    DEFAULT_MAX_FILE_SIZE
+  );
 
   return { allowedExtensions, maxFileSize };
 }
@@ -128,8 +95,6 @@ export function validateFile(
 
 /**
  * Saves a file to disk and inserts metadata into public.attachments.
- * The file must already be on disk at `file.path` (disk storage) or
- * provided as `file.buffer` (memory storage).
  */
 export async function saveAttachment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -139,7 +104,9 @@ export async function saveAttachment(
   file: UploadedFile,
   userId: string,
 ): Promise<AttachmentRecord> {
-  const destDir = path.join(BASE_UPLOAD_DIR, entityId);
+  const baseUploadDir = await configService.get('REALIZATION_ATTACHMENT_UPLOAD_DIR', DEFAULT_BASE_UPLOAD_DIR);
+  const destDir = path.join(baseUploadDir, entityId);
+  
   if (!fs.existsSync(destDir)) {
     fs.mkdirSync(destDir, { recursive: true });
   }
@@ -212,8 +179,10 @@ export async function deleteAttachment(
  * Uses disk storage — files are written to a temp directory first, then moved
  * by `saveAttachment()` to the final destination.
  */
-export function createMulterUpload(config: AttachmentConfig): multer.Multer {
-  const tempDir = path.join(BASE_UPLOAD_DIR, '_tmp');
+export async function createMulterUpload(config: AttachmentConfig): Promise<multer.Multer> {
+  const baseUploadDir = await configService.get('REALIZATION_ATTACHMENT_UPLOAD_DIR', DEFAULT_BASE_UPLOAD_DIR);
+  const tempDir = path.join(baseUploadDir, '_tmp');
+  
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }

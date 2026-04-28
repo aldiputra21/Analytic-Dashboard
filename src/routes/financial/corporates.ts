@@ -38,7 +38,8 @@ export const logoHandler = asyncHandler(async (req: Request, res: Response) => {
   
   // Extract filename from the stored path
   const filename = corporate.logo.split('/').pop();
-  const uploadDir = process.env.CORPORATE_LOGO_UPLOAD_DIR || 'assets/corporate-logos';
+  const { configService } = await import('../../services/management/configService.js');
+  const uploadDir = await configService.get('CORPORATE_LOGO_UPLOAD_DIR', 'assets/corporate-logos');
   const filePath = path.join(uploadDir, filename!);
 
   if (!fs.existsSync(filePath)) {
@@ -130,7 +131,7 @@ export function createCorporatesRouter(): Router {
   /**
    * POST /api/frs/corporates/:id/logo
    */
-  router.post('/:id/logo', requirePermission('cfd.corporates.write'), uploadLogo.single('logo'), asyncHandler(async (req: Request, res: Response) => {
+  router.post('/:id/logo', requirePermission('cfd.corporates.write'), uploadLogo, asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
       throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'No file uploaded');
     }

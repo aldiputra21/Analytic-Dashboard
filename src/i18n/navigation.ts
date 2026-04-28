@@ -32,6 +32,7 @@ export interface NavigationCopy {
     currencies: string;
     costCenterCategories: string;
     notificationConfigs: string;
+    systemConfigs: string;
     crm: {
       dashboard: string;
       opportunities: string;
@@ -82,6 +83,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       currencies: 'Mata Uang',
       costCenterCategories: 'Kategori Cost Center',
       notificationConfigs: 'Konfigurasi Notifikasi',
+      systemConfigs: 'Konfigurasi Sistem',
       crm: {
         dashboard: 'Dashboard',
         opportunities: 'Peluang',
@@ -130,6 +132,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       currencies: 'Currencies',
       costCenterCategories: 'Cost Center Categories',
       notificationConfigs: 'Notification Config',
+      systemConfigs: 'System Config',
       crm: {
         dashboard: 'Dashboard',
         opportunities: 'Opportunities',

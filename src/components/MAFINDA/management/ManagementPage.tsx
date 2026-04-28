@@ -60,8 +60,8 @@ const DepartmentsTab: React.FC<{
       }
       setShowForm(false);
     } catch (err: any) {
-      showError(err.status === 409 
-        ? (language === 'id' ? `Nama "${form.name}" sudah digunakan` : `Name "${form.name}" already in use`) 
+      showError(err.status === 409
+        ? (language === 'id' ? `Nama "${form.name}" sudah digunakan` : `Name "${form.name}" already in use`)
         : (err.message ?? (language === 'id' ? 'Gagal menyimpan' : 'Failed to save')));
     } finally {
       setSaving(false);
@@ -317,8 +317,8 @@ const ProjectsTab: React.FC<{
       }
       setShowForm(false);
     } catch (err: any) {
-      showError(err.status === 409 
-        ? (language === 'id' ? `Nama "${form.name}" sudah ada di departemen ini` : `Name "${form.name}" already in this department`) 
+      showError(err.status === 409
+        ? (language === 'id' ? `Nama "${form.name}" sudah ada di departemen ini` : `Name "${form.name}" already in this department`)
         : (err.message ?? (language === 'id' ? 'Gagal menyimpan' : 'Failed to save')));
     } finally {
       setSaving(false);
@@ -372,8 +372,8 @@ const ProjectsTab: React.FC<{
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <FolderOpen className="w-10 h-10 text-slate-300 mb-3" />
             <p className="text-sm text-slate-400">
-              {departments.length === 0 
-                ? (language === 'id' ? 'Tambahkan departemen terlebih dahulu.' : 'Add a department first.') 
+              {departments.length === 0
+                ? (language === 'id' ? 'Tambahkan departemen terlebih dahulu.' : 'Add a department first.')
                 : (language === 'id' ? 'Belum ada proyek.' : 'No projects yet.')}
             </p>
           </div>
@@ -528,10 +528,10 @@ const TargetsTab: React.FC<{
   const [saving, setSaving] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'department' | 'project'>('all');
 
-  const PERIOD_LABELS: Record<string, string> = { 
-    monthly: tm.monthly, 
-    quarterly: tm.quarterly, 
-    annual: tm.annual 
+  const PERIOD_LABELS: Record<string, string> = {
+    monthly: tm.monthly,
+    quarterly: tm.quarterly,
+    annual: tm.annual
   };
 
   const visible = filterType === 'all' ? targets : targets.filter(t => t.entityType === filterType);
@@ -638,7 +638,7 @@ const TargetsTab: React.FC<{
                   <td className="px-4 py-3 text-slate-500 text-xs">{getEntityDept(t)}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.entityType === 'department' ? 'bg-purple-50 text-purple-700' : 'bg-teal-50 text-teal-700'}`}>
-                      {t.entityType === 'department' ? tm.department.slice(0,4) : tm.project}
+                      {t.entityType === 'department' ? tm.department.slice(0, 4) : tm.project}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{t.period}</td>
@@ -791,11 +791,10 @@ export const ManagementPage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                isActive
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${isActive
                   ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}

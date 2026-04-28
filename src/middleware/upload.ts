@@ -2,20 +2,16 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { Request } from 'express';
-
-const CORPORATE_LOGO_UPLOAD_DIR = process.env.CORPORATE_LOGO_UPLOAD_DIR || 'assets/corporate-logos';
-const CORPORATE_LOGO_MAX_SIZE = parseInt(process.env.CORPORATE_LOGO_MAX_SIZE || '2097152', 10); // Default 2MB
-const CORPORATE_LOGO_ALLOWED_FORMATS = (process.env.CORPORATE_LOGO_ALLOWED_FORMATS || 'jpg,jpeg,png,webp').split(',').map(f => f.trim());
-
-// Ensure directory exists
-if (!fs.existsSync(CORPORATE_LOGO_UPLOAD_DIR)) {
-  fs.mkdirSync(CORPORATE_LOGO_UPLOAD_DIR, { recursive: true });
-}
+import { Request, Response, NextFunction } from 'express';
+import { configService } from '../services/management/configService';
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, CORPORATE_LOGO_UPLOAD_DIR);
+  destination: async (req, file, cb) => {
+    const dir = await configService.get('CORPORATE_LOGO_UPLOAD_DIR', 'assets/corporate-logos');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
   },
   filename: (req, file, cb) => {
     if (req.params.id) {
@@ -27,13 +23,14 @@ const storage = multer.diskStorage({
   },
 });
 
-const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = async (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedFormats = await configService.get<string[]>('CORPORATE_LOGO_ALLOWED_FORMATS', ['jpg', 'jpeg', 'png', 'webp']);
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
   
   const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
   const mime = file.mimetype;
 
-  if (allowedMimeTypes.includes(mime) && CORPORATE_LOGO_ALLOWED_FORMATS.includes(ext)) {
+  if (allowedMimeTypes.includes(mime) && allowedFormats.includes(ext)) {
     cb(null, true);
   } else {
     const error = new Error('INVALID_FILE_TYPE');
@@ -43,10 +40,24 @@ const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFil
   }
 };
 
-export const uploadLogo = multer({
-  storage,
-  limits: {
-    fileSize: CORPORATE_LOGO_MAX_SIZE,
-  },
-  fileFilter,
-});
+/**
+ * Dynamic upload middleware that reads limits from configService.
+ */
+export const uploadLogo = (req: Request, res: Response, next: NextFunction) => {
+  const getMiddleware = async () => {
+    const maxSize = await configService.get('CORPORATE_LOGO_MAX_SIZE', 2097152);
+    
+    return multer({
+      storage,
+      limits: {
+        fileSize: maxSize,
+      },
+      fileFilter: (req, file, cb) => {
+        // Wrap async fileFilter for multer
+        fileFilter(req as any, file, cb);
+      },
+    }).single('logo');
+  };
+
+  getMiddleware().then(mw => mw(req, res, next)).catch(next);
+};

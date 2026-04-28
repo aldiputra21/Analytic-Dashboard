@@ -108,6 +108,8 @@ async function main() {
     { key: 'public.notification_configs.read', module: 'public', description: 'Read notification configs' },
     { key: 'public.notification_configs.write', module: 'public', description: 'Manage notification configs' },
     { key: 'public.notification_configs.delete', module: 'public', description: 'Delete notification configs' },
+    { key: 'public.system_configs.read', module: 'public', description: 'Read system configs' },
+    { key: 'public.system_configs.write', module: 'public', description: 'Manage system configs' },
 
     // CRM Module
     { key: 'crm.dashboard.read', module: 'crm', description: 'Read CRM dashboard' },
@@ -421,9 +423,14 @@ async function main() {
   // ── System Configs ───────────────────────────────────────
   console.log('⚙️ Seeding system configs...');
   await db.insert(systemConfigs).values([
-    { key: 'company_name', value: 'PT Titian Servis Indonesia', description: 'Main Company Name', createdBy: SYSTEM_ACTOR_ID },
     { key: 'app_version', value: '1.0.0', description: 'Application Version', createdBy: SYSTEM_ACTOR_ID },
     { key: 'maintenance_mode', value: 'false', description: 'System Maintenance Mode', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'CORPORATE_LOGO_UPLOAD_DIR', value: 'assets/corporate-logos', description: 'Directory for corporate logos', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'CORPORATE_LOGO_MAX_SIZE', value: 2097152, description: 'Max size for corporate logos (bytes)', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'CORPORATE_LOGO_ALLOWED_FORMATS', value: ['jpg', 'jpeg', 'png', 'webp'], description: 'Allowed formats for corporate logos', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'REALIZATION_ATTACHMENT_UPLOAD_DIR', value: 'assets/attachments/realisasi', description: 'Directory for realization attachments', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'REALIZATION_ATTACHMENT_MAX_SIZE', value: 10485760, description: 'Max size for realization attachments (bytes)', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'REALIZATION_ATTACHMENT_ALLOWED_FORMATS', value: ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'], description: 'Allowed formats for realization attachments', createdBy: SYSTEM_ACTOR_ID },
   ]).onConflictDoNothing();
 
   // ── Banks ─────────────────────────────────────────────────

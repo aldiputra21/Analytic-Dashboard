@@ -300,6 +300,7 @@ function makeApp() {
   // Global Error Handler for Tests
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     const errorName = err.name || err.constructor.name;
+    if (errorName === 'AppError') return res.status(err.statusCode || 400).json({ error: err.message, code: err.code });
     if (errorName === 'ValidationError') return res.status(400).json({ error: err.message });
     if (errorName === 'ConflictError') return res.status(409).json({ error: err.message });
     if (errorName === 'NotFoundError') return res.status(404).json({ error: err.message });
@@ -475,10 +476,15 @@ describe('Financial Statements API', () => {
 // ─── Dashboard Routes ─────────────────────────────────────────────────────────
 
 describe('Dashboard API', () => {
-  test('dept-revenue-target requires period and corporateId', async () => {
+  test('dept-revenue-target requires period but corporateId is optional for system users', async () => {
     const { app } = makeApp();
-    const res = await request(app).get('/api/dashboard/dept-revenue-target');
-    expect(res.status).toBe(400);
+    const resNoParams = await request(app).get('/api/dashboard/dept-revenue-target');
+    expect(resNoParams.status).toBe(400);
+    expect(resNoParams.body.code).toBe('PERIOD_REQUIRED');
+
+    const resWithPeriod = await request(app).get('/api/dashboard/dept-revenue-target?period=2025-01');
+    expect(resWithPeriod.status).toBe(200);
+    expect(resWithPeriod.body.period).toBe('2025-01');
   });
 
   test('revenue-cost-summary requires period', async () => {

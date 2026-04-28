@@ -29,7 +29,7 @@ export type FRSPage =
   | 'bank-manager' | 'corporate-sectors-manager' | 'currencies-manager'
   | 'cost-center-categories-manager' | 'notification-configs-manager'
   | 'consolidated' | 'trend-analysis' | 'mafinda-management' | 'mafinda-data-entry'
-  | 'balance-sheet-manager' | 'income-statement-manager'
+  | 'balance-sheet-manager' | 'income-statement-manager' | 'system-configs'
   // CRM sub-pages
   | 'crm-dashboard' | 'crm-opportunities' | 'crm-customers'
   | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse';
@@ -115,6 +115,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'currencies-manager', label: t.menus.currencies, icon: DollarSign, requiredPermissions: ['public.currencies.read'], group: 'admin' },
       { id: 'cost-center-categories-manager', label: t.menus.costCenterCategories, icon: Layers, requiredPermissions: ['public.cost_center_categories.read'], group: 'admin' },
       { id: 'notification-configs-manager', label: t.menus.notificationConfigs, icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'admin' },
+      { id: 'system-configs', label: t.menus.systemConfigs, icon: Settings, requiredPermissions: ['public.system_configs.read'], group: 'admin' },
     ];
     return items;
   }, [language]);

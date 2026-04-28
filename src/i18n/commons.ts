@@ -13,6 +13,7 @@ export interface CommonsCopy {
   back: string;
   submit: string;
   delete: string;
+  deleteConfirm: string;
   edit: string;
   view: string;
   add: string;
@@ -81,6 +82,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     back: 'Kembali',
     submit: 'Kirim',
     delete: 'Hapus',
+    deleteConfirm: 'Apakah Anda yakin ingin menghapus data ini?',
     edit: 'Ubah',
     view: 'Lihat',
     add: 'Tambah',
@@ -188,6 +190,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     back: 'Back',
     submit: 'Submit',
     delete: 'Delete',
+    deleteConfirm: 'Are you sure you want to delete this item?',
     edit: 'Edit',
     view: 'View',
     add: 'Add',

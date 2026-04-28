@@ -360,8 +360,8 @@ export function createCashRealizationsRouter(): Router {
       }
 
       // Load config and create multer instance dynamically
-      const config = await getAttachmentConfig(db);
-      const upload = createMulterUpload(config);
+      const config = await getAttachmentConfig();
+      const upload = await createMulterUpload(config);
 
       // Process multipart upload
       upload.array('files')(req, res, async (err) => {
