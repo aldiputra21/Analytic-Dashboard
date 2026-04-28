@@ -25,7 +25,7 @@ export function createMafindaDashboardRouter(): Router {
    */
   router.get('/dept-revenue-target', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
-    const access = req.accessContext!;
+    const access = (req as any).accessContext!;
 
     if (!period) {
       throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
@@ -38,10 +38,6 @@ export function createMafindaDashboardRouter(): Router {
         throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       targetCorpId = corporateId || access.corporateIds[0];
-    }
-
-    if (!targetCorpId) {
-      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
     }
 
     const data = await getDeptRevenueTarget(period, targetCorpId);
@@ -58,7 +54,7 @@ export function createMafindaDashboardRouter(): Router {
    */
   router.get('/revenue-cost-summary', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
-    const access = req.accessContext!;
+    const access = (req as any).accessContext!;
 
     if (!period) {
       throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
@@ -85,7 +81,7 @@ export function createMafindaDashboardRouter(): Router {
    */
   router.get('/cash-flow', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { period, months, corporateId, entityType, entityId } = req.query as Record<string, string>;
-    const access = req.accessContext!;
+    const access = (req as any).accessContext!;
 
     if (!period) {
       throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
@@ -117,7 +113,7 @@ export function createMafindaDashboardRouter(): Router {
    */
   router.get('/asset-composition', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
-    const access = req.accessContext!;
+    const access = (req as any).accessContext!;
 
     if (!period) {
       throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
@@ -144,7 +140,7 @@ export function createMafindaDashboardRouter(): Router {
    */
   router.get('/equity-liability-composition', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { period, corporateId } = req.query as Record<string, string>;
-    const access = req.accessContext!;
+    const access = (req as any).accessContext!;
 
     if (!period) {
       throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
@@ -171,7 +167,7 @@ export function createMafindaDashboardRouter(): Router {
    */
   router.get('/historical-data', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const { months, corporateId } = req.query as Record<string, string>;
-    const access = req.accessContext!;
+    const access = (req as any).accessContext!;
 
     if (!months) {
       throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months is required (3|6|12|24)');

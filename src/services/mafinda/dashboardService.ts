@@ -206,7 +206,7 @@ export async function getDeptRevenueTarget(
       .where(and(
         eq(targetHeaders.departmentId, dept.id),
         eq(targetHeaders.fiscalYear, year),
-        // eq(targetHeaders.fiscalMonth, month),
+        eq(targetDetails.month, month),
         eq(targetDetails.targetType, 'revenue'),
       ))
       .limit(1);

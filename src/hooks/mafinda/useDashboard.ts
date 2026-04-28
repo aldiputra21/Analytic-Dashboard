@@ -40,7 +40,8 @@ async function apiFetch<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error ?? 'Request failed');
+    const errorMsg = typeof data.error === 'object' ? data.error.message : (data.error ?? 'Request failed');
+    throw new Error(errorMsg);
   }
   return data as T;
 }
@@ -146,7 +147,10 @@ export function useDashboard(filters: DashboardFilters): DashboardData {
       const firstError = [revTarget, revCost, cashFlow, assets, equity, historical].find(
         (r) => r.status === 'rejected'
       ) as PromiseRejectedResult | undefined;
-      if (firstError) setError(firstError.reason?.message ?? 'Gagal memuat sebagian data');
+      if (firstError) {
+        console.error('Dashboard Fetch Error:', firstError.reason);
+        setError(firstError.reason?.message ?? 'Gagal memuat sebagian data');
+      }
     } catch (err: any) {
       // Ignore abort errors
       if (err.name !== 'AbortError') {
