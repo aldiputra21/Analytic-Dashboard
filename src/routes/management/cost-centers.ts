@@ -10,6 +10,7 @@ import {
   updateCostCenter,
   deleteCostCenter,
 } from '../../services/mafinda/costCenterService';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 export function createCostCenterRouter(): Router {
   const router = Router();
@@ -34,8 +35,7 @@ export function createCostCenterRouter(): Router {
   router.get('/:id', requirePermission('cfd.cost_centers.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const result = await getCostCenterById(req.params.id);
     if (!result) {
-      res.status(404).json({ error: 'Cost center not found' });
-      return;
+      throw AppError.notFound(ErrorCode.COST_CENTER_NOT_FOUND, 'Cost center not found');
     }
     res.json(result);
   }));
@@ -44,14 +44,12 @@ export function createCostCenterRouter(): Router {
   router.post('/', requirePermission('cfd.cost_centers.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;
     if (access.scope !== 'system') {
-      res.status(403).json({ error: 'Hanya administrator sistem atau global yang dapat mengelola cost center' });
-      return;
+      throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
     }
 
     const { parentId, category, name, code, description, isActive } = req.body;
     if (!name || !code || !category) {
-      res.status(400).json({ error: 'Name, code, and category are required' });
-      return;
+      throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Name, code, and category are required');
     }
     const createdBy = req.user!.userId;
     const result = await createCostCenter(
@@ -65,8 +63,7 @@ export function createCostCenterRouter(): Router {
   router.put('/:id', requirePermission('cfd.cost_centers.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;
     if (access.scope !== 'system') {
-      res.status(403).json({ error: 'Hanya administrator sistem atau global yang dapat mengelola cost center' });
-      return;
+      throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
     }
 
     const { parentId, category, name, code, description, isActive } = req.body;
@@ -78,8 +75,7 @@ export function createCostCenterRouter(): Router {
       { ip: req.ip, userAgent: req.headers['user-agent'] }
     );
     if (!result) {
-      res.status(404).json({ error: 'Cost center not found' });
-      return;
+      throw AppError.notFound(ErrorCode.COST_CENTER_NOT_FOUND, 'Cost center not found');
     }
     res.json(result);
   }));
@@ -87,8 +83,7 @@ export function createCostCenterRouter(): Router {
   router.delete('/:id', requirePermission('cfd.cost_centers.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;
     if (access.scope !== 'system') {
-      res.status(403).json({ error: 'Hanya administrator sistem atau global yang dapat mengelola cost center' });
-      return;
+      throw AppError.forbidden(ErrorCode.AUTH_FORBIDDEN, 'Hanya administrator sistem atau global yang dapat mengelola cost center');
     }
 
     const deletedBy = req.user!.userId;

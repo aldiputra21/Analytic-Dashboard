@@ -10,6 +10,7 @@ import {
   acknowledgeAlert,
   getAlertHistory,
 } from '../../services/financial/alertEngine';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export function createAlertsRouter(): Router {
   const router = Router();
@@ -29,7 +30,7 @@ export function createAlertsRouter(): Router {
       const access = req.accessContext!;
       
       if (access.scope !== 'system' && corporateId && !access.corporateIds.includes(corporateId)) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       const alerts = await getAlertHistory({
@@ -59,7 +60,7 @@ export function createAlertsRouter(): Router {
       const access = req.accessContext!;
       
       if (access.scope !== 'system' && corporateId && !access.corporateIds.includes(corporateId)) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       const alerts = await listAlerts({
@@ -87,10 +88,7 @@ export function createAlertsRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const alert = await getUserAlertById(req.params.id, req.user!.userId);
       if (!alert) {
-        res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Alert not found' },
-        });
-        return;
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Alert not found');
       }
 
       res.json(alert);
@@ -109,17 +107,11 @@ export function createAlertsRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const alert = await getUserAlertById(req.params.id, req.user!.userId);
       if (!alert) {
-        res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Alert not found' },
-        });
-        return;
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Alert not found');
       }
 
       if (alert.status !== 'active') {
-        res.status(422).json({
-          error: { code: 'FRS_INVALID_STATE', message: `Alert is already ${alert.status}` },
-        });
-        return;
+        throw AppError.unprocessable(ErrorCode.VALIDATION_ERROR, `Alert is already ${alert.status}`);
       }
 
       const updated = await acknowledgeAlert(req.params.id, req.user!.userId);

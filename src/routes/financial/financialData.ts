@@ -18,6 +18,7 @@ import { getUserSubsidiaryIds } from '../../services/financial/permissionService
 import { db } from '../../db/connection';
 import { userCorporateAccesses } from '../../db/schema/public';
 import { eq } from 'drizzle-orm';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -62,17 +63,13 @@ export function createFinancialDataRouter(): Router {
   router.get('/:id', requirePermission('cfd.reports.read'), asyncHandler(async (req: Request, res: Response) => {
     const data = await getFinancialDataById(req.params.id);
     if (!data) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Financial data not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Financial data not found');
     }
 
     // Context Validation
     const access = req.accessContext!;
     if (access.scope !== 'system' && !access.corporateIds.includes(data.subsidiaryId)) {
-      res.status(403).json({ error: 'Access denied to this financial data' });
-      return;
+      throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this financial data');
     }
 
     res.json(data);

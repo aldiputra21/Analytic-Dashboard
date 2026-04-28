@@ -10,6 +10,7 @@ import {
   listBackups,
   logBackupOperation,
 } from '../../services/financial/backupService';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export function createBackupRouter(): Router {
   const router = Router();
@@ -24,15 +25,7 @@ export function createBackupRouter(): Router {
     await logBackupOperation('backup', req.user!.userId, result);
 
     if (!result.success) {
-      res.status(500).json({
-        error: {
-          code: 'FRS_BACKUP_ERROR',
-          message: result.error ?? 'Backup failed',
-          timestamp: new Date().toISOString(),
-          requestId: Math.random().toString(36).slice(2),
-        },
-      });
-      return;
+      throw AppError.internal(result.error ?? 'Backup failed');
     }
 
     res.json({
@@ -61,30 +54,14 @@ export function createBackupRouter(): Router {
     const { filename } = req.body;
 
     if (!filename) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'filename is required',
-          timestamp: new Date().toISOString(),
-          requestId: Math.random().toString(36).slice(2),
-        },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'filename is required');
     }
 
     const result = await restoreDatabase(filename);
     await logBackupOperation('restore', req.user!.userId, result);
 
     if (!result.success) {
-      res.status(500).json({
-        error: {
-          code: 'FRS_RESTORE_ERROR',
-          message: result.error ?? 'Restore failed',
-          timestamp: new Date().toISOString(),
-          requestId: Math.random().toString(36).slice(2),
-        },
-      });
-      return;
+      throw AppError.internal(result.error ?? 'Restore failed');
     }
 
     res.json({ success: true, timestamp: result.timestamp });

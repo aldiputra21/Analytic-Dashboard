@@ -33,13 +33,15 @@ export function useRolePermissions(
       try {
         const res = await apiFetch(`/api/roles/${roleId}/permissions`);
         if (!res.ok) {
-          throw new Error('Failed to fetch role permissions');
+          const errData = await res.json();
+          throw errData;
         }
 
         const result = await res.json();
         setAssigned(result.permissions || []);
       } catch (err: any) {
-        setError(err.message ?? 'Unknown error');
+        const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+        setError(errCode);
       } finally {
         setIsLoading(false);
       }
@@ -63,12 +65,14 @@ export function useRolePermissions(
         });
 
         if (!res.ok) {
-          throw new Error('Failed to save role permissions');
+          const errData = await res.json();
+          throw errData;
         }
 
         setAssigned(permissionIds);
       } catch (err: any) {
-        setError(err.message ?? 'Unknown error');
+        const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+        setError(errCode);
         throw err;
       } finally {
         setIsLoading(false);

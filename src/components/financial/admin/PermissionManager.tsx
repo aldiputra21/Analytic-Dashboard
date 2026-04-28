@@ -10,6 +10,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { toast } from 'sonner';
 import { permissionI18n } from '../../../i18n/permission';
 import { commonsI18n } from '../../../i18n/commons';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { Permission } from '../../../services/financial/permissionService';
 import { z } from 'zod';
 
@@ -128,11 +129,14 @@ export const PermissionManager: React.FC = () => {
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
       } else {
-        throw new Error(common.errorLoadTable);
+        const errData = await res.json();
+        throw errData;
       }
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -204,10 +208,11 @@ export const PermissionManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        toast.error(errData.error?.message || t.alerts.errorSave);
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -224,10 +229,11 @@ export const PermissionManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        toast.error(errData.error?.message || common.error);
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 

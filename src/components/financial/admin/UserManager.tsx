@@ -13,6 +13,7 @@ import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { useRoles } from '../../../hooks/financial/useRoles';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { z } from 'zod';
 import { userManagerI18n } from '../../../i18n/user-manager';
 import { commonsI18n } from '../../../i18n/commons';
@@ -198,14 +199,19 @@ export const UserManager: React.FC = () => {
       });
 
       const res = await apiFetch(`/api/users?${params}`);
-      if (!res.ok) throw new Error(common.errorLoadTable);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw errData;
+      }
 
       const data = await res.json();
       setUsers(data.data || []);
       setTotalCount(data.totalCount || data.data?.length || 0);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -280,16 +286,17 @@ export const UserManager: React.FC = () => {
         body: JSON.stringify(validation.data)
       });
 
-      if (!res.ok) {
+      if (res.ok) {
+        toast.success(editingUser ? t.alerts.successUpdate : t.alerts.successSave);
+        setIsModalOpen(false);
+        fetchUsers();
+      } else {
         const errorData = await res.json();
-        throw new Error(errorData.error?.message || t.alerts.errorSave);
+        throw errorData;
       }
-
-      toast.success(editingUser ? t.alerts.successUpdate : t.alerts.successSave);
-      setIsModalOpen(false);
-      fetchUsers();
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -303,13 +310,14 @@ export const UserManager: React.FC = () => {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error?.message || t.alerts.errorStatus);
+        const errData = await res.json();
+        throw errData;
       }
       toast.success(t.alerts.successStatus);
       fetchUsers();
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 
@@ -320,13 +328,14 @@ export const UserManager: React.FC = () => {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error?.message || t.alerts.errorActivationSend);
+        const errData = await res.json();
+        throw errData;
       }
 
       toast.success(t.alerts.successActivationSent);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 
@@ -337,13 +346,14 @@ export const UserManager: React.FC = () => {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error?.message || t.alerts.errorResetSend);
+        const errData = await res.json();
+        throw errData;
       }
 
       toast.success(t.alerts.successResetSent);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 
@@ -353,12 +363,15 @@ export const UserManager: React.FC = () => {
     setIsAccessModalOpen(true);
     try {
       const res = await apiFetch(`/api/users/${user.id}/corporate-access`);
-      if (!res.ok) throw new Error(t.alerts.errorLoadAccess);
-
+      if (!res.ok) {
+        const errData = await res.json();
+        throw errData;
+      }
       const data = await res.json();
       setUserAccesses(data);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsFetchingAccess(false);
     }
@@ -422,14 +435,15 @@ export const UserManager: React.FC = () => {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error?.message || t.alerts.errorAccessUpdate);
+        const errData = await res.json();
+        throw errData;
       }
 
       toast.success(t.alerts.successAccessUpdated);
       setIsAccessModalOpen(false);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSavingAccess(false);
     }

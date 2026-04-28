@@ -12,6 +12,7 @@ import {
   togglePermissionStatus,
 } from '../../services/financial/permissionService';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 // ============================================================================
 // Zod Schemas
@@ -80,7 +81,7 @@ export function createPermissionsRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const permission = await getPermissionById(req.params.id);
       if (!permission) {
-        return res.status(404).json({ error: 'Permission not found' });
+        throw AppError.notFound(ErrorCode.PERMISSION_NOT_FOUND, 'Permission not found');
       }
       res.json(permission);
     })
@@ -98,19 +99,7 @@ export function createPermissionsRouter(): Router {
     injectAccessContext,
     requireScope('system'),
     asyncHandler(async (req: Request, res: Response) => {
-      // Validate input
-      const parseResult = CreatePermissionSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input',
-            details: parseResult.error.issues,
-          },
-        });
-      }
-
-      const input: CreatePermissionInput = parseResult.data;
+      const input = CreatePermissionSchema.parse(req.body);
 
       try {
         const permission = await createPermission(input, req.user!.userId, {
@@ -120,12 +109,7 @@ export function createPermissionsRouter(): Router {
         res.status(201).json(permission);
       } catch (error: unknown) {
         if (error instanceof Error && error.message.includes('unique')) {
-          return res.status(422).json({
-            error: {
-              code: 'DUPLICATE_KEY',
-              message: 'Permission key already exists',
-            },
-          });
+          throw AppError.unprocessable(ErrorCode.DUPLICATE_ENTRY, 'Permission key already exists');
         }
         throw error;
       }
@@ -144,19 +128,7 @@ export function createPermissionsRouter(): Router {
     injectAccessContext,
     requireScope('system'),
     asyncHandler(async (req: Request, res: Response) => {
-      // Validate input
-      const parseResult = UpdatePermissionSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input',
-            details: parseResult.error.issues,
-          },
-        });
-      }
-
-      const input: UpdatePermissionInput = parseResult.data;
+      const input = UpdatePermissionSchema.parse(req.body);
 
       const permission = await updatePermission(req.params.id, input, req.user!.userId, {
         ip: req.ip,
@@ -164,7 +136,7 @@ export function createPermissionsRouter(): Router {
       });
 
       if (!permission) {
-        return res.status(404).json({ error: 'Permission not found' });
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Permission not found');
       }
 
       res.json(permission);
@@ -189,7 +161,7 @@ export function createPermissionsRouter(): Router {
       });
 
       if (!permission) {
-        return res.status(404).json({ error: 'Permission not found' });
+        throw AppError.notFound(ErrorCode.PERMISSION_NOT_FOUND, 'Permission not found');
       }
 
       res.json(permission);

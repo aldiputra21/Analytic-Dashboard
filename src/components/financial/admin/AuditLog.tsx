@@ -10,6 +10,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { cn } from '../../../utils/cn';
 import { auditLogI18n } from '../../../i18n/audit-log';
 import { commonsI18n } from '../../../i18n/commons';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import { SearchableSelect } from '../shared/SearchableSelect';
 
@@ -90,14 +91,16 @@ export const AuditLog: React.FC<AuditLogProps> = ({
 
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error?.message || common.errorLoadTable);
+        throw body;
       }
 
       const data = await res.json();
       setEntries(data);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

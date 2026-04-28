@@ -4,9 +4,9 @@
 import { eq, and, ne, asc, ilike, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments, projects } from '../../db/schema/index.js';
-import { ConflictError, NotFoundError } from './departmentService';
 import { createFRSAuditLog } from '../financial/auditLogService';
 import { RequestContext } from '../financial/auditLogService';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export interface Project {
   id: string;
@@ -240,13 +240,13 @@ export async function createProject(
   const [dept] = await db.select({ id: departments.id }).from(departments)
     .where(eq(departments.id, data.departmentId))
     .limit(1);
-  if (!dept) throw new NotFoundError('Departemen tidak ditemukan');
+  if (!dept) throw AppError.notFound(ErrorCode.DEPARTMENT_NOT_FOUND, 'Departemen tidak ditemukan');
 
   const [conflict] = await db.select({ id: projects.id }).from(projects)
     .where(and(eq(projects.departmentId, data.departmentId), eq(projects.code, data.code)))
     .limit(1);
   if (conflict) {
-    throw new ConflictError(`Kode proyek "${data.code}" sudah ada dalam departemen ini`);
+    throw AppError.unprocessable(ErrorCode.DUPLICATE_ENTRY, `Kode proyek "${data.code}" sudah ada dalam departemen ini`);
   }
 
   const [inserted] = await db.insert(projects).values({
@@ -299,7 +299,7 @@ export async function updateProject(
   const [existing] = await db.select().from(projects)
     .where(eq(projects.id, id))
     .limit(1);
-  if (!existing) throw new NotFoundError('Proyek tidak ditemukan');
+  if (!existing) throw AppError.notFound(ErrorCode.PROJECT_NOT_FOUND, 'Proyek tidak ditemukan');
 
   if (data.code && data.code !== existing.code) {
     const [conflict] = await db.select({ id: projects.id }).from(projects)
@@ -310,7 +310,7 @@ export async function updateProject(
       ))
       .limit(1);
     if (conflict) {
-      throw new ConflictError(`Kode proyek "${data.code}" sudah ada dalam departemen ini`);
+      throw AppError.unprocessable(ErrorCode.DUPLICATE_ENTRY, `Kode proyek "${data.code}" sudah ada dalam departemen ini`);
     }
   }
 
@@ -353,7 +353,7 @@ export async function deleteProject(
   context?: RequestContext,
 ): Promise<{ success: boolean }> {
   const existingFull = await getProjectById(id);
-  if (!existingFull) throw new NotFoundError('Proyek tidak ditemukan');
+  if (!existingFull) throw AppError.notFound(ErrorCode.PROJECT_NOT_FOUND, 'Proyek tidak ditemukan');
 
   const result = await db.delete(projects).where(eq(projects.id, id)).returning();
   

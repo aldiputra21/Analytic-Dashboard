@@ -13,6 +13,7 @@ import { requirePermission } from '../../middleware/rbac';
 import { verifyToken } from '../../services/financial/authService';
 import { asyncHandler } from '../../utils/asyncHandler';
 import type { JWTPayload } from '../../types/financial/user';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 const VALID_STATUSES: NotificationStatus[] = ['unread', 'read', 'archived', 'dismissed'];
 
@@ -53,15 +54,7 @@ export function createNotificationsRouter(): Router {
     const streamUser = await validateStreamUser(streamToken);
 
     if (!streamUser) {
-      res.status(401).json({
-        error: {
-          code: 'FRS_UNAUTHORIZED',
-          message: 'Authentication required',
-          timestamp: new Date().toISOString(),
-          requestId: req.headers['x-request-id'] ?? '',
-        },
-      });
-      return;
+      throw AppError.unauthorized(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
     }
 
     const userId = streamUser.userId;
@@ -115,15 +108,7 @@ export function createNotificationsRouter(): Router {
   router.patch('/:id/read', requirePermission('cfd.notifications.write'), asyncHandler(async (req: Request, res: Response) => {
     const updated = await markNotificationAsRead(req.params.id, req.user!.userId);
     if (!updated) {
-      res.status(404).json({
-        error: {
-          code: 'FRS_NOTIFICATION_NOT_FOUND',
-          message: 'Notification not found',
-          timestamp: new Date().toISOString(),
-          requestId: req.headers['x-request-id'] ?? '',
-        },
-      });
-      return;
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Notification not found');
     }
 
     res.json(updated);
@@ -132,15 +117,7 @@ export function createNotificationsRouter(): Router {
   router.patch('/:id/archive', requirePermission('cfd.notifications.write'), asyncHandler(async (req: Request, res: Response) => {
     const updated = await archiveNotification(req.params.id, req.user!.userId);
     if (!updated) {
-      res.status(404).json({
-        error: {
-          code: 'FRS_NOTIFICATION_NOT_FOUND',
-          message: 'Notification not found',
-          timestamp: new Date().toISOString(),
-          requestId: req.headers['x-request-id'] ?? '',
-        },
-      });
-      return;
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Notification not found');
     }
 
     res.json(updated);

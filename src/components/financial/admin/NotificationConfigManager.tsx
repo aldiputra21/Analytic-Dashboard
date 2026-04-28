@@ -11,6 +11,7 @@ import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useRoles } from '../../../hooks/financial/useRoles';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -144,13 +145,18 @@ export const NotificationConfigManager: React.FC = () => {
       if (appliedFilters.module) query.set('module', appliedFilters.module);
 
       const res = await apiFetch(`/api/notification-configs?${query.toString()}`);
-      if (!res.ok) throw new Error(common.errorLoadTable);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw errorData;
+      }
       const d = await res.json();
       setData(d.records || []);
       setTotalCount(d.totalCount || 0);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -211,20 +217,18 @@ export const NotificationConfigManager: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
       if (res.ok) {
         toast.success(modalMode === 'create' ? t.alerts.successSave : t.alerts.successUpdate);
         setIsModalOpen(false);
         fetchData();
       } else {
-        const err = await res.json();
-        if (res.status === 409) {
-          toast.error(t.alerts.errorDuplicate);
-        } else {
-          toast.error(err.error?.message || common.error);
-        }
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -239,12 +243,12 @@ export const NotificationConfigManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchData();
       } else {
-        const d = await res.json();
-        toast.error(d.error?.message || t.alerts.errorDelete);
-        setDeleteConfirmId(null);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);

@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { corporateSectors } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -28,18 +29,6 @@ const updateSectorSchema = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Helper: detect unique constraint violation
-// ---------------------------------------------------------------------------
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Router
@@ -103,43 +92,21 @@ export function createCorporateSectorsRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createSectorSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = createSectorSchema.parse(req.body);
+    const { code, labelId, labelEn, status } = data;
 
-    const { code, labelId, labelEn, status } = parsed.data;
+    const [sector] = await db
+      .insert(corporateSectors)
+      .values({
+        code,
+        labelId,
+        labelEn,
+        status,
+        createdBy: req.user!.userId,
+      })
+      .returning();
 
-    try {
-      const [sector] = await db
-        .insert(corporateSectors)
-        .values({
-          code,
-          labelId,
-          labelEn,
-          status,
-          createdBy: req.user!.userId,
-        })
-        .returning();
-
-      return res.status(201).json(sector);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A corporate sector with code '${code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.status(201).json(sector);
   }));
 
   /**
@@ -168,9 +135,7 @@ export function createCorporateSectorsRouter(): Router {
       .limit(1);
 
     if (!sector) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Corporate sector not found' },
-      });
+      throw AppError.notFound(ErrorCode.CORPORATE_SECTOR_NOT_FOUND, 'Corporate sector not found');
     }
 
     return res.json(sector);
@@ -185,16 +150,7 @@ export function createCorporateSectorsRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateSectorSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = updateSectorSchema.parse(req.body);
 
     const [existing] = await db
       .select()
@@ -203,34 +159,20 @@ export function createCorporateSectorsRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Corporate sector not found' },
-      });
+      throw AppError.notFound(ErrorCode.CORPORATE_SECTOR_NOT_FOUND, 'Corporate sector not found');
     }
 
-    try {
-      const [updated] = await db
-        .update(corporateSectors)
-        .set({
-          ...parsed.data,
-          updatedBy: req.user!.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(corporateSectors.id, req.params.id))
-        .returning();
+    const [updated] = await db
+      .update(corporateSectors)
+      .set({
+        ...data,
+        updatedBy: req.user!.userId,
+        updatedAt: new Date(),
+      })
+      .where(eq(corporateSectors.id, req.params.id))
+      .returning();
 
-      return res.json(updated);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A corporate sector with code '${parsed.data.code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.json(updated);
   }));
 
   /**
@@ -249,9 +191,7 @@ export function createCorporateSectorsRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Corporate sector not found' },
-      });
+      throw AppError.notFound(ErrorCode.CORPORATE_SECTOR_NOT_FOUND, 'Corporate sector not found');
     }
 
     await db.delete(corporateSectors).where(eq(corporateSectors.id, req.params.id));

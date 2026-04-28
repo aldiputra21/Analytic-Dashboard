@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -141,8 +142,10 @@ export const BankManager: React.FC = () => {
       setData(d.records || []);
       setTotalCount(d.totalCount || 0);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -204,20 +207,18 @@ export const BankManager: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
       if (res.ok) {
         toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
         setIsModalOpen(false);
         fetchData();
       } else {
-        const err = await res.json();
-        if (res.status === 409) {
-          toast.error(t.alerts.errorDuplicate);
-        } else {
-          toast.error(err.error?.message || common.errorSave);
-        }
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -232,12 +233,12 @@ export const BankManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchData();
       } else {
-        const d = await res.json();
-        toast.error(d.error?.message || common.errorDelete);
-        setDeleteConfirmId(null);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);

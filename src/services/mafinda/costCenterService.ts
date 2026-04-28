@@ -5,6 +5,7 @@ import { costCenters } from '../../db/schema/cfd';
 import { CostCenter, CreateCostCenterInput, UpdateCostCenterInput } from '../../types/financial/costCenter';
 import { createFRSAuditLog } from '../financial/auditLogService';
 import { RequestContext } from '../financial/auditLogService';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 function mapRowToCostCenter(row: typeof costCenters.$inferSelect): CostCenter {
   return {
@@ -146,7 +147,7 @@ export async function deleteCostCenter(id: string, deletedBy?: string, context?:
   // Check if it's a parent to others
   const [child] = await db.select({ id: costCenters.id }).from(costCenters).where(eq(costCenters.parentId, id)).limit(1);
   if (child) {
-    throw new Error('Cannot delete cost center that has sub-centers');
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Cannot delete cost center that has sub-centers');
   }
 
   const [existing] = await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1);

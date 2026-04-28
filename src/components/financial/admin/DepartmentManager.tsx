@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -181,15 +182,17 @@ export const DepartmentManager: React.FC = () => {
       const res = await apiFetch(`/api/departments?${query.toString()}`);
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || common.errorLoadTable);
+        throw errorData;
       }
 
       const data = await res.json();
       setDepartments(data.records);
       setTotalCount(data.totalCount);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -274,14 +277,15 @@ export const DepartmentManager: React.FC = () => {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || common.error);
+        throw errorData;
       }
 
       toast.success(editingDept ? common.successUpdate : common.successSave);
       setIsModalOpen(false);
       fetchDepartments(true);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -300,12 +304,12 @@ export const DepartmentManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchDepartments(true);
       } else {
-        const errorData = await res.json();
-        toast.error(errorData.error || common.errorDelete);
-        setDeleteConfirmId(null);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);

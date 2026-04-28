@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { notificationConfigs, roles } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -28,18 +29,6 @@ const updateNotificationConfigSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Helper: detect unique constraint violation
-// ---------------------------------------------------------------------------
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Router
@@ -110,43 +99,22 @@ export function createNotificationConfigsRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createNotificationConfigSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = createNotificationConfigSchema.parse(req.body);
 
-    const { module, eventType, roleId, isActive } = parsed.data;
+    const { module, eventType, roleId, isActive } = data;
 
-    try {
-      const [config] = await db
-        .insert(notificationConfigs)
-        .values({
-          module,
-          eventType,
-          roleId,
-          isActive,
-          createdBy: req.user!.userId,
-        })
-        .returning();
+    const [config] = await db
+      .insert(notificationConfigs)
+      .values({
+        module,
+        eventType,
+        roleId,
+        isActive,
+        createdBy: req.user!.userId,
+      })
+      .returning();
 
-      return res.status(201).json(config);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A notification config for module '${module}', event '${eventType}', and this role already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.status(201).json(config);
   }));
 
   /**
@@ -161,9 +129,7 @@ export function createNotificationConfigsRouter(): Router {
       .limit(1);
 
     if (!config) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Notification config not found' },
-      });
+      throw AppError.notFound(ErrorCode.NOTIFICATION_CONFIG_NOT_FOUND, 'Notification config not found');
     }
 
     return res.json(config);
@@ -178,16 +144,7 @@ export function createNotificationConfigsRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateNotificationConfigSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = updateNotificationConfigSchema.parse(req.body);
 
     const [existing] = await db
       .select()
@@ -196,34 +153,20 @@ export function createNotificationConfigsRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Notification config not found' },
-      });
+      throw AppError.notFound(ErrorCode.NOTIFICATION_CONFIG_NOT_FOUND, 'Notification config not found');
     }
 
-    try {
-      const [updated] = await db
-        .update(notificationConfigs)
-        .set({
-          ...parsed.data,
-          updatedBy: req.user!.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(notificationConfigs.id, req.params.id))
-        .returning();
+    const [updated] = await db
+      .update(notificationConfigs)
+      .set({
+        ...data,
+        updatedBy: req.user!.userId,
+        updatedAt: new Date(),
+      })
+      .where(eq(notificationConfigs.id, req.params.id))
+      .returning();
 
-      return res.json(updated);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A notification config for this module, event type, and role combination already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.json(updated);
   }));
 
   /**
@@ -242,9 +185,7 @@ export function createNotificationConfigsRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Notification config not found' },
-      });
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Notification config not found');
     }
 
     await db.delete(notificationConfigs).where(eq(notificationConfigs.id, req.params.id));

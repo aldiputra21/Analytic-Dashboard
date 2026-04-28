@@ -17,6 +17,7 @@ import { db } from '../../db/connection';
 import { userCorporateAccesses } from '../../db/schema/public';
 import { eq } from 'drizzle-orm';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 export function createSubsidiariesRouter(): Router {
   const router = Router();
@@ -29,26 +30,17 @@ export function createSubsidiariesRouter(): Router {
     const { name, industrySector, fiscalYearStartMonth, currency, taxRate } = req.body;
 
     if (!name || !industrySector || !fiscalYearStartMonth || taxRate == null) {
-      res.status(400).json({
-        error: { code: 'FRS_VALIDATION_ERROR', message: 'name, industrySector, fiscalYearStartMonth, and taxRate are required', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Name, industry sector, fiscal year start month, and tax rate are required');
     }
 
     if (fiscalYearStartMonth < 1 || fiscalYearStartMonth > 12) {
-      res.status(400).json({
-        error: { code: 'FRS_VALIDATION_ERROR', message: 'fiscalYearStartMonth must be between 1 and 12', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.INVALID_PERIOD_FORMAT, 'Fiscal year start month must be between 1 and 12');
     }
 
     const result = await createSubsidiary({ name, industrySector, fiscalYearStartMonth, currency, taxRate }, req.user!.userId);
 
     if (result.error) {
-      res.status(422).json({
-        error: { code: 'FRS_LIMIT_EXCEEDED', message: result.error, timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.unprocessable(ErrorCode.RATE_LIMIT_EXCEEDED, result.error);
     }
 
     const subsidiary = result.subsidiary!;
@@ -94,10 +86,7 @@ export function createSubsidiariesRouter(): Router {
   router.get('/:id', requirePermission('cfd.subsidiaries.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
     const subsidiary = await getSubsidiaryById(req.params.id);
     if (!subsidiary) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Subsidiary not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.notFound(ErrorCode.SUBSIDIARY_NOT_FOUND, 'Subsidiary not found');
     }
     res.json(subsidiary);
   }));
@@ -111,10 +100,7 @@ export function createSubsidiariesRouter(): Router {
 
     const existing = await getSubsidiaryById(req.params.id);
     if (!existing) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Subsidiary not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.notFound(ErrorCode.SUBSIDIARY_NOT_FOUND, 'Subsidiary not found');
     }
 
     const updated = await updateSubsidiary(req.params.id, { name, industrySector, fiscalYearStartMonth, currency, taxRate });
@@ -141,18 +127,12 @@ export function createSubsidiariesRouter(): Router {
     const { isActive } = req.body;
 
     if (typeof isActive !== 'boolean') {
-      res.status(400).json({
-        error: { code: 'FRS_VALIDATION_ERROR', message: 'isActive (boolean) is required', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'isActive (boolean) is required');
     }
 
     const updated = await setSubsidiaryStatus(req.params.id, isActive);
     if (!updated) {
-      res.status(404).json({
-        error: { code: 'FRS_NOT_FOUND', message: 'Subsidiary not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.notFound(ErrorCode.SUBSIDIARY_NOT_FOUND, 'Subsidiary not found');
     }
 
     await createFRSAuditLog({
@@ -176,16 +156,10 @@ export function createSubsidiariesRouter(): Router {
     const result = await deleteSubsidiary(req.params.id);
 
     if (!result.success) {
-      const isNotFound = result.error === 'Subsidiary not found';
-      res.status(isNotFound ? 404 : 422).json({
-        error: {
-          code: isNotFound ? 'FRS_NOT_FOUND' : 'FRS_DELETE_PROTECTED',
-          message: result.error,
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
+      if (result.error === 'Subsidiary not found') {
+        throw AppError.notFound(ErrorCode.SUBSIDIARY_NOT_FOUND, result.error);
+      }
+      throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, result.error);
     }
 
     createFRSAuditLog({

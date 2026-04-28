@@ -1,16 +1,7 @@
-// useThresholds.ts - Hook for threshold management
-// Requirements: 5.10, 15.1, 15.5, 15.6
-
 import { useState, useEffect, useCallback } from 'react';
 import { Threshold, CreateThresholdInput } from '../../types/financial/threshold';
 import { PeriodType } from '../../types/financial/financialData';
-
-const API_BASE = '/api/frs';
-
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('frs_token');
-  return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-}
+import { apiFetch } from '../../services/financial/apiFetch';
 
 interface UseThresholdsOptions {
   subsidiaryId?: string;
@@ -41,14 +32,16 @@ export function useThresholds(options: UseThresholdsOptions = {}): UseThresholds
       const params = new URLSearchParams();
       if (periodType) params.set('periodType', periodType);
 
-      const res = await fetch(`${API_BASE}/thresholds/${subsidiaryId}?${params}`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) throw new Error('Failed to fetch thresholds');
+      const res = await apiFetch(`/api/frs/thresholds/${subsidiaryId}?${params}`);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw errData;
+      }
       const data: Threshold[] = await res.json();
       setThresholds(data);
     } catch (err: any) {
-      setError(err.message ?? 'Unknown error');
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      setError(errCode);
     } finally {
       setIsLoading(false);
     }
@@ -58,31 +51,39 @@ export function useThresholds(options: UseThresholdsOptions = {}): UseThresholds
 
   const updateThresholds = useCallback(async (updates: Omit<CreateThresholdInput, 'subsidiaryId'>[]) => {
     if (!subsidiaryId) return;
-    const res = await fetch(`${API_BASE}/thresholds/${subsidiaryId}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ thresholds: updates }),
-    });
-    if (!res.ok) {
-      const body = await res.json();
-      throw new Error(body.error?.message ?? 'Failed to update thresholds');
+    try {
+      const res = await apiFetch(`/api/frs/thresholds/${subsidiaryId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ thresholds: updates }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw errData;
+      }
+      const data: Threshold[] = await res.json();
+      setThresholds(data);
+    } catch (err: any) {
+      // Re-throw to be handled by component
+      throw err;
     }
-    const data: Threshold[] = await res.json();
-    setThresholds(data);
   }, [subsidiaryId]);
 
   const resetToDefaults = useCallback(async () => {
     if (!subsidiaryId) return;
-    const res = await fetch(`${API_BASE}/thresholds/${subsidiaryId}/reset`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
+    try {
+      const res = await apiFetch(`/api/frs/thresholds/${subsidiaryId}/reset`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw errData;
+      }
       const body = await res.json();
-      throw new Error(body.error?.message ?? 'Failed to reset thresholds');
+      setThresholds(body.thresholds ?? []);
+    } catch (err: any) {
+      // Re-throw to be handled by component
+      throw err;
     }
-    const body = await res.json();
-    setThresholds(body.thresholds ?? []);
   }, [subsidiaryId]);
 
   return { thresholds, isLoading, error, refetch: fetchThresholds, updateThresholds, resetToDefaults };

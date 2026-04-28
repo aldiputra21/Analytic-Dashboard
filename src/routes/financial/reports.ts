@@ -14,6 +14,7 @@ import {
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { db } from '../../db/connection';
 import { eq, sql as sqlTag } from 'drizzle-orm';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export function createReportsRouter(): Router {
   const router = Router();
@@ -31,13 +32,7 @@ export function createReportsRouter(): Router {
       const { period } = req.query as Record<string, string>;
 
       if (!period) {
-        res.status(400).json({
-          error: {
-            code: 'FRS_VALIDATION_ERROR',
-            message: 'period is required',
-          },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'period is required');
       }
 
       const access = req.accessContext!;
@@ -60,13 +55,7 @@ export function createReportsRouter(): Router {
       const { format, corporateId, startDate, endDate } = req.query as Record<string, string>;
 
       if (!format || !['csv', 'excel', 'pdf'].includes(format)) {
-        res.status(400).json({
-          error: {
-            code: 'FRS_VALIDATION_ERROR',
-            message: 'format must be one of: csv, excel, pdf',
-          },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'format must be one of: csv, excel, pdf');
       }
 
       // Access control using req.accessContext
@@ -74,7 +63,7 @@ export function createReportsRouter(): Router {
       
       // If corporateId is provided in query, validate it
       if (corporateId && access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       // Fetch ratio data from cfd.v_financial_ratios view
@@ -144,12 +133,7 @@ export function createReportsRouter(): Router {
           res.send(pdfBuffer);
         }
       } catch (err: any) {
-        res.status(500).json({
-          error: {
-            code: 'FRS_EXPORT_ERROR',
-            message: err.message ?? 'Export failed',
-          },
-        });
+        throw AppError.internal(err.message ?? 'Export failed');
       }
     })
   );
@@ -167,13 +151,7 @@ export function createReportsRouter(): Router {
       const { name, reportType, corporateIds, periodType, format, scheduleFrequency, scheduleDay, recipients } = req.body;
 
       if (!name || !reportType || !periodType || !format || !scheduleFrequency || !scheduleDay || !recipients) {
-        res.status(400).json({
-          error: {
-            code: 'FRS_VALIDATION_ERROR',
-            message: 'name, reportType, periodType, format, scheduleFrequency, scheduleDay, and recipients are required',
-          },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'name, reportType, periodType, format, scheduleFrequency, scheduleDay, and recipients are required');
       }
 
       const access = req.accessContext!;
@@ -183,7 +161,7 @@ export function createReportsRouter(): Router {
       if (access.scope !== 'system') {
         for (const corpId of requestedCorpIds) {
           if (!access.corporateIds.includes(corpId)) {
-            return res.status(403).json({ error: `Access denied to corporate ${corpId}` });
+            throw AppError.forbidden(ErrorCode.ACCESS_DENIED, `Access denied to corporate ${corpId}`);
           }
         }
       }
@@ -200,10 +178,7 @@ export function createReportsRouter(): Router {
       }, req.user!.userId);
 
       if (result.error) {
-        res.status(400).json({
-          error: { code: 'FRS_VALIDATION_ERROR', message: result.error },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, result.error);
       }
 
       res.status(201).json(result.report);
@@ -251,10 +226,7 @@ export function createReportsRouter(): Router {
       // This could be more sophisticated (e.g., anyone with write permission in that corporate)
       const result = await deleteScheduledReport(req.params.id);
       if (!result.success) {
-        res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: result.error },
-        });
-        return;
+        throw AppError.notFound(ErrorCode.NOT_FOUND, result.error);
       }
       res.status(204).send();
     })

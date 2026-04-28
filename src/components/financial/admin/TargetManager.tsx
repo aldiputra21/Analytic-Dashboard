@@ -13,6 +13,7 @@ import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { useProjects } from '../../../hooks/financial/useProjects';
 import { useCostCenters } from '../../../hooks/financial/useCostCenters';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -205,14 +206,19 @@ export const TargetManager: React.FC = () => {
       if (appliedFilters.departmentId) query.set('departmentId', appliedFilters.departmentId);
 
       const res = await apiFetch(`/api/targets?${query.toString()}`);
-      if (!res.ok) throw new Error(common.errorLoadTable);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw errData;
+      }
 
       const data = await res.json();
       setSummaries(data.records);
       setTotalCount(data.totalCount);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -263,10 +269,13 @@ export const TargetManager: React.FC = () => {
             costDetails: costs
           }));
         }
+      } else {
+        const errData = await res.json();
+        throw errData;
       }
-    } catch (err) {
-      console.error('Failed to load details:', err);
-      toast.error(common.errorFetchMasterData);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -341,16 +350,17 @@ export const TargetManager: React.FC = () => {
         })
       });
 
-      if (!res.ok) {
+      if (res.ok) {
+        toast.success(common.successSave);
+        setIsModalOpen(false);
+        fetchSummaries(true);
+      } else {
         const errorData = await res.json();
-        throw new Error(errorData.error || common.error);
+        throw errorData;
       }
-
-      toast.success(common.successSave);
-      setIsModalOpen(false);
-      fetchSummaries(true);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -371,11 +381,11 @@ export const TargetManager: React.FC = () => {
         fetchSummaries(true);
       } else {
         const errorData = await res.json();
-        toast.error(errorData.error || common.errorDelete);
-        setTargetToDelete(null);
+        throw errorData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
       setTargetToDelete(null);
     } finally {
       setIsDeleting(false);

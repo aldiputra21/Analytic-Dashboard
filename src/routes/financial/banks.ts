@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { banks } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -28,18 +29,6 @@ const updateBankSchema = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Helper: detect unique constraint violation
-// ---------------------------------------------------------------------------
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Router
@@ -103,43 +92,21 @@ export function createBanksRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createBankSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = createBankSchema.parse(req.body);
+    const { code, name, swiftCode, status } = data;
 
-    const { code, name, swiftCode, status } = parsed.data;
+    const [bank] = await db
+      .insert(banks)
+      .values({
+        code,
+        name,
+        swiftCode: swiftCode ?? null,
+        status,
+        createdBy: req.user!.userId,
+      })
+      .returning();
 
-    try {
-      const [bank] = await db
-        .insert(banks)
-        .values({
-          code,
-          name,
-          swiftCode: swiftCode ?? null,
-          status,
-          createdBy: req.user!.userId,
-        })
-        .returning();
-
-      return res.status(201).json(bank);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A bank with code '${code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.status(201).json(bank);
   }));
 
   /**
@@ -168,9 +135,7 @@ export function createBanksRouter(): Router {
       .limit(1);
 
     if (!bank) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Bank not found' },
-      });
+      throw AppError.notFound(ErrorCode.BANK_NOT_FOUND, 'Bank not found');
     }
 
     return res.json(bank);
@@ -185,16 +150,7 @@ export function createBanksRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateBankSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = updateBankSchema.parse(req.body);
 
     const [existing] = await db
       .select()
@@ -203,34 +159,20 @@ export function createBanksRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Bank not found' },
-      });
+      throw AppError.notFound(ErrorCode.BANK_NOT_FOUND, 'Bank not found');
     }
 
-    try {
-      const [updated] = await db
-        .update(banks)
-        .set({
-          ...parsed.data,
-          updatedBy: req.user!.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(banks.id, req.params.id))
-        .returning();
+    const [updated] = await db
+      .update(banks)
+      .set({
+        ...data,
+        updatedBy: req.user!.userId,
+        updatedAt: new Date(),
+      })
+      .where(eq(banks.id, req.params.id))
+      .returning();
 
-      return res.json(updated);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A bank with code '${parsed.data.code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.json(updated);
   }));
 
   /**
@@ -249,9 +191,7 @@ export function createBanksRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Bank not found' },
-      });
+      throw AppError.notFound(ErrorCode.BANK_NOT_FOUND, 'Bank not found');
     }
 
     await db.delete(banks).where(eq(banks.id, req.params.id));

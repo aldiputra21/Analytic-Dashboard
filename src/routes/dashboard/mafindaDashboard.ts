@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 import {
   getDeptRevenueTarget,
   getRevenueCostSummary,
@@ -27,23 +28,20 @@ export function createMafindaDashboardRouter(): Router {
     const access = req.accessContext!;
 
     if (!period) {
-      res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
-      return;
+      throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
     }
 
     // RBAC: Enforce corporate filtering
     let targetCorpId = corporateId;
     if (access.scope !== 'system') {
       if (corporateId && !access.corporateIds.includes(corporateId)) {
-        res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       targetCorpId = corporateId || access.corporateIds[0];
     }
 
     if (!targetCorpId) {
-      res.status(400).json({ error: 'Parameter corporateId wajib diisi' });
-      return;
+      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
     }
 
     const data = await getDeptRevenueTarget(period, targetCorpId);
@@ -63,16 +61,14 @@ export function createMafindaDashboardRouter(): Router {
     const access = req.accessContext!;
 
     if (!period) {
-      res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
-      return;
+      throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
     }
 
     // RBAC: Enforce corporate filtering
     let targetCorpId = corporateId;
     if (access.scope !== 'system') {
       if (corporateId && !access.corporateIds.includes(corporateId)) {
-        res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       targetCorpId = corporateId || access.corporateIds[0];
     }
@@ -92,22 +88,19 @@ export function createMafindaDashboardRouter(): Router {
     const access = req.accessContext!;
 
     if (!period) {
-      res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
-      return;
+      throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
     }
 
     const monthsNum = months ? parseInt(months, 10) : 6;
     if (months && (isNaN(monthsNum) || monthsNum < 1)) {
-      res.status(400).json({ error: 'Parameter months harus berupa angka positif' });
-      return;
+      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months must be a positive number');
     }
 
     // RBAC: Enforce corporate filtering
     let targetCorpId = corporateId;
     if (access.scope !== 'system') {
       if (corporateId && !access.corporateIds.includes(corporateId)) {
-        res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       targetCorpId = corporateId || access.corporateIds[0];
     }
@@ -127,16 +120,14 @@ export function createMafindaDashboardRouter(): Router {
     const access = req.accessContext!;
 
     if (!period) {
-      res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
-      return;
+      throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
     }
 
     // RBAC: Enforce corporate filtering
     let targetCorpId = corporateId;
     if (access.scope !== 'system') {
       if (corporateId && !access.corporateIds.includes(corporateId)) {
-        res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       targetCorpId = corporateId || access.corporateIds[0];
     }
@@ -156,16 +147,14 @@ export function createMafindaDashboardRouter(): Router {
     const access = req.accessContext!;
 
     if (!period) {
-      res.status(400).json({ error: 'Parameter period wajib diisi (format: YYYY-MM)' });
-      return;
+      throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
     }
 
     // RBAC: Enforce corporate filtering
     let targetCorpId = corporateId;
     if (access.scope !== 'system') {
       if (corporateId && !access.corporateIds.includes(corporateId)) {
-        res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       targetCorpId = corporateId || access.corporateIds[0];
     }
@@ -185,22 +174,19 @@ export function createMafindaDashboardRouter(): Router {
     const access = req.accessContext!;
 
     if (!months) {
-      res.status(400).json({ error: 'Parameter months wajib diisi (3|6|12|24)' });
-      return;
+      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months is required (3|6|12|24)');
     }
 
     const monthsNum = parseInt(months, 10);
     if (isNaN(monthsNum) || ![3, 6, 12, 24].includes(monthsNum)) {
-      res.status(400).json({ error: 'Parameter months harus salah satu dari: 3, 6, 12, 24' });
-      return;
+      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months must be one of: 3, 6, 12, 24');
     }
 
     // RBAC: Enforce corporate filtering
     let targetCorpId = corporateId;
     if (access.scope !== 'system') {
       if (corporateId && !access.corporateIds.includes(corporateId)) {
-        res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       targetCorpId = corporateId || access.corporateIds[0];
     }

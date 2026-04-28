@@ -6,6 +6,7 @@ import { db } from '../../db/connection';
 import { departments, projects } from '../../db/schema/index.js';
 import { createFRSAuditLog } from '../financial/auditLogService';
 import { RequestContext } from '../financial/auditLogService';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export interface Department {
   id: string;
@@ -27,21 +28,6 @@ export interface ActiveProject {
   departmentId: string;
 }
 
-export class ConflictError extends Error {
-  statusCode = 409;
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
-
-export class NotFoundError extends Error {
-  statusCode = 404;
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
 
 function mapRow(row: typeof departments.$inferSelect): Department {
   return {
@@ -144,7 +130,7 @@ export async function createDepartment(
     .limit(1);
 
   if (existing) {
-    throw new ConflictError(`Kode departemen "${data.code}" sudah digunakan`);
+    throw AppError.unprocessable(ErrorCode.DUPLICATE_ENTRY, `Kode departemen "${data.code}" sudah digunakan`);
   }
 
   const [inserted] = await db.insert(departments).values({
@@ -187,7 +173,7 @@ export async function updateDepartment(
   const [existing] = await db.select().from(departments)
     .where(eq(departments.id, id))
     .limit(1);
-  if (!existing) throw new NotFoundError('Departemen tidak ditemukan');
+  if (!existing) throw AppError.notFound(ErrorCode.DEPARTMENT_NOT_FOUND, 'Departemen tidak ditemukan');
 
   if (data.code && data.code !== existing.code) {
     const [conflict] = await db.select({ id: departments.id }).from(departments)
@@ -197,7 +183,7 @@ export async function updateDepartment(
         ne(departments.id, id),
       ))
       .limit(1);
-    if (conflict) throw new ConflictError(`Kode departemen "${data.code}" sudah digunakan`);
+    if (conflict) throw AppError.unprocessable(ErrorCode.DUPLICATE_ENTRY, `Kode departemen "${data.code}" sudah digunakan`);
   }
 
   const [updated] = await db.update(departments).set({
@@ -240,7 +226,7 @@ export async function deleteDepartment(
   const [existing] = await db.select().from(departments)
     .where(eq(departments.id, id))
     .limit(1);
-  if (!existing) throw new NotFoundError('Departemen tidak ditemukan');
+  if (!existing) throw AppError.notFound(ErrorCode.DEPARTMENT_NOT_FOUND, 'Departemen tidak ditemukan');
 
   const affectedRows = await db.select({
     id: projects.id,

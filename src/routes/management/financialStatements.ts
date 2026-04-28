@@ -3,6 +3,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 import {
   saveBalanceSheet,
   getBalanceSheets,
@@ -40,13 +41,11 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (!corporateId || !period) {
-      res.status(400).json({ error: 'corporateId dan period wajib diisi' });
-      return;
+      throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Corporate ID and period are required');
     }
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     const userId = req.user!.userId;
@@ -59,8 +58,7 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     const userId = req.user!.userId;
@@ -73,13 +71,11 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (!corporateId) {
-      res.status(400).json({ error: 'corporateId is required for deletion context' });
-      return;
+      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
     }
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     await deleteBalanceSheet(req.params.id, corporateId);
@@ -107,8 +103,7 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     const userId = req.user!.userId;
@@ -121,8 +116,7 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     const userId = req.user!.userId;
@@ -135,13 +129,11 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (!corporateId) {
-      res.status(400).json({ error: 'corporateId is required for deletion context' });
-      return;
+      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
     }
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     await deleteIncomeStatement(req.params.id, corporateId);
@@ -172,8 +164,7 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     const userId = req.user!.userId;
@@ -186,8 +177,7 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     const userId = req.user!.userId;
@@ -200,13 +190,11 @@ export function createFinancialStatementRouter(): Router {
     const access = req.accessContext!;
 
     if (!corporateId) {
-      res.status(400).json({ error: 'corporateId is required for deletion context' });
-      return;
+      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
     }
 
     if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses ke perusahaan ini' });
-      return;
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     await deleteCashFlow(req.params.id, corporateId);

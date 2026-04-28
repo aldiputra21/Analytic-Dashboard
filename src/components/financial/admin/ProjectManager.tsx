@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { toast } from 'sonner';
@@ -188,16 +189,22 @@ export const ProjectManager: React.FC = () => {
         search: appliedFilters.search.trim(),
       });
       if (appliedFilters.departmentId) query.set('departmentId', appliedFilters.departmentId);
-
+      
       const res = await apiFetch(`/api/projects?${query.toString()}`);
-      if (!res.ok) throw new Error(common.errorLoadTable);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw errorData;
+      }
 
       const data = await res.json();
       setProjects(data.records);
       setTotalCount(data.totalCount);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -281,19 +288,23 @@ export const ProjectManager: React.FC = () => {
 
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify(validation.data)
+        body: JSON.stringify({
+          ...validation.data,
+          status: validation.data.isActive ? 'active' : 'inactive'
+        })
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || common.error);
+        throw errorData;
       }
 
       toast.success(editingProject ? t.alerts.successUpdate : t.alerts.successSave);
       setIsModalOpen(false);
       fetchProjects(true);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -312,12 +323,12 @@ export const ProjectManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchProjects(true);
       } else {
-        const errorData = await res.json();
-        toast.error(errorData.error || t.alerts.errorDelete);
-        setDeleteConfirmId(null);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);

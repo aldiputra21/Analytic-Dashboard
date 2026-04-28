@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { currencies } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -26,18 +27,6 @@ const updateCurrencySchema = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Helper: detect unique constraint violation
-// ---------------------------------------------------------------------------
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Router
@@ -100,42 +89,20 @@ export function createCurrenciesRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createCurrencySchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = createCurrencySchema.parse(req.body);
+    const { code, label, status } = data;
 
-    const { code, label, status } = parsed.data;
+    const [currency] = await db
+      .insert(currencies)
+      .values({
+        code,
+        label,
+        status,
+        createdBy: req.user!.userId,
+      })
+      .returning();
 
-    try {
-      const [currency] = await db
-        .insert(currencies)
-        .values({
-          code,
-          label,
-          status,
-          createdBy: req.user!.userId,
-        })
-        .returning();
-
-      return res.status(201).json(currency);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A currency with code '${code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.status(201).json(currency);
   }));
 
   /**
@@ -164,9 +131,7 @@ export function createCurrenciesRouter(): Router {
       .limit(1);
 
     if (!currency) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Currency not found' },
-      });
+      throw AppError.notFound(ErrorCode.CURRENCY_NOT_FOUND, 'Currency not found');
     }
 
     return res.json(currency);
@@ -181,16 +146,7 @@ export function createCurrenciesRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateCurrencySchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = updateCurrencySchema.parse(req.body);
 
     const [existing] = await db
       .select()
@@ -199,34 +155,20 @@ export function createCurrenciesRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Currency not found' },
-      });
+      throw AppError.notFound(ErrorCode.CURRENCY_NOT_FOUND, 'Currency not found');
     }
 
-    try {
-      const [updated] = await db
-        .update(currencies)
-        .set({
-          ...parsed.data,
-          updatedBy: req.user!.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(currencies.id, req.params.id))
-        .returning();
+    const [updated] = await db
+      .update(currencies)
+      .set({
+        ...data,
+        updatedBy: req.user!.userId,
+        updatedAt: new Date(),
+      })
+      .where(eq(currencies.id, req.params.id))
+      .returning();
 
-      return res.json(updated);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A currency with code '${parsed.data.code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.json(updated);
   }));
 
   /**
@@ -245,9 +187,7 @@ export function createCurrenciesRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Currency not found' },
-      });
+      throw AppError.notFound(ErrorCode.CURRENCY_NOT_FOUND, 'Currency not found');
     }
 
     await db.delete(currencies).where(eq(currencies.id, req.params.id));

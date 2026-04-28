@@ -4,6 +4,7 @@ import { CircleCheckBig, ShieldAlert, Loader2, KeyRound, ArrowRight } from 'luci
 import { passwordResetI18n } from '../i18n/password-reset';
 import { useAuth } from '../hooks/financial/useAuth';
 import { apiFetch } from '../services/financial/apiFetch';
+import { getErrorMessage } from '../utils/errorUtils';
 import { PasswordStrengthIndicator } from '../components/ui/PasswordStrengthIndicator';
 import { usePasswordStrength } from '../hooks/financial/usePasswordStrength';
 
@@ -91,7 +92,8 @@ export const ResetPasswordPage: React.FC = () => {
       setStep('success');
     } catch (err: any) {
       console.error('Reset error:', err);
-      setValidationError(err.message || t.alerts.errorDesc);
+      const errData = err.error || (err.json ? await err.json() : null);
+      setValidationError(getErrorMessage(errData?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsSubmitting(false);
     }

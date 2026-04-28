@@ -60,14 +60,13 @@ vi.mock('../../../db/connection', () => ({
 }));
 
 import {
-  ConflictError,
-  NotFoundError as DeptNotFoundError,
   createDepartment,
   getAllDepartments,
   getDepartmentById,
   updateDepartment,
   deleteDepartment,
 } from '../departmentService';
+import { AppError, ErrorCode } from '../../../utils/errors.js';
 
 import {
   createProject,
@@ -142,7 +141,7 @@ describe('departmentService', () => {
     dbState.selectQueue.push([{ id: 'existing' }]);
 
     await expect(createDepartment({ corporateId: 'corp-1', name: 'Engineering', code: 'ENG' }, 'tester'))
-      .rejects.toBeInstanceOf(ConflictError);
+      .rejects.toThrow(AppError);
   });
 
   test('getAllDepartments — returns all departments ordered by name', async () => {
@@ -205,7 +204,7 @@ describe('departmentService', () => {
   test('updateDepartment — throws NotFoundError for unknown id', async () => {
     dbState.selectQueue.push([]);
 
-    await expect(updateDepartment('missing', { name: 'New' }, 'tester')).rejects.toBeInstanceOf(DeptNotFoundError);
+    await expect(updateDepartment('missing', { name: 'New' }, 'tester')).rejects.toThrow(AppError);
   });
   test('updateDepartment — throws ConflictError when changing code to an existing one', async () => {
     dbState.selectQueue.push([{
@@ -223,7 +222,7 @@ describe('departmentService', () => {
     }]);
     dbState.selectQueue.push([{ id: 'dept-2' }]);
 
-    await expect(updateDepartment('dept-1', { code: 'OPS' }, 'tester')).rejects.toBeInstanceOf(ConflictError);
+    await expect(updateDepartment('dept-1', { code: 'OPS' }, 'tester')).rejects.toThrow(AppError);
   });
   test('deleteDepartment — deletes and returns affected active projects', async () => {
     dbState.selectQueue.push([{
@@ -254,7 +253,7 @@ describe('departmentService', () => {
   test('deleteDepartment — throws NotFoundError for unknown id', async () => {
     dbState.selectQueue.push([]);
 
-    await expect(deleteDepartment('missing')).rejects.toBeInstanceOf(DeptNotFoundError);
+    await expect(deleteDepartment('missing')).rejects.toThrow(AppError);
   });
 });
 
@@ -305,7 +304,7 @@ describe('projectService', () => {
       departmentId: 'dept-1',
       code: 'ALPHA',
       name: 'Alpha',
-    }, 'tester')).rejects.toBeInstanceOf(ConflictError);
+    }, 'tester')).rejects.toThrow(AppError);
   });
   test('createProject — allows same name in different departments', async () => {
     dbState.selectQueue.push([{ id: 'dept-2' }]);

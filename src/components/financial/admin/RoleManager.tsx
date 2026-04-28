@@ -10,6 +10,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { toast } from 'sonner';
 import { roleI18n } from '../../../i18n/role';
 import { commonsI18n } from '../../../i18n/commons';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { Role } from '../../../services/financial/roleService';
 import { Permission } from '../../../services/financial/permissionService';
 import { z } from 'zod';
@@ -262,10 +263,11 @@ export const RoleManager: React.FC = () => {
         refetch();
       } else {
         const errData = await res.json();
-        toast.error(errData.error?.message || t.alerts.errorSave);
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -280,9 +282,13 @@ export const RoleManager: React.FC = () => {
       if (res.ok) {
         toast.success(t.alerts.successStatus);
         refetch();
+      } else {
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 
@@ -314,8 +320,9 @@ export const RoleManager: React.FC = () => {
       toast.success(t.alerts.successPermissions);
       setIsPermissionsModalOpen(false);
       refetch();
-    } catch {
-      toast.error(t.alerts.errorPermissions);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSavingPermissions(false);
     }
@@ -459,7 +466,7 @@ export const RoleManager: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
-                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{getErrorMessage(error, language)}</p>
                           <button
                             onClick={() => refetch()}
                             className="mt-6 px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"

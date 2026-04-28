@@ -45,14 +45,16 @@ export function useRoles(filters?: UseRolesFilters): UseRolesResult {
 
       const res = await apiFetch(url);
       if (!res.ok) {
-        throw new Error('Failed to fetch roles');
+        const errData = await res.json();
+        throw errData;
       }
 
       const result = await res.json();
       setData(result.data || []);
       setTotalCount(result.totalCount || 0);
     } catch (err: any) {
-      setError(err.message ?? 'Unknown error');
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      setError(errCode);
     } finally {
       setIsLoading(false);
     }

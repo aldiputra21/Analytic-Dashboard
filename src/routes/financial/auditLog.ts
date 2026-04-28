@@ -5,6 +5,7 @@ import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { getFRSAuditLog } from '../../services/financial/auditLogService';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export function createAuditLogRouter(): Router {
   const router = Router();

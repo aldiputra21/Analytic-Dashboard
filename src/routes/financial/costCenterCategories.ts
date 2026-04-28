@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { costCenterCategories } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -28,18 +29,6 @@ const updateCategorySchema = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Helper: detect unique constraint violation
-// ---------------------------------------------------------------------------
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Router
@@ -103,43 +92,21 @@ export function createCostCenterCategoriesRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createCategorySchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = createCategorySchema.parse(req.body);
+    const { code, labelId, labelEn, status } = data;
 
-    const { code, labelId, labelEn, status } = parsed.data;
+    const [category] = await db
+      .insert(costCenterCategories)
+      .values({
+        code,
+        labelId,
+        labelEn,
+        status,
+        createdBy: req.user!.userId,
+      })
+      .returning();
 
-    try {
-      const [category] = await db
-        .insert(costCenterCategories)
-        .values({
-          code,
-          labelId,
-          labelEn,
-          status,
-          createdBy: req.user!.userId,
-        })
-        .returning();
-
-      return res.status(201).json(category);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A cost center category with code '${code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.status(201).json(category);
   }));
 
   /**
@@ -168,9 +135,7 @@ export function createCostCenterCategoriesRouter(): Router {
       .limit(1);
 
     if (!category) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Cost center category not found' },
-      });
+      throw AppError.notFound(ErrorCode.COST_CENTER_CATEGORY_NOT_FOUND, 'Cost center category not found');
     }
 
     return res.json(category);
@@ -185,16 +150,7 @@ export function createCostCenterCategoriesRouter(): Router {
     injectAccessContext, 
     requireScope('system'), 
     asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateCategorySchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
-        },
-      });
-    }
+    const data = updateCategorySchema.parse(req.body);
 
     const [existing] = await db
       .select()
@@ -203,34 +159,20 @@ export function createCostCenterCategoriesRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Cost center category not found' },
-      });
+      throw AppError.notFound(ErrorCode.COST_CENTER_CATEGORY_NOT_FOUND, 'Cost center category not found');
     }
 
-    try {
-      const [updated] = await db
-        .update(costCenterCategories)
-        .set({
-          ...parsed.data,
-          updatedBy: req.user!.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(costCenterCategories.id, req.params.id))
-        .returning();
+    const [updated] = await db
+      .update(costCenterCategories)
+      .set({
+        ...data,
+        updatedBy: req.user!.userId,
+        updatedAt: new Date(),
+      })
+      .where(eq(costCenterCategories.id, req.params.id))
+      .returning();
 
-      return res.json(updated);
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        return res.status(409).json({
-          error: {
-            code: 'CONFLICT',
-            message: `A cost center category with code '${parsed.data.code}' already exists`,
-          },
-        });
-      }
-      throw err;
-    }
+    return res.json(updated);
   }));
 
   /**
@@ -249,9 +191,7 @@ export function createCostCenterCategoriesRouter(): Router {
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Cost center category not found' },
-      });
+      throw AppError.notFound(ErrorCode.COST_CENTER_CATEGORY_NOT_FOUND, 'Cost center category not found');
     }
 
     await db.delete(costCenterCategories).where(eq(costCenterCategories.id, req.params.id));

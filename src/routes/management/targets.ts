@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments } from '../../db/schema/public';
@@ -62,21 +63,20 @@ export function createTargetRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const { departmentId, projectId, fiscalYear } = req.query as Record<string, string>;
       if (!departmentId || !fiscalYear) {
-        res.status(400).json({ error: 'departmentId and fiscalYear are required' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Department ID and fiscal year are required');
       }
 
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system') {
         if (access.scope === 'department' && !access.departmentIds.includes(departmentId)) {
-          return res.status(403).json({ error: 'Access denied to this department' });
+          throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, 'Access denied to this department');
         }
         if (access.scope === 'corporate') {
           const [dept] = await db.select({ corporateId: departments.corporateId }).from(departments)
             .where(eq(departments.id, departmentId)).limit(1);
           if (!dept || !access.corporateIds.includes(dept.corporateId)) {
-            return res.status(403).json({ error: 'Access denied to this corporate' });
+            throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
           }
         }
       }
@@ -95,21 +95,20 @@ export function createTargetRouter(): Router {
       const { departmentId, projectId, fiscalYear, revenueDetails, costDetails, notes, months } = req.body;
       
       if (!departmentId || !fiscalYear) {
-        res.status(400).json({ error: 'departmentId and fiscalYear are required' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Department ID and fiscal year are required');
       }
 
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system') {
         if (access.scope === 'department' && !access.departmentIds.includes(departmentId)) {
-          return res.status(403).json({ error: 'Access denied to this department' });
+          throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, 'Access denied to this department');
         }
         if (access.scope === 'corporate') {
           const [dept] = await db.select({ corporateId: departments.corporateId }).from(departments)
             .where(eq(departments.id, departmentId)).limit(1);
           if (!dept || !access.corporateIds.includes(dept.corporateId)) {
-            return res.status(403).json({ error: 'Access denied to this corporate' });
+            throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
           }
         }
       }
@@ -157,21 +156,20 @@ export function createTargetRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const { departmentId, projectId, fiscalYear } = req.query as Record<string, string>;
       if (!departmentId || !fiscalYear) {
-        res.status(400).json({ error: 'departmentId and fiscalYear are required' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Department ID and fiscal year are required');
       }
 
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system') {
         if (access.scope === 'department' && !access.departmentIds.includes(departmentId)) {
-          return res.status(403).json({ error: 'Access denied to this department' });
+          throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, 'Access denied to this department');
         }
         if (access.scope === 'corporate') {
           const [dept] = await db.select({ corporateId: departments.corporateId }).from(departments)
             .where(eq(departments.id, departmentId)).limit(1);
           if (!dept || !access.corporateIds.includes(dept.corporateId)) {
-            return res.status(403).json({ error: 'Access denied to this corporate' });
+            throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
           }
         }
       }

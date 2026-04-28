@@ -14,6 +14,7 @@ import {
   setRolePermissions,
 } from '../../services/financial/roleService';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 // ============================================================================
 // Zod Schemas
@@ -60,9 +61,7 @@ export function createRolesRouter(): Router {
 
       // Validate scope if provided
       if (scope && !['system', 'corporate', 'department'].includes(scope)) {
-        return res.status(400).json({
-          error: { code: 'FRS_VALIDATION_ERROR', message: 'Invalid scope value' },
-        });
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'Invalid scope value');
       }
 
       const access = req.accessContext!;
@@ -92,10 +91,8 @@ export function createRolesRouter(): Router {
       const role = await getRoleById(req.params.id);
 
       const access = req.accessContext!;
-      if (access.scope !== 'system' && role.scope === 'system') {
-        return res.status(403).json({
-          error: { code: 'FRS_FORBIDDEN', message: 'Access denied to system-level roles' },
-        });
+      if (role.scope === 'system' && access.scope !== 'system') {
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to system-level roles');
       }
 
       res.json(role);
@@ -112,33 +109,19 @@ export function createRolesRouter(): Router {
     requirePermission('cfd.roles.write'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      // Validate input
-      const validation = CreateRoleSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json({
-          error: {
-            code: 'FRS_VALIDATION_ERROR',
-            message: 'Invalid input',
-            details: validation.error.issues,
-          },
-        });
-      }
+      const data = CreateRoleSchema.parse(req.body);
 
       const access = req.accessContext!;
-      if (access.scope !== 'system' && validation.data.scope === 'system') {
-        return res.status(403).json({
-          error: { code: 'FRS_FORBIDDEN', message: 'Cannot create system-level roles' },
-        });
+      if (access.scope !== 'system' && data.scope === 'system') {
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot create system-level roles');
       }
 
       try {
-        const role = await createRole(validation.data, req.user!.userId);
+        const role = await createRole(data, req.user!.userId);
         res.status(201).json(role);
       } catch (error) {
         if (error instanceof Error && error.message.includes('already exists')) {
-          return res.status(422).json({
-            error: { code: 'FRS_CONFLICT', message: error.message },
-          });
+          throw AppError.unprocessable(ErrorCode.DUPLICATE_ENTRY, error.message);
         }
         throw error;
       }
@@ -155,45 +138,27 @@ export function createRolesRouter(): Router {
     requirePermission('cfd.roles.write'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      // Validate input
-      const validation = UpdateRoleSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json({
-          error: {
-            code: 'FRS_VALIDATION_ERROR',
-            message: 'Invalid input',
-            details: validation.error.issues,
-          },
-        });
-      }
+      const data = UpdateRoleSchema.parse(req.body);
 
       const access = req.accessContext!;
       const existing = await getRoleById(req.params.id);
       if (!existing) {
-        return res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Role not found' },
-        });
+        throw AppError.notFound(ErrorCode.ROLE_NOT_FOUND, 'Role not found');
       }
 
       if (access.scope !== 'system' && existing.scope === 'system') {
-        return res.status(403).json({
-          error: { code: 'FRS_FORBIDDEN', message: 'Cannot modify system-level roles' },
-        });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot modify system-level roles');
       }
 
       try {
-        const role = await updateRole(req.params.id, validation.data, req.user!.userId);
+        const role = await updateRole(req.params.id, data, req.user!.userId);
         res.json(role);
       } catch (error) {
         if (error instanceof Error && error.message.includes('not found')) {
-          return res.status(404).json({
-            error: { code: 'FRS_NOT_FOUND', message: error.message },
-          });
+          throw AppError.notFound(ErrorCode.NOT_FOUND, error.message);
         }
         if (error instanceof Error && error.message.includes('already exists')) {
-          return res.status(422).json({
-            error: { code: 'FRS_CONFLICT', message: error.message },
-          });
+          throw AppError.unprocessable(ErrorCode.DUPLICATE_ENTRY, error.message);
         }
         throw error;
       }
@@ -212,16 +177,12 @@ export function createRolesRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const existing = await getRoleById(req.params.id);
       if (!existing) {
-        return res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Role not found' },
-        });
+        throw AppError.notFound(ErrorCode.ROLE_NOT_FOUND, 'Role not found');
       }
 
       const access = req.accessContext!;
       if (access.scope !== 'system' && existing.scope === 'system') {
-        return res.status(403).json({
-          error: { code: 'FRS_FORBIDDEN', message: 'Cannot modify system-level roles' },
-        });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot modify system-level roles');
       }
 
       try {
@@ -229,9 +190,7 @@ export function createRolesRouter(): Router {
         res.json(role);
       } catch (error) {
         if (error instanceof Error && error.message.includes('not found')) {
-          return res.status(404).json({
-            error: { code: 'FRS_NOT_FOUND', message: error.message },
-          });
+          throw AppError.notFound(ErrorCode.NOT_FOUND, error.message);
         }
         throw error;
       }
@@ -251,16 +210,12 @@ export function createRolesRouter(): Router {
       // Verify role exists
       const role = await getRoleById(req.params.id);
       if (!role) {
-        return res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Role not found' },
-        });
+        throw AppError.notFound(ErrorCode.ROLE_NOT_FOUND, 'Role not found');
       }
 
       const access = req.accessContext!;
       if (access.scope !== 'system' && role.scope === 'system') {
-        return res.status(403).json({
-          error: { code: 'FRS_FORBIDDEN', message: 'Access denied to system-level roles' },
-        });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to system-level roles');
       }
 
       const permissionIds = await getRolePermissions(req.params.id);
@@ -279,41 +234,25 @@ export function createRolesRouter(): Router {
     requirePermission('cfd.roles.write'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      // Validate input
-      const validation = SetPermissionsSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json({
-          error: {
-            code: 'FRS_VALIDATION_ERROR',
-            message: 'Invalid input',
-            details: validation.error.issues,
-          },
-        });
-      }
+      const data = SetPermissionsSchema.parse(req.body);
 
       try {
         // Verify role exists
         const role = await getRoleById(req.params.id);
         if (!role) {
-          return res.status(404).json({
-            error: { code: 'FRS_NOT_FOUND', message: 'Role not found' },
-          });
+          throw AppError.notFound(ErrorCode.ROLE_NOT_FOUND, 'Role not found');
         }
 
         const access = req.accessContext!;
         if (access.scope !== 'system' && role.scope === 'system') {
-          return res.status(403).json({
-            error: { code: 'FRS_FORBIDDEN', message: 'Cannot modify system-level roles' },
-          });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot modify system-level roles');
         }
 
-        await setRolePermissions(req.params.id, validation.data.permissionIds, req.user!.userId);
+        await setRolePermissions(req.params.id, data.permissionIds, req.user!.userId);
         res.json({ success: true });
       } catch (error) {
         if (error instanceof Error && error.message.includes('not found')) {
-          return res.status(404).json({
-            error: { code: 'FRS_NOT_FOUND', message: error.message },
-          });
+          throw AppError.notFound(ErrorCode.NOT_FOUND, error.message);
         }
         throw error;
       }

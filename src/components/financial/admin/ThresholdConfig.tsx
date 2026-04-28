@@ -14,6 +14,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { thresholdI18n } from '../../../i18n/threshold';
 import { commonsI18n } from '../../../i18n/commons';
 import { cn } from '../../../utils/cn';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { SearchableSelect } from '../shared/SearchableSelect';
@@ -150,7 +151,8 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
       setEditValues({});
       toast.success(t.alerts.successSave);
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorSave);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setSaving(false);
     }
@@ -164,7 +166,8 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
       setEditValues({});
       toast.success(t.alerts.successReset);
     } catch (err: any) {
-      toast.error(err.message || t.alerts.errorReset);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setSaving(false);
     }
@@ -282,7 +285,7 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
                         </div>
                         <div>
                           <p className="text-slate-800 font-bold text-lg">{common.errorLoadTable}</p>
-                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{error}</p>
+                          <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">{getErrorMessage(error, language)}</p>
                         </div>
                       </div>
                     </td>

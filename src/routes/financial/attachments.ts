@@ -11,6 +11,7 @@ import { attachments } from '../../db/schema/public';
 import { requirePermission } from '../../middleware/rbac';
 import { deleteAttachment } from '../../services/financial/attachmentService';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export function createAttachmentsRouter(): Router {
   const router = Router();
@@ -32,17 +33,13 @@ export function createAttachmentsRouter(): Router {
         .limit(1);
 
       if (!record) {
-        return res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'Attachment not found' },
-        });
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Attachment not found');
       }
 
       const absolutePath = path.resolve(record.filePath);
 
       if (!fs.existsSync(absolutePath)) {
-        return res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'File not found on disk' },
-        });
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'File not found on disk');
       }
 
       res.setHeader('Content-Type', record.mimeType);
@@ -54,9 +51,7 @@ export function createAttachmentsRouter(): Router {
       const stream = fs.createReadStream(absolutePath);
       stream.on('error', () => {
         if (!res.headersSent) {
-          res.status(500).json({
-            error: { code: 'STREAM_ERROR', message: 'Failed to stream file' },
-          });
+          throw AppError.internal('Failed to stream file');
         }
       });
 
@@ -79,9 +74,7 @@ export function createAttachmentsRouter(): Router {
       } catch (err) {
         const code = (err as Error & { code?: string }).code;
         if (code === 'NOT_FOUND') {
-          return res.status(404).json({
-            error: { code: 'NOT_FOUND', message: 'Attachment not found' },
-          });
+          throw AppError.notFound(ErrorCode.NOT_FOUND, 'Attachment not found');
         }
         throw err;
       }

@@ -12,6 +12,7 @@ import { users, userCorporateAccesses, roles, corporates, departments } from '..
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { sendActivationEmail, sendPasswordResetEmail } from '../../services/financial/emailService';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 const BCRYPT_ROUNDS = 10;
 const ACTIVATION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -79,13 +80,7 @@ export function createUsersRouter(): Router {
     requirePermission('cfd.users.read'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      const parsed = listUsersSchema.safeParse(req.query);
-      if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid query parameters' });
-        return;
-      }
-
-      const { isActive, emailVerified, search, page, pageSize } = parsed.data;
+      const { isActive, emailVerified, search, page, pageSize } = listUsersSchema.parse(req.query);
       const pageNum = Math.max(1, parseInt(page));
       const pageSizeNum = Math.min(100, Math.max(1, parseInt(pageSize)));
       const offset = (pageNum - 1) * pageSizeNum;
@@ -187,8 +182,7 @@ export function createUsersRouter(): Router {
       const [user] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
 
       if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
 
       // Access Context Filtering
@@ -205,7 +199,7 @@ export function createUsersRouter(): Router {
           .limit(1);
           
         if (hasAccess.length === 0) {
-          return res.status(403).json({ error: 'Access denied to this user' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
 
@@ -232,13 +226,7 @@ export function createUsersRouter(): Router {
     requirePermission('cfd.users.write'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      const parsed = createUserSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
-        return;
-      }
-
-      const { username, email, fullName } = parsed.data;
+      const { username, email, fullName } = createUserSchema.parse(req.body);
 
       // Check for duplicates
       const [existingEmail] = await db
@@ -248,8 +236,7 @@ export function createUsersRouter(): Router {
         .limit(1);
 
       if (existingEmail) {
-        res.status(422).json({ error: 'Email already exists' });
-        return;
+        throw AppError.badRequest(ErrorCode.EMAIL_ALREADY_EXISTS, 'Email already exists');
       }
 
       if (username) {
@@ -260,8 +247,7 @@ export function createUsersRouter(): Router {
           .limit(1);
 
         if (existingUsername) {
-          res.status(422).json({ error: 'Username already exists' });
-          return;
+          throw AppError.badRequest(ErrorCode.USERNAME_ALREADY_EXISTS, 'Username already exists');
         }
       }
 
@@ -294,8 +280,7 @@ export function createUsersRouter(): Router {
         );
       } catch (err) {
         console.error('Failed to send activation email:', err);
-        res.status(500).json({ error: 'Failed to send activation email' });
-        return;
+        throw AppError.internal();
       }
 
       // Audit log
@@ -331,17 +316,12 @@ export function createUsersRouter(): Router {
     requirePermission('cfd.users.write'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      const parsed = updateUserSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
-        return;
-      }
+      const { username, email, fullName } = updateUserSchema.parse(req.body);
 
       const [existing] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
 
       if (!existing) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
 
       // Access Context Validation
@@ -358,11 +338,10 @@ export function createUsersRouter(): Router {
           .limit(1);
           
         if (hasAccess.length === 0) {
-          return res.status(403).json({ error: 'Access denied to this user' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
 
-      const { username, email, fullName } = parsed.data;
 
       // Check email uniqueness if changed
       if (email && email !== existing.email) {
@@ -373,8 +352,7 @@ export function createUsersRouter(): Router {
           .limit(1);
 
         if (dup) {
-          res.status(422).json({ error: 'Email already exists' });
-          return;
+          throw AppError.badRequest(ErrorCode.EMAIL_ALREADY_EXISTS, 'Email already exists');
         }
       }
 
@@ -387,8 +365,7 @@ export function createUsersRouter(): Router {
           .limit(1);
 
         if (dup) {
-          res.status(422).json({ error: 'Username already exists' });
-          return;
+          throw AppError.badRequest(ErrorCode.USERNAME_ALREADY_EXISTS, 'Username already exists');
         }
       }
 
@@ -441,15 +418,13 @@ export function createUsersRouter(): Router {
       const { isActive } = req.body;
 
       if (typeof isActive !== 'boolean') {
-        res.status(400).json({ error: 'isActive (boolean) is required' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'isActive (boolean) is required');
       }
 
       const [existing] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
 
       if (!existing) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
 
       // Access Context Validation
@@ -466,7 +441,7 @@ export function createUsersRouter(): Router {
           .limit(1);
           
         if (hasAccess.length === 0) {
-          return res.status(403).json({ error: 'Access denied to this user' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
 
@@ -512,8 +487,7 @@ export function createUsersRouter(): Router {
       const [user] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
 
       if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
 
       // Access Context Validation
@@ -530,7 +504,7 @@ export function createUsersRouter(): Router {
           .limit(1);
           
         if (hasAccess.length === 0) {
-          return res.status(403).json({ error: 'Access denied to this user' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
 
@@ -558,8 +532,7 @@ export function createUsersRouter(): Router {
         );
       } catch (err) {
         console.error('Failed to send activation email:', err);
-        res.status(500).json({ error: 'Failed to send activation email' });
-        return;
+        throw AppError.internal();
       }
 
       // Audit log
@@ -572,7 +545,7 @@ export function createUsersRouter(): Router {
         userAgent: req.headers['user-agent'],
       });
 
-      res.json({ message: 'Activation email resent' });
+      res.json({ success: true });
     }),
   );
 
@@ -589,8 +562,7 @@ export function createUsersRouter(): Router {
       const [user] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
 
       if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
 
       // Access Context Validation
@@ -607,7 +579,7 @@ export function createUsersRouter(): Router {
           .limit(1);
           
         if (hasAccess.length === 0) {
-          return res.status(403).json({ error: 'Access denied to this user' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
 
@@ -635,8 +607,7 @@ export function createUsersRouter(): Router {
         );
       } catch (err) {
         console.error('Failed to send password reset email:', err);
-        res.status(500).json({ error: 'Failed to send password reset email' });
-        return;
+        throw AppError.internal();
       }
 
       // Audit log
@@ -649,7 +620,7 @@ export function createUsersRouter(): Router {
         userAgent: req.headers['user-agent'],
       });
 
-      res.json({ message: 'Password reset email sent' });
+      res.json({ success: true });
     }),
   );
 
@@ -666,8 +637,7 @@ export function createUsersRouter(): Router {
       const [user] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
 
       if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
 
       // Access Context Filtering
@@ -684,7 +654,7 @@ export function createUsersRouter(): Router {
           .limit(1);
           
         if (hasAccess.length === 0) {
-          return res.status(403).json({ error: 'Access denied to this user' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
 
@@ -717,15 +687,13 @@ export function createUsersRouter(): Router {
       const { accesses } = req.body;
 
       if (!Array.isArray(accesses)) {
-        res.status(400).json({ error: 'accesses (array) is required' });
-        return;
+        throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Accesses array is required');
       }
 
       // Verify user exists first
       const [user] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
       if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
+        throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
       }
 
       // Access Context Validation for the USER being modified
@@ -748,48 +716,39 @@ export function createUsersRouter(): Router {
         // But how do we know if this user "belongs" to this corporate admin?
         // Usually, the admin who created them is the one who assigns access.
         if (hasAccess.length === 0 && user.createdBy !== req.user!.userId) {
-          return res.status(403).json({ error: 'Access denied to this user' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
 
-      // Validate each access entry
-      const validationResults = accesses.map((a) => corporateAccessSchema.safeParse(a));
-      if (validationResults.some((r) => !r.success)) {
-        res.status(400).json({ error: 'Invalid access entry', details: validationResults.filter((r) => !r.success) });
-        return;
-      }
+      const validationResults = accesses.map((a) => corporateAccessSchema.parse(a));
 
       // Validate scope constraints and permissions
       for (const entry of accesses) {
         if (!validateScopeConstraints(entry.scope, entry.corporateId, entry.departmentId)) {
-          res.status(400).json({
-            error: 'Invalid scope constraints',
-            details: `scope=${entry.scope} requires proper corporate/department IDs`,
-          });
-          return;
+          throw AppError.badRequest(ErrorCode.INVALID_INPUT, `scope=${entry.scope} requires proper corporate/department IDs`);
         }
 
         // Ensure requester has access to the target corporate/department
         if (access.scope !== 'system') {
           if (entry.scope === 'system') {
-            return res.status(403).json({ error: 'Cannot grant system access' });
+            throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot grant system access');
           }
           if (access.scope === 'corporate') {
             if (!entry.corporateId || !access.corporateIds.includes(entry.corporateId)) {
-              return res.status(403).json({ error: `No access to corporate ${entry.corporateId}` });
+              throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, `No access to corporate ${entry.corporateId}`);
             }
           } else if (access.scope === 'department') {
             if (!entry.departmentId || !access.departmentIds.includes(entry.departmentId)) {
-              return res.status(403).json({ error: `No access to department ${entry.departmentId}` });
+              throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, `No access to department ${entry.departmentId}`);
             }
           }
         }
 
         // Ensure requester can only assign roles with appropriate scope
         const [targetRole] = await db.select({ scope: roles.scope }).from(roles).where(eq(roles.id, entry.roleId)).limit(1);
-        if (!targetRole) return res.status(400).json({ error: 'Role not found' });
+        if (!targetRole) throw AppError.notFound(ErrorCode.ROLE_NOT_FOUND, 'Role not found');
         if (access.scope !== 'system' && targetRole.scope === 'system') {
-          return res.status(403).json({ error: 'Cannot assign system-level roles' });
+          throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot assign system-level roles');
         }
       }
 
@@ -832,7 +791,7 @@ export function createUsersRouter(): Router {
         userAgent: req.headers['user-agent'],
       });
 
-      res.json({ message: 'Corporate access updated' });
+      res.json({ success: true });
     }),
   );
 

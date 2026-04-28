@@ -7,6 +7,7 @@ import { users, userCorporateAccesses, roles, corporates } from '../../db/schema
 import { FRSUser, CreateUserInput, UpdateUserInput, UserSubsidiaryAccess } from '../../types/financial/user';
 import { hashPassword, validatePasswordStrength, mapRowToUser } from './authService';
 import { invalidatePermissionCache } from './permissionService';
+import { ErrorCode } from '../../utils/errors.js';
 
 async function getAssignedRoleId(userId: string): Promise<string | null> {
   const [roleAccess] = await db
@@ -36,7 +37,7 @@ export async function createUser(
     .from(users)
     .where(eq(users.email, input.email))
     .limit(1);
-  if (existingEmail) return { error: 'Email already exists' };
+  if (existingEmail) return { error: ErrorCode.EMAIL_ALREADY_EXISTS };
 
   if (input.username) {
     const [existingUsername] = await db
@@ -44,7 +45,7 @@ export async function createUser(
       .from(users)
       .where(eq(users.username, input.username))
       .limit(1);
-    if (existingUsername) return { error: 'Username already exists' };
+    if (existingUsername) return { error: ErrorCode.USERNAME_ALREADY_EXISTS };
   }
 
   const passwordHash = await hashPassword(input.password);
@@ -56,11 +57,11 @@ export async function createUser(
     .limit(1);
 
   if (!selectedRole) {
-    return { error: 'Selected role not found' };
+    return { error: ErrorCode.ROLE_NOT_FOUND };
   }
 
   if (input.role !== 'owner' && (!input.subsidiaryIds || input.subsidiaryIds.length === 0)) {
-    return { error: 'At least one subsidiary must be assigned for non-owner users' };
+    return { error: ErrorCode.MISSING_REQUIRED_FIELD };
   }
 
   const inserted = await db.transaction(async (tx) => {
@@ -241,10 +242,10 @@ export async function assignSubsidiaryAccess(
   options?: { replace?: boolean },
 ): Promise<{ success: boolean; error?: string }> {
   const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) return { success: false, error: 'User not found' };
+  if (!user) return { success: false, error: ErrorCode.USER_NOT_FOUND };
 
   const assignedRoleId = await getAssignedRoleId(userId);
-  if (!assignedRoleId) return { success: false, error: 'User role assignment not found' };
+  if (!assignedRoleId) return { success: false, error: ErrorCode.NOT_FOUND };
 
   const [assignedRole] = await db
     .select({ name: roles.name })
@@ -253,7 +254,7 @@ export async function assignSubsidiaryAccess(
     .limit(1);
 
   if (assignedRole?.name === 'owner') {
-    return { success: false, error: 'Owner users do not support subsidiary-scoped access assignments' };
+    return { success: false, error: ErrorCode.ACCESS_DENIED };
   }
 
   try {

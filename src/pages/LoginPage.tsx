@@ -5,6 +5,7 @@ import { loginI18n, loginLocales } from '../i18n/login';
 import { commonsI18n } from '../i18n/commons';
 import { useAuth } from '../hooks/financial/useAuth';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../utils/errorUtils';
 
 export const LoginPage: React.FC = () => {
   const { language, login, forgotPassword, isLoading, setLanguage, error, clearError } = useAuth();
@@ -29,11 +30,11 @@ export const LoginPage: React.FC = () => {
 
   // Handle session expired toast
   useEffect(() => {
-    if (error === 'SESSION_EXPIRED') {
-      toast.error(copy.errorSessionExpired, { id: 'auth-error' });
+    if (error === 'SESSION_EXPIRED' || error === 'AUTH_UNAUTHORIZED') {
+      toast.error(getErrorMessage(error, language), { id: 'auth-error' });
       clearError();
     }
-  }, [error, clearError, copy.errorSessionExpired]);
+  }, [error, clearError, language]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,12 +42,25 @@ export const LoginPage: React.FC = () => {
     try {
       const success = await login({ username, password });
       if (!success) {
-        toast.error(copy.errorInvalidCredentials || 'Login gagal');
+        // useAuth login will set the error code, but we show it here
+        // If error is already set, we could use it, but since login returns false,
+        // it's likely already in the state.
+        // However, toast might fire BEFORE state update is reflected in local scope.
+        // The current useAuth.login returns false AFTER updating state.
       }
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Watch for errors to toast them (except session expired which is handled above)
+  useEffect(() => {
+    if (error && error !== 'SESSION_EXPIRED' && error !== 'AUTH_UNAUTHORIZED') {
+      toast.error(getErrorMessage(error, language), { id: 'auth-error' });
+      // We don't clear error here automatically to keep it in the UI if needed, 
+      // but usually login page should clear it on next attempt.
+    }
+  }, [error, language]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +71,7 @@ export const LoginPage: React.FC = () => {
         toast.success(res.message);
         setView('login');
       } else {
-        toast.error(res.error || 'Gagal mengirim email');
+        toast.error(getErrorMessage(res.error, language));
       }
     } finally {
       setIsSubmitting(false);

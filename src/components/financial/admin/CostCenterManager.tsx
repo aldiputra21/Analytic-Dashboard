@@ -11,6 +11,7 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCostCenterCategories } from '../../../hooks/financial/useCostCenterCategories';
 import { useCostCenters } from '../../../hooks/financial/useCostCenters';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -185,14 +186,19 @@ export const CostCenterManager: React.FC = () => {
       });
 
       const res = await apiFetch(`/api/cost-centers?${query.toString()}`);
-      if (!res.ok) throw new Error(common.errorLoadTable);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw errData;
+      }
 
       const data = await res.json();
       setCostCenters(data.records);
       setTotalCount(data.totalCount);
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -274,15 +280,16 @@ export const CostCenterManager: React.FC = () => {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || common.error);
+        const errData = await res.json();
+        throw errData;
       }
 
       toast.success(editingCC ? t.alerts.successUpdate : t.alerts.successSave);
       setIsModalOpen(false);
       fetchCostCenters(true);
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -301,12 +308,12 @@ export const CostCenterManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchCostCenters(true);
       } else {
-        const errorData = await res.json();
-        toast.error(errorData.error || t.alerts.errorDelete);
-        setDeleteConfirmId(null);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);

@@ -4,8 +4,8 @@
 import { eq, and, asc, desc, sql, isNull } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { targetHeaders, targetDetails } from '../../db/schema';
-import { NotFoundError } from './departmentService';
 import { createFRSAuditLog, RequestContext } from '../financial/auditLogService';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export interface TargetDetail {
   id: string;
@@ -268,7 +268,7 @@ export async function saveAnnualTarget(
         userAgent: context?.userAgent
       });
       
-      throw new Error('TARGET_DELETED'); // Handled by controller
+      throw new AppError(ErrorCode.TARGET_DELETED, 'Target deleted');
     }
 
     // 3. Audit Log
@@ -438,7 +438,7 @@ export async function deleteAnnualTarget(
   }
 
   const [existing] = await db.select().from(targetHeaders).where(and(...conditions)).limit(1);
-  if (!existing) throw new NotFoundError('Target tidak ditemukan');
+  if (!existing) throw AppError.notFound(ErrorCode.TARGET_NOT_FOUND, 'Target tidak ditemukan');
 
   const details = await db.select().from(targetDetails).where(eq(targetDetails.targetHeaderId, existing.id));
   const oldData = JSON.parse(JSON.stringify({ ...existing, details }));
@@ -463,7 +463,7 @@ export async function deleteTarget(id: string): Promise<{ success: boolean }> {
   const [existing] = await db.select({ id: targetHeaders.id }).from(targetHeaders)
     .where(eq(targetHeaders.id, id))
     .limit(1);
-  if (!existing) throw new NotFoundError('Target tidak ditemukan');
+  if (!existing) throw AppError.notFound(ErrorCode.TARGET_NOT_FOUND, 'Target tidak ditemukan');
 
   await db.delete(targetHeaders).where(eq(targetHeaders.id, id));
   return { success: true };

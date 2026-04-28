@@ -11,9 +11,8 @@ import {
   createDepartment,
   updateDepartment,
   deleteDepartment,
-  ConflictError,
-  NotFoundError,
 } from '../../services/mafinda/departmentService';
+import { AppError, ErrorCode } from '../../utils/errors';
 
 export function createDepartmentRouter(): Router {
   const router = Router();
@@ -44,8 +43,7 @@ export function createDepartmentRouter(): Router {
       
       // If corporateId is provided, validate it against access
       if (corporateId && access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-        res.status(403).json({ error: 'Access denied to this corporate' });
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       const result = await getAllDepartments({
@@ -68,41 +66,30 @@ export function createDepartmentRouter(): Router {
       const { corporateId, name, code, description, headName } = req.body ?? {};
 
       if (!corporateId?.trim()) {
-        res.status(400).json({ error: 'Field "corporateId" wajib diisi' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Field "corporateId" wajib diisi');
       }
 
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system' && !access.corporateIds.includes(corporateId.trim())) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       if (!name?.trim()) {
-        res.status(400).json({ error: 'Field "name" wajib diisi' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Field "name" wajib diisi');
       }
       if (!code?.trim()) {
-        res.status(400).json({ error: 'Field "code" wajib diisi' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Field "code" wajib diisi');
       }
 
       const createdBy = req.user!.userId;
 
-      try {
-        const dept = await createDepartment(
-          { corporateId: corporateId.trim(), name: name.trim(), code: code.trim(), description, headName },
-          createdBy,
-          { ip: req.ip, userAgent: req.headers['user-agent'] }
-        );
-        res.status(201).json(dept);
-      } catch (err) {
-        if (err instanceof ConflictError) {
-          res.status(409).json({ error: err.message });
-          return;
-        }
-        throw err; // Re-throw to be caught by asyncHandler
-      }
+      const dept = await createDepartment(
+        { corporateId: corporateId.trim(), name: name.trim(), code: code.trim(), description, headName },
+        createdBy,
+        { ip: req.ip, userAgent: req.headers['user-agent'] }
+      );
+      res.status(201).json(dept);
     })
   );
 
@@ -115,51 +102,24 @@ export function createDepartmentRouter(): Router {
       const { name, code, description, headName, isActive } = req.body ?? {};
 
       if (name !== undefined && !name?.trim()) {
-        res.status(400).json({ error: 'Field "name" tidak boleh kosong' });
-        return;
+        throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Field "name" tidak boleh kosong');
       }
 
       const updatedBy = req.user!.userId;
 
-      try {
-        // Context Validation
-        const access = req.accessContext!;
-        if (access.scope !== 'system') {
-          const existing = await getDepartmentById(req.params.id);
-          if (!existing) {
-            res.status(404).json({ error: 'Department not found' });
-            return;
-          }
-          if (!access.corporateIds.includes(existing.corporateId)) {
-            res.status(403).json({ error: 'Access denied to this corporate' });
-            return;
-          }
-        }
-
-        const dept = await updateDepartment(
-          req.params.id, 
-          {
-            name: name?.trim(),
-            code: code?.trim(),
-            description,
-            headName,
-            isActive,
-          }, 
-          updatedBy,
-          { ip: req.ip, userAgent: req.headers['user-agent'] }
-        );
-        res.json(dept);
-      } catch (err) {
-        if (err instanceof NotFoundError) {
-          res.status(404).json({ error: err.message });
-          return;
-        }
-        if (err instanceof ConflictError) {
-          res.status(409).json({ error: err.message });
-          return;
-        }
-        throw err; // Re-throw to be caught by asyncHandler
-      }
+      const dept = await updateDepartment(
+        req.params.id, 
+        {
+          name: name?.trim(),
+          code: code?.trim(),
+          description,
+          headName,
+          isActive,
+        }, 
+        updatedBy,
+        { ip: req.ip, userAgent: req.headers['user-agent'] }
+      );
+      res.json(dept);
     })
   );
 
@@ -170,32 +130,12 @@ export function createDepartmentRouter(): Router {
     injectAccessContext,
     asyncHandler(async (req, res) => {
       const deletedBy = req.user!.userId;
-      try {
-        // Context Validation
-        const access = req.accessContext!;
-        if (access.scope !== 'system') {
-          const existing = await getDepartmentById(req.params.id);
-          if (!existing) {
-            return res.status(404).json({ error: 'Department not found' });
-          }
-          if (!access.corporateIds.includes(existing.corporateId)) {
-            return res.status(403).json({ error: 'Access denied to this corporate' });
-          }
-        }
-
-        const result = await deleteDepartment(
-          req.params.id, 
-          deletedBy,
-          { ip: req.ip, userAgent: req.headers['user-agent'] }
-        );
-        res.json(result);
-      } catch (err) {
-        if (err instanceof NotFoundError) {
-          res.status(404).json({ error: err.message });
-          return;
-        }
-        throw err; // Re-throw to be caught by asyncHandler
-      }
+      const result = await deleteDepartment(
+        req.params.id, 
+        deletedBy,
+        { ip: req.ip, userAgent: req.headers['user-agent'] }
+      );
+      res.json(result);
     })
   );
 

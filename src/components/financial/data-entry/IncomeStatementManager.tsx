@@ -12,6 +12,7 @@ import { apiFetch } from '../../../services/financial/apiFetch';
 import { formatRupiah, formatPeriod } from '../../../utils/format';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import { MonthPicker } from '../shared/MonthPicker';
@@ -222,11 +223,13 @@ export const IncomeStatementManager: React.FC = () => {
         setTotalCount(d.totalCount || records.length || 0);
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || common.errorLoadTable);
+        throw errData;
       }
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errData = err.error || (err.json ? await err.json() : null);
+      const msg = getErrorMessage(errData?.code || 'NETWORK_ERROR', language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -260,9 +263,19 @@ export const IncomeStatementManager: React.FC = () => {
   const handleDelete = async (id: string) => {
     setIsDeleting(true);
     try {
-      const res = await apiFetch(`/api/financial-statements/income-statement/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/financial-statements/income-statement/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success(common.successDelete);
+        fetchData();
+      } else {
+        const errData = await res.json();
+        toast.error(getErrorMessage(errData.error?.code, language));
+      }
     } catch (err: any) {
-      toast.error(err.message || common.errorNetwork);
+      const errData = err.error || (err.json ? await err.json() : null);
+      toast.error(getErrorMessage(errData?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -319,10 +332,11 @@ export const IncomeStatementManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || common.errorSave);
+        toast.error(getErrorMessage(errData.error?.code, language));
       }
     } catch (err: any) {
-      toast.error(err.message || common.errorNetwork);
+      const errData = err.error || (err.json ? await err.json() : null);
+      toast.error(getErrorMessage(errData?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsSaving(false);
     }

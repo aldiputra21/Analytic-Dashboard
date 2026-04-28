@@ -11,6 +11,7 @@ import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -162,11 +163,17 @@ export const CorporateManager: React.FC = () => {
       if (sectorsRes.ok) {
         const d = await sectorsRes.json();
         setSectors(d.records || []);
+      } else {
+        const errData = await sectorsRes.json();
+        throw errData;
       }
 
       if (currenciesRes.ok) {
         const d = await currenciesRes.json();
         setCurrencies(d.records || []);
+      } else {
+        const errData = await currenciesRes.json();
+        throw errData;
       }
 
       // max_logo_size still comes from system-configs
@@ -175,10 +182,13 @@ export const CorporateManager: React.FC = () => {
         const d = await sizeRes.json();
         const sizeConfig = d.find((c: any) => c.key === 'max_logo_size');
         if (sizeConfig) setMaxLogoSize(sizeConfig.value);
+      } else {
+        const errData = await sizeRes.json();
+        throw errData;
       }
-    } catch (e) {
-      console.error(e);
-      toast.error(common.errorFetchMasterData);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 
@@ -233,10 +243,14 @@ export const CorporateManager: React.FC = () => {
         const d = await res.json();
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
+      } else {
+        const errData = await res.json();
+        throw errData;
       }
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      setError(getErrorMessage(errCode, language));
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsLoading(false);
     }
@@ -366,10 +380,11 @@ export const CorporateManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        toast.error(errData.error?.message || t.alerts.errorSave);
+        throw errData;
       }
-    } catch (err) {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -385,9 +400,13 @@ export const CorporateManager: React.FC = () => {
       if (res.ok) {
         toast.success(t.alerts.successStatus);
         fetchData();
+      } else {
+        const errData = await res.json();
+        throw errData;
       }
-    } catch (err) {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 
@@ -400,12 +419,12 @@ export const CorporateManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchData();
       } else {
-        const d = await res.json();
-        toast.error(d.error || t.alerts.errorDelete);
-        setDeleteConfirmId(null);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.error);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
       setDeleteConfirmId(null);
     } finally {
       setIsDeleting(false);

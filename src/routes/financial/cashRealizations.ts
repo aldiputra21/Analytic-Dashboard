@@ -10,6 +10,7 @@ import { cashRealizations } from '../../db/schema/cfd';
 import { attachments, departments } from '../../db/schema/public';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 import {
   getAttachmentConfig,
   createMulterUpload,
@@ -163,34 +164,20 @@ export function createCashRealizationsRouter(): Router {
    * Create a new cash realization.
    */
   router.post('/', requirePermission('cfd.realizations.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createRealizationSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({
-            field: e.path.join('.'),
-            message: e.message,
-          })),
-        },
-      });
-    }
-
+    const data = createRealizationSchema.parse(req.body);
     const { entityType, departmentId, projectId, transactionDate, category, amount, notes } =
-      parsed.data;
+      data;
 
-    // Context Validation
     const access = req.accessContext!;
     if (access.scope !== 'system') {
       if (access.scope === 'department' && !access.departmentIds.includes(departmentId)) {
-        return res.status(403).json({ error: 'You do not have access to this department' });
+        throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, 'Access denied to this department');
       }
       if (access.scope === 'corporate') {
         const [dept] = await db.select({ corporateId: departments.corporateId })
           .from(departments).where(eq(departments.id, departmentId)).limit(1);
         if (!dept || !access.corporateIds.includes(dept.corporateId)) {
-          return res.status(403).json({ error: 'You do not have access to this corporate' });
+          throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
         }
       }
     }
@@ -224,23 +211,20 @@ export function createCashRealizationsRouter(): Router {
       .limit(1);
 
     if (!record) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Cash realization not found' },
-      });
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Cash realization not found');
     }
 
-    // Context Validation
     const access = req.accessContext!;
     if (access.scope !== 'system') {
       if (access.scope === 'department' && !access.departmentIds.includes(record.departmentId)) {
-        return res.status(403).json({ error: 'Access denied to this department' });
+        throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, 'Access denied to this department');
       }
       if (access.scope === 'corporate') {
         const { departments } = await import('../../db/schema/public.js');
         const [dept] = await db.select({ corporateId: departments.corporateId })
           .from(departments).where(eq(departments.id, record.departmentId)).limit(1);
         if (!dept || !access.corporateIds.includes(dept.corporateId)) {
-          return res.status(403).json({ error: 'Access denied to this corporate' });
+          throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
         }
       }
     }
@@ -264,19 +248,7 @@ export function createCashRealizationsRouter(): Router {
    * Update a cash realization.
    */
   router.put('/:id', requirePermission('cfd.realizations.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateRealizationSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({
-            field: e.path.join('.'),
-            message: e.message,
-          })),
-        },
-      });
-    }
+    const data = updateRealizationSchema.parse(req.body);
 
     const [existing] = await db
       .select()
@@ -311,13 +283,13 @@ export function createCashRealizationsRouter(): Router {
       updatedAt: new Date(),
     };
 
-    if (parsed.data.entityType !== undefined) updateData.entityType = parsed.data.entityType;
-    if (parsed.data.departmentId !== undefined) updateData.departmentId = parsed.data.departmentId;
-    if ('projectId' in parsed.data) updateData.projectId = parsed.data.projectId ?? null;
-    if (parsed.data.transactionDate !== undefined) updateData.transactionDate = parsed.data.transactionDate;
-    if (parsed.data.category !== undefined) updateData.category = parsed.data.category;
-    if (parsed.data.amount !== undefined) updateData.amount = String(parsed.data.amount);
-    if ('notes' in parsed.data) updateData.notes = parsed.data.notes ?? null;
+    if (data.entityType !== undefined) updateData.entityType = data.entityType;
+    if (data.departmentId !== undefined) updateData.departmentId = data.departmentId;
+    if ('projectId' in data) updateData.projectId = data.projectId ?? null;
+    if (data.transactionDate !== undefined) updateData.transactionDate = data.transactionDate;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.amount !== undefined) updateData.amount = String(data.amount);
+    if ('notes' in data) updateData.notes = data.notes ?? null;
 
     const [updated] = await db
       .update(cashRealizations)
@@ -384,9 +356,7 @@ export function createCashRealizationsRouter(): Router {
         .limit(1);
 
       if (!existing) {
-        return res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'Cash realization not found' },
-        });
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Cash realization not found');
       }
 
       // Load config and create multer instance dynamically
@@ -398,8 +368,8 @@ export function createCashRealizationsRouter(): Router {
         if (err) {
           const code =
             (err as Error & { code?: string }).code === 'LIMIT_FILE_SIZE'
-              ? 'FILE_TOO_LARGE'
-              : (err as Error & { code?: string }).code ?? 'UPLOAD_ERROR';
+              ? ErrorCode.INVALID_INPUT
+              : ErrorCode.INTERNAL_SERVER_ERROR;
 
           return res.status(422).json({
             error: { code, message: err.message },
@@ -408,9 +378,7 @@ export function createCashRealizationsRouter(): Router {
 
         const files = req.files as Express.Multer.File[] | undefined;
         if (!files || files.length === 0) {
-          return res.status(400).json({
-            error: { code: 'NO_FILES', message: 'No files were uploaded' },
-          });
+          throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'No files were uploaded');
         }
 
         const saved = [];
@@ -440,9 +408,7 @@ export function createCashRealizationsRouter(): Router {
         }
 
         if (saved.length === 0) {
-          return res.status(422).json({
-            error: { code: 'UPLOAD_FAILED', message: 'All file uploads failed', details: errors },
-          });
+          throw AppError.internal('All file uploads failed', { errors });
         }
 
         return res.status(201).json({ saved, errors: errors.length > 0 ? errors : undefined });

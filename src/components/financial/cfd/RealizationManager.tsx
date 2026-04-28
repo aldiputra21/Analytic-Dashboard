@@ -15,6 +15,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { useProjects } from '../../../hooks/financial/useProjects';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { z } from 'zod';
 import {
   AlertDialog,
@@ -197,8 +198,10 @@ export const RealizationManager: React.FC = () => {
       setData(d.records || []);
       setTotalCount(d.totalCount || 0);
     } catch (err: any) {
-      setError(err.message || t.alerts.errorFetch);
-      toast.error(err.message || t.alerts.errorFetch);
+      const errData = err.error || (err.json ? await err.json() : null);
+      const msg = getErrorMessage(errData?.code || 'NETWORK_ERROR', language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -343,11 +346,12 @@ export const RealizationManager: React.FC = () => {
         setIsModalOpen(false);
         fetchData();
       } else {
-        const err = await res.json();
-        toast.error(err.error?.message || common.errorSave);
+        const errData = await res.json();
+        toast.error(getErrorMessage(errData.error?.code, language));
       }
-    } catch {
-      toast.error(common.errorNetwork);
+    } catch (err: any) {
+      const errData = err.error || (err.json ? await err.json() : null);
+      toast.error(getErrorMessage(errData?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsSaving(false);
     }
@@ -362,11 +366,12 @@ export const RealizationManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchData();
       } else {
-        const d = await res.json();
-        toast.error(d.error?.message || t.alerts.errorDelete);
+        const errData = await res.json();
+        toast.error(getErrorMessage(errData.error?.code, language));
       }
-    } catch {
-      toast.error(common.errorNetwork);
+    } catch (err: any) {
+      const errData = err.error || (err.json ? await err.json() : null);
+      toast.error(getErrorMessage(errData?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsDeleting(false);
     }

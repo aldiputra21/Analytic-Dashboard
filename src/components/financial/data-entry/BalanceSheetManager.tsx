@@ -13,6 +13,7 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { MonthPicker } from '../shared/MonthPicker';
 import { MonthRangePicker } from '../shared/MonthRangePicker';
 import { SearchableSelect } from '../shared/SearchableSelect';
@@ -271,11 +272,15 @@ export const BalanceSheetManager: React.FC = () => {
         setData(records);
         setTotalCount(d.totalCount || records.length || 0);
       } else {
-        throw new Error(common.errorLoadTable);
+        const errData = await res.json();
+        const msg = getErrorMessage(errData.error?.code, language);
+        setError(msg);
+        toast.error(msg);
       }
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const msg = getErrorMessage(err.error?.code || 'NETWORK_ERROR', language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -310,8 +315,15 @@ export const BalanceSheetManager: React.FC = () => {
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/financial-statements/balance-sheet/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success(common.successDelete);
+        fetchData();
+      } else {
+        const errData = await res.json();
+        toast.error(getErrorMessage(errData.error?.code, language));
+      }
     } catch (err: any) {
-      toast.error(err.message || common.errorNetwork);
+      toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -386,10 +398,10 @@ export const BalanceSheetManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || common.errorSave);
+        toast.error(getErrorMessage(errData.error?.code, language));
       }
     } catch (err: any) {
-      toast.error(err.message || common.errorNetwork);
+      toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsSaving(false);
     }

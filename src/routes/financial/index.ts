@@ -36,7 +36,7 @@ const config = getFRSConfig();
 const authLimiter = rateLimit({
   windowMs: config.RATE_LIMIT_WINDOW_MS, 
   max: config.RATE_LIMIT_AUTH_MAX,
-  message: { error: { code: 'FRS_RATE_LIMIT', message: 'Too many requests, please try again later' } },
+  message: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests, please try again later' } },
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {

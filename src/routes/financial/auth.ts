@@ -16,6 +16,7 @@ import { authenticateUser, invalidateToken, getUserById, requestPasswordReset, r
 import { authenticate } from '../../middleware/auth';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 import { db } from '../../db/connection';
 import { users } from '../../db/schema/index';
 import { calculatePasswordStrength } from '../../services/financial/passwordStrength';
@@ -102,15 +103,7 @@ export function createFRSAuthRouter(): Router {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'Username and password are required',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.MISSING_REQUIRED_FIELD, 'Username and password are required');
     }
 
     try {
@@ -128,15 +121,7 @@ export function createFRSAuthRouter(): Router {
           userAgent: req.headers['user-agent'],
         });
 
-        res.status(401).json({
-          error: {
-            code: 'FRS_INVALID_CREDENTIALS',
-            message: 'Invalid username or password',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw new AppError(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Invalid username or password', 401);
       }
 
       // Log successful login
@@ -167,38 +152,25 @@ export function createFRSAuthRouter(): Router {
         },
       });
     } catch (err) {
+      if (err instanceof AppError) throw err;
       console.error('[FRS Auth] Login error:', err);
-      res.status(500).json({
-        error: { code: 'FRS_SERVER_ERROR', message: 'Internal server error', timestamp: new Date().toISOString(), requestId: '' },
-      });
+      throw AppError.internal();
     }
   }));
 
   router.post('/forgot-password', asyncHandler(async (req: Request, res: Response) => {
-    const parsed = forgotPasswordSchema.safeParse(req.body);
-
-    if (!parsed.success) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'Username or email is required',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
-    }
+    const { identifier } = forgotPasswordSchema.parse(req.body);
 
     const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:5000'}`;
 
     try {
-      const userId = await requestPasswordReset(parsed.data.identifier, appUrl);
-
+      const userId = await requestPasswordReset(identifier, appUrl);
+      
       await createFRSAuditLog({
         userId: userId ?? undefined,
         action: 'password_reset_request',
         entityType: 'auth',
-        newValues: { identifier: parsed.data.identifier },
+        newValues: { identifier },
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
       });
@@ -217,38 +189,18 @@ export function createFRSAuthRouter(): Router {
   }));
 
   router.post('/reset-password', asyncHandler(async (req: Request, res: Response) => {
-    const parsed = resetPasswordSchema.safeParse(req.body);
-
-    if (!parsed.success) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'Token and password are required',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
-    }
+    const { token, password } = resetPasswordSchema.parse(req.body);
 
     try {
-      const result = await resetPasswordWithToken(parsed.data.token, parsed.data.password);
+      const result = await resetPasswordWithToken(token, password);
 
       if (!result.success) {
         const reason = 'reason' in result ? result.reason : 'invalid_token';
-        const message = reason === 'weak_password'
-          ? 'Password does not meet security requirements'
-          : 'Reset link is invalid or has expired';
-
-        res.status(reason === 'weak_password' ? 400 : 401).json({
-          error: {
-            code: reason === 'weak_password' ? 'FRS_WEAK_PASSWORD' : 'FRS_INVALID_RESET_TOKEN',
-            message,
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        if (reason === 'weak_password') {
+          throw AppError.badRequest(ErrorCode.WEAK_PASSWORD, 'Password is too weak');
+        } else {
+          throw AppError.unauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Invalid or expired reset token');
+        }
       }
 
       await createFRSAuditLog({
@@ -261,10 +213,9 @@ export function createFRSAuthRouter(): Router {
 
       res.json({ success: true, message: 'Password reset successful' });
     } catch (err) {
+      if (err instanceof AppError) throw err;
       console.error('[FRS Auth] Reset password error:', err);
-      res.status(500).json({
-        error: { code: 'FRS_SERVER_ERROR', message: 'Internal server error', timestamp: new Date().toISOString(), requestId: '' },
-      });
+      throw AppError.internal();
     }
   }));
 
@@ -294,10 +245,7 @@ export function createFRSAuthRouter(): Router {
   router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response) => {
     const user = await getUserById(req.user!.userId);
     if (!user) {
-      res.status(404).json({
-        error: { code: 'FRS_USER_NOT_FOUND', message: 'User not found', timestamp: new Date().toISOString(), requestId: '' },
-      });
-      return;
+      throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
     }
 
     res.json({
@@ -326,33 +274,12 @@ export function createFRSAuthRouter(): Router {
     const ip = req.ip || 'unknown';
 
     if (!checkRateLimit(ip)) {
-      res.status(429).json({
-        error: {
-          code: 'FRS_RATE_LIMIT_EXCEEDED',
-          message: 'Too many attempts. Please try again later.',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
+      throw AppError.tooManyRequests(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const parsed = validateActivationTokenSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'Token is required',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
-    }
+    const { token } = validateActivationTokenSchema.parse(req.body);
 
     try {
-      const token = parsed.data.token;
-
       // Find user with matching token (unactivated account)
       const [user] = await db.select().from(users)
         .where(
@@ -388,15 +315,9 @@ export function createFRSAuthRouter(): Router {
         email: user.email,
       });
     } catch (err) {
+      if (err instanceof AppError) throw err;
       console.error('[FRS Auth] Validate activation token error:', err);
-      res.status(500).json({
-        error: {
-          code: 'FRS_SERVER_ERROR',
-          message: 'Internal server error',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
+      throw AppError.internal();
     }
   }));
 
@@ -409,45 +330,16 @@ export function createFRSAuthRouter(): Router {
     const ip = req.ip || 'unknown';
 
     if (!checkRateLimit(ip)) {
-      res.status(429).json({
-        error: {
-          code: 'FRS_RATE_LIMIT_EXCEEDED',
-          message: 'Too many attempts. Please try again later.',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const parsed = activateAccountSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'Token and password are required',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
-    }
+    const { token, newPassword } = activateAccountSchema.parse(req.body);
 
     try {
-      const { token, newPassword } = parsed.data;
-
       // Validate password strength (minimum "fair" level)
       const strengthResult = calculatePasswordStrength(newPassword);
       if (strengthResult.score <= 25) {
-        res.status(400).json({
-          error: {
-            code: 'FRS_WEAK_PASSWORD',
-            message: 'Password does not meet security requirements',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.WEAK_PASSWORD, 'Password is too weak');
       }
 
       // Find user with matching token (unactivated account)
@@ -461,42 +353,17 @@ export function createFRSAuthRouter(): Router {
         .limit(1);
 
       if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
-        res.status(401).json({
-          error: {
-            code: 'FRS_INVALID_ACTIVATION_TOKEN',
-            message: 'Activation token is invalid or has expired',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.unauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Activation token is invalid or has expired');
       }
 
       // Check token expiry
       if (user.passwordResetExpiresAt.getTime() < Date.now()) {
-        res.status(401).json({
-          error: {
-            code: 'FRS_INVALID_ACTIVATION_TOKEN',
-            message: 'Activation token has expired',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.unauthorized(ErrorCode.AUTH_TOKEN_EXPIRED, 'Activation token has expired');
       }
 
-      // Verify token with bcrypt
       const tokenMatches = await bcrypt.compare(token, user.passwordResetTokenHash);
       if (!tokenMatches) {
-        res.status(401).json({
-          error: {
-            code: 'FRS_INVALID_ACTIVATION_TOKEN',
-            message: 'Activation token is invalid',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.unauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Activation token is invalid');
       }
 
       // Hash new password
@@ -531,15 +398,9 @@ export function createFRSAuthRouter(): Router {
         message: 'Account activated successfully',
       });
     } catch (err) {
+      if (err instanceof AppError) throw err;
       console.error('[FRS Auth] Activate account error:', err);
-      res.status(500).json({
-        error: {
-          code: 'FRS_SERVER_ERROR',
-          message: 'Internal server error',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
+      throw AppError.internal();
     }
   }));
 
@@ -552,33 +413,12 @@ export function createFRSAuthRouter(): Router {
     const ip = req.ip || 'unknown';
 
     if (!checkRateLimit(ip)) {
-      res.status(429).json({
-        error: {
-          code: 'FRS_RATE_LIMIT_EXCEEDED',
-          message: 'Too many attempts. Please try again later.',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const parsed = validateResetTokenSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'Token is required',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
-    }
+    const { token } = validateResetTokenSchema.parse(req.body);
 
     try {
-      const token = parsed.data.token;
-
       // Find user with matching token (active account)
       const [user] = await db.select().from(users)
         .where(eq(users.isActive, true))
@@ -605,15 +445,9 @@ export function createFRSAuthRouter(): Router {
       // Token is valid
       res.json({ valid: true });
     } catch (err) {
+      if (err instanceof AppError) throw err;
       console.error('[FRS Auth] Validate reset token error:', err);
-      res.status(500).json({
-        error: {
-          code: 'FRS_SERVER_ERROR',
-          message: 'Internal server error',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
+      throw AppError.internal();
     }
   }));
 
@@ -626,45 +460,16 @@ export function createFRSAuthRouter(): Router {
     const ip = req.ip || 'unknown';
 
     if (!checkRateLimit(ip)) {
-      res.status(429).json({
-        error: {
-          code: 'FRS_RATE_LIMIT_EXCEEDED',
-          message: 'Too many attempts. Please try again later.',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
+      throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const parsed = resetPasswordNewSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({
-        error: {
-          code: 'FRS_VALIDATION_ERROR',
-          message: 'Token and password are required',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
-      return;
-    }
+    const { token, newPassword } = resetPasswordNewSchema.parse(req.body);
 
     try {
-      const { token, newPassword } = parsed.data;
-
       // Validate password strength (minimum "fair" level)
       const strengthResult = calculatePasswordStrength(newPassword);
       if (strengthResult.score <= 25) {
-        res.status(400).json({
-          error: {
-            code: 'FRS_WEAK_PASSWORD',
-            message: 'Password does not meet security requirements',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.WEAK_PASSWORD, 'Password is too weak');
       }
 
       // Find user with matching token (active account)
@@ -673,42 +478,17 @@ export function createFRSAuthRouter(): Router {
         .limit(1);
 
       if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
-        res.status(401).json({
-          error: {
-            code: 'FRS_INVALID_RESET_TOKEN',
-            message: 'Reset token is invalid or has expired',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.unauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Reset token is invalid or has expired');
       }
 
       // Check token expiry
       if (user.passwordResetExpiresAt.getTime() < Date.now()) {
-        res.status(401).json({
-          error: {
-            code: 'FRS_INVALID_RESET_TOKEN',
-            message: 'Reset token has expired',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.unauthorized(ErrorCode.AUTH_TOKEN_EXPIRED, 'Reset token has expired');
       }
 
-      // Verify token with bcrypt
       const tokenMatches = await bcrypt.compare(token, user.passwordResetTokenHash);
       if (!tokenMatches) {
-        res.status(401).json({
-          error: {
-            code: 'FRS_INVALID_RESET_TOKEN',
-            message: 'Reset token is invalid',
-            timestamp: new Date().toISOString(),
-            requestId: '',
-          },
-        });
-        return;
+        throw AppError.unauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Reset token is invalid');
       }
 
       // Hash new password
@@ -742,15 +522,9 @@ export function createFRSAuthRouter(): Router {
         message: 'Password reset successfully',
       });
     } catch (err) {
+      if (err instanceof AppError) throw err;
       console.error('[FRS Auth] Reset password error:', err);
-      res.status(500).json({
-        error: {
-          code: 'FRS_SERVER_ERROR',
-          message: 'Internal server error',
-          timestamp: new Date().toISOString(),
-          requestId: '',
-        },
-      });
+      throw AppError.internal();
     }
   }));
 
@@ -759,21 +533,14 @@ export function createFRSAuthRouter(): Router {
    * Updates the current authenticated user's profile info
    */
   router.patch('/profile', authenticate, asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateProfileSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
-      return;
-    }
-
-    const { fullName, email } = parsed.data;
+    const { fullName, email } = updateProfileSchema.parse(req.body);
     const userId = req.user!.userId;
 
     // Check email uniqueness if changed
     if (email) {
       const [existing] = await db.select({ id: users.id }).from(users).where(and(eq(users.email, email), sql`${users.id} != ${userId}`)).limit(1);
       if (existing) {
-        res.status(422).json({ error: 'Email already exists' });
-        return;
+        throw AppError.badRequest(ErrorCode.EMAIL_ALREADY_EXISTS, 'Email already exists');
       }
     }
 
@@ -792,7 +559,7 @@ export function createFRSAuthRouter(): Router {
       action: 'profile_updated',
       entityType: 'User',
       entityId: userId,
-      newValues: parsed.data,
+      newValues: { fullName, email },
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -813,33 +580,24 @@ export function createFRSAuthRouter(): Router {
    * Changes the current authenticated user's password
    */
   router.post('/change-password', authenticate, asyncHandler(async (req: Request, res: Response) => {
-    const parsed = changePasswordSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
-      return;
-    }
-
-    const { currentPassword, newPassword } = parsed.data;
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
     const userId = req.user!.userId;
 
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!user || !user.passwordHash) {
-      res.status(404).json({ error: 'User not found' });
-      return;
+      throw AppError.notFound(ErrorCode.USER_NOT_FOUND, 'User not found');
     }
 
     // Verify current password
     const matches = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!matches) {
-      res.status(401).json({ error: 'Incorrect current password' });
-      return;
+      throw AppError.unauthorized(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Incorrect current password');
     }
 
     // Validate new password strength
     const strength = calculatePasswordStrength(newPassword);
     if (strength.score <= 25) {
-      res.status(400).json({ error: 'New password is too weak' });
-      return;
+      throw AppError.badRequest(ErrorCode.WEAK_PASSWORD, 'New password is too weak');
     }
 
     // Hash and update
@@ -875,8 +633,7 @@ export function createFRSAuthRouter(): Router {
     // Real implementation would use multer/S3
     const { avatarUrl } = req.body;
     if (!avatarUrl) {
-      res.status(400).json({ error: 'avatarUrl is required' });
-      return;
+      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'avatarUrl is required');
     }
 
     const userId = req.user!.userId;

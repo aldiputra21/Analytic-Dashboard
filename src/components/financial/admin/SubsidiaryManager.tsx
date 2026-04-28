@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -132,11 +133,11 @@ export const SubsidiaryManager: React.FC = () => {
         const d = await currenciesRes.json();
         setCurrencies(d.records || []);
       }
-    } catch (e) {
-      console.error(e);
-      toast.error(common.errorFetchMasterData);
+    } catch (err: any) {
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
-  }, [common.errorFetchMasterData]);
+  }, [language]);
 
   useEffect(() => {
     fetchConfigs();
@@ -188,14 +189,15 @@ export const SubsidiaryManager: React.FC = () => {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error?.message || t.alerts.errorSave);
+        throw errorData;
       }
 
       toast.success(editingSub ? common.successUpdate : common.successSave);
       setIsModalOpen(false);
       refetch();
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsSaving(false);
     }
@@ -208,15 +210,16 @@ export const SubsidiaryManager: React.FC = () => {
         body: JSON.stringify({ isActive: !sub.isActive })
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error?.message || common.error);
+      if (res.ok) {
+        toast.success(common.successUpdate);
+        refetch();
+      } else {
+        const errData = await res.json();
+        throw errData;
       }
-
-      toast.success(common.successUpdate);
-      refetch();
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     }
   };
 
@@ -224,16 +227,17 @@ export const SubsidiaryManager: React.FC = () => {
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/frs/subsidiaries/${id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error?.message || t.alerts.errorDelete);
+      if (res.ok) {
+        toast.success(common.successDelete);
+        setDeleteConfirmId(null);
+        refetch();
+      } else {
+        const errData = await res.json();
+        throw errData;
       }
-
-      toast.success(common.successDelete);
-      setDeleteConfirmId(null);
-      refetch();
     } catch (err: any) {
-      toast.error(err.message);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      toast.error(getErrorMessage(errCode, language));
     } finally {
       setIsDeleting(false);
     }

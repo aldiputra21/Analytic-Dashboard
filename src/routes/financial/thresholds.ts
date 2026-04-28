@@ -14,6 +14,7 @@ import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { reevaluateAlertsForSubsidiary } from '../../services/financial/alertEngine';
 import { RatioName } from '../../types/financial/ratio';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 const VALID_RATIO_NAMES: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
@@ -33,16 +34,13 @@ export function createThresholdsRouter(): Router {
       const { corporateId, limit, offset } = req.query;
 
       if (!corporateId) {
-        res.status(400).json({
-          error: { code: 'FRS_VALIDATION_ERROR', message: 'corporateId query param is required' },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'corporateId query param is required');
       }
 
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system' && !access.corporateIds.includes(corporateId as string)) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       const history = await getThresholdHistory(
@@ -70,15 +68,12 @@ export function createThresholdsRouter(): Router {
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       const subsidiary = await getSubsidiaryById(corporateId);
       if (!subsidiary) {
-        res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found' },
-        });
-        return;
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Corporate not found');
       }
 
       const thresholds = await getThresholds(corporateId);
@@ -102,31 +97,22 @@ export function createThresholdsRouter(): Router {
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       if (!Array.isArray(thresholds) || thresholds.length === 0) {
-        res.status(400).json({
-          error: { code: 'FRS_VALIDATION_ERROR', message: 'thresholds array is required' },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'thresholds array is required');
       }
 
       const subsidiary = await getSubsidiaryById(corporateId);
       if (!subsidiary) {
-        res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found' },
-        });
-        return;
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Corporate not found');
       }
 
       // Validate each threshold entry
       for (const t of thresholds) {
         if (!VALID_RATIO_NAMES.includes(t.ratioName)) {
-          res.status(400).json({
-            error: { code: 'FRS_VALIDATION_ERROR', message: `Invalid ratioName: ${t.ratioName}` },
-          });
-          return;
+          throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, `Invalid ratioName: ${t.ratioName}`);
         }
       }
 
@@ -143,10 +129,7 @@ export function createThresholdsRouter(): Router {
       const result = await updateThresholds(corporateId, updates, req.user!.userId);
 
       if (!result.success) {
-        res.status(400).json({
-          error: { code: 'FRS_VALIDATION_ERROR', message: result.error },
-        });
-        return;
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, result.error);
       }
 
       await createFRSAuditLog({
@@ -181,15 +164,12 @@ export function createThresholdsRouter(): Router {
       // Context Validation
       const access = req.accessContext!;
       if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-        return res.status(403).json({ error: 'Access denied to this corporate' });
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this corporate');
       }
 
       const subsidiary = await getSubsidiaryById(corporateId);
       if (!subsidiary) {
-        res.status(404).json({
-          error: { code: 'FRS_NOT_FOUND', message: 'Corporate not found' },
-        });
-        return;
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Corporate not found');
       }
 
       await resetThresholdsToDefaults(corporateId, subsidiary.industrySector, req.user!.userId);

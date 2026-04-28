@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 import { mapRowToRatios } from '../../services/financial/ratioCalculator';
 import {
   getSubsidiaryRatioTrends,
@@ -85,8 +86,7 @@ export function createRatiosRouter(): Router {
     const access = req.accessContext!;
     if (access.scope !== 'system') {
       if (corporateId && !access.corporateIds.includes(corporateId)) {
-        res.json([]);
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       if (!corporateId) {
         conditions.push(sql`corporate_id IN (${sql.join(access.corporateIds.map(id => sql`${id}`), sql`, `)})`);
@@ -196,8 +196,7 @@ export function createRatiosRouter(): Router {
     if (corporateId) {
       // Validate access to specific corporate
       if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
-        res.json([]);
-        return;
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       corporateIds = [corporateId];
     } else {

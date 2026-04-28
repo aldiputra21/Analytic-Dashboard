@@ -10,6 +10,7 @@ import { bankLoans, bankLoanInstallments } from '../../db/schema/cfd';
 import { banks, corporates } from '../../db/schema/public';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 import {
   generateFlatInstallments,
   validateEffectiveInstallments,
@@ -184,26 +185,11 @@ export function createBankLoansRouter(): Router {
    * Uses a DB transaction to insert loan + installments atomically.
    */
   router.post('/', requirePermission('cfd.bank_loans.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createLoanSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({
-            field: e.path.join('.'),
-            message: e.message,
-          })),
-        },
-      });
-    }
+    const data = createLoanSchema.parse(req.body);
 
-    const data = parsed.data;
-
-    // Context Validation
     const access = req.accessContext!;
     if (access.scope !== 'system' && !access.corporateIds.includes(data.corporateId)) {
-      return res.status(403).json({ error: 'You do not have access to this corporate' });
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     // For effective type, run additional validation via service
@@ -214,12 +200,7 @@ export function createBankLoansRouter(): Router {
         data.amount,
       );
       if (!validation.valid) {
-        return res.status(400).json({
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: validation.error,
-          },
-        });
+        throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, validation.error || 'Invalid installments');
       }
     }
 
@@ -311,15 +292,12 @@ export function createBankLoansRouter(): Router {
       .limit(1);
 
     if (!loan) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Bank loan not found' },
-      });
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Bank loan not found');
     }
 
-    // Context Validation
     const access = req.accessContext!;
     if (access.scope !== 'system' && !access.corporateIds.includes(loan.corporateId)) {
-      return res.status(403).json({ error: 'Access denied to this corporate' });
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
     // Fetch installments
@@ -351,19 +329,7 @@ export function createBankLoansRouter(): Router {
    * Update a bank loan (header fields only; installments managed separately).
    */
   router.put('/:id', requirePermission('cfd.bank_loans.write'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const parsed = updateLoanSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: parsed.error.issues.map((e) => ({
-            field: e.path.join('.'),
-            message: e.message,
-          })),
-        },
-      });
-    }
+    const data = updateLoanSchema.parse(req.body);
 
     const [existing] = await db
       .select()
@@ -377,13 +343,12 @@ export function createBankLoansRouter(): Router {
       });
     }
 
-    // Context Validation
     const access = req.accessContext!;
     if (access.scope !== 'system' && !access.corporateIds.includes(existing.corporateId)) {
-      return res.status(403).json({ error: 'Access denied to this corporate' });
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
-    if (parsed.data.corporateId && access.scope !== 'system' && !access.corporateIds.includes(parsed.data.corporateId)) {
-      return res.status(403).json({ error: 'Access denied to target corporate' });
+    if (data.corporateId && access.scope !== 'system' && !access.corporateIds.includes(data.corporateId)) {
+      throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to target corporate');
     }
 
     const updateData: Record<string, unknown> = {
@@ -391,15 +356,15 @@ export function createBankLoansRouter(): Router {
       updatedAt: new Date(),
     };
 
-    if (parsed.data.bankId !== undefined) updateData.bankId = parsed.data.bankId;
-    if (parsed.data.corporateId !== undefined) updateData.corporateId = parsed.data.corporateId;
-    if (parsed.data.amount !== undefined) updateData.amount = String(parsed.data.amount);
-    if (parsed.data.startDate !== undefined) updateData.startDate = parsed.data.startDate;
-    if (parsed.data.tenor !== undefined) updateData.tenor = parsed.data.tenor;
-    if (parsed.data.interestType !== undefined) updateData.interestType = parsed.data.interestType;
-    if (parsed.data.interestRate !== undefined) updateData.interestRate = String(parsed.data.interestRate);
-    if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
-    if (parsed.data.alertMinDays !== undefined) updateData.alertMinDays = parsed.data.alertMinDays;
+    if (data.bankId !== undefined) updateData.bankId = data.bankId;
+    if (data.corporateId !== undefined) updateData.corporateId = data.corporateId;
+    if (data.amount !== undefined) updateData.amount = String(data.amount);
+    if (data.startDate !== undefined) updateData.startDate = data.startDate;
+    if (data.tenor !== undefined) updateData.tenor = data.tenor;
+    if (data.interestType !== undefined) updateData.interestType = data.interestType;
+    if (data.interestRate !== undefined) updateData.interestRate = String(data.interestRate);
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.alertMinDays !== undefined) updateData.alertMinDays = data.alertMinDays;
 
     const [updated] = await db
       .update(bankLoans)
@@ -519,15 +484,11 @@ export function createBankLoansRouter(): Router {
         .limit(1);
 
       if (!installment) {
-        return res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'Installment not found' },
-        });
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Installment not found');
       }
 
       if (installment.status === 'paid') {
-        return res.status(409).json({
-          error: { code: 'CONFLICT', message: 'Installment is already marked as paid' },
-        });
+        throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Installment is already marked as paid');
       }
 
       const today = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
