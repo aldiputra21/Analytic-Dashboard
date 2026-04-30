@@ -71,7 +71,7 @@ export function createCorporatesRouter(): Router {
    */
   router.get('/dropdown-items', requirePermission('cfd.corporates.read'), asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;
-    const results = await getActiveCorporates(access.scope !== 'system' ? access.corporateIds : undefined);
+    const results = await getActiveCorporates(access.hasFullCorporateAccess ? undefined : access.corporateIds);
     res.json(results);
   }));
 

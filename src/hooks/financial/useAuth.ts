@@ -473,7 +473,14 @@ export function useAuth() {
     isBOD: state.user?.role === 'bod',
     isSubsidiaryManager: state.user?.role === 'subsidiary_manager',
     hasFullCorporateAccess: !!state.user?.hasFullCorporateAccess,
+    scope: state.user?.scope || (state.user?.role === 'owner' || state.user?.role === 'bod' ? 'corporate' : 'department'),
     subsidiaryIds: state.user?.subsidiaryIds ?? [],
+    accessContext: {
+      scope: state.user?.scope || (state.user?.role === 'owner' || state.user?.role === 'bod' ? 'corporate' : 'department'),
+      corporateIds: state.user?.subsidiaryIds ?? [],
+      departmentIds: state.user?.departmentId ? [state.user.departmentId] : [],
+      hasFullCorporateAccess: !!state.user?.hasFullCorporateAccess
+    },
     language: state.language,
     setLanguage: (lang: 'id' | 'en') => {
       localStorage.setItem('frs_lang', lang);

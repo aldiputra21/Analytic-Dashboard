@@ -298,10 +298,11 @@ export async function getAnnualTargets(options: {
   search?: string;
   departmentId?: string | string[];
   projectId?: string;
+  fiscalYear?: number;
   page?: number;
   pageSize?: number;
 } = {}): Promise<{ records: any[]; totalCount: number }> {
-  const { search, departmentId, projectId, page = 1, pageSize = 0 } = options;
+  const { search, departmentId, projectId, fiscalYear, page = 1, pageSize = 0 } = options;
 
   const conditions: any[] = [];
   if (search) {
@@ -318,6 +319,9 @@ export async function getAnnualTargets(options: {
   }
   if (projectId) {
     conditions.push(sql`th.project_id = ${projectId}`);
+  }
+  if (fiscalYear) {
+    conditions.push(sql`th.fiscal_year = ${fiscalYear}`);
   }
 
   const whereClause = conditions.length > 0

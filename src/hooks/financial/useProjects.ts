@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../../services/financial/apiFetch';
 
 export interface ProjectDropdownItem {
@@ -10,7 +10,12 @@ export interface ProjectDropdownItem {
   corporateId?: string;
 }
 
-export function useProjects() {
+interface UseProjectsOptions {
+  corporateId?: string;
+  departmentId?: string;
+}
+
+export function useProjects(filter?: UseProjectsOptions) {
   const [projects, setProjects] = useState<ProjectDropdownItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +24,14 @@ export function useProjects() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await apiFetch('/api/projects/dropdown-items');
+      const params = new URLSearchParams();
+      if (filter?.corporateId) params.append('corporateId', filter.corporateId);
+      if (filter?.departmentId) params.append('departmentId', filter.departmentId);
+      
+      const queryString = params.toString();
+      const url = `/api/projects/dropdown-items${queryString ? `?${queryString}` : ''}`;
+      
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error('Failed to fetch projects');
       const data = await res.json();
       setProjects(Array.isArray(data) ? data : []);
@@ -29,23 +41,25 @@ export function useProjects() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [filter?.corporateId, filter?.departmentId]);
 
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  const options = useMemo(() => projects.map(p => ({
+    value: p.id,
+    label: p.name,
+    sublabel: p.code ? `${p.code}${p.departmentName ? ` • ${p.departmentName}` : ''}` : p.departmentName,
+    departmentId: p.departmentId,
+    corporateId: p.corporateId
+  })), [projects]);
 
   return {
     projects,
     isLoading,
     error,
     refetch: fetchProjects,
-    // Formatted for SearchableSelect
-    options: projects.map(p => ({
-      value: p.id,
-      label: p.name,
-      sublabel: p.code ? `${p.code}${p.departmentName ? ` • ${p.departmentName}` : ''}` : p.departmentName,
-      departmentId: p.departmentId
-    }))
+    options
   };
 }

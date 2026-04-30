@@ -15,6 +15,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { useProjects } from '../../../hooks/financial/useProjects';
 import { useCostCenters } from '../../../hooks/financial/useCostCenters';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { z } from 'zod';
@@ -31,6 +32,8 @@ import {
 import { realizationI18n } from '../../../i18n/realization';
 import { commonsI18n } from '../../../i18n/commons';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { CorporateSelector } from '../shared/CorporateSelector';
+import { DepartmentSelector } from '../shared/DepartmentSelector';
 
 const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -59,6 +62,7 @@ interface Realization {
   createdAt: string;
   updatedBy: string | null;
   updatedAt: string | null;
+  corporateId: string;
   attachments?: Attachment[];
 }
 
@@ -97,10 +101,26 @@ const Modal: React.FC<{
 };
 
 export const RealizationManager: React.FC = () => {
-  const { hasPermission, language } = useAuth();
-  const { departments, isLoading: isDeptsLoading } = useDepartments();
-  const { projects, isLoading: isProjsLoading } = useProjects();
+  const [formData, setFormData] = useState({
+    entityType: 'department' as 'department' | 'project',
+    corporateId: '',
+    departmentId: '',
+    projectId: '',
+    transactionDate: new Date().toISOString().split('T')[0],
+    category: 'cash-out' as 'cash-in' | 'cash-out',
+    costCenterId: '',
+    amount: '',
+    notes: '',
+  });
+
+  const { hasPermission, language, user, accessContext } = useAuth();
+  const { departments, isLoading: isDeptsLoading, showSelector: showDeptSelector } = useDepartments();
+  const { projects, isLoading: isProjsLoading } = useProjects({
+    corporateId: formData.corporateId,
+    departmentId: formData.departmentId
+  });
   const { options: costCenterOptions, isLoading: isCCLoading } = useCostCenters();
+  const { showSelector: showCorpSelector } = useCorporates();
   const t = realizationI18n[language];
   const common = commonsI18n[language];
 
@@ -116,12 +136,14 @@ export const RealizationManager: React.FC = () => {
   // Filters
   const [search, setSearch] = useState('');
   const [filterEntityType, setFilterEntityType] = useState('');
+  const [filterCorporate, setFilterCorporate] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [appliedFilters, setAppliedFilters] = useState({
     search: '',
     entityType: '',
+    corporateId: '',
     category: '',
     dateFrom: '',
     dateTo: ''
@@ -137,18 +159,6 @@ export const RealizationManager: React.FC = () => {
   const isReadOnly = modalMode === 'view';
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    entityType: 'department' as 'department' | 'project',
-    departmentId: '',
-    projectId: '',
-    transactionDate: new Date().toISOString().split('T')[0],
-    category: 'cash-out' as 'cash-in' | 'cash-out',
-    costCenterId: '',
-    amount: '',
-    notes: '',
-  });
 
   // Attachments State
   const [isUploading, setIsUploading] = useState(false);
@@ -199,6 +209,7 @@ export const RealizationManager: React.FC = () => {
       });
       if (appliedFilters.search) query.set('search', appliedFilters.search);
       if (appliedFilters.entityType) query.set('entityType', appliedFilters.entityType);
+      if (appliedFilters.corporateId) query.set('corporateId', appliedFilters.corporateId);
       if (appliedFilters.category) query.set('category', appliedFilters.category);
       if (appliedFilters.dateFrom) query.set('dateFrom', appliedFilters.dateFrom);
       if (appliedFilters.dateTo) query.set('dateTo', appliedFilters.dateTo);
@@ -251,6 +262,7 @@ export const RealizationManager: React.FC = () => {
     setAppliedFilters({
       search,
       entityType: filterEntityType,
+      corporateId: filterCorporate,
       category: filterCategory,
       dateFrom,
       dateTo
@@ -262,11 +274,13 @@ export const RealizationManager: React.FC = () => {
     setSearch('');
     setFilterEntityType('');
     setFilterCategory('');
+    setFilterCorporate('');
     setDateFrom('');
     setDateTo('');
     setAppliedFilters({
       search: '',
       entityType: '',
+      corporateId: '',
       category: '',
       dateFrom: '',
       dateTo: ''
@@ -280,6 +294,7 @@ export const RealizationManager: React.FC = () => {
       setEditingId(item.id);
       setFormData({
         entityType: item.entityType,
+        corporateId: item.corporateId || '',
         departmentId: item.departmentId,
         projectId: item.projectId || '',
         transactionDate: item.transactionDate.split('T')[0],
@@ -295,6 +310,7 @@ export const RealizationManager: React.FC = () => {
       setPendingFiles([]); // Also clear pending files
       setFormData({
         entityType: 'department',
+        corporateId: '',
         departmentId: '',
         projectId: '',
         transactionDate: new Date().toISOString().split('T')[0],
@@ -565,6 +581,14 @@ export const RealizationManager: React.FC = () => {
             <option value="project">{t.modal.project}</option>
           </select>
           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
+
+        <div className="flex-1 min-w-[200px]">
+          <CorporateSelector
+            value={filterCorporate}
+            onChange={(val) => setFilterCorporate(val)}
+            placeholder={t.filters.corporate || "Corporate"}
+          />
         </div>
 
         <div className="relative">
@@ -887,17 +911,25 @@ export const RealizationManager: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Corporate Select */}
+                    <div className="space-y-1.5">
+                      <CorporateSelector
+                        value={formData.corporateId}
+                        onChange={(val) => setFormData(p => ({ ...p, corporateId: val, departmentId: '', projectId: '' }))}
+                        disabled={isReadOnly}
+                      />
+                    </div>
+
                     {/* Department Select */}
                     <div className="space-y-1.5">
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                         {t.modal.department} <span className="text-red-500">*</span>
                       </label>
-                      <SearchableSelect
-                        options={departments.map(d => ({ value: d.id, label: d.name, sublabel: d.code }))}
+                      <DepartmentSelector
                         value={formData.departmentId}
                         onChange={(val) => setFormData(p => ({ ...p, departmentId: val, projectId: '' }))}
-                        placeholder={t.modal.department}
                         disabled={isReadOnly || isDeptsLoading}
+                        corporateId={formData.corporateId}
                       />
                     </div>
 
@@ -908,9 +940,7 @@ export const RealizationManager: React.FC = () => {
                           {t.modal.project} <span className="text-red-500">*</span>
                         </label>
                         <SearchableSelect
-                          options={projects
-                            .filter(p => p.departmentId === formData.departmentId)
-                            .map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
+                          options={projects.filter(p => p.departmentId === formData.departmentId).map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
                           value={formData.projectId}
                           onChange={(val) => setFormData(p => ({ ...p, projectId: val }))}
                           placeholder={t.modal.project}

@@ -123,6 +123,7 @@ export async function getUserAccessContext(userId: string): Promise<{
   scope: 'system' | 'corporate' | 'department';
   corporateIds: string[];
   departmentIds: string[];
+  hasFullCorporateAccess: boolean;
 }> {
   const rows = await db.select({ 
     corporateId: userCorporateAccesses.corporateId,
@@ -139,8 +140,9 @@ export async function getUserAccessContext(userId: string): Promise<{
 
   const corporateIds = Array.from(new Set(rows.map(r => r.corporateId).filter((id): id is string => id !== null)));
   const departmentIds = Array.from(new Set(rows.map(r => r.departmentId).filter((id): id is string => id !== null)));
+  const hasFullCorporateAccess = rows.some(r => r.scope === 'system' || (r.scope === 'corporate' && r.corporateId === null));
 
-  return { scope, corporateIds, departmentIds };
+  return { scope, corporateIds, departmentIds, hasFullCorporateAccess };
 }
 
 /**

@@ -17,12 +17,14 @@ export interface TargetCopy {
   };
   filter: {
     allDepartments: string;
+    allCorporates: string;
   };
   status: {
     empty: string;
     emptyDesc: string;
   };
   fields: {
+    corporate: string;
     department: string;
     project: string;
     year: string;
@@ -74,12 +76,14 @@ export const targetI18n: Record<Locale, TargetCopy> = {
     },
     filter: {
       allDepartments: 'Semua Departemen',
+      allCorporates: 'Semua Perusahaan',
     },
     status: {
       empty: 'Tidak ada data target',
       emptyDesc: 'Belum ada data target yang terdaftar untuk periode ini.',
     },
     fields: {
+      corporate: 'Perusahaan',
       department: 'Departemen',
       project: 'Proyek',
       year: 'Tahun Target',
@@ -129,12 +133,14 @@ export const targetI18n: Record<Locale, TargetCopy> = {
     },
     filter: {
       allDepartments: 'All Departments',
+      allCorporates: 'All Corporates',
     },
     status: {
       empty: 'No target data found',
       emptyDesc: 'No target data has been registered for this period.',
     },
     fields: {
+      corporate: 'Corporate',
       department: 'Department',
       project: 'Project',
       year: 'Fiscal Year',

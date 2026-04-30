@@ -7,7 +7,9 @@ import { apiFetch as apiService } from '../../services/financial/apiFetch';
 
 export interface Department {
   id: string;
+  corporateId: string;
   name: string;
+  code: string;
   description?: string;
   isActive: boolean;
   createdAt: string;
@@ -16,9 +18,11 @@ export interface Department {
 
 export interface Project {
   id: string;
+  corporateId: string;
   departmentId: string;
   departmentName?: string;
   name: string;
+  code: string;
   description?: string;
   startDate?: string;
   endDate?: string;
@@ -50,8 +54,8 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
-export function useManagement() {
-  const { user } = useAuth();  // Get user from session to extract corporateId
+export function useManagement(corporateId?: string) {
+  const { user } = useAuth();  // Get user from session to extract corporateId if not provided
   const [departments, setDepartments] = useState<Department[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [targets, setTargets] = useState<FinancialTarget[]>([]);
@@ -69,13 +73,13 @@ export function useManagement() {
     }
     abortControllerRef.current = new AbortController();
 
-    const corporateId = user?.corporateId;
+    const activeCorporateId = corporateId || user?.corporateId;
     // Allow undefined corporateId (owner role with system scope accesses all)
     
     setIsLoading(true);
     setError(null);
     try {
-      const url = (id: string) => corporateId ? `${id}?corporateId=${corporateId}` : id;
+      const url = (id: string) => activeCorporateId ? `${id}?corporateId=${activeCorporateId}` : id;
       const [depts, projs, tgts] = await Promise.all([
         apiFetch<Department[]>(url('/api/departments')),
         apiFetch<Project[]>(url('/api/projects')),
@@ -101,7 +105,7 @@ export function useManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id]);  // Only depend on user ID, corporateId is read fresh in hook
+  }, [user?.id, corporateId]);  // Only depend on user ID and passed corporateId
 
   // Auto-refetch when user changes with debounce
   useEffect(() => {
@@ -115,7 +119,7 @@ export function useManagement() {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, corporateId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -132,7 +136,7 @@ export function useManagement() {
   // --- Department actions ---
 
   const createDepartment = useCallback(
-    async (data: { name: string; description?: string }) => {
+    async (data: { name: string; code: string; description?: string; corporateId: string }) => {
       const dept = await apiFetch<Department>('/api/departments', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -165,6 +169,7 @@ export function useManagement() {
 
   const createProject = useCallback(
     async (data: {
+      corporateId: string;
       departmentId: string;
       name: string;
       description?: string;

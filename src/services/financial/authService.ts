@@ -9,7 +9,7 @@ import { db } from '../../db/connection';
 import { roles, userCorporateAccesses, users } from '../../db/schema/index.js';
 import { JWTPayload, FRSUser, UserRole } from '../../types/financial/user';
 import { sendPasswordResetEmail } from './emailService';
-import { getEffectivePermissions } from './permissionService';
+import { getEffectivePermissions, getUserAccessContext } from './permissionService';
 
 const JWT_SECRET = process.env.FRS_JWT_SECRET || 'frs-dev-secret-change-in-production';
 const JWT_EXPIRES_IN = process.env.FRS_JWT_EXPIRES_IN || '30m';
@@ -307,6 +307,7 @@ export async function mapRowToUser(row: typeof users.$inferSelect): Promise<FRSU
     corporateId: primaryAccess?.corporateId ?? undefined,
     subsidiaryIds: subsidiaryIds.length > 0 ? subsidiaryIds : undefined,
     hasFullCorporateAccess,
+    scope: (await getUserAccessContext(row.id)).scope,
   };
 }
 

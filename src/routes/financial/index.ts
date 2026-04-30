@@ -25,6 +25,7 @@ import { createCashRealizationsRouter } from './cashRealizations';
 import { createAttachmentsRouter } from './attachments';
 import { createBankLoansRouter } from './bankLoans';
 import { createNotificationConfigsRouter } from './notificationConfigs';
+import { createDashboardDataRouter } from './dashboardData';
 import { authenticate } from '../../middleware/auth';
 import { checkMaintenance } from '../../middleware/maintenance';
 
@@ -89,6 +90,9 @@ export function createFRSRouter(): Router {
 
   // Calculated ratios (with caching)
   router.use('/ratios', createRatiosRouter());
+
+  // Dashboard specific data (consolidated)
+  router.use('/dashboard', createDashboardDataRouter());
 
   // Threshold configuration (Owner only for write)
   router.use('/thresholds', createThresholdsRouter());

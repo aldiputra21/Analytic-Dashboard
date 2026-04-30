@@ -104,9 +104,11 @@ export function createRatiosRouter(): Router {
     const limitClause = limit ? sql` LIMIT ${parseInt(limit)}` : sql``;
 
     const rows = (await db.execute(sql`
-      SELECT * FROM cfd.v_financial_ratios
+      SELECT vr.*, c.name as corporate_name
+      FROM cfd.v_financial_ratios vr
+      JOIN public.corporates c ON vr.corporate_id = c.id
       WHERE ${whereClause}
-      ORDER BY period DESC
+      ORDER BY vr.period DESC
       ${limitClause}
     `)).rows as any[];
 
@@ -141,7 +143,7 @@ export function createRatiosRouter(): Router {
     }
 
     const rows = (await db.execute(sql`
-      SELECT vr.*
+      SELECT vr.*, c.name as corporate_name
       FROM cfd.v_financial_ratios vr
       JOIN public.corporates c ON vr.corporate_id = c.id
       WHERE c.is_active = true

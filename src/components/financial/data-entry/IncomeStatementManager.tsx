@@ -17,7 +17,7 @@ import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import { MonthPicker } from '../shared/MonthPicker';
 import { MonthRangePicker } from '../shared/MonthRangePicker';
-import { SearchableSelect } from '../shared/SearchableSelect';
+import { CorporateSelector } from '../shared/CorporateSelector';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -179,7 +179,7 @@ export const IncomeStatementManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { options: corporateOptions, isLoading: isCorpsLoading, corporates } = useCorporates();
+  const { options: corporateOptions, isLoading: isCorpsLoading, corporates, showSelector } = useCorporates();
 
   // Filters
   const [filterPeriodStart, setFilterPeriodStart] = useState('');
@@ -295,8 +295,7 @@ export const IncomeStatementManager: React.FC = () => {
       });
     } else {
       setFormData({
-        period: new Date().toISOString().slice(0, 7),
-        corporateId: hasFullCorporateAccess ? '' : (subsidiaryIds?.[0] || ''),
+        corporateId: showSelector ? '' : (subsidiaryIds?.[0] || ''),
         revenue: 0, cogs: 0, operatingExpenses: 0, interestExpense: 0, taxExpense: 0,
         notes: ''
       });
@@ -386,17 +385,14 @@ export const IncomeStatementManager: React.FC = () => {
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          {(hasFullCorporateAccess || user?.role === 'owner' || subsidiaryIds.length > 1) && (
-            <div className="flex-1 min-w-[200px]">
-              <SearchableSelect
-                options={corporateOptions}
-                value={filterCorporate}
-                onChange={(val) => setFilterCorporate(val)}
-                placeholder={t.modal.selectCorporate}
-                disabled={isCorpsLoading}
-              />
-            </div>
-          )}
+          <div className="flex-1 min-w-[200px]">
+            <CorporateSelector
+              value={filterCorporate}
+              onChange={(val) => setFilterCorporate(val)}
+              placeholder={t.modal.selectCorporate}
+              disabled={isCorpsLoading}
+            />
+          </div>
 
           <div className="flex items-center gap-2 flex-1 min-w-[280px]">
             <MonthRangePicker
@@ -687,24 +683,12 @@ export const IncomeStatementManager: React.FC = () => {
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                      <Calculator size={12} /> {t.modal.corporate}
-                    </label>
-                    {modalMode === 'view' ? (
-                      <div className="w-full bg-slate-100 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600">
-                        {formData.corporateName || 'N/A'}
-                      </div>
-                    ) : (
-                      <SearchableSelect
-                        options={corporateOptions.filter(opt => (hasFullCorporateAccess || user?.role === 'owner') || (subsidiaryIds.length > 0 && subsidiaryIds.includes(opt.value)))}
-                        value={formData.corporateId || ''}
-                        onChange={(val) => setFormData({ ...formData, corporateId: val })}
-                        placeholder={t.modal.selectCorporate}
-                        disabled={isCorpsLoading}
-                      />
-                    )}
-                  </div>
+                    <CorporateSelector
+                      value={formData.corporateId || ''}
+                      onChange={(val) => setFormData({ ...formData, corporateId: val })}
+                      placeholder={t.modal.selectCorporate}
+                      disabled={isCorpsLoading || modalMode === 'view'}
+                    />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-8 gap-y-6 items-start">

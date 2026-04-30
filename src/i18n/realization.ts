@@ -37,6 +37,7 @@ export interface RealizationCopy {
     cashOut: string;
     amount: string;
     notes: string;
+    corporate: string;
     basicInfo: string;
     attachmentSection: string;
     transactionDetail: string;
@@ -50,6 +51,7 @@ export interface RealizationCopy {
   filters: {
     entityType: string;
     category: string;
+    corporate: string;
     dateRange: string;
     dateFrom: string;
     dateTo: string;
@@ -118,6 +120,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       cashOut: 'Kas Keluar',
       amount: 'Jumlah',
       notes: 'Catatan',
+      corporate: 'Perusahaan',
       basicInfo: 'Informasi Dasar',
       attachmentSection: 'Lampiran File',
       transactionDetail: 'Detail Transaksi',
@@ -131,6 +134,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     filters: {
       entityType: 'Tipe Entitas',
       category: 'Kategori',
+      corporate: 'Perusahaan',
       dateRange: 'Rentang Tanggal',
       dateFrom: 'Dari Tanggal',
       dateTo: 'Sampai Tanggal',
@@ -197,6 +201,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       cashOut: 'Cash Out',
       amount: 'Amount',
       notes: 'Notes',
+      corporate: 'Corporate',
       basicInfo: 'Basic Information',
       attachmentSection: 'File Attachments',
       transactionDetail: 'Transaction Details',
@@ -210,6 +215,7 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     filters: {
       entityType: 'Entity Type',
       category: 'Category',
+      corporate: 'Corporate',
       dateRange: 'Date Range',
       dateFrom: 'From Date',
       dateTo: 'To Date',

@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { MonthPicker } from '../shared/MonthPicker';
 import { MonthRangePicker } from '../shared/MonthRangePicker';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { CorporateSelector } from '../shared/CorporateSelector';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -414,17 +415,13 @@ export const WeeklyCashFlowManager: React.FC = () => {
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          {(hasFullCorporateAccess || user?.role === 'owner' || subsidiaryIds.length > 1) && (
-            <div className="flex-1 min-w-[200px]">
-              <SearchableSelect
-                options={corporateOptions}
-                value={filterCorporate}
-                onChange={(val) => setFilterCorporate(val)}
-                placeholder={t.modal.corporate}
-                disabled={isCorpsLoading}
-              />
-            </div>
-          )}
+          <div className="flex-1 min-w-[200px]">
+            <CorporateSelector
+              value={filterCorporate}
+              onChange={(val) => setFilterCorporate(val)}
+              placeholder={t.modal.corporate}
+            />
+          </div>
 
           <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-blue-500/20 transition-all flex-1 min-w-[200px]">
             <Search size={16} className="text-slate-400" />
@@ -762,19 +759,12 @@ export const WeeklyCashFlowManager: React.FC = () => {
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
                       <Landmark size={12} /> {t.modal.corporate}
                     </label>
-                    {modalMode === 'view' ? (
-                      <div className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm font-bold text-slate-600">
-                        {formData.corporateName || 'N/A'}
-                      </div>
-                    ) : (
-                      <SearchableSelect
-                        options={corporateOptions}
-                        value={formData.corporateId || ''}
-                        onChange={(val) => setFormData({ ...formData, corporateId: val, entityId: '' })}
-                        placeholder={t.modal.selectEntity + ' ' + t.modal.corporate}
-                        disabled={isCorpsLoading}
-                      />
-                    )}
+                    <CorporateSelector
+                      value={formData.corporateId || ''}
+                      onChange={(val) => setFormData({ ...formData, corporateId: val, entityId: val })}
+                      placeholder={t.modal.selectEntity + ' ' + t.modal.corporate}
+                      disabled={modalMode === 'view'}
+                    />
                   </div>
                 </div>
 

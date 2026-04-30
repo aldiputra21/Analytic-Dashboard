@@ -11,38 +11,43 @@ import { commonsI18n } from '../../../i18n/commons';
 import { formatRupiah } from '../../../utils/format';
 import { mafindaI18n } from '../../../i18n/mafinda';
 import type { Department, Project, FinancialTarget } from '../../../hooks/mafinda/useManagement';
+import { CorporateSelector } from '../../financial/shared/CorporateSelector';
+import { DepartmentSelector } from '../../financial/shared/DepartmentSelector';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
+import { SearchableSelect } from '../../financial/shared/SearchableSelect';
 
 type Tab = 'departments' | 'projects' | 'targets';
 
 // ─── Departments Tab ──────────────────────────────────────────────────────────
 
-interface DeptFormState { name: string; description: string; }
+interface DeptFormState { corporateId: string; name: string; code: string; description: string; }
 
 const DepartmentsTab: React.FC<{
   departments: Department[];
   projects: Project[];
-  onCreate: (d: { name: string; description?: string }) => Promise<void>;
-  onUpdate: (id: string, d: { name?: string; description?: string }) => Promise<void>;
+  onCreate: (data: any) => Promise<void>;
+  onUpdate: (id: string, data: any) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-}> = ({ departments, projects, onCreate, onUpdate, onDelete }) => {
+  corporateId?: string;
+}> = ({ departments, projects, onCreate, onUpdate, onDelete, corporateId }) => {
   const { language } = useAuth();
   const t = commonsI18n[language];
   const { showSuccess, showError } = useToast();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<DeptFormState>({ name: '', description: '' });
+  const [form, setForm] = useState<DeptFormState>({ corporateId: corporateId || '', name: '', code: '', description: '' });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Department | null>(null);
 
   function openCreate() {
-    setForm({ name: '', description: '' });
+    setForm({ corporateId: corporateId || '', name: '', code: '', description: '' });
     setEditingId(null);
     setShowForm(true);
   }
 
-  function openEdit(dept: Department) {
-    setForm({ name: dept.name, description: dept.description ?? '' });
+  function openEdit(dept: any) {
+    setForm({ corporateId: dept.corporateId || '', name: dept.name, code: dept.code || '', description: dept.description ?? '' });
     setEditingId(dept.id);
     setShowForm(true);
   }
@@ -52,10 +57,10 @@ const DepartmentsTab: React.FC<{
     setSaving(true);
     try {
       if (editingId) {
-        await onUpdate(editingId, { name: form.name.trim(), description: form.description.trim() || undefined });
+        await onUpdate(editingId, { name: form.name.trim(), code: form.code.trim(), description: form.description.trim() || undefined });
         showSuccess(language === 'id' ? 'Departemen berhasil diperbarui' : 'Department updated successfully');
       } else {
-        await onCreate({ name: form.name.trim(), description: form.description.trim() || undefined });
+        await onCreate({ corporateId: form.corporateId, name: form.name.trim(), code: form.code.trim(), description: form.description.trim() || undefined });
         showSuccess(language === 'id' ? 'Departemen berhasil ditambahkan' : 'Department added successfully');
       }
       setShowForm(false);
@@ -220,10 +225,26 @@ const DepartmentsTab: React.FC<{
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Nama' : 'Name'} <span className="text-red-500">*</span></label>
-                <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder={language === 'id' ? 'Contoh: ONM, Engineering, Finance' : 'Example: ONM, Engineering, Finance'} autoFocus />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Perusahaan' : 'Corporate'} <span className="text-red-500">*</span></label>
+                <CorporateSelector
+                  value={form.corporateId}
+                  onChange={val => setForm(f => ({ ...f, corporateId: val }))}
+                  disabled={!!editingId}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Nama' : 'Name'} <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder={language === 'id' ? 'Contoh: Engineering' : 'Example: Engineering'} autoFocus />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Kode' : 'Code'} <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} required
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="ENG" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Deskripsi' : 'Description'}</label>
@@ -269,36 +290,59 @@ const DepartmentsTab: React.FC<{
 // ─── Projects Tab ─────────────────────────────────────────────────────────────
 
 interface ProjFormState {
-  departmentId: string; name: string; description: string; startDate: string; endDate: string;
+  corporateId: string;
+  departmentId: string;
+  name: string;
+  code: string;
+  description: string;
+  startDate: string;
+  endDate: string;
 }
 
 const ProjectsTab: React.FC<{
   departments: Department[];
   projects: Project[];
-  onCreate: (d: { departmentId: string; name: string; description?: string; startDate?: string; endDate?: string }) => Promise<void>;
-  onUpdate: (id: string, d: { name?: string; description?: string; startDate?: string; endDate?: string }) => Promise<void>;
+  onCreate: (data: any) => Promise<void>;
+  onUpdate: (id: string, data: any) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-}> = ({ departments, projects, onCreate, onUpdate, onDelete }) => {
+  corporateId?: string;
+}> = ({ departments, projects, onCreate, onUpdate, onDelete, corporateId }) => {
   const { language } = useAuth();
   const t = commonsI18n[language];
   const { showSuccess, showError } = useToast();
   const [filterDeptId, setFilterDeptId] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ProjFormState>({ departmentId: '', name: '', description: '', startDate: '', endDate: '' });
+  const [form, setForm] = useState<ProjFormState>({ corporateId: corporateId || '', departmentId: '', name: '', code: '', description: '', startDate: '', endDate: '' });
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const visible = filterDeptId ? projects.filter(p => p.departmentId === filterDeptId) : projects;
 
   function openCreate() {
-    setForm({ departmentId: filterDeptId || (departments[0]?.id ?? ''), name: '', description: '', startDate: '', endDate: '' });
+    setForm({
+      corporateId: corporateId || '',
+      departmentId: filterDeptId || (departments[0]?.id ?? ''),
+      name: '',
+      code: '',
+      description: '',
+      startDate: '',
+      endDate: ''
+    });
     setEditingId(null);
     setShowForm(true);
   }
 
-  function openEdit(proj: Project) {
-    setForm({ departmentId: proj.departmentId, name: proj.name, description: proj.description ?? '', startDate: proj.startDate ?? '', endDate: proj.endDate ?? '' });
+  function openEdit(proj: any) {
+    setForm({
+      corporateId: proj.corporateId || corporateId || '',
+      departmentId: proj.departmentId,
+      name: proj.name,
+      code: proj.code || '',
+      description: proj.description ?? '',
+      startDate: proj.startDate ?? '',
+      endDate: proj.endDate ?? ''
+    });
     setEditingId(proj.id);
     setShowForm(true);
   }
@@ -307,12 +351,18 @@ const ProjectsTab: React.FC<{
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { name: form.name.trim(), description: form.description.trim() || undefined, startDate: form.startDate || undefined, endDate: form.endDate || undefined };
+      const payload = {
+        name: form.name.trim(),
+        code: form.code.trim(),
+        description: form.description.trim() || undefined,
+        startDate: form.startDate || undefined,
+        endDate: form.endDate || undefined
+      };
       if (editingId) {
         await onUpdate(editingId, payload);
         showSuccess(language === 'id' ? 'Proyek berhasil diperbarui' : 'Project updated successfully');
       } else {
-        await onCreate({ departmentId: form.departmentId, ...payload });
+        await onCreate({ corporateId: form.corporateId, departmentId: form.departmentId, ...payload });
         showSuccess(language === 'id' ? 'Proyek berhasil ditambahkan' : 'Project added successfully');
       }
       setShowForm(false);
@@ -434,18 +484,35 @@ const ProjectsTab: React.FC<{
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Departemen <span className="text-red-500">*</span></label>
-                <select value={form.departmentId} onChange={e => setForm(f => ({ ...f, departmentId: e.target.value }))} required disabled={!!editingId}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50">
-                  <option value="">Pilih departemen</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Perusahaan' : 'Corporate'} <span className="text-red-500">*</span></label>
+                <CorporateSelector
+                  value={form.corporateId}
+                  onChange={val => setForm(f => ({ ...f, corporateId: val, departmentId: '' }))}
+                  disabled={!!editingId}
+                />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Proyek <span className="text-red-500">*</span></label>
-                <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required autoFocus
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Nama proyek" />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Departemen' : 'Department'} <span className="text-red-500">*</span></label>
+                <DepartmentSelector
+                  corporateId={form.corporateId}
+                  value={form.departmentId}
+                  onChange={val => setForm(f => ({ ...f, departmentId: val }))}
+                  disabled={!!editingId || !form.corporateId}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Nama Proyek' : 'Project Name'} <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required autoFocus
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Nama proyek" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{language === 'id' ? 'Kode' : 'Code'} <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} required
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="P-001" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Deskripsi</label>
@@ -517,7 +584,8 @@ const TargetsTab: React.FC<{
   targets: FinancialTarget[];
   onUpsert: (d: { entityType: 'department' | 'project'; entityId: string; period: string; periodType: 'monthly' | 'quarterly' | 'annual'; revenueTarget: number; operationalCostTarget: number }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-}> = ({ departments, projects, targets, onUpsert, onDelete }) => {
+  corporateId?: string;
+}> = ({ departments, projects, targets, onUpsert, onDelete, corporateId }) => {
   const { language } = useAuth();
   const c = commonsI18n[language];
   const tm = mafindaI18n[language].dashboard.targetManager;
@@ -536,8 +604,8 @@ const TargetsTab: React.FC<{
 
   const visible = filterType === 'all' ? targets : targets.filter(t => t.entityType === filterType);
   const entityOptions = form.entityType === 'department'
-    ? departments.map(d => ({ id: d.id, label: d.name }))
-    : projects.map(p => ({ id: p.id, label: `${p.name} (${departments.find(d => d.id === p.departmentId)?.name ?? ''})` }));
+    ? departments.map(d => ({ value: d.id, label: d.name }))
+    : projects.map(p => ({ value: p.id, label: `${p.name} (${departments.find(d => d.id === p.departmentId)?.name ?? ''})` }));
 
   function openCreate() {
     setForm({ entityType: 'department', entityId: '', period: currentPeriod(), periodType: 'monthly', revenueTarget: '', operationalCostTarget: '' });
@@ -682,11 +750,13 @@ const TargetsTab: React.FC<{
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">{tm.entity} <span className="text-red-500">*</span></label>
-                  <select value={form.entityId} onChange={e => setForm(f => ({ ...f, entityId: e.target.value }))} required disabled={!!editingTarget}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50">
-                    <option value="">{tm.selectEntity}</option>
-                    {entityOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-                  </select>
+                  <SearchableSelect
+                    options={entityOptions}
+                    value={form.entityId}
+                    onChange={val => setForm(f => ({ ...f, entityId: val }))}
+                    placeholder={tm.selectEntity}
+                    disabled={!!editingTarget}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -744,6 +814,7 @@ export const ManagementPage: React.FC = () => {
   ];
 
   const [activeTab, setActiveTab] = useState<Tab>('departments');
+  const [filterCorporate, setFilterCorporate] = useState('');
 
   const {
     departments,
@@ -759,7 +830,7 @@ export const ManagementPage: React.FC = () => {
     deleteProject,
     upsertTarget,
     deleteTarget,
-  } = useManagement();
+  } = useManagement(filterCorporate);
   const t = commonsI18n[language];
 
   return (
@@ -772,6 +843,16 @@ export const ManagementPage: React.FC = () => {
         </div>
         <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
           <Briefcase className="w-5 h-5 text-indigo-600" />
+        </div>
+      </div>
+
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div className="flex-1 max-w-sm">
+          <CorporateSelector
+            value={filterCorporate}
+            onChange={(val) => setFilterCorporate(val)}
+            placeholder={language === 'id' ? 'Filter Perusahaan' : 'Filter Corporate'}
+          />
         </div>
       </div>
 
@@ -821,6 +902,7 @@ export const ManagementPage: React.FC = () => {
               onCreate={createDepartment}
               onUpdate={updateDepartment}
               onDelete={deleteDepartment}
+              corporateId={filterCorporate}
             />
           )}
           {activeTab === 'projects' && (
@@ -830,6 +912,7 @@ export const ManagementPage: React.FC = () => {
               onCreate={createProject}
               onUpdate={updateProject}
               onDelete={deleteProject}
+              corporateId={filterCorporate}
             />
           )}
           {activeTab === 'targets' && (
@@ -839,6 +922,7 @@ export const ManagementPage: React.FC = () => {
               targets={targets}
               onUpsert={upsertTarget}
               onDelete={deleteTarget}
+              corporateId={filterCorporate}
             />
           )}
         </>

@@ -26,6 +26,7 @@ import {
 import { bankLoanI18n } from '../../../i18n/bank-loan';
 import { commonsI18n } from '../../../i18n/commons';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { CorporateSelector } from '../shared/CorporateSelector';
 import { z } from 'zod';
 
 interface Installment {
@@ -137,9 +138,11 @@ export const BankLoanManager: React.FC = () => {
   // Filters
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterCorporate, setFilterCorporate] = useState('');
   const [appliedFilters, setAppliedFilters] = useState({
     search: '',
-    status: ''
+    status: '',
+    corporateId: ''
   });
 
   const [page, setPage] = useState(1);
@@ -180,6 +183,7 @@ export const BankLoanManager: React.FC = () => {
       });
       if (appliedFilters.search) query.set('search', appliedFilters.search);
       if (appliedFilters.status) query.set('status', appliedFilters.status);
+      if (appliedFilters.corporateId) query.set('corporateId', appliedFilters.corporateId);
 
       const res = await apiFetch(`/api/bank-loans?${query.toString()}`);
       if (res.ok) {
@@ -203,14 +207,15 @@ export const BankLoanManager: React.FC = () => {
   }, [fetchData]);
 
   const handleApplyFilter = () => {
-    setAppliedFilters({ search, status: filterStatus });
+    setAppliedFilters({ search, status: filterStatus, corporateId: filterCorporate });
     setPage(1);
   };
 
   const handleClearFilter = () => {
     setSearch('');
     setFilterStatus('');
-    setAppliedFilters({ search: '', status: '' });
+    setFilterCorporate('');
+    setAppliedFilters({ search: '', status: '', corporateId: '' });
     setPage(1);
   };
 
@@ -447,6 +452,13 @@ export const BankLoanManager: React.FC = () => {
             <option value="paid">{t.loanStatus.paid}</option>
           </select>
           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <CorporateSelector
+            value={filterCorporate}
+            onChange={(val) => setFilterCorporate(val)}
+            placeholder={t.filter.allCorporates}
+          />
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -726,11 +738,9 @@ export const BankLoanManager: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                       {t.modal.corporate} <span className="text-red-500">*</span>
                     </label>
-                    <SearchableSelect
-                      options={corporateOptions}
+                    <CorporateSelector
                       value={formData.corporateId}
                       onChange={(val) => setFormData(p => ({ ...p, corporateId: val }))}
-                      placeholder={t.modal.selectCorporate}
                       disabled={isReadOnly || isCorpsLoading}
                     />
                   </div>

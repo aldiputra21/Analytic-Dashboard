@@ -32,9 +32,11 @@ export interface FRSUser {
   corporateId?: string;  // User's primary corporate/subsidiary ID
   subsidiaryIds?: string[];  // All accessible corporate/subsidiary IDs
   hasFullCorporateAccess?: boolean; // Whether user has access to all corporates (null in DB)
+  scope?: 'system' | 'corporate' | 'department';
   roleName?: string;
   roleDescription?: string;
   avatarUrl?: string;
+  departmentId?: string;
 }
 
 export interface CreateUserInput {

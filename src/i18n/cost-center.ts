@@ -12,6 +12,9 @@ export interface CostCenterCopy {
     parent: string;
     category: string;
   };
+  filter: {
+    allCorporates: string;
+  };
   status: {
     loading: string;
     empty: string;
@@ -25,6 +28,7 @@ export interface CostCenterCopy {
     name: string;
     parent: string;
     category: string;
+    corporate: string;
     description: string;
     none: string;
     parentNote: string;
@@ -61,6 +65,9 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       parent: 'Induk',
       category: 'Kategori',
     },
+    filter: {
+      allCorporates: 'Semua Perusahaan',
+    },
     status: {
       loading: 'Memuat Data...',
       empty: 'Data Kosong',
@@ -74,6 +81,7 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       name: 'Nama',
       parent: 'Induk',
       category: 'Kategori',
+      corporate: 'Perusahaan',
       description: 'Deskripsi',
       none: 'Tidak ada (Level Atas)',
       parentNote: 'Jika diatur, kategori akan mengikuti induk secara otomatis.',
@@ -108,6 +116,9 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       parent: 'Parent',
       category: 'Category',
     },
+    filter: {
+      allCorporates: 'All Corporates',
+    },
     status: {
       loading: 'Loading Data...',
       empty: 'No Data',
@@ -121,6 +132,7 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       name: 'Name',
       parent: 'Parent',
       category: 'Category',
+      corporate: 'Corporate',
       description: 'Description',
       none: 'None (Top Level)',
       parentNote: 'If set, category will follow parent automatically.',

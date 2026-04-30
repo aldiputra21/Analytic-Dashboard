@@ -140,6 +140,7 @@ export function mapRowToRatios(row: Record<string, unknown>): CalculatedRatios {
     id: String(row.id ?? ''),
     financialDataId: '',
     subsidiaryId: String(row.corporate_id ?? row.corporateId ?? ''),
+    corporateName: String(row.corporate_name ?? row.corporateName ?? ''),
     roa: n(row.roa),
     roe: n(row.roe),
     npm: n(row.npm),

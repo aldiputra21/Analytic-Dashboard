@@ -286,8 +286,8 @@ function makeApp() {
 
   // Inject dummy user and accessContext for tests
   app.use((req, res, next) => {
-    req.user = { userId: 'test-user', role: 'owner' } as any;
-    req.accessContext = { scope: 'system', corporateIds: [], departmentIds: [] };
+    req.user = { id: 'admin-1', username: 'admin', role: 'system_admin', hasFullCorporateAccess: true } as any;
+    req.accessContext = { scope: 'system', corporateIds: [], departmentIds: [], hasFullCorporateAccess: true };
     next();
   });
 

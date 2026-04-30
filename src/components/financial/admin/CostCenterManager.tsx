@@ -28,6 +28,7 @@ import { costCenterI18n } from '../../../i18n/cost-center';
 import { commonsI18n } from '../../../i18n/commons';
 import { z } from 'zod';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { CorporateSelector } from '../shared/CorporateSelector';
 
 interface CostCenter {
   id: string;
@@ -122,7 +123,7 @@ export const CostCenterManager: React.FC = () => {
   const { options: parentOptions, isLoading: isParentsLoading } = useCostCenters();
   const { options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
   const { user, hasPermission, language } = useAuth();
-  const t = costCenterI18n[language] as any;
+  const t = costCenterI18n[language];
   const common = commonsI18n[language];
 
   // Validation Schema
@@ -383,16 +384,13 @@ export const CostCenterManager: React.FC = () => {
           />
         </div>
 
-        {user?.hasFullCorporateAccess && (
-          <div className="min-w-[200px]">
-            <SearchableSelect
-              options={corporateOptions}
-              value={filterCorporateId}
-              onChange={setFilterCorporateId}
-              placeholder="Filter Corporate"
-            />
-          </div>
-        )}
+        <div className="min-w-[200px]">
+          <CorporateSelector
+            value={filterCorporateId}
+            onChange={setFilterCorporateId}
+            placeholder={t.filter.allCorporates}
+          />
+        </div>
 
         <div className="flex items-center gap-2">
           <button
@@ -679,12 +677,11 @@ export const CostCenterManager: React.FC = () => {
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <FormField label="Corporate" required>
-                    <SearchableSelect
-                      options={corporateOptions}
+                  <FormField label={t.modal.corporate} required>
+                    <CorporateSelector
                       value={formData.corporateId}
                       onChange={(val) => setFormData({ ...formData, corporateId: val, parentId: '' })}
-                      placeholder="Select Corporate"
+                      placeholder={t.modal.corporate}
                       disabled={isViewOnly || (!user?.hasFullCorporateAccess && user?.subsidiaryIds?.length === 1)}
                     />
                   </FormField>

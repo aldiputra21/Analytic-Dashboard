@@ -25,7 +25,7 @@ export function createProjectRouter(): Router {
   const router = Router();
 
   // GET /api/projects — list projects
-  router.get('/', requirePermission('public.projects.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
+  router.get('/', requirePermission('public.projects.read', 'cfd.dashboard.read'), requireSubsidiaryAccess(), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, departmentId, search, page, pageSize } = req.query as Record<string, string>;
     const access = req.accessContext!;
 
@@ -42,10 +42,14 @@ export function createProjectRouter(): Router {
   }));
 
   // GET /api/projects/dropdown-items — list all active projects for dropdowns
-  router.get('/dropdown-items', requirePermission('public.projects.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId } = req.query as Record<string, string>;
+  router.get('/dropdown-items', requirePermission('public.projects.read', 'cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+    const { corporateId, departmentId } = req.query as Record<string, string>;
     const access = req.accessContext!;
-    const result = await getActiveProjects(corporateId, access.scope !== 'system' ? access.corporateIds : undefined);
+    const result = await getActiveProjects({
+      corporateId,
+      departmentId,
+      subsidiaryIds: access.hasFullCorporateAccess ? undefined : access.corporateIds
+    });
     res.json(result);
   }));
 

@@ -28,6 +28,7 @@ import { targetI18n } from '../../../i18n/target';
 import { commonsI18n } from '../../../i18n/commons';
 import { formatRupiah } from '../../../utils/format';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { CorporateSelector } from '../shared/CorporateSelector';
 import { z } from 'zod';
 
 interface TargetSummary {
@@ -167,7 +168,8 @@ export const TargetManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterDepartmentId, setFilterDepartmentId] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({ search: '', departmentId: '' });
+  const [filterCorporateId, setFilterCorporateId] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({ search: '', departmentId: '', corporateId: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -180,6 +182,7 @@ export const TargetManager: React.FC = () => {
   const [editingSummary, setEditingSummary] = useState<TargetSummary | null>(null);
 
   const [formData, setFormData] = useState({
+    corporateId: '',
     departmentId: '',
     projectId: null as string | null,
     fiscalYear: new Date().getFullYear(),
@@ -204,6 +207,7 @@ export const TargetManager: React.FC = () => {
         search: appliedFilters.search.trim(),
       });
       if (appliedFilters.departmentId) query.set('departmentId', appliedFilters.departmentId);
+      if (appliedFilters.corporateId) query.set('corporateId', appliedFilters.corporateId);
 
       const res = await apiFetch(`/api/targets?${query.toString()}`);
       if (!res.ok) {
@@ -231,14 +235,15 @@ export const TargetManager: React.FC = () => {
   }, [fetchSummaries]);
 
   const handleApplyFilter = () => {
-    setAppliedFilters({ search: search, departmentId: filterDepartmentId });
+    setAppliedFilters({ search: search, departmentId: filterDepartmentId, corporateId: filterCorporateId });
     setPage(1);
   };
 
   const handleClearFilter = () => {
     setSearch('');
     setFilterDepartmentId('');
-    setAppliedFilters({ search: '', departmentId: '' });
+    setFilterCorporateId('');
+    setAppliedFilters({ search: '', departmentId: '', corporateId: '' });
     setPage(1);
   };
 
@@ -285,7 +290,9 @@ export const TargetManager: React.FC = () => {
     setIsViewOnly(viewOnly);
     if (s) {
       setEditingSummary(s);
+      const dept = allDepartments.find(d => d.id === s.department_id);
       setFormData({
+        corporateId: dept?.corporateId || '',
         departmentId: s.department_id,
         projectId: s.project_id,
         fiscalYear: s.fiscal_year,
@@ -298,6 +305,7 @@ export const TargetManager: React.FC = () => {
     } else {
       setEditingSummary(null);
       setFormData({
+        corporateId: '',
         departmentId: allDepartments[0]?.id || '',
         projectId: null,
         fiscalYear: new Date().getFullYear(),
@@ -427,9 +435,20 @@ export const TargetManager: React.FC = () => {
 
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+        <div className="w-full md:w-52">
+          <CorporateSelector
+            value={filterCorporateId}
+            onChange={(val) => {
+              setFilterCorporateId(val);
+              setFilterDepartmentId('');
+            }}
+            placeholder={t.filter.allCorporates}
+          />
+        </div>
+
         <div className="w-full md:w-52 relative group">
           <SearchableSelect
-            options={departmentOptions}
+            options={departmentOptions.filter(opt => !filterCorporateId || opt.corporateId === filterCorporateId)}
             value={filterDepartmentId}
             onChange={(val) => setFilterDepartmentId(val)}
             placeholder={t.filter.allDepartments}
@@ -735,12 +754,22 @@ export const TargetManager: React.FC = () => {
 
                 <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-12 gap-6 items-start">
                   <div className="sm:col-span-6">
+                    <FormField label={t.fields.corporate} required>
+                      <CorporateSelector
+                        value={formData.corporateId}
+                        onChange={(val) => setFormData({ ...formData, corporateId: val, departmentId: '', projectId: null })}
+                        disabled={!!editingSummary || isViewOnly}
+                      />
+                    </FormField>
+                  </div>
+
+                  <div className="sm:col-span-6">
                     <FormField label={t.fields.department} required>
                       <SearchableSelect
-                        options={departmentOptions}
+                        options={departmentOptions.filter(opt => !formData.corporateId || opt.corporateId === formData.corporateId)}
                         value={formData.departmentId}
                         onChange={(val) => {
-                          setFormData({ ...formData, departmentId: val });
+                          setFormData({ ...formData, departmentId: val, projectId: null });
                         }}
                         disabled={!!editingSummary || isViewOnly || isDeptsLoading}
                         placeholder={t.modal.selectEntity}

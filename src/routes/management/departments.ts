@@ -20,11 +20,11 @@ export function createDepartmentRouter(): Router {
   // GET /api/departments/dropdown-items — list all active departments for dropdowns (no pagination)
   router.get(
     '/dropdown-items', 
-    requirePermission('public.departments.read'), 
+    requirePermission('public.departments.read', 'cfd.dashboard.read'), 
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       const access = req.accessContext!;
-      const results = await getActiveDepartments(access.scope !== 'system' ? access.corporateIds : undefined);
+      const results = await getActiveDepartments(access.hasFullCorporateAccess ? undefined : access.corporateIds);
       res.json(results);
     })
   );
@@ -32,7 +32,7 @@ export function createDepartmentRouter(): Router {
   // GET /api/departments?corporateId=xxx — list departments (optionally filtered by corporate)
   router.get(
     '/', 
-    requirePermission('public.departments.read'), 
+    requirePermission('public.departments.read', 'cfd.dashboard.read'), 
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       const { corporateId, search, page, pageSize } = req.query as Record<string, string>;

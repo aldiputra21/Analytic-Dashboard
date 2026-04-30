@@ -16,6 +16,7 @@ export interface CalculatedRatios {
   id: string;
   financialDataId: string;
   subsidiaryId: string;
+  corporateName?: string;
 
   // Profitability
   roa: number | null; // %

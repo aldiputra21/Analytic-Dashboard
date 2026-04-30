@@ -36,6 +36,7 @@ export interface BankLoanCopy {
   filter: {
     status: string;
     allStatuses: string;
+    allCorporates: string;
   };
   modal: {
     createTitle: string;
@@ -133,6 +134,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
     filter: {
       status: 'Status',
       allStatuses: 'Semua Status',
+      allCorporates: 'Semua Perusahaan',
     },
     modal: {
       createTitle: 'Tambah Pinjaman Baru',
@@ -228,6 +230,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
     filter: {
       status: 'Status',
       allStatuses: 'All Statuses',
+      allCorporates: 'All Corporates',
     },
     modal: {
       createTitle: 'Add New Loan',

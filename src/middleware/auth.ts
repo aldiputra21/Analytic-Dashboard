@@ -18,6 +18,7 @@ declare global {
         scope: 'system' | 'corporate' | 'department';
         corporateIds: string[];
         departmentIds: string[];
+        hasFullCorporateAccess: boolean;
       };
     }
   }

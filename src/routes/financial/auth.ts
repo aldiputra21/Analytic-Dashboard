@@ -158,6 +158,7 @@ export function createFRSAuthRouter(): Router {
           corporateId: result.user.corporateId,
           subsidiaryIds: result.user.subsidiaryIds,
           hasFullCorporateAccess: result.user.hasFullCorporateAccess,
+          scope: result.user.scope || (result.user.role === 'system_admin' ? 'system' : 'corporate'),
           roleName: result.user.roleName,
           roleDescription: result.user.roleDescription,
         },
@@ -271,6 +272,7 @@ export function createFRSAuthRouter(): Router {
       corporateId: user.corporateId,
       subsidiaryIds: user.subsidiaryIds,
       hasFullCorporateAccess: user.hasFullCorporateAccess,
+      scope: user.scope || (user.role === 'system_admin' ? 'system' : 'corporate'),
       roleName: user.roleName,
       roleDescription: user.roleDescription,
     });

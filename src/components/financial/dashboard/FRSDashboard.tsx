@@ -12,8 +12,8 @@ import { TrendChart, calculateYoY, TrendDataPoint, TrendSeries } from './TrendCh
 import { ComparisonChart, ComparisonDataPoint } from './ComparisonChart';
 import { AlertPanel } from './AlertPanel';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
-import { useLatestRatios, useRatios } from '../../../hooks/financial/useRatios';
-import { useAlerts } from '../../../hooks/financial/useAlerts';
+import { useRatios, useLatestRatios } from '../../../hooks/financial/useRatios';
+import { useDashboardDepartments } from '../../../hooks/financial/useDashboardData';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { RatioName } from '../../../types/financial/ratio';
 import { cn } from '../../../utils/cn';
@@ -29,8 +29,6 @@ import { CompositionPie3D } from '../../MAFINDA/dashboard/CompositionPie3D';
 import { DepartmentPerformance } from '../../MAFINDA/dashboard/DepartmentPerformance';
 import { useDashboard, type DashboardFilters } from '../../../hooks/mafinda/useDashboard';
 import { useManagement } from '../../../hooks/mafinda/useManagement';
-import { useDepartments } from '../../../hooks/financial/useDepartments';
-import { useProjects } from '../../../hooks/financial/useProjects';
 
 function parseDateSafe(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
@@ -74,8 +72,9 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
 
   const { corporates: subsidiariesData, isLoading: subsLoading, refetch: refetchSubs } = useCorporates();
   const subsidiaries = Array.isArray(subsidiariesData) ? subsidiariesData : [];
+  
+  // Fetch latest ratios (for gauges and cards)
   const { ratios: latestRatios, isLoading: ratiosLoading, refetch: refetchRatios } = useLatestRatios();
-  const { alerts, acknowledge: acknowledgeAlert } = useAlerts();
 
   // Period-filtered ratios for trend chart — memoize startDate to prevent infinite re-renders
   const startDate = useMemo(() => format(getPeriodStartDate(period), 'yyyy-MM-dd'), [period]);
@@ -97,7 +96,6 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
   const [mafindaHistoricalMonths, setMafindaHistoricalMonths] = useState<DashboardFilters['historicalMonths']>(6);
   const [revenueDeptId, setRevenueDeptId] = useState('');
   const [cashFlowDeptId, setCashFlowDeptId] = useState('');
-  const [cashFlowProjectId, setCashFlowProjectId] = useState('');
 
   const mainFilters: DashboardFilters = useMemo(
     () => ({
@@ -113,18 +111,16 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
     [mainFilters, revenueDeptId]
   );
   const mafindaCashFlowFilters = useMemo(
-    () => ({ ...mainFilters, departmentId: cashFlowDeptId || undefined, projectId: cashFlowProjectId || undefined }),
-    [mainFilters, cashFlowDeptId, cashFlowProjectId]
+    () => ({ ...mainFilters, departmentId: cashFlowDeptId || undefined }),
+    [mainFilters, cashFlowDeptId]
   );
 
   const mafindaMain = useDashboard(mainFilters);
   const mafindaRevCost = useDashboard(mafindaRevCostFilters);
   const mafindaCashFlow = useDashboard(mafindaCashFlowFilters);
-  const { options: departmentOptions, isLoading: isDeptsLoading } = useDepartments();
-  const { options: projectOptions, isLoading: isProjsLoading } = useProjects();
-  const { departments: deptsData, projects: projsData } = useManagement();
+  const { options: departmentOptions, isLoading: isDeptsLoading } = useDashboardDepartments(selectedCompany);
+  const { departments: deptsData } = useManagement();
   const departments = Array.isArray(deptsData) ? deptsData : [];
-  const projects = Array.isArray(projsData) ? projsData : [];
 
   // Filter latest ratios by selected company
   const displayedRatios = useMemo(() => {
@@ -135,11 +131,10 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
   // Build comparison chart data
   const comparisonData: ComparisonDataPoint[] = useMemo(() =>
     latestRatios.map((r, idx) => {
-      const sub = subsidiaries.find((s) => s.id === r.subsidiaryId);
       const colorIdx = subsidiaries.findIndex((s) => s.id === r.subsidiaryId);
       return {
         subsidiaryId: r.subsidiaryId,
-        subsidiaryName: sub?.name ?? r.subsidiaryId,
+        subsidiaryName: r.corporateName ?? r.subsidiaryId,
         color: getSubsidiaryColor(colorIdx),
         roa: r.roa,
         roe: r.roe,
@@ -169,8 +164,7 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
       const key = r.periodStartDate;
       if (!byDate.has(key)) byDate.set(key, {});
       const entry = byDate.get(key)!;
-      const sub = subsidiaries.find((s) => s.id === r.subsidiaryId);
-      const subKey = sub?.name ?? r.subsidiaryId;
+      const subKey = r.corporateName ?? r.subsidiaryId;
       entry[`${subKey}_roa`] = r.roa;
       entry[`${subKey}_npm`] = r.npm;
     });
@@ -191,13 +185,14 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
   // Build trend series
   const trendSeries: TrendSeries[] = useMemo(() => {
     const series: TrendSeries[] = [];
-    subsidiaries.forEach((sub, idx) => {
+    latestRatios.forEach((r, idx) => {
       const color = getSubsidiaryColor(idx);
-      series.push({ key: `${sub.name}_roa`, label: `${sub.name} ROA`, color, unit: '%' });
-      series.push({ key: `${sub.name}_npm`, label: `${sub.name} NPM`, color: color + '99', unit: '%' });
+      const subName = r.corporateName ?? r.subsidiaryId;
+      series.push({ key: `${subName}_roa`, label: `${subName} ROA`, color, unit: '%' });
+      series.push({ key: `${subName}_npm`, label: `${subName} NPM`, color: color + '99', unit: '%' });
     });
     return series;
-  }, [subsidiaries]);
+  }, [latestRatios]);
 
   // YoY calculations for the selected company's latest ratios
   const yoyData = useMemo(() => {
@@ -235,13 +230,6 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Alerts */}
-      <AlertPanel
-        alerts={alerts}
-        subsidiaryMap={subsidiaryNames}
-        onAcknowledge={acknowledgeAlert}
-      />
-
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <CompanySelector
@@ -271,13 +259,12 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
             'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
           )}>
             {displayedRatios.map((r) => {
-              const sub = subsidiaries.find((s) => s.id === r.subsidiaryId);
               const colorIdx = subsidiaries.findIndex((s) => s.id === r.subsidiaryId);
               return (
                 <HealthScoreGauge
                   key={r.subsidiaryId}
                   score={r.healthScore}
-                  subsidiaryName={sub?.name ?? r.subsidiaryId}
+                  subsidiaryName={r.corporateName ?? r.subsidiaryId}
                   subsidiaryColor={getSubsidiaryColor(colorIdx)}
                   size={displayedRatios.length > 3 ? 'sm' : 'md'}
                 />
@@ -295,12 +282,11 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
         'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
       )}>
         {displayedRatios.map((r) => {
-          const sub = subsidiaries.find((s) => s.id === r.subsidiaryId);
           const colorIdx = subsidiaries.findIndex((s) => s.id === r.subsidiaryId);
           return (
             <RatioCard
               key={r.subsidiaryId}
-              subsidiaryName={sub?.name ?? r.subsidiaryId}
+              subsidiaryName={r.corporateName ?? r.subsidiaryId}
               subsidiaryColor={getSubsidiaryColor(colorIdx)}
               ratios={r}
               lastUpdatedAt={r.dataUpdatedAt ? new Date(r.dataUpdatedAt) : undefined}
@@ -405,12 +391,12 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
             <CashFlowChart
               data={mafindaCashFlow.cashFlowData?.data ?? []}
               departments={departmentOptions}
-              projects={projectOptions}
+              projects={[]} // Removed project filter from dashboard
               selectedDepartmentId={cashFlowDeptId}
-              selectedProjectId={cashFlowProjectId}
+              selectedProjectId={''}
               onDepartmentChange={setCashFlowDeptId}
-              onProjectChange={setCashFlowProjectId}
-              isLoading={mafindaCashFlow.isLoading || isDeptsLoading || isProjsLoading}
+              onProjectChange={() => {}}
+              isLoading={mafindaCashFlow.isLoading || isDeptsLoading}
             />
           </div>
         </div>

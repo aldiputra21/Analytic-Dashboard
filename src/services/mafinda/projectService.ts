@@ -155,10 +155,12 @@ export async function getAllProjects(options: {
   };
 }
 
-/**
- * Gets all active projects for dropdowns/items.
- */
-export async function getActiveProjects(corporateId?: string, subsidiaryIds?: string[] | null): Promise<Project[]> {
+export async function getActiveProjects(options: { 
+  corporateId?: string, 
+  departmentId?: string,
+  subsidiaryIds?: string[] | null 
+} = {}): Promise<Project[]> {
+  const { corporateId, departmentId, subsidiaryIds } = options;
   let baseQuery = db.select({
     id: projects.id,
     departmentId: projects.departmentId,
@@ -182,6 +184,10 @@ export async function getActiveProjects(corporateId?: string, subsidiaryIds?: st
   const filters = [eq(projects.isActive, true)];
   if (corporateId) {
     filters.push(eq(departments.corporateId, corporateId));
+  }
+  
+  if (departmentId) {
+    filters.push(eq(projects.departmentId, departmentId));
   }
   
   if (subsidiaryIds && subsidiaryIds.length > 0) {
