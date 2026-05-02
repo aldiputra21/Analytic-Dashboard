@@ -161,6 +161,29 @@ updatedAt: timestamp('updated_at', { withTimezone: true }).$onUpdate(() => new D
 
 ---
 
+### 5.8 Standard Financial Form Validation & UI
+
+Standardisasi ini wajib diikuti untuk seluruh modul entri data keuangan (Balance Sheet, Income Statement, Weekly Cash Flow, Realization).
+
+#### 1. Form Architecture & Validation (SSoT)
+- **Zod as Single Source of Truth**: Seluruh validasi input wajib menggunakan Zod schema. **Dilarang** melakukan validasi manual (if/else) di dalam handler submit; semua logika bisnis (termasuk validasi antar-field) harus berada di dalam schema menggunakan `.refine()` atau `.superRefine()`.
+- **Explicit Binding**: Tombol submit yang berada di luar tag `<form>` wajib menggunakan atribut `form="{formId}"`.
+- **Native Validation Bypass**: Gunakan properti `noValidate` pada elemen `<form>` agar validasi sepenuhnya ditangani oleh Zod dan Toast.
+- **Zod Error Mapping**: Setiap error dari Zod wajib dipetakan ke toast notification agar user mendapatkan feedback instan dan informatif.
+
+#### 2. Validation Logic Rules
+- **Non-Zero Nominal**: Wajib memastikan total input nominal finansial tidak nol (sum of all fields > 0) sebelum disimpan.
+- **Mandatory Selectors**: Input `Corporate` dan `Department` (atau entitas terkait) wajib divalidasi sebagai field wajib isi (*required*).
+- **Conditional Validation**: Validasi field opsional (misal: Project ID) harus bersifat kondisional (hanya aktif jika kategori atau switch terkait dipilih).
+- **Initialization & State**: Seluruh field dalam form wajib diinisialisasi dengan nilai default (string kosong atau 0) saat modal dibuka untuk mencegah error `undefined` pada Zod schema saat proses parsing.
+
+#### 3. UI Aesthetics & Feedback
+- **Bold Labels**: Semua label form dan header tabel pada modul finansial wajib menggunakan class `font-bold` untuk konsistensi tipografi premium.
+- **No Silent Failures**: Setiap kegagalan API atau validasi dilarang keras "diam" (silent). Wajib menampilkan toast error dengan pesan yang relevan dari file i18n.
+- **Loading UX**: Gunakan `PageSkeleton` saat memuat halaman dan `Skeleton` loader pada komponen modal atau dropdown untuk menjaga responsivitas visual.
+
+---
+
 ## 6. Referensi Cepat
 
 | Kebutuhan | File/Folder / Command |

@@ -193,30 +193,47 @@ export const RealizationManager: React.FC = () => {
       return !isNaN(n) && n > 0;
     }, { message: t.validation.amountMin }),
     notes: z.string().optional(),
-  }).refine(data => {
-    if (showCorpSelector && (!data.corporateId || data.corporateId === '')) return false;
-    return true;
-  }, {
-    message: t.validation.corporateRequired,
-    path: ['corporateId']
-  }).refine(data => {
-    if (showDeptSelector && (!data.departmentId || data.departmentId === '')) return false;
-    return true;
-  }, {
-    message: t.validation.departmentRequired,
-    path: ['departmentId']
-  }).refine(data => {
-    if (data.entityType === 'project' && (!data.projectId || data.projectId === '')) return false;
-    return true;
-  }, {
-    message: t.validation.projectRequired,
-    path: ['projectId']
-  }).refine(data => {
-    if (data.category === 'cash-out' && (!data.costCenterId || data.costCenterId === '')) return false;
-    return true;
-  }, {
-    message: t.validation.costCenterRequired,
-    path: ['costCenterId']
+  }).superRefine((data, ctx) => {
+    // Corporate validation
+    if (showCorpSelector && (!data.corporateId || data.corporateId === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.corporateRequired,
+        path: ['corporateId']
+      });
+    }
+    // Department validation
+    if (showDeptSelector && (!data.departmentId || data.departmentId === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.departmentRequired,
+        path: ['departmentId']
+      });
+    }
+    // Project validation
+    if (data.entityType === 'project' && (!data.projectId || data.projectId === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.projectRequired,
+        path: ['projectId']
+      });
+    }
+    // Cost Center validation
+    if (data.category === 'cash-out' && (!data.costCenterId || data.costCenterId === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.costCenterRequired,
+        path: ['costCenterId']
+      });
+    }
+    // Attachment validation
+    if (pendingFiles.length === 0 && attachments.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.attachmentRequired,
+        path: ['attachments']
+      });
+    }
   });
 
 
@@ -351,16 +368,11 @@ export const RealizationManager: React.FC = () => {
     e.preventDefault();
     if (isSaving) return;
 
-    const validation = realizationSchema.safeParse(formData);
-    if (!validation.success) {
-      const uniqueErrors = new Set(validation.error.issues.map(err => err.message));
-      uniqueErrors.forEach(msg => toast.error(msg));
-      return;
-    }
-
-    // Attachment validation for new records
-    if (!editingId && pendingFiles.length === 0) {
-      toast.error(t.validation.attachmentRequired);
+    const result = realizationSchema.safeParse(formData);
+    if (!result.success) {
+      result.error.issues.forEach((err) => {
+        toast.error(err.message, { id: err.path.join('-') });
+      });
       return;
     }
 
@@ -1063,7 +1075,7 @@ export const RealizationManager: React.FC = () => {
                         required
                         disabled={isReadOnly}
                         placeholder="0"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-black tabular-nums"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-bold tabular-nums"
                       />
                     </div>
 
