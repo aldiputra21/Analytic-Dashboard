@@ -19,28 +19,33 @@ const ACTIVATION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const RESET_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Validation schemas
+const corporateAccessSchema = z.object({
+  roleId: z.string().uuid(),
+  scope: z.enum(['system', 'corporate', 'department']),
+  corporateId: z.string().uuid().optional().nullable(),
+  departmentId: z.string().uuid().optional().nullable(),
+});
+
 const createUserSchema = z.object({
   username: z.string().min(3).max(50),
   email: z.string().email(),
   fullName: z.string().min(1).max(100),
+  accesses: z.array(corporateAccessSchema).optional(),
 });
 
 const updateUserSchema = z.object({
   username: z.string().min(3).max(50).optional(),
   email: z.string().email().optional(),
   fullName: z.string().min(1).max(100).optional(),
-});
-
-const corporateAccessSchema = z.object({
-  roleId: z.string().uuid(),
-  scope: z.enum(['system', 'corporate', 'department']),
-  corporateId: z.string().uuid().optional(),
-  departmentId: z.string().uuid().optional(),
+  isActive: z.boolean().optional(),
+  accesses: z.array(corporateAccessSchema).optional(),
 });
 
 const listUsersSchema = z.object({
   isActive: z.enum(['true', 'false']).optional(),
   emailVerified: z.enum(['true', 'false']).optional(),
+  status: z.enum(['all', 'active', 'inactive']).optional(),
+  verified: z.enum(['all', 'verified', 'unverified']).optional(),
   search: z.string().optional(),
   page: z.string().default('1'),
   pageSize: z.string().default('10'),
@@ -71,6 +76,124 @@ export function createUsersRouter(): Router {
   const router = Router();
 
   /**
+   * GET /api/users/available-roles
+   * Fetches roles that the current user can assign based on their scope.
+   */
+  router.get(
+    '/available-roles',
+    requirePermission('cfd.users.read'),
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const access = req.accessContext!;
+      
+      let conditions = [eq(roles.isActive, true)];
+      
+      // If not system admin, cannot see or assign system-level roles
+      if (access.scope !== 'system') {
+        conditions.push(inArray(roles.scope, ['corporate', 'department']));
+      }
+
+      const rows = await db.select().from(roles).where(and(...conditions));
+      res.json(rows);
+    })
+  );
+
+  /**
+   * GET /api/users/available-corporates
+   * Fetches corporates the current user has access to.
+   */
+  router.get(
+    '/available-corporates',
+    requirePermission('cfd.users.read'),
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const access = req.accessContext!;
+      
+      let conditions = [eq(corporates.isActive, true)];
+      
+      if (access.scope !== 'system') {
+        if (access.corporateIds.length === 0) return res.json([]);
+        conditions.push(inArray(corporates.id, access.corporateIds));
+      }
+
+      const rows = await db.select().from(corporates).where(and(...conditions));
+      res.json(rows);
+    })
+  );
+
+  /**
+   * GET /api/users/available-departments
+   * Fetches departments the current user has access to, filtered by corporateId.
+   */
+  router.get(
+    '/available-departments',
+    requirePermission('cfd.users.read'),
+    injectAccessContext,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { corporateId } = req.query;
+      const access = req.accessContext!;
+      
+      if (!corporateId) {
+        return res.json([]);
+      }
+
+      let conditions = [
+        eq(departments.corporateId, corporateId as string),
+        eq(departments.isActive, true)
+      ];
+      
+      if (access.scope !== 'system') {
+        if (access.scope === 'corporate') {
+          // If corporate scope, check if they have access to this corporate
+          if (!access.corporateIds.includes(corporateId as string)) return res.json([]);
+        } else {
+          // Department scope: must have explicit department IDs
+          if (access.departmentIds.length === 0) return res.json([]);
+          conditions.push(inArray(departments.id, access.departmentIds));
+        }
+      }
+
+      const rows = await db.select().from(departments).where(and(...conditions));
+      res.json(rows);
+    })
+  );
+
+  /**
+   * GET /api/users/check-uniqueness
+   * Check if username or email already exists
+   */
+  router.get(
+    '/check-uniqueness',
+    requirePermission('cfd.users.write'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const { username, email, excludeId } = req.query;
+
+      if (!username && !email) {
+        return res.json({ usernameExists: false, emailExists: false });
+      }
+
+      let usernameExists = false;
+      let emailExists = false;
+
+      if (username) {
+        const conditions = [eq(users.username, username as string)];
+        if (excludeId) conditions.push(sql`${users.id} != ${excludeId}`);
+        const [existing] = await db.select({ id: users.id }).from(users).where(and(...conditions)).limit(1);
+        usernameExists = !!existing;
+      }
+
+      if (email) {
+        const conditions = [eq(users.email, email as string)];
+        if (excludeId) conditions.push(sql`${users.id} != ${excludeId}`);
+        const [existing] = await db.select({ id: users.id }).from(users).where(and(...conditions)).limit(1);
+        emailExists = !!existing;
+      }
+
+      res.json({ usernameExists, emailExists });
+    })
+  );
+
+  /**
    * GET /api/users
    * List users with filters (isActive, emailVerified, search)
    * Requirements: 7.1–7.7
@@ -80,18 +203,31 @@ export function createUsersRouter(): Router {
     requirePermission('cfd.users.read'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      const { isActive, emailVerified, search, page, pageSize } = listUsersSchema.parse(req.query);
+      const { isActive, emailVerified, status, verified, search, page, pageSize } = listUsersSchema.parse(req.query);
       const pageNum = Math.max(1, parseInt(page));
       const pageSizeNum = Math.min(100, Math.max(1, parseInt(pageSize)));
       const offset = (pageNum - 1) * pageSizeNum;
 
       const conditions = [];
-      if (isActive !== undefined) {
+      
+      // Handle status (alias for isActive)
+      if (status === 'active') {
+        conditions.push(eq(users.isActive, true));
+      } else if (status === 'inactive') {
+        conditions.push(eq(users.isActive, false));
+      } else if (isActive !== undefined) {
         conditions.push(eq(users.isActive, isActive === 'true'));
       }
-      if (emailVerified !== undefined) {
+
+      // Handle verified (alias for emailVerified)
+      if (verified === 'verified') {
+        conditions.push(eq(users.emailVerified, true));
+      } else if (verified === 'unverified') {
+        conditions.push(eq(users.emailVerified, false));
+      } else if (emailVerified !== undefined) {
         conditions.push(eq(users.emailVerified, emailVerified === 'true'));
       }
+
       if (search) {
         conditions.push(
           or(
@@ -131,10 +267,10 @@ export function createUsersRouter(): Router {
           subQuery.where(inArray(userCorporateAccesses.departmentId, access.departmentIds));
         }
         
-        query.where(and(
-          whereClause,
-          inArray(users.id, subQuery)
-        ));
+        const finalConditions = [inArray(users.id, subQuery)];
+        if (whereClause) finalConditions.push(whereClause);
+        
+        query.where(and(...finalConditions));
       } else if (whereClause) {
         query.where(whereClause);
       }
@@ -149,7 +285,11 @@ export function createUsersRouter(): Router {
         } else {
           subQuery.where(inArray(userCorporateAccesses.departmentId, access.departmentIds));
         }
-        countQuery.where(and(whereClause, inArray(users.id, subQuery)));
+        
+        const finalConditions = [inArray(users.id, subQuery)];
+        if (whereClause) finalConditions.push(whereClause);
+        
+        countQuery.where(and(...finalConditions));
       } else if (whereClause) {
         countQuery.where(whereClause);
       }
@@ -226,7 +366,8 @@ export function createUsersRouter(): Router {
     requirePermission('cfd.users.write'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      const { username, email, fullName } = createUserSchema.parse(req.body);
+      const { username, email, fullName, accesses } = createUserSchema.parse(req.body);
+      const access = req.accessContext!;
 
       // Check for duplicates
       const [existingEmail] = await db
@@ -255,21 +396,55 @@ export function createUsersRouter(): Router {
       const { raw: activationToken, hash: tokenHash } = await generateToken();
       const expiresAt = new Date(Date.now() + ACTIVATION_TOKEN_TTL_MS);
 
-      // Create user
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          username: username || null,
-          email,
-          fullName,
-          passwordHash: '', // Empty until activation
-          isActive: false,
-          emailVerified: false,
-          passwordResetTokenHash: tokenHash,
-          passwordResetExpiresAt: expiresAt,
-          createdBy: req.user!.userId,
-        })
-        .returning();
+      // Start transaction to create user and accesses
+      const newUser = await db.transaction(async (tx) => {
+        // Create user
+        const [user] = await tx
+          .insert(users)
+          .values({
+            username: username || null,
+            email,
+            fullName,
+            passwordHash: '', // Empty until activation
+            isActive: false,
+            emailVerified: false,
+            passwordResetTokenHash: tokenHash,
+            passwordResetExpiresAt: expiresAt,
+            createdBy: req.user!.userId,
+          })
+          .returning();
+
+        // Handle accesses if provided
+        if (accesses && accesses.length > 0) {
+          for (const entry of accesses) {
+            if (!validateScopeConstraints(entry.scope, entry.corporateId, entry.departmentId)) {
+              throw AppError.badRequest(ErrorCode.INVALID_INPUT, `scope=${entry.scope} requires proper corporate/department IDs`);
+            }
+
+            // Access validation
+            if (access.scope !== 'system') {
+              if (entry.scope === 'system') throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot grant system access');
+              if (access.scope === 'corporate' && (!entry.corporateId || !access.corporateIds.includes(entry.corporateId))) {
+                throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, `No access to corporate ${entry.corporateId}`);
+              }
+              if (access.scope === 'department' && (!entry.departmentId || !access.departmentIds.includes(entry.departmentId))) {
+                throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, `No access to department ${entry.departmentId}`);
+              }
+            }
+
+            await tx.insert(userCorporateAccesses).values({
+              userId: user.id,
+              roleId: entry.roleId,
+              scope: entry.scope,
+              corporateId: entry.corporateId || null,
+              departmentId: entry.departmentId || null,
+              grantedBy: req.user!.userId,
+            });
+          }
+        }
+
+        return user;
+      });
 
       // Send activation email
       try {
@@ -280,7 +455,7 @@ export function createUsersRouter(): Router {
         );
       } catch (err) {
         console.error('Failed to send activation email:', err);
-        throw AppError.internal();
+        // We don't rollback the user creation if email fails, but we log it
       }
 
       // Audit log
@@ -289,7 +464,7 @@ export function createUsersRouter(): Router {
         action: 'create',
         entityType: 'user',
         entityId: newUser.id,
-        newValues: { username, email, fullName },
+        newValues: { username, email, fullName, accessesCount: accesses?.length || 0 },
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
       });
@@ -316,7 +491,7 @@ export function createUsersRouter(): Router {
     requirePermission('cfd.users.write'),
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
-      const { username, email, fullName } = updateUserSchema.parse(req.body);
+      const { username, email, fullName, isActive, accesses } = updateUserSchema.parse(req.body);
 
       const [existing] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
 
@@ -337,11 +512,10 @@ export function createUsersRouter(): Router {
           ))
           .limit(1);
           
-        if (hasAccess.length === 0) {
+        if (hasAccess.length === 0 && existing.createdBy !== req.user!.userId) {
           throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Access denied to this user');
         }
       }
-
 
       // Check email uniqueness if changed
       if (email && email !== existing.email) {
@@ -369,17 +543,55 @@ export function createUsersRouter(): Router {
         }
       }
 
-      const [updated] = await db
-        .update(users)
-        .set({
-          username: username !== undefined ? username : existing.username,
-          email: email !== undefined ? email : existing.email,
-          fullName: fullName !== undefined ? fullName : existing.fullName,
-          updatedBy: req.user!.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, req.params.id))
-        .returning();
+      const updatedUser = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(users)
+          .set({
+            username: username !== undefined ? username : existing.username,
+            email: email !== undefined ? email : existing.email,
+            fullName: fullName !== undefined ? fullName : existing.fullName,
+            isActive: isActive !== undefined ? isActive : existing.isActive,
+            authzVersion: accesses ? sql`${users.authzVersion} + 1` : existing.authzVersion,
+            updatedBy: req.user!.userId,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, req.params.id))
+          .returning();
+
+        // Handle accesses if provided (replace strategy)
+        if (accesses) {
+          // Validate entries
+          for (const entry of accesses) {
+            if (!validateScopeConstraints(entry.scope, entry.corporateId, entry.departmentId)) {
+              throw AppError.badRequest(ErrorCode.INVALID_INPUT, `scope=${entry.scope} requires proper IDs`);
+            }
+            if (access.scope !== 'system') {
+              if (entry.scope === 'system') throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Cannot grant system access');
+              if (access.scope === 'corporate' && (!entry.corporateId || !access.corporateIds.includes(entry.corporateId))) {
+                throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, `No access to corporate ${entry.corporateId}`);
+              }
+              if (access.scope === 'department' && (!entry.departmentId || !access.departmentIds.includes(entry.departmentId))) {
+                throw AppError.forbidden(ErrorCode.DEPARTMENT_ACCESS_DENIED, `No access to department ${entry.departmentId}`);
+              }
+            }
+          }
+
+          // Delete existing and insert new
+          await tx.delete(userCorporateAccesses).where(eq(userCorporateAccesses.userId, req.params.id));
+          for (const entry of accesses) {
+            await tx.insert(userCorporateAccesses).values({
+              userId: req.params.id,
+              roleId: entry.roleId,
+              scope: entry.scope,
+              corporateId: entry.corporateId || null,
+              departmentId: entry.departmentId || null,
+              grantedBy: req.user!.userId,
+            });
+          }
+        }
+
+        return updated;
+      });
 
       // Audit log
       await createFRSAuditLog({
@@ -387,20 +599,20 @@ export function createUsersRouter(): Router {
         action: 'update',
         entityType: 'user',
         entityId: req.params.id,
-        oldValues: { username: existing.username, email: existing.email, fullName: existing.fullName },
-        newValues: { username, email, fullName },
+        oldValues: { username: existing.username, email: existing.email, fullName: existing.fullName, isActive: existing.isActive },
+        newValues: { username, email, fullName, isActive, hasAccessUpdate: !!accesses },
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
       });
 
       res.json({
-        id: updated.id,
-        username: updated.username,
-        email: updated.email,
-        fullName: updated.fullName,
-        emailVerified: updated.emailVerified,
-        isActive: updated.isActive,
-        updatedAt: updated.updatedAt,
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        fullName: updatedUser.fullName,
+        emailVerified: updatedUser.emailVerified,
+        isActive: updatedUser.isActive,
+        updatedAt: updatedUser.updatedAt,
       });
     }),
   );

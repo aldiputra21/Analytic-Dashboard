@@ -81,7 +81,7 @@ export async function sendActivationEmail(
 
   const templateName = `activation-${lang}`;
   const baseUrl = process.env.APP_URL || 'http://localhost:5000';
-  const activationLink = `${baseUrl}/activate-account?token=${token}`;
+  const activationLink = `${baseUrl}/activate-account?token=${token}&email=${encodeURIComponent(user.email)}`;
 
   const subject = lang === 'id' ? 'Aktivasi Akun - Corporate Finance Dashboard' : 'Account Activation - Corporate Finance Dashboard';
 
@@ -195,7 +195,7 @@ export async function sendPasswordResetEmail(
       const user = userOrInput as EmailInput;
       const templateName = `password-reset-${langValue}`;
       const baseUrl = process.env.APP_URL || 'http://localhost:5000';
-      const resetLink = `${baseUrl}/reset-password?token=${token}`;
+      const resetLink = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
 
       const subject = langValue === 'id' ? 'Reset Password - Corporate Finance Dashboard' : 'Password Reset - Corporate Finance Dashboard';
 

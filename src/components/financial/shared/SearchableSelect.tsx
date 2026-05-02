@@ -32,7 +32,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, direction: 'down' as 'up' | 'down' });
 
   const selectedOption = options.find(o => o.value === value);
 
@@ -51,10 +51,17 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     const updateCoords = () => {
       if (isOpen && usePortal && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
+        const dropdownHeight = 320; // Approx max height + padding
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const direction = (spaceBelow < dropdownHeight && rect.top > spaceBelow) ? 'up' : 'down';
+        
         setCoords({
-          top: rect.bottom + window.scrollY,
+          top: direction === 'down' 
+            ? rect.bottom + window.scrollY 
+            : rect.top + window.scrollY,
           left: rect.left + window.scrollX,
-          width: rect.width
+          width: rect.width,
+          direction
         });
       }
     };
@@ -84,11 +91,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         top: coords.top,
         left: coords.left,
         width: coords.width,
-        zIndex: 9999
+        zIndex: 9999,
+        transform: coords.direction === 'up' ? 'translateY(-100%) translateY(-4px)' : 'none'
       } : {}}
       className={cn(
-        "bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top",
-        !usePortal && "absolute z-50 w-full mt-1"
+        "bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100",
+        usePortal ? (coords.direction === 'up' ? "origin-bottom" : "origin-top") : "absolute z-50 w-full mt-1 origin-top"
       )}
     >
       <div className="p-2 border-b border-slate-50 bg-slate-50/50">

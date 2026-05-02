@@ -20,6 +20,11 @@ export interface UserManagerCopy {
     empty: string;
     emptyDesc: string;
   };
+  scopeLabels: {
+    system: string;
+    corporate: string;
+    department: string;
+  };
   modal: {
     createTitle: string;
     editTitle: string;
@@ -35,6 +40,8 @@ export interface UserManagerCopy {
     selectRole: string;
     selectCorporate: string;
     selectDepartment: string;
+    activationEmailTitle: string;
+    activationEmailDesc: string;
   };
   corporateAccessModal: {
     title: string;
@@ -68,16 +75,20 @@ export interface UserManagerCopy {
     errorLoadAccess: string;
     errorStatus: string;
   };
-  validation: {
-    usernameRequired: string;
-    usernameMin: string;
-    emailRequired: string;
-    emailInvalid: string;
-    fullNameRequired: string;
-    fullNameMin: string;
-    roleRequired: string;
-    corporateRequired: string;
-  };
+    validation: {
+      usernameRequired: string;
+      usernameMin: string;
+      usernameAlreadyExists: string;
+      emailRequired: string;
+      emailInvalid: string;
+      emailAlreadyExists: string;
+      fullNameRequired: string;
+      fullNameMin: string;
+      roleRequired: string;
+      corporateRequired: string;
+      departmentRequired: string;
+      accessRequired: string;
+    };
 }
 
 export const userManagerI18n: Record<Locale, UserManagerCopy> = {
@@ -101,13 +112,18 @@ export const userManagerI18n: Record<Locale, UserManagerCopy> = {
       empty: 'Data Kosong',
       emptyDesc: 'Belum ada user yang terdaftar.',
     },
+    scopeLabels: {
+      system: 'Sistem',
+      corporate: 'Perusahaan',
+      department: 'Departemen',
+    },
     modal: {
       createTitle: 'Tambah User Baru',
       editTitle: 'Edit User',
       username: 'Username',
       email: 'Email',
       fullName: 'Nama Lengkap',
-      isActive: 'Aktif',
+      isActive: 'Status',
       basicInfo: 'Informasi Dasar',
       accessAssignment: 'Penugasan Akses',
       role: 'Role',
@@ -115,7 +131,9 @@ export const userManagerI18n: Record<Locale, UserManagerCopy> = {
       department: 'Departemen',
       selectRole: 'Pilih Role',
       selectCorporate: 'Pilih Perusahaan',
-      selectDepartment: 'Pilih Departemen (Opsional)',
+      selectDepartment: 'Pilih Departemen',
+      activationEmailTitle: 'Email Aktivasi',
+      activationEmailDesc: 'User baru akan menerima email aktivasi untuk mengatur password mereka. Akses akan diberikan segera.',
     },
     corporateAccessModal: {
       title: 'Kelola Akses Perusahaan',
@@ -152,12 +170,16 @@ export const userManagerI18n: Record<Locale, UserManagerCopy> = {
     validation: {
       usernameRequired: 'Username wajib diisi',
       usernameMin: 'Username minimal 3 karakter',
+      usernameAlreadyExists: 'Username sudah digunakan',
       emailRequired: 'Email wajib diisi',
       emailInvalid: 'Format email tidak valid',
+      emailAlreadyExists: 'Email sudah digunakan',
       fullNameRequired: 'Nama lengkap wajib diisi',
       fullNameMin: 'Nama lengkap minimal 3 karakter',
-      roleRequired: 'Role wajib diisi untuk user baru',
-      corporateRequired: 'Perusahaan wajib diisi untuk user baru',
+      roleRequired: 'Role wajib diisi',
+      corporateRequired: 'Perusahaan wajib diisi',
+      departmentRequired: 'Departemen wajib diisi untuk scope departemen',
+      accessRequired: 'Minimal harus ada 1 akses',
     },
   },
   en: {
@@ -180,13 +202,18 @@ export const userManagerI18n: Record<Locale, UserManagerCopy> = {
       empty: 'No Data',
       emptyDesc: 'No users registered yet.',
     },
+    scopeLabels: {
+      system: 'System',
+      corporate: 'Corporate',
+      department: 'Department',
+    },
     modal: {
       createTitle: 'Add New User',
       editTitle: 'Edit User',
       username: 'Username',
       email: 'Email',
       fullName: 'Full Name',
-      isActive: 'Active',
+      isActive: 'Status',
       basicInfo: 'Basic Information',
       accessAssignment: 'Access Assignment',
       role: 'Role',
@@ -194,7 +221,9 @@ export const userManagerI18n: Record<Locale, UserManagerCopy> = {
       department: 'Department',
       selectRole: 'Select Role',
       selectCorporate: 'Select Corporate',
-      selectDepartment: 'Select Department (Optional)',
+      selectDepartment: 'Select Department',
+      activationEmailTitle: 'Activation Email',
+      activationEmailDesc: 'New user will receive an activation email to set their password. Access will be granted immediately.',
     },
     corporateAccessModal: {
       title: 'Manage Corporate Access',
@@ -231,12 +260,16 @@ export const userManagerI18n: Record<Locale, UserManagerCopy> = {
     validation: {
       usernameRequired: 'Username is required',
       usernameMin: 'Username must be at least 3 characters',
+      usernameAlreadyExists: 'Username is already taken',
       emailRequired: 'Email is required',
       emailInvalid: 'Invalid email format',
+      emailAlreadyExists: 'Email is already in use',
       fullNameRequired: 'Full name is required',
       fullNameMin: 'Full name must be at least 3 characters',
-      roleRequired: 'Role is required for new users',
-      corporateRequired: 'Corporate is required for new users',
+      roleRequired: 'Role is required',
+      corporateRequired: 'Corporate is required',
+      departmentRequired: 'Department is required for department scope',
+      accessRequired: 'At least 1 access is required',
     },
   },
 };

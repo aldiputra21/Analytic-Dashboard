@@ -55,19 +55,23 @@ const resetPasswordSchema = z.object({
 
 const validateActivationTokenSchema = z.object({
   token: z.string().min(1, 'Token is required'),
+  email: z.string().email('Valid email is required'),
 });
 
 const activateAccountSchema = z.object({
   token: z.string().min(1, 'Token is required'),
+  email: z.string().email('Valid email is required'),
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
 const validateResetTokenSchema = z.object({
   token: z.string().min(1, 'Token is required'),
+  email: z.string().email('Valid email is required'),
 });
 
 const resetPasswordNewSchema = z.object({
   token: z.string().min(1, 'Token is required'),
+  email: z.string().email('Valid email is required'),
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
@@ -290,13 +294,14 @@ export function createFRSAuthRouter(): Router {
       throw AppError.tooManyRequests(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const { token } = validateActivationTokenSchema.parse(req.body);
+    const { token, email } = validateActivationTokenSchema.parse(req.body);
 
     try {
-      // Find user with matching token (unactivated account)
+      // Find user by email (unactivated account)
       const [user] = await db.select().from(users)
         .where(
           and(
+            eq(users.email, email),
             eq(users.isActive, false),
             eq(users.emailVerified, false),
           )
@@ -346,7 +351,7 @@ export function createFRSAuthRouter(): Router {
       throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const { token, newPassword } = activateAccountSchema.parse(req.body);
+    const { token, email, newPassword } = activateAccountSchema.parse(req.body);
 
     try {
       // Validate password strength (minimum "fair" level)
@@ -355,10 +360,11 @@ export function createFRSAuthRouter(): Router {
         throw AppError.badRequest(ErrorCode.WEAK_PASSWORD, 'Password is too weak');
       }
 
-      // Find user with matching token (unactivated account)
+      // Find user by email (unactivated account)
       const [user] = await db.select().from(users)
         .where(
           and(
+            eq(users.email, email),
             eq(users.isActive, false),
             eq(users.emailVerified, false),
           )
@@ -429,12 +435,17 @@ export function createFRSAuthRouter(): Router {
       throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const { token } = validateResetTokenSchema.parse(req.body);
+    const { token, email } = validateResetTokenSchema.parse(req.body);
 
     try {
-      // Find user with matching token (active account)
+      // Find user by email (active account)
       const [user] = await db.select().from(users)
-        .where(eq(users.isActive, true))
+        .where(
+          and(
+            eq(users.email, email),
+            eq(users.isActive, true)
+          )
+        )
         .limit(1);
 
       if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
@@ -476,7 +487,7 @@ export function createFRSAuthRouter(): Router {
       throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
     }
 
-    const { token, newPassword } = resetPasswordNewSchema.parse(req.body);
+    const { token, email, newPassword } = resetPasswordNewSchema.parse(req.body);
 
     try {
       // Validate password strength (minimum "fair" level)
@@ -485,9 +496,14 @@ export function createFRSAuthRouter(): Router {
         throw AppError.badRequest(ErrorCode.WEAK_PASSWORD, 'Password is too weak');
       }
 
-      // Find user with matching token (active account)
+      // Find user by email (active account)
       const [user] = await db.select().from(users)
-        .where(eq(users.isActive, true))
+        .where(
+          and(
+            eq(users.email, email),
+            eq(users.isActive, true)
+          )
+        )
         .limit(1);
 
       if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {

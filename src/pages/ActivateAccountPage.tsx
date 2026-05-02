@@ -15,6 +15,7 @@ export const ActivateAccountPage: React.FC = () => {
   const t = activationI18n[language];
 
   const token = searchParams.get('token');
+  const email = searchParams.get('email');
   
   const [step, setStep] = useState<'validating' | 'form' | 'success' | 'error'>('validating');
   const [userData, setUserData] = useState<{ username: string; email: string } | null>(null);
@@ -31,7 +32,7 @@ export const ActivateAccountPage: React.FC = () => {
 
   useEffect(() => {
     const validateToken = async () => {
-      if (!token) {
+      if (!token || !email) {
         setStep('error');
         setErrorType('invalid');
         return;
@@ -40,7 +41,7 @@ export const ActivateAccountPage: React.FC = () => {
       try {
         const response = await apiFetch('/api/frs/auth/validate-activation-token', {
           method: 'POST',
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token, email }),
         });
 
         const data = await response.json();
@@ -87,15 +88,25 @@ export const ActivateAccountPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await apiFetch('/api/frs/auth/activate-account', {
+      const response = await apiFetch('/api/frs/auth/activate-account', {
         method: 'POST',
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ 
+          token, 
+          email,
+          newPassword: password 
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw errorData;
+      }
+
       setStep('success');
     } catch (err: any) {
       console.error('Activation error:', err);
-      const errData = err.error || (err.json ? await err.json() : null);
-      setValidationError(getErrorMessage(errData?.code || 'NETWORK_ERROR', language));
+      const errCode = err.error?.code || 'NETWORK_ERROR';
+      setValidationError(getErrorMessage(errCode, language));
     } finally {
       setIsSubmitting(false);
     }

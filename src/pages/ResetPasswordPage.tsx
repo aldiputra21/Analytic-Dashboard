@@ -15,6 +15,7 @@ export const ResetPasswordPage: React.FC = () => {
   const t = passwordResetI18n[language];
 
   const token = searchParams.get('token');
+  const email = searchParams.get('email');
   
   const [step, setStep] = useState<'validating' | 'form' | 'success' | 'error'>('validating');
   const [errorType, setErrorType] = useState<'invalid' | 'expired' | 'generic'>('generic');
@@ -39,7 +40,7 @@ export const ResetPasswordPage: React.FC = () => {
       try {
         const response = await apiFetch('/api/frs/auth/validate-reset-token', {
           method: 'POST',
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token, email }),
         });
 
         const data = await response.json();
@@ -85,10 +86,20 @@ export const ResetPasswordPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await apiFetch('/api/frs/auth/reset-password', {
+      const response = await apiFetch('/api/frs/auth/reset-password-new', {
         method: 'POST',
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ 
+          token, 
+          email,
+          newPassword: password 
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw errorData;
+      }
+
       setStep('success');
     } catch (err: any) {
       console.error('Reset error:', err);
