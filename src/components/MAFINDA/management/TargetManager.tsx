@@ -44,7 +44,7 @@ export const TargetManager: React.FC<Props> = ({
 }) => {
   const { language } = useAuth();
   const c = commonsI18n[language];
-  const t = mafindaI18n[language].dashboard.targetManager;
+  const t = mafindaI18n[language].targetManager;
   const { showSuccess, showError } = useToast();
   
   const [showForm, setShowForm] = useState(false);

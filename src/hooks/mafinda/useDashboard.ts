@@ -1,7 +1,4 @@
-// useDashboard.ts — Custom hook for MAFINDA dashboard API calls
-// Requirements: 1.2, 2.3, 3.2, 3.3, 4.3, 5.3, 6.2
-
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type {
   DeptRevenueTargetResult,
   RevenueCostSummary,
@@ -9,15 +6,26 @@ import type {
   AssetComposition,
   EquityLiabilityComposition,
   HistoricalDataPoint,
+  DashboardAggregatedResult,
 } from '../../services/mafinda/dashboardService.js';
+import { DASHBOARD_QUERY_KEYS } from '../../constants/queryKeys';
+
+export interface DashboardAggregatedFilters {
+  period: string;
+  historicalMonths: number;
+  corporateId?: string;
+  revCostDeptId?: string;
+  cashFlowDeptId?: string;
+  cashFlowMonths?: number;
+}
 
 export interface DashboardFilters {
-  period: string;                                    // format: "YYYY-MM"
-  periodType: 'monthly' | 'quarterly' | 'annual';
+  period: string;
+  periodType: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
   corporateId?: string;
   departmentId?: string;
   projectId?: string;
-  historicalMonths: 3 | 6 | 12 | 24;
+  historicalMonths: 3 | 6 | 12 | 24 | 60;
 }
 
 export interface DashboardData {
@@ -32,12 +40,15 @@ export interface DashboardData {
   refetch: () => void;
 }
 
-async function apiFetch<T>(url: string): Promise<T> {
+async function apiFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
   const token = localStorage.getItem('frs_token');
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!token) throw new Error('Not authenticated');
+  
+  const res = await fetch(url, { 
+    headers: { Authorization: `Bearer ${token}` },
+    signal
+  });
+  
   const data = await res.json();
   if (!res.ok) {
     const errorMsg = typeof data.error === 'object' ? data.error.message : (data.error ?? 'Request failed');
@@ -55,159 +66,113 @@ function buildParams(params: Record<string, string | undefined>): string {
   return str ? `?${str}` : '';
 }
 
+/**
+ * Hook for legacy separate dashboard requests.
+ */
 export function useDashboard(filters: DashboardFilters): DashboardData {
-  const [revenueTargetData, setRevenueTargetData] = useState<DeptRevenueTargetResult | null>(null);
-  const [revenueCostSummary, setRevenueCostSummary] = useState<RevenueCostSummary | null>(null);
-  const [cashFlowData, setCashFlowData] = useState<CashFlowResult | null>(null);
-  const [assetComposition, setAssetComposition] = useState<AssetComposition | null>(null);
-  const [equityLiabilityComposition, setEquityLiabilityComposition] =
-    useState<EquityLiabilityComposition | null>(null);
-  const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Use a ref to track the latest filters for the refetch callback
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
-
-  // Use a ref to track abort controller for cancelling stale requests
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const fetchAll = useCallback(async (f: DashboardFilters) => {
-    // Require period
-    if (!f.period) return;
-    
-    // Check auth before fetching
-    const token = localStorage.getItem('frs_token');
-    if (!token) {
-      setError('Not authenticated');
-      return;
-    }
-
-    // Cancel previous request if still pending
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // CorporateId is handled by backend from JWT context
-      const signal = abortControllerRef.current.signal;
-      const [revTarget, revCost, cashFlow, assets, equity, historical] = await Promise.allSettled([
+  const { period, periodType, corporateId, departmentId, projectId, historicalMonths } = filters;
+  
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['mafinda', 'dashboard', 'legacy', filters],
+    queryFn: async ({ signal }) => {
+      const [revTarget, revCost, cashFlow, assets, equity, historical] = await Promise.all([
         apiFetch<DeptRevenueTargetResult>(
-          `/api/mafinda/dashboard/dept-revenue-target${buildParams({ period: f.period, corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/dept-revenue-target${buildParams({ period, corporateId })}`,
+          signal
         ),
         apiFetch<RevenueCostSummary>(
-          `/api/mafinda/dashboard/revenue-cost-summary${buildParams({ period: f.period, corporateId: f.corporateId, departmentId: f.departmentId })}`
+          `/api/mafinda/dashboard/revenue-cost-summary${buildParams({ period, corporateId, departmentId })}`,
+          signal
         ),
         apiFetch<CashFlowResult>(
           `/api/mafinda/dashboard/cash-flow${buildParams({
-            period: f.period,
-            months: String(f.historicalMonths),
-            corporateId: f.corporateId,
-            departmentId: f.departmentId,
-            projectId: f.projectId,
-          })}`
+            period,
+            months: String(historicalMonths),
+            corporateId,
+            departmentId,
+            projectId,
+          })}`,
+          signal
         ),
         apiFetch<AssetComposition>(
-          `/api/mafinda/dashboard/asset-composition${buildParams({ period: f.period, corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/asset-composition${buildParams({ period, corporateId })}`,
+          signal
         ),
         apiFetch<EquityLiabilityComposition>(
-          `/api/mafinda/dashboard/equity-liability-composition${buildParams({ period: f.period, corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/equity-liability-composition${buildParams({ period, corporateId })}`,
+          signal
         ),
         apiFetch<HistoricalDataPoint[]>(
-          `/api/mafinda/dashboard/historical-data${buildParams({ months: String(f.historicalMonths), corporateId: f.corporateId })}`
+          `/api/mafinda/dashboard/historical-data${buildParams({ months: String(historicalMonths), corporateId })}`,
+          signal
         ),
       ]);
 
-      // Check if request was aborted
-      if (signal.aborted) return;
-
-      if (revTarget.status === 'fulfilled') {
-        const val = revTarget.value;
-        if (val && val.departments && !Array.isArray(val.departments)) {
-          val.departments = (val.departments as any).records || [];
-        }
-        setRevenueTargetData(val);
-      }
-      if (revCost.status === 'fulfilled') setRevenueCostSummary(revCost.value);
-      if (cashFlow.status === 'fulfilled') setCashFlowData(cashFlow.value);
-      if (assets.status === 'fulfilled') setAssetComposition(assets.value);
-      if (equity.status === 'fulfilled') setEquityLiabilityComposition(equity.value);
-      if (historical.status === 'fulfilled') {
-        const val = historical.value;
-        setHistoricalData(Array.isArray(val) ? val : ((val as any).records || []));
-      }
-
-      // Surface first error if any endpoint failed
-      const firstError = [revTarget, revCost, cashFlow, assets, equity, historical].find(
-        (r) => r.status === 'rejected'
-      ) as PromiseRejectedResult | undefined;
-      if (firstError) {
-        console.error('Dashboard Fetch Error:', firstError.reason);
-        setError(firstError.reason?.message ?? 'Gagal memuat sebagian data');
-      }
-    } catch (err: any) {
-      // Ignore abort errors
-      if (err.name !== 'AbortError') {
-        setError(err.message ?? 'Terjadi kesalahan');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);  // No external dependencies - uses refs for current state
-
-  // Auto-refetch when filter properties change with debounce to prevent cascade
-  useEffect(() => {
-    // Debounce for 300ms to avoid multiple rapid calls
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    
-    debounceTimerRef.current = setTimeout(() => {
-      fetchAll(filtersRef.current);
-    }, 300);
-
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    filters.period,
-    filters.periodType,
-    filters.corporateId,
-    filters.departmentId,
-    filters.projectId,
-    filters.historicalMonths,
-  ]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
-
-  const refetch = useCallback(() => {
-    fetchAll(filtersRef.current);
-  }, [fetchAll]);
+      return {
+        revenueTargetData: revTarget,
+        revenueCostSummary: revCost,
+        cashFlowData: cashFlow,
+        assetComposition: assets,
+        equityLiabilityComposition: equity,
+        historicalData: Array.isArray(historical) ? historical : ((historical as any).records || []),
+      };
+    },
+    enabled: !!period,
+  });
 
   return {
-    revenueTargetData,
-    revenueCostSummary,
-    cashFlowData,
-    assetComposition,
-    equityLiabilityComposition,
-    historicalData,
+    revenueTargetData: data?.revenueTargetData ?? null,
+    revenueCostSummary: data?.revenueCostSummary ?? null,
+    cashFlowData: data?.cashFlowData ?? null,
+    assetComposition: data?.assetComposition ?? null,
+    equityLiabilityComposition: data?.equityLiabilityComposition ?? null,
+    historicalData: data?.historicalData ?? [],
+    isLoading,
+    error: error ? (error as Error).message : null,
+    refetch,
+  };
+}
+
+/**
+ * Main dashboard hook using aggregated endpoint and React Query caching.
+ */
+export function useDashboardAggregated(filters: DashboardAggregatedFilters): DashboardData {
+  const {
+    data,
     isLoading,
     error,
+    refetch,
+  } = useQuery({
+    queryKey: DASHBOARD_QUERY_KEYS.mafindaDashboard(filters),
+    queryFn: async ({ signal }) => {
+      const params = buildParams({
+        period: filters.period,
+        corporateId: filters.corporateId,
+        historicalMonths: String(filters.historicalMonths),
+        cashFlowMonths: String(filters.cashFlowMonths || 6),
+        revCostDeptId: filters.revCostDeptId,
+        cashFlowDeptId: filters.cashFlowDeptId,
+      });
+
+      return await apiFetch<DashboardAggregatedResult>(`/api/mafinda/dashboard/aggregated${params}`, signal);
+    },
+    enabled: !!filters.period,
+  });
+
+  return {
+    revenueTargetData: data?.revenueTarget ?? null,
+    revenueCostSummary: data?.revenueCostSummary ?? null,
+    cashFlowData: data?.cashFlowData ?? null,
+    assetComposition: data?.assetComposition ?? null,
+    equityLiabilityComposition: data?.equityLiabilityComposition ?? null,
+    historicalData: data?.historicalData ?? [],
+    isLoading,
+    error: error ? (error as Error).message : null,
     refetch,
   };
 }

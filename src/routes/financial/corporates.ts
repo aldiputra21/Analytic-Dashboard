@@ -76,6 +76,17 @@ export function createCorporatesRouter(): Router {
   }));
 
   /**
+   * GET /api/frs/corporates/configs
+   * Returns configurations relevant to corporates (e.g. max logo size)
+   * This avoids needing broad system-configs read permission.
+   */
+  router.get('/configs', requirePermission('cfd.corporates.read'), asyncHandler(async (req: Request, res: Response) => {
+    const { configService } = await import('../../services/management/configService.js');
+    const maxLogoSize = await configService.get('CORPORATE_LOGO_MAX_SIZE', 2 * 1024 * 1024);
+    res.json({ max_logo_size: maxLogoSize });
+  }));
+
+  /**
    * POST /api/frs/corporates
    */
   router.post('/', requirePermission('cfd.corporates.write'), asyncHandler(async (req: Request, res: Response) => {

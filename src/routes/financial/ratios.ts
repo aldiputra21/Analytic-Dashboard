@@ -5,7 +5,7 @@ import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { AppError, ErrorCode } from '../../utils/errors.js';
-import { mapRowToRatios } from '../../services/financial/ratioCalculator';
+import { mapRowToRatios, calculateHealthScore } from '../../services/financial/ratioCalculator';
 import {
   getSubsidiaryRatioTrends,
   getSubsidiaryCAGR,
@@ -16,11 +16,10 @@ import {
 } from '../../services/financial/benchmarkingService';
 import { RatioName } from '../../types/financial/ratio';
 import { db } from '../../db/connection';
-import { userCorporateAccesses, corporates } from '../../db/schema/public';
-import { eq, and, sql } from 'drizzle-orm';
+import { corporates } from '../../db/schema/public';
+import { eq, sql } from 'drizzle-orm';
 
 // Simple in-memory cache with 5-minute TTL
-// Requirements: 12.4
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
@@ -59,8 +58,6 @@ export function createRatiosRouter(): Router {
   /**
    * GET /api/frs/ratios
    * Get calculated ratios with optional filters.
-   * Implements 5-minute in-memory cache.
-   * Requirements: 12.2, 12.4
    */
   router.get('/', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, departmentId, startDate, endDate, limit } = req.query as Record<string, string>;
@@ -93,11 +90,26 @@ export function createRatiosRouter(): Router {
       }
     }
 
-    if (startDate) {
-      conditions.push(sql`period >= ${startDate}`);
+    const resolvePeriodLimit = (p: string | undefined, isEnd: boolean) => {
+      if (!p || (!p.includes('-Q') && !p.includes('-S'))) return p;
+      const [year, part] = p.split('-');
+      if (part === 'Q1') return isEnd ? `${year}-03` : `${year}-01`;
+      if (part === 'Q2') return isEnd ? `${year}-06` : `${year}-04`;
+      if (part === 'Q3') return isEnd ? `${year}-09` : `${year}-07`;
+      if (part === 'Q4') return isEnd ? `${year}-12` : `${year}-10`;
+      if (part === 'S1') return isEnd ? `${year}-06` : `${year}-01`;
+      if (part === 'S2') return isEnd ? `${year}-12` : `${year}-07`;
+      return p;
+    };
+
+    const resolvedStart = resolvePeriodLimit(startDate, false);
+    const resolvedEnd = resolvePeriodLimit(endDate, true);
+
+    if (resolvedStart) {
+      conditions.push(sql`period >= ${resolvedStart}`);
     }
-    if (endDate) {
-      conditions.push(sql`period <= ${endDate}`);
+    if (resolvedEnd) {
+      conditions.push(sql`period <= ${resolvedEnd}`);
     }
 
     const whereClause = sql.join(conditions, sql` AND `);
@@ -112,14 +124,25 @@ export function createRatiosRouter(): Router {
       ${limitClause}
     `)).rows as any[];
 
-    const result = rows.map((row: any) => ({
-      ...mapRowToRatios(row),
-      corporateId: row.corporate_id,
-      period: row.period,
-    }));
+    const result = rows.map((row: any) => {
+      const ratios = mapRowToRatios(row);
+      // Calculate health score if missing from view
+      if (ratios.healthScore === 0) {
+        ratios.healthScore = calculateHealthScore(ratios);
+      }
+      return {
+        ...ratios,
+        corporateId: row.corporate_id,
+        period: row.period,
+        periodType: 'monthly',
+        periodStartDate: `${row.period}-01`,
+        periodEndDate: `${row.period}-31`, // Simple approximation
+        dataUpdatedAt: row.updated_at ?? new Date().toISOString(),
+      };
+    });
 
     setCached(cacheKey, result);
-    res.setHeader('X-Cache', 'HIT');
+    res.setHeader('X-Cache', 'MISS');
     res.json(result);
   }));
 
@@ -128,7 +151,8 @@ export function createRatiosRouter(): Router {
    * Get the most recent ratio for each active corporate.
    */
   router.get('/latest', requirePermission('cfd.dashboard.read'), asyncHandler(async (req: Request, res: Response) => {
-    const cacheKey = `ratios:latest:${req.user!.userId}`;
+    const { period } = req.query as Record<string, string>;
+    const cacheKey = `ratios:latest:${req.user!.userId}:${period ?? 'current'}`;
     const cached = getCached<any[]>(cacheKey);
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -136,10 +160,31 @@ export function createRatiosRouter(): Router {
       return;
     }
 
+    // Resolve period to YYYY-MM if it's a quarter or semester
+    let resolvedPeriod = period;
+    if (period && (period.includes('-Q') || period.includes('-S'))) {
+      const [year, part] = period.split('-');
+      if (part === 'Q1') resolvedPeriod = `${year}-03`;
+      else if (part === 'Q2') resolvedPeriod = `${year}-06`;
+      else if (part === 'Q3') resolvedPeriod = `${year}-09`;
+      else if (part === 'Q4') resolvedPeriod = `${year}-12`;
+      else if (part === 'S1') resolvedPeriod = `${year}-06`;
+      else if (part === 'S2') resolvedPeriod = `${year}-12`;
+    }
+
     const access = req.accessContext!;
     let accessClause = sql`1=1`;
     if (access.scope !== 'system') {
       accessClause = sql`c.id IN (${sql.join(access.corporateIds.map(id => sql`${id}`), sql`, `)})`;
+    }
+
+    let periodFilter = resolvedPeriod ? sql`AND vr2.period <= ${resolvedPeriod}` : sql``;
+    
+    // If a specific year was provided in the period (e.g. "2027-Q1"), 
+    // ensure we only fetch data from that year onwards.
+    if (period && period.includes('-')) {
+      const year = period.split('-')[0];
+      periodFilter = sql`${periodFilter} AND vr2.period >= ${year + '-01'}`;
     }
 
     const rows = (await db.execute(sql`
@@ -152,15 +197,27 @@ export function createRatiosRouter(): Router {
           SELECT MAX(vr2.period)
           FROM cfd.v_financial_ratios vr2
           WHERE vr2.corporate_id = vr.corporate_id
+          ${periodFilter}
         )
       ORDER BY c.name ASC
     `)).rows as any[];
 
-    const result = rows.map((row: any) => ({
-      ...mapRowToRatios(row),
-      corporateId: row.corporate_id,
-      period: row.period,
-    }));
+    const result = rows.map((row: any) => {
+      const ratios = mapRowToRatios(row);
+      // Calculate health score if missing from view
+      if (ratios.healthScore === 0) {
+        ratios.healthScore = calculateHealthScore(ratios);
+      }
+      return {
+        ...ratios,
+        corporateId: row.corporate_id,
+        period: row.period,
+        periodType: 'monthly',
+        periodStartDate: `${row.period}-01`,
+        periodEndDate: `${row.period}-31`,
+        dataUpdatedAt: row.updated_at ?? new Date().toISOString(),
+      };
+    });
 
     setCached(cacheKey, result);
     res.setHeader('X-Cache', 'MISS');
@@ -169,16 +226,11 @@ export function createRatiosRouter(): Router {
 
   /**
    * GET /api/frs/ratios/trends
-   * Returns historical ratio data with moving averages and trend flags.
-   * Supports time period filtering: 3m, 6m, 1y, 3y, 5y
-   * Requirements: 8.1, 8.2
    */
   router.get('/trends', requirePermission('cfd.trends.read'), asyncHandler(async (req: Request, res: Response) => {
     const { corporateId, ratioName, period } = req.query as Record<string, string>;
-
     const access = req.accessContext!;
 
-    // Resolve date range from period shorthand
     let startDate: string | undefined;
     const now = new Date();
     if (period) {
@@ -193,20 +245,15 @@ export function createRatiosRouter(): Router {
       startDate = d.toISOString().split('T')[0];
     }
 
-    // Determine which corporates to query
     let corporateIds: string[];
     if (corporateId) {
-      // Validate access to specific corporate
       if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
         throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
       corporateIds = [corporateId];
     } else {
       if (access.scope === 'system') {
-        const rows = await db
-          .select({ id: corporates.id })
-          .from(corporates)
-          .where(eq(corporates.isActive, true));
+        const rows = await db.select({ id: corporates.id }).from(corporates).where(eq(corporates.isActive, true));
         corporateIds = rows.map((r) => r.id);
       } else {
         corporateIds = access.corporateIds;
@@ -220,16 +267,9 @@ export function createRatiosRouter(): Router {
     const results: any[] = [];
     for (const corpId of corporateIds) {
       for (const rn of ratioNames) {
-        const trend = await getSubsidiaryRatioTrends(
-          corpId,
-          rn,
-          startDate,
-          undefined
-        );
+        const trend = await getSubsidiaryRatioTrends(corpId, rn, startDate, undefined);
         results.push(trend);
       }
-
-      // Include CAGR data
       const cagr = await getSubsidiaryCAGR(corpId);
       if (cagr.length > 0) {
         results.push({ corporateId: corpId, type: 'cagr', data: cagr });
@@ -241,8 +281,6 @@ export function createRatiosRouter(): Router {
 
   /**
    * GET /api/frs/ratios/benchmark
-   * Returns benchmarking data: rankings, portfolio averages, gaps.
-   * Requirements: 6.1, 6.4, 6.5, 6.6, 6.7
    */
   router.get('/benchmark', requirePermission('cfd.benchmarking.read'), asyncHandler(async (req: Request, res: Response) => {
     const access = req.accessContext!;

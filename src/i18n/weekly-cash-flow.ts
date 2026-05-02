@@ -41,6 +41,7 @@ export interface WeeklyCashFlowCopy {
     month: string;
     year: string;
     code: string;
+    selectCorporate: string;
   };
   fields: {
     cashIn: string;
@@ -55,6 +56,7 @@ export interface WeeklyCashFlowCopy {
     deleteDeleting: string;
   };
   validation: {
+  nominalZero: string;
     corporateRequired: string;
     entityRequired: string;
     periodInvalid: string;
@@ -65,7 +67,7 @@ export interface WeeklyCashFlowCopy {
 
 export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
   id: {
-    title: 'Arus Kas Mingguan',
+    title: 'Pengelolaan Arus Kas',
     subtitle: 'Monitoring likuiditas mingguan per perusahaan atau proyek.',
     inputNew: 'Tambah Arus Kas',
     searchPlaceholder: 'Cari proyek...',
@@ -104,6 +106,7 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
       month: 'Bulan',
       year: 'Tahun',
       code: 'Kode',
+      selectCorporate: 'Pilih Perusahaan',
     },
     fields: {
       cashIn: 'Kas Masuk',
@@ -118,6 +121,7 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
       deleteDeleting: 'Menghapus...',
     },
     validation: {
+      nominalZero: 'Total nominal tidak boleh nol',
       corporateRequired: 'Perusahaan wajib dipilih',
       entityRequired: 'Entitas (Proyek/Perusahaan) wajib dipilih',
       periodInvalid: 'Periode tidak valid',
@@ -126,7 +130,7 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
     },
   },
   en: {
-    title: 'Weekly Cash Flow',
+    title: 'Cash Flow Management',
     subtitle: 'Weekly liquidity monitoring per corporate or project.',
     inputNew: 'Add Cash Flow',
     searchPlaceholder: 'Search project...',
@@ -165,6 +169,7 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
       month: 'Month',
       year: 'Year',
       code: 'Code',
+      selectCorporate: 'Select Corporate',
     },
     fields: {
       cashIn: 'Cash In',
@@ -179,6 +184,7 @@ export const weeklyCashFlowI18n: Record<Locale, WeeklyCashFlowCopy> = {
       deleteDeleting: 'Deleting...',
     },
     validation: {
+      nominalZero: 'Total amount cannot be zero',
       corporateRequired: 'Corporate is required',
       entityRequired: 'Entity (Project/Corporate) is required',
       periodInvalid: 'Invalid period',

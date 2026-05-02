@@ -24,6 +24,7 @@ import {
 } from '../../ui/alert-dialog';
 import { projectI18n } from '../../../i18n/project';
 import { commonsI18n } from '../../../i18n/commons';
+import { CorporateSelector } from '../shared/CorporateSelector';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { z } from 'zod';
 
@@ -128,7 +129,7 @@ export const ProjectManager: React.FC = () => {
     code: z.string().min(2, t.validation.codeMin),
     name: z.string().min(3, t.validation.nameMin),
     startDate: z.string().min(1, t.validation.startDateRequired),
-    endDate: z.string().optional(),
+    endDate: z.string().min(1, t.validation.endDateRequired),
     description: z.string().optional(),
     isActive: z.boolean()
   });
@@ -148,8 +149,9 @@ export const ProjectManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [filterCorporate, setFilterCorporate] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({ search: '', departmentId: '' });
+  const [appliedFilters, setAppliedFilters] = useState({ search: '', corporateId: '', departmentId: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -188,6 +190,7 @@ export const ProjectManager: React.FC = () => {
         pageSize: pageSize.toString(),
         search: appliedFilters.search.trim(),
       });
+      if (appliedFilters.corporateId) query.set('corporateId', appliedFilters.corporateId);
       if (appliedFilters.departmentId) query.set('departmentId', appliedFilters.departmentId);
       
       const res = await apiFetch(`/api/projects?${query.toString()}`);
@@ -217,14 +220,15 @@ export const ProjectManager: React.FC = () => {
   }, [fetchProjects]);
 
   const handleApplyFilter = () => {
-    setAppliedFilters({ search: search, departmentId: filterDepartment });
+    setAppliedFilters({ search: search, corporateId: filterCorporate, departmentId: filterDepartment });
     setPage(1);
   };
 
   const handleClearFilter = () => {
     setSearch('');
+    setFilterCorporate('');
     setFilterDepartment('');
-    setAppliedFilters({ search: '', departmentId: '' });
+    setAppliedFilters({ search: '', corporateId: '', departmentId: '' });
     setPage(1);
   };
 
@@ -369,10 +373,24 @@ export const ProjectManager: React.FC = () => {
       </div>
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
-        <div className="w-full md:w-64">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4 mb-6">
+        <CorporateSelector
+          className="w-full md:w-72"
+          value={filterCorporate}
+          onChange={(val) => {
+            setFilterCorporate(val);
+            setFilterDepartment('');
+          }}
+          placeholder={t.modal.selectCorporate}
+          disabled={isCorpsLoading}
+        />
+
+        <div className="w-full md:w-72">
           <SearchableSelect
-            options={departmentOptions}
+            options={departmentOptions.filter(opt => {
+              const dept = allDepartments.find(d => d.id === opt.value);
+              return !filterCorporate || dept?.corporateId === filterCorporate;
+            })}
             value={filterDepartment}
             onChange={(val) => setFilterDepartment(val)}
             placeholder={t.filter.allDepartments}
@@ -680,17 +698,16 @@ export const ProjectManager: React.FC = () => {
 
                 {/* Row 1: Perusahaan + Departemen */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField label={t.modal.corporate} required>
-                    <SearchableSelect
-                      options={corporateOptions}
-                      value={formData.corporateId}
-                      onChange={(val) => {
-                        setFormData({ ...formData, corporateId: val, departmentId: '' });
-                      }}
-                      disabled={!!editingProject || isViewOnly || isCorpsLoading}
-                      placeholder={t.modal.selectCorporate}
-                    />
-                  </FormField>
+                  <CorporateSelector
+                    label={t.modal.corporate}
+                    value={formData.corporateId}
+                    onChange={(val) => {
+                      setFormData({ ...formData, corporateId: val, departmentId: '' });
+                    }}
+                    disabled={!!editingProject || isViewOnly || isCorpsLoading}
+                    placeholder={t.modal.selectCorporate}
+                    required
+                  />
 
                   <FormField label={t.modal.department} required>
                     <SearchableSelect
@@ -739,7 +756,7 @@ export const ProjectManager: React.FC = () => {
                 {/* Row 3: Tanggal + Status */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField label={t.modal.startDate}>
+                    <FormField label={t.modal.startDate} required>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <Calendar size={14} className="text-slate-400" />
@@ -754,7 +771,7 @@ export const ProjectManager: React.FC = () => {
                       </div>
                     </FormField>
 
-                    <FormField label={t.modal.endDate}>
+                    <FormField label={t.modal.endDate} required>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <Calendar size={14} className="text-slate-400" />

@@ -176,12 +176,12 @@ export const CorporateManager: React.FC = () => {
         throw errData;
       }
 
-      // max_logo_size still comes from system-configs
-      const sizeRes = await apiFetch('/api/system-configs');
+      // max_logo_size now comes from a specialized corporate configs endpoint
+      // to avoid 403 errors for users without system-configs permission
+      const sizeRes = await apiFetch('/api/corporates/configs');
       if (sizeRes.ok) {
         const d = await sizeRes.json();
-        const sizeConfig = d.find((c: any) => c.key === 'max_logo_size');
-        if (sizeConfig) setMaxLogoSize(sizeConfig.value);
+        if (d.max_logo_size) setMaxLogoSize(d.max_logo_size);
       } else {
         const errData = await sizeRes.json();
         throw errData;

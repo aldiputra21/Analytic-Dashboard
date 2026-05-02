@@ -1,36 +1,14 @@
-// useRatios.ts - Hook for fetching calculated ratios
-// Requirements: 12.2, 12.4
-
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CalculatedRatios } from '../../types/financial/ratio';
 import { PeriodType } from '../../types/financial/financialData';
 import { apiFetch } from '../../services/financial/apiFetch';
+import { DASHBOARD_QUERY_KEYS } from '../../constants/queryKeys';
 
 const API_BASE = '/api/frs';
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes client-side cache
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-// Module-level cache shared across hook instances
-const ratioCache = new Map<string, CacheEntry<any>>();
-
-function getCached<T>(key: string): T | null {
-  const entry = ratioCache.get(key);
-  if (!entry || Date.now() > entry.expiresAt) {
-    ratioCache.delete(key);
-    return null;
-  }
-  return entry.data as T;
-}
-
-function setCached<T>(key: string, data: T): void {
-  ratioCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-}
 
 export interface RatioWithPeriod extends CalculatedRatios {
+  period: string;
+  corporateId: string;
   periodType: PeriodType;
   periodStartDate: string;
   periodEndDate: string;
@@ -55,34 +33,17 @@ interface UseRatiosResult {
 
 export function useRatios(options: UseRatiosOptions = {}): UseRatiosResult {
   const { subsidiaryId, periodType, startDate, endDate, limit, enabled = true } = options;
-  const [ratios, setRatios] = useState<RatioWithPeriod[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
-  // Memoize cacheKey to prevent string recreation on every render
-  const cacheKey = useMemo(
-    () => `ratios:${subsidiaryId ?? 'all'}:${periodType ?? 'all'}:${startDate ?? ''}:${endDate ?? ''}:${limit ?? ''}`,
-    [subsidiaryId, periodType, startDate, endDate, limit]
-  );
+  const filters = { subsidiaryId, periodType, startDate, endDate, limit };
 
-  const fetchRatios = useCallback(async () => {
-    if (!enabled) return;
-
-    // Check client-side cache first
-    const cached = getCached<RatioWithPeriod[]>(cacheKey);
-    if (cached) {
-      setRatios(cached);
-      return;
-    }
-
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const {
+    data: ratios = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: DASHBOARD_QUERY_KEYS.ratios(filters),
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (subsidiaryId) params.set('subsidiaryId', subsidiaryId);
       if (periodType) params.set('periodType', periodType);
@@ -90,68 +51,55 @@ export function useRatios(options: UseRatiosOptions = {}): UseRatiosResult {
       if (endDate) params.set('endDate', endDate);
       if (limit) params.set('limit', String(limit));
 
-      const res = await apiFetch(`${API_BASE}/ratios?${params}`, {
-        signal: abortRef.current.signal,
-      });
-
+      const res = await apiFetch(`${API_BASE}/ratios?${params}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch ratios');
-      const data: RatioWithPeriod[] = await res.json();
-      setCached(cacheKey, data);
-      setRatios(data);
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setError(err.message ?? 'Unknown error');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [cacheKey, enabled]);
+      return await res.json();
+    },
+    enabled,
+  });
 
-  useEffect(() => {
-    fetchRatios();
-    return () => abortRef.current?.abort();
-  }, [fetchRatios]);
-
-  return { ratios, isLoading, error, refetch: fetchRatios };
+  return {
+    ratios: ratios as RatioWithPeriod[],
+    isLoading,
+    error: error ? (error as Error).message : null,
+    refetch,
+  };
 }
 
 /**
  * Fetches the latest ratio for each active subsidiary.
+ * Supports optional period filtering.
  */
-export function useLatestRatios(): UseRatiosResult {
-  const [ratios, setRatios] = useState<RatioWithPeriod[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useLatestRatios(options: { period?: string } = {}): UseRatiosResult {
+  const { period } = options;
 
-  const fetchLatest = useCallback(async () => {
-    const cacheKey = 'ratios:latest';
-    const cached = getCached<RatioWithPeriod[]>(cacheKey);
-    if (cached) {
-      setRatios(cached);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await apiFetch(`${API_BASE}/ratios/latest`);
+  const {
+    data: ratios = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: DASHBOARD_QUERY_KEYS.latestRatios(period || 'current'),
+    queryFn: async () => {
+      const url = period 
+        ? `${API_BASE}/ratios/latest?period=${period}`
+        : `${API_BASE}/ratios/latest`;
+        
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error('Failed to fetch latest ratios');
-      const data: RatioWithPeriod[] = await res.json();
-      setCached(cacheKey, data);
-      setRatios(data);
-    } catch (err: any) {
-      setError(err.message ?? 'Unknown error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      return await res.json();
+    },
+  });
 
-  useEffect(() => { fetchLatest(); }, [fetchLatest]);
-
-  return { ratios, isLoading, error, refetch: fetchLatest };
+  return {
+    ratios: ratios as RatioWithPeriod[],
+    isLoading,
+    error: error ? (error as Error).message : null,
+    refetch,
+  };
 }
 
-/** Invalidates the client-side ratio cache */
+/** Invalidates the client-side ratio cache — Handled by queryClient elsewhere */
 export function invalidateRatiosClientCache(): void {
-  ratioCache.clear();
+  // Logic handled by manual invalidation strategy via queryClient.invalidateQueries
 }

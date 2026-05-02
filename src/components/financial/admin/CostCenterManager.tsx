@@ -128,7 +128,7 @@ export const CostCenterManager: React.FC = () => {
 
   // Validation Schema
   const costCenterSchema = z.object({
-    corporateId: z.string().min(1, 'Corporate is required'),
+    corporateId: z.string().min(1, t.validation.corporateRequired),
     code: z.string().min(2, t.validation.codeMin),
     name: z.string().min(3, t.validation.nameMin),
     parentId: z.string().nullable().optional(),
@@ -245,7 +245,7 @@ export const CostCenterManager: React.FC = () => {
       });
     } else {
       setEditingCC(null);
-      
+
       let defaultCorpId = '';
       if (!user?.hasFullCorporateAccess && user?.subsidiaryIds?.length === 1) {
         defaultCorpId = user.subsidiaryIds[0];
@@ -371,7 +371,14 @@ export const CostCenterManager: React.FC = () => {
       </div>
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4 mb-6">
+        <CorporateSelector
+          className="w-full md:w-72"
+          value={filterCorporateId}
+          onChange={setFilterCorporateId}
+          placeholder={t.filter.allCorporates}
+        />
+
         <div className="flex-1 min-w-[240px] relative group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
           <input
@@ -381,14 +388,6 @@ export const CostCenterManager: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
-          />
-        </div>
-
-        <div className="min-w-[200px]">
-          <CorporateSelector
-            value={filterCorporateId}
-            onChange={setFilterCorporateId}
-            placeholder={t.filter.allCorporates}
           />
         </div>
 
@@ -677,14 +676,15 @@ export const CostCenterManager: React.FC = () => {
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <FormField label={t.modal.corporate} required>
-                    <CorporateSelector
-                      value={formData.corporateId}
-                      onChange={(val) => setFormData({ ...formData, corporateId: val, parentId: '' })}
-                      placeholder={t.modal.corporate}
-                      disabled={isViewOnly || (!user?.hasFullCorporateAccess && user?.subsidiaryIds?.length === 1)}
-                    />
-                  </FormField>
+                  <CorporateSelector
+                    className="md:col-span-1"
+                    label={t.modal.corporate}
+                    value={formData.corporateId}
+                    onChange={(val) => setFormData({ ...formData, corporateId: val, parentId: '' })}
+                    placeholder={t.modal.corporate}
+                    disabled={isViewOnly || (!user?.hasFullCorporateAccess && user?.subsidiaryIds?.length === 1)}
+                    required
+                  />
 
                   <FormField label={t.modal.parent}>
                     <SearchableSelect
@@ -703,6 +703,7 @@ export const CostCenterManager: React.FC = () => {
                       onChange={(val) => setFormData({ ...formData, category: val })}
                       placeholder={t.modal.selectCategory}
                       disabled={!!formData.parentId || isViewOnly || isCatsLoading}
+                      required
                     />
                   </FormField>
                 </div>

@@ -34,6 +34,11 @@ export const CompanySelector: React.FC<CompanySelectorProps> = ({
   onChange,
   className,
 }) => {
+  // Hide selector if there's only 1 or 0 companies to select from
+  if (!subsidiaries || subsidiaries.length <= 1) {
+    return null;
+  }
+
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 

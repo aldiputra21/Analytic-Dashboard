@@ -1,6 +1,7 @@
 // Dashboard Service — MAFINDA Dashboard Enhancement
 // Drizzle ORM PostgreSQL implementation
 
+import { format } from 'date-fns';
 import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments, corporates } from '../../db/schema/public';
@@ -10,6 +11,7 @@ import {
   targetHeaders,
   targetDetails,
   weeklyCashFlows,
+  cashRealizations,
 } from '../../db/schema/cfd';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,6 +44,7 @@ export interface RevenueCostSummary {
 
 export interface CashFlowDataPoint {
   period: string;
+  week: string;
   cashIn: number;
   cashOut: number;
   netCashFlow: number;
@@ -62,6 +65,15 @@ export interface AssetComposition {
   // Backward-compatible alias used by existing dashboard widgets
   otherAssets: number;
   totalAssets: number;
+}
+
+export interface DashboardAggregatedResult {
+  revenueTarget: DeptRevenueTargetResult;
+  revenueCostSummary: RevenueCostSummary;
+  cashFlowData: CashFlowResult;
+  assetComposition: AssetComposition | null;
+  equityLiabilityComposition: EquityLiabilityComposition | null;
+  historicalData: HistoricalDataPoint[];
 }
 
 export interface EquityLiabilityComposition {
@@ -145,8 +157,20 @@ export function buildEquityLiabilityComposition(
   };
 }
 
-/** Returns the previous period string in "YYYY-MM" format. */
+/** Returns the previous period string. Handles YYYY-MM and YYYY-QX formats. */
 function previousPeriod(period: string): string {
+  if (period.includes('-Q')) {
+    const [year, qStr] = period.split('-');
+    const q = parseInt(qStr.substring(1), 10);
+    if (q === 1) return `${parseInt(year, 10) - 1}-Q4`;
+    return `${year}-Q${q - 1}`;
+  }
+  if (period.includes('-S')) {
+    const [year, sStr] = period.split('-');
+    const s = parseInt(sStr.substring(1), 10);
+    if (s === 1) return `${parseInt(year, 10) - 1}-S2`;
+    return `${year}-S${s - 1}`;
+  }
   const [year, month] = period.split('-').map(Number);
   const date = new Date(year, month - 2);
   const y = date.getFullYear();
@@ -160,10 +184,22 @@ function percentChange(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
-/** Parse period "YYYY-MM" into { year, month }. */
-function parsePeriod(period: string): { year: number; month: number } {
-  const [year, month] = period.split('-').map(Number);
-  return { year, month };
+/** Parse period "YYYY-MM" or "YYYY-QX" into { year, month, quarter }. */
+function parsePeriod(period: string): { 
+  year: number; 
+  month: number | null; 
+  quarter: number | null;
+  semester: number | null;
+} {
+  const [yearStr, part] = period.split('-');
+  const year = parseInt(yearStr, 10);
+  if (part.startsWith('Q')) {
+    return { year, month: null, quarter: parseInt(part.substring(1), 10), semester: null };
+  }
+  if (part.startsWith('S')) {
+    return { year, month: null, quarter: null, semester: parseInt(part.substring(1), 10) };
+  }
+  return { year, month: parseInt(part, 10), quarter: null, semester: null };
 }
 
 /** Parse numeric string to number, defaulting to 0. */
@@ -182,7 +218,7 @@ export async function getDeptRevenueTarget(
   period: string,
   corporateId?: string,
 ): Promise<DeptRevenueTargetResult> {
-  const { year, month } = parsePeriod(period);
+  const { year, month, quarter } = parsePeriod(period);
 
   const conditions = [eq(departments.isActive, true)];
   if (corporateId) conditions.push(eq(departments.corporateId, corporateId));
@@ -197,32 +233,35 @@ export async function getDeptRevenueTarget(
     .orderBy(asc(departments.name));
 
   const items: DeptRevenueTargetItem[] = [];
+  const targetMonths = quarter ? [(quarter - 1) * 3 + 1, (quarter - 1) * 3 + 2, (quarter - 1) * 3 + 3] : [month!];
+  const realizationPeriods = quarter 
+    ? [`${year}-${String((quarter - 1) * 3 + 1).padStart(2, '0')}`, `${year}-${String((quarter - 1) * 3 + 2).padStart(2, '0')}`, `${year}-${String((quarter - 1) * 3 + 3).padStart(2, '0')}`]
+    : [period];
+
   for (const dept of depts) {
-    // Get revenue target from target_headers → target_details
-    const [targetRow] = await db
+    // Get revenue target from target_headers → target_details (Sum for quarter if needed)
+    const targetRows = await db
       .select({ amount: targetDetails.amount })
       .from(targetDetails)
       .innerJoin(targetHeaders, eq(targetDetails.targetHeaderId, targetHeaders.id))
       .where(and(
         eq(targetHeaders.departmentId, dept.id),
         eq(targetHeaders.fiscalYear, year),
-        eq(targetDetails.month, month),
+        inArray(targetDetails.month, targetMonths),
         eq(targetDetails.targetType, 'revenue'),
-      ))
-      .limit(1);
+      ));
 
-    // Get realization from income_statements — Note: income_statements is corporate level
-    const [realizationRow] = await db
+    // Get realization from income_statements (Sum for quarter if needed)
+    const realizationRows = await db
       .select({ revenue: incomeStatements.revenue })
       .from(incomeStatements)
       .where(and(
         eq(incomeStatements.corporateId, dept.corporateId),
-        eq(incomeStatements.period, period),
-      ))
-      .limit(1);
+        inArray(incomeStatements.period, realizationPeriods),
+      ));
 
-    const target = n(targetRow?.amount);
-    const realization = n(realizationRow?.revenue);
+    const target = targetRows.reduce((sum, r) => sum + n(r.amount), 0);
+    const realization = realizationRows.reduce((sum, r) => sum + n(r.revenue), 0);
 
     items.push({
       departmentId: dept.id,
@@ -245,65 +284,57 @@ export async function getRevenueCostSummary(
   corporateId?: string,
 ): Promise<RevenueCostSummary> {
   const prevPeriod = previousPeriod(period);
+  const { year, quarter } = parsePeriod(period);
+  const { year: pYear, quarter: pQuarter } = parsePeriod(prevPeriod);
 
+  const currentPeriods = quarter 
+    ? [`${year}-${String((quarter - 1) * 3 + 1).padStart(2, '0')}`, `${year}-${String((quarter - 1) * 3 + 2).padStart(2, '0')}`, `${year}-${String((quarter - 1) * 3 + 3).padStart(2, '0')}`]
+    : [period];
+  
+  const previousPeriods = pQuarter
+    ? [`${pYear}-${String((pQuarter - 1) * 3 + 1).padStart(2, '0')}`, `${pYear}-${String((pQuarter - 1) * 3 + 2).padStart(2, '0')}`, `${pYear}-${String((pQuarter - 1) * 3 + 3).padStart(2, '0')}`]
+    : [prevPeriod];
+
+  let corporateName: string | undefined;
   if (corporateId) {
-    const [corp] = await db.select({ id: corporates.id, name: corporates.name })
+    const [corp] = await db.select({ name: corporates.name })
       .from(corporates)
       .where(eq(corporates.id, corporateId))
       .limit(1);
-
-    const [current] = await db
-      .select({ revenue: incomeStatements.revenue, opex: incomeStatements.operatingExpenses })
-      .from(incomeStatements)
-      .where(and(eq(incomeStatements.corporateId, corporateId), eq(incomeStatements.period, period)))
-      .limit(1);
-
-    const [previous] = await db
-      .select({ revenue: incomeStatements.revenue, opex: incomeStatements.operatingExpenses })
-      .from(incomeStatements)
-      .where(and(eq(incomeStatements.corporateId, corporateId), eq(incomeStatements.period, prevPeriod)))
-      .limit(1);
-
-    const revenue = n(current?.revenue);
-    const operationalCost = n(current?.opex);
-    const prevRevenue = n(previous?.revenue);
-    const prevCost = n(previous?.opex);
-
-    return {
-      period,
-      corporateId,
-      corporateName: corp?.name,
-      revenue,
-      revenueChange: percentChange(revenue, prevRevenue),
-      operationalCost,
-      operationalCostChange: percentChange(operationalCost, prevCost),
-    };
+    corporateName = corp?.name;
   }
 
-  // Aggregate all departments
-  const currentAgg = await db
+  const currentRows = await db
     .select({
       revenue: sql<string>`COALESCE(SUM(${incomeStatements.revenue}::numeric), 0)`,
       opex: sql<string>`COALESCE(SUM(${incomeStatements.operatingExpenses}::numeric), 0)`,
     })
     .from(incomeStatements)
-    .where(eq(incomeStatements.period, period));
+    .where(and(
+      inArray(incomeStatements.period, currentPeriods),
+      corporateId ? eq(incomeStatements.corporateId, corporateId) : undefined
+    ));
 
-  const previousAgg = await db
+  const previousRows = await db
     .select({
       revenue: sql<string>`COALESCE(SUM(${incomeStatements.revenue}::numeric), 0)`,
       opex: sql<string>`COALESCE(SUM(${incomeStatements.operatingExpenses}::numeric), 0)`,
     })
     .from(incomeStatements)
-    .where(eq(incomeStatements.period, prevPeriod));
+    .where(and(
+      inArray(incomeStatements.period, previousPeriods),
+      corporateId ? eq(incomeStatements.corporateId, corporateId) : undefined
+    ));
 
-  const revenue = n(currentAgg[0]?.revenue);
-  const operationalCost = n(currentAgg[0]?.opex);
-  const prevRevenue = n(previousAgg[0]?.revenue);
-  const prevCost = n(previousAgg[0]?.opex);
+  const revenue = n(currentRows[0]?.revenue);
+  const operationalCost = n(currentRows[0]?.opex);
+  const prevRevenue = n(previousRows[0]?.revenue);
+  const prevCost = n(previousRows[0]?.opex);
 
   return {
     period,
+    corporateId,
+    corporateName,
     revenue,
     revenueChange: percentChange(revenue, prevRevenue),
     operationalCost,
@@ -312,78 +343,173 @@ export async function getRevenueCostSummary(
 }
 
 /**
- * Returns cash flow data points for a range of months.
- * Aggregates weekly_cash_flows across weeks per period.
- * Optionally filtered by departmentId or entityType/entityId.
+ * Returns cash flow data points for a range of months, aggregated by week.
+ * Combines planned data (weekly_cash_flows) and actual realizations (cash_realizations).
  */
 export async function getCashFlowData(
   period: string,
   months = 6,
   corporateId?: string,
-  entityType?: string,
-  entityId?: string,
+  departmentId?: string,
+  projectId?: string,
 ): Promise<CashFlowResult> {
-  const [year, month] = period.split('-').map(Number);
+  const { year, month, quarter, semester } = parsePeriod(period);
   const periods: string[] = [];
-  for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(year, month - 1 - i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    periods.push(`${y}-${m}`);
+  
+  if (quarter) {
+    // If quarter is selected, show exactly the 3 months of that quarter
+    const startMonth = (quarter - 1) * 3 + 1;
+    for (let i = 0; i < 3; i++) {
+      const m = String(startMonth + i).padStart(2, '0');
+      periods.push(`${year}-${m}`);
+    }
+  } else if (semester) {
+    // If semester is selected, show exactly the 6 months
+    const startMonth = (semester - 1) * 6 + 1;
+    for (let i = 0; i < 6; i++) {
+      const m = String(startMonth + i).padStart(2, '0');
+      periods.push(`${year}-${m}`);
+    }
+  } else {
+    // Standard N months trailing
+    for (let i = (months || 6) - 1; i >= 0; i--) {
+      const d = new Date(year, (month || 1) - 1 - i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      periods.push(`${y}-${m}`);
+    }
   }
 
-  const conditions = [inArray(weeklyCashFlows.period, periods)];
-  if (corporateId) conditions.push(eq(weeklyCashFlows.corporateId, corporateId));
-  if (entityType) conditions.push(eq(weeklyCashFlows.entityType, entityType));
-  if (entityId) conditions.push(eq(weeklyCashFlows.entityId, entityId));
+  // --- 1. Fetch Weekly Cash Flows ---
+  const wcfConditions = [inArray(weeklyCashFlows.period, periods)];
+  if (corporateId) wcfConditions.push(eq(weeklyCashFlows.corporateId, corporateId));
+  if (departmentId || projectId) {
+    // weekly_cash_flows only supports corporate and project entity types
+    // If departmentId is provided, we use the corporate level data as a fallback 
+    // unless the table schema is updated to support departments.
+    // However, realizations DO support departments.
+    const entityType = projectId ? 'project' : 'corporate';
+    wcfConditions.push(eq(weeklyCashFlows.entityType, entityType));
+    wcfConditions.push(eq(weeklyCashFlows.entityId, projectId || corporateId!));
+  }
 
-  const rows = await db
+  const wcfRows = await db
     .select({
       period: weeklyCashFlows.period,
-      cashIn: sql<string>`SUM(
+      week: weeklyCashFlows.week,
+      cashIn: sql<string>`(
         ${weeklyCashFlows.operatingCashIn}::numeric +
         ${weeklyCashFlows.investingCashIn}::numeric +
         ${weeklyCashFlows.financingCashIn}::numeric
       )`,
-      cashOut: sql<string>`SUM(
+      cashOut: sql<string>`(
         ${weeklyCashFlows.operatingCashOut}::numeric +
         ${weeklyCashFlows.investingCashOut}::numeric +
         ${weeklyCashFlows.financingCashOut}::numeric
       )`,
     })
     .from(weeklyCashFlows)
-    .where(and(...conditions))
-    .groupBy(weeklyCashFlows.period)
-    .orderBy(asc(weeklyCashFlows.period));
+    .where(and(...wcfConditions));
 
-  const rowMap = new Map<string, { cashIn: number; cashOut: number }>();
-  for (const r of rows) {
-    rowMap.set(r.period, { cashIn: n(r.cashIn), cashOut: n(r.cashOut) });
+  // --- 2. Fetch Cash Realizations ---
+  const startDateStr = `${periods[0]}-01`;
+  const endMonthForLastDay = quarter ? quarter * 3 : (semester ? semester * 6 : (month || 1));
+  const endDateStr = format(new Date(year, endMonthForLastDay, 0), 'yyyy-MM-dd'); // Last day of last month in range
+
+  const crConditions = [
+    sql`${cashRealizations.transactionDate} >= ${startDateStr}`,
+    sql`${cashRealizations.transactionDate} <= ${endDateStr}`,
+  ];
+  if (departmentId) crConditions.push(eq(cashRealizations.departmentId, departmentId));
+  if (projectId) crConditions.push(eq(cashRealizations.projectId, projectId));
+
+  const crRows = await db
+    .select({
+      transactionDate: cashRealizations.transactionDate,
+      category: cashRealizations.category,
+      amount: cashRealizations.amount,
+    })
+    .from(cashRealizations)
+    .where(and(...crConditions));
+
+  // --- 3. Aggregate Data by (Period, Week) ---
+  const weeklyMap = new Map<string, { cashIn: number; cashOut: number }>();
+
+  // Helper to generate map key
+  const getWKey = (p: string, w: string) => `${p}|${w}`;
+
+  // Process WCF rows
+  for (const r of wcfRows) {
+    const key = getWKey(r.period, r.week);
+    const existing = weeklyMap.get(key) ?? { cashIn: 0, cashOut: 0 };
+    weeklyMap.set(key, {
+      cashIn: existing.cashIn + n(r.cashIn),
+      cashOut: existing.cashOut + n(r.cashOut),
+    });
   }
 
-  const data: CashFlowDataPoint[] = periods.map((p) => {
-    const entry = rowMap.get(p) ?? { cashIn: 0, cashOut: 0 };
-    return {
-      period: p,
-      cashIn: entry.cashIn,
-      cashOut: entry.cashOut,
-      netCashFlow: calculateNetCashFlow(entry.cashIn, entry.cashOut),
-    };
-  });
+  // Process Realization rows
+  for (const r of crRows) {
+    const d = new Date(r.transactionDate);
+    const p = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const day = d.getDate();
+    let w = 'W1';
+    if (day > 7) w = 'W2';
+    if (day > 14) w = 'W3';
+    if (day > 21) w = 'W4';
+    if (day > 28) w = 'W5';
 
-  return { data, corporateId, entityType, entityId };
+    const key = getWKey(p, w);
+    const existing = weeklyMap.get(key) ?? { cashIn: 0, cashOut: 0 };
+    
+    if (r.category === 'cash-in') {
+      existing.cashIn += n(r.amount);
+    } else {
+      existing.cashOut += n(r.amount);
+    }
+    weeklyMap.set(key, existing);
+  }
+
+  // --- 4. Build Final Result ---
+  const weeks = ['W1', 'W2', 'W3', 'W4', 'W5'];
+  const data: CashFlowDataPoint[] = [];
+
+  for (const p of periods) {
+    for (const w of weeks) {
+      const entry = weeklyMap.get(getWKey(p, w));
+      const cashIn = entry?.cashIn ?? 0;
+      const cashOut = entry?.cashOut ?? 0;
+      
+      data.push({
+        period: p,
+        week: w,
+        cashIn,
+        cashOut,
+        netCashFlow: calculateNetCashFlow(cashIn, cashOut),
+      });
+    }
+  }
+
+  return { data, corporateId, departmentId, entityId: projectId };
 }
 
 /**
- * Returns asset composition for a given period (optionally filtered by department).
- * currentAssets = cash_and_bank + accounts_receivable + work_in_progress + inventory + prepaid_expenses
- * fixedAssets = land + building + equipment + other_fixed_assets
+ * Returns asset composition for a given period (optionally filtered by corporate).
+ * Snapshot as of the last month of the period/quarter.
  */
 export async function getAssetComposition(
   period: string,
   corporateId?: string,
 ): Promise<AssetComposition | null> {
-  const conditions = [eq(balanceSheets.period, period)];
+  const { year, quarter, semester, month } = parsePeriod(period);
+  let targetPeriod = period;
+  if (quarter) {
+    targetPeriod = `${year}-${String(quarter * 3).padStart(2, '0')}`;
+  } else if (semester) {
+    targetPeriod = `${year}-${String(semester * 6).padStart(2, '0')}`;
+  }
+
+  const conditions = [eq(balanceSheets.period, targetPeriod)];
   if (corporateId) conditions.push(eq(balanceSheets.corporateId, corporateId));
 
   const [row] = await db
@@ -409,13 +535,22 @@ export async function getAssetComposition(
 }
 
 /**
- * Returns equity & liability composition for a given period (optionally filtered by department).
+ * Returns equity & liability composition for a given period (optionally filtered by corporate).
+ * Snapshot as of the last month of the period/quarter.
  */
 export async function getEquityLiabilityComposition(
   period: string,
   corporateId?: string,
 ): Promise<EquityLiabilityComposition | null> {
-  const conditions = [eq(balanceSheets.period, period)];
+  const { year, quarter, semester, month } = parsePeriod(period);
+  let targetPeriod = period;
+  if (quarter) {
+    targetPeriod = `${year}-${String(quarter * 3).padStart(2, '0')}`;
+  } else if (semester) {
+    targetPeriod = `${year}-${String(semester * 6).padStart(2, '0')}`;
+  }
+
+  const conditions = [eq(balanceSheets.period, targetPeriod)];
   if (corporateId) conditions.push(eq(balanceSheets.corporateId, corporateId));
 
   const [row] = await db
@@ -455,8 +590,6 @@ export async function getEquityLiabilityComposition(
 
 /**
  * Returns historical financial data for the last N months.
- * Joins income statements and balance sheets by (departmentId, period).
- * net_profit = revenue - cogs - operating_expenses - interest_expense - tax_expense
  */
 export async function getHistoricalData(
   months: number,
@@ -523,4 +656,43 @@ export async function getHistoricalData(
       totalLiabilities: n(bs?.totalLiabilities),
     };
   });
+}
+
+/**
+ * Aggregates all dashboard data into a single object to reduce API requests.
+ */
+export async function getDashboardAggregated(params: {
+  period: string;
+  corporateId?: string;
+  historicalMonths: number;
+  revCostDeptId?: string;
+  cashFlowDeptId?: string;
+  cashFlowMonths?: number;
+}): Promise<DashboardAggregatedResult> {
+  const { period, corporateId, historicalMonths, revCostDeptId, cashFlowDeptId, cashFlowMonths } = params;
+
+  const [
+    revenueTarget,
+    revenueCostSummary,
+    cashFlowData,
+    assetComposition,
+    equityLiabilityComposition,
+    historicalData
+  ] = await Promise.all([
+    getDeptRevenueTarget(period, corporateId),
+    getRevenueCostSummary(period, corporateId),
+    getCashFlowData(period, cashFlowMonths || 6, corporateId, cashFlowDeptId),
+    getAssetComposition(period, corporateId),
+    getEquityLiabilityComposition(period, corporateId),
+    getHistoricalData(historicalMonths, corporateId)
+  ]);
+
+  return {
+    revenueTarget,
+    revenueCostSummary,
+    cashFlowData,
+    assetComposition,
+    equityLiabilityComposition,
+    historicalData
+  };
 }

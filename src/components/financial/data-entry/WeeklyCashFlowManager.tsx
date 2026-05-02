@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Search, Filter, Eye, Edit2, Trash2,
   X, AlertCircle, Banknote, Calendar, Layers,
@@ -60,11 +61,11 @@ interface CashFlow {
 
 
 // --- Validation Schema ---
-const cashFlowSchema = (t: any) => z.object({
-  corporateId: z.string().min(1, t.validation.corporateRequired),
+const cashFlowSchema = (t: any, showSelector: boolean) => z.object({
+  corporateId: z.string().optional(),
   entityType: z.enum(['project', 'corporate']),
-  entityId: z.string().min(1, t.validation.entityRequired),
-  period: z.string().regex(/^\d{4}-\d{2}$/, t.validation.periodInvalid),
+  entityId: z.string().optional(),
+  period: z.string().min(7, t.validation.periodInvalid),
   week: z.string().min(1, t.validation.weekRequired),
   operatingCashIn: z.number().min(0, t.validation.amountMin),
   operatingCashOut: z.number().min(0, t.validation.amountMin),
@@ -73,6 +74,39 @@ const cashFlowSchema = (t: any) => z.object({
   financingCashIn: z.number().min(0, t.validation.amountMin),
   financingCashOut: z.number().min(0, t.validation.amountMin),
   notes: z.string().optional()
+}).superRefine((data, ctx) => {
+  // 0. Corporate validation: If showSelector is true, corporateId must be provided
+  if (showSelector && (!data.corporateId || data.corporateId === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: t.validation.corporateRequired,
+      path: ['corporateId']
+    });
+  }
+  // 1. Entity validation: If entityType is 'project', entityId must be provided and NOT be the same as corporateId
+  if (data.entityType === 'project') {
+    if (!data.entityId || data.entityId === data.corporateId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.entityRequired,
+        path: ['entityId']
+      });
+    }
+  }
+
+  // 3. Nominal validation: Total sum of all activities cannot be zero
+  const totalNominal =
+    Math.abs(data.operatingCashIn) + Math.abs(data.operatingCashOut) +
+    Math.abs(data.investingCashIn) + Math.abs(data.investingCashOut) +
+    Math.abs(data.financingCashIn) + Math.abs(data.financingCashOut);
+
+  if (totalNominal === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: t.validation.nominalZero,
+      path: ['operatingCashIn'] // Show near first input
+    });
+  }
 });
 
 // --- Components ---
@@ -164,7 +198,8 @@ const FormField: React.FC<{
 // --- Main Component ---
 
 export const WeeklyCashFlowManager: React.FC = () => {
-  const { user, hasPermission, language, hasFullCorporateAccess, subsidiaryIds } = useAuth();
+  const { user, hasPermission, language, subsidiaryIds, hasFullCorporateAccess } = useAuth();
+  const queryClient = useQueryClient();
   const t = weeklyCashFlowI18n[language];
   const common = commonsI18n[language];
 
@@ -177,7 +212,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { corporates, options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
+  const { corporates, options: corporateOptions, isLoading: isCorpsLoading, showSelector } = useCorporates();
   const { projects, isLoading: isProjsLoading } = useProjects();
 
   // Filters
@@ -283,6 +318,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
       const res = await apiFetch(`/api/financial-statements/cash-flow/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success(common.successDelete);
+        queryClient.invalidateQueries({ queryKey: ['ratios'] });
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         fetchData();
       } else {
         const errData = await res.json();
@@ -330,9 +367,11 @@ export const WeeklyCashFlowManager: React.FC = () => {
     if (isSaving) return;
 
     // Declarative validation with Zod
-    const validation = cashFlowSchema(t).safeParse(formData);
+    const validation = cashFlowSchema(t, showSelector).safeParse(formData);
     if (!validation.success) {
-      validation.error.issues.forEach(err => toast.error(err.message));
+      // Use set to avoid duplicate messages if multiple fields trigger same error
+      const uniqueErrors = new Set(validation.error.issues.map(err => err.message));
+      uniqueErrors.forEach(msg => toast.error(msg));
       return;
     }
 
@@ -349,6 +388,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
 
       if (res.ok) {
         toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
+        queryClient.invalidateQueries({ queryKey: ['ratios'] });
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         setIsModalOpen(false);
         fetchData();
       } else {
@@ -382,7 +423,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
   }, [formData.entityType, formData.corporateId, projects, corporateOptions]);
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-full font-bold">
+    <div className="p-6 space-y-6 bg-slate-50 min-h-full">
 
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -393,7 +434,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
             </div>
             {t.title}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
             <Info size={14} className="text-indigo-400" />
             {t.subtitle}
           </p>
@@ -415,13 +456,13 @@ export const WeeklyCashFlowManager: React.FC = () => {
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          <div className="flex-1 min-w-[200px]">
-            <CorporateSelector
-              value={filterCorporate}
-              onChange={(val) => setFilterCorporate(val)}
-              placeholder={t.modal.corporate}
-            />
-          </div>
+          <CorporateSelector
+            className="w-full md:w-72"
+            value={filterCorporate}
+            onChange={(val) => setFilterCorporate(val)}
+            placeholder={t.modal.corporate}
+            disabled={isCorpsLoading}
+          />
 
           <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-blue-500/20 transition-all flex-1 min-w-[200px]">
             <Search size={16} className="text-slate-400" />
@@ -431,11 +472,11 @@ export const WeeklyCashFlowManager: React.FC = () => {
               value={filterSearch}
               onChange={(e) => setFilterSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
-              className="bg-transparent border-none text-sm text-slate-800 focus:outline-none w-full font-bold"
+              className="bg-transparent border-none text-sm text-slate-800 focus:outline-none w-full"
             />
           </div>
 
-          <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+          <div className="flex items-center gap-2 min-w-[280px]">
             <MonthRangePicker
               startValue={filterPeriodStart}
               endValue={filterPeriodEnd}
@@ -711,7 +752,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
             title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : t.modal.viewTitle}
             size="xl"
           >
-            <form onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="flex-1 overflow-hidden flex flex-col">
+            <form onSubmit={handleSave} noValidate className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-y-auto p-6 scrollbar-hide space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
                   {/* Period */}
@@ -742,7 +783,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
                         value={formData.week || ''}
                         onChange={(e) => setFormData(p => ({ ...p, week: e.target.value }))}
                         disabled={modalMode === 'view'}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-800 outline-none shadow-sm cursor-pointer focus:ring-2 focus:ring-blue-500/20 appearance-none transition-all"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-normal text-slate-800 outline-none shadow-sm cursor-pointer focus:ring-2 focus:ring-blue-500/20 appearance-none transition-all"
                       >
                         <option value="W1">{t.modal.week} 1</option>
                         <option value="W2">{t.modal.week} 2</option>
@@ -755,15 +796,14 @@ export const WeeklyCashFlowManager: React.FC = () => {
                   </div>
 
                   {/* Corporate */}
-                  <div className="md:col-span-5 space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                      <Landmark size={12} /> {t.modal.corporate}
-                    </label>
+                  <div className="md:col-span-5">
                     <CorporateSelector
+                      label={t.modal.corporate}
                       value={formData.corporateId || ''}
-                      onChange={(val) => setFormData({ ...formData, corporateId: val, entityId: val })}
-                      placeholder={t.modal.selectEntity + ' ' + t.modal.corporate}
-                      disabled={modalMode === 'view'}
+                      onChange={(val) => setFormData(prev => ({ ...prev, corporateId: val, entityId: val }))}
+                      placeholder={t.modal.selectCorporate}
+                      disabled={isCorpsLoading || modalMode === 'view'}
+                      required
                     />
                   </div>
                 </div>
@@ -803,15 +843,14 @@ export const WeeklyCashFlowManager: React.FC = () => {
 
                   {formData.entityType === 'project' && (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                        <Briefcase size={12} /> {t.modal.project}
-                      </label>
                       <SearchableSelect
+                        label={t.modal.project}
                         options={entityOptions}
                         value={formData.entityId || ''}
                         onChange={(val) => setFormData(p => ({ ...p, entityId: val }))}
                         placeholder={t.modal.selectEntity}
-                        disabled={modalMode === 'view'}
+                        disabled={modalMode === 'view' || isProjsLoading}
+                        required
                         className="w-full"
                       />
                     </div>

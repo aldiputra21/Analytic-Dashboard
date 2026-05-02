@@ -15,17 +15,18 @@ interface SearchableSelectProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  label?: string;
+  label?: React.ReactNode;
   className?: string;
   error?: string;
   disabled?: boolean;
   size?: 'sm' | 'md';
   usePortal?: boolean;
+  required?: boolean;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   options, value, onChange, placeholder = 'Select an option...', label, className, error, disabled,
-  size = 'md', usePortal = true
+  size = 'md', usePortal = true, required
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,8 +38,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node) && 
-          dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -70,20 +71,20 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     };
   }, [isOpen, usePortal]);
 
-  const filteredOptions = options.filter(o => 
-    o.label.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredOptions = options.filter(o =>
+    o.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.sublabel?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const dropdownContent = (
-    <div 
+    <div
       ref={dropdownRef}
-      style={usePortal ? { 
-        position: 'absolute', 
-        top: coords.top, 
-        left: coords.left, 
+      style={usePortal ? {
+        position: 'absolute',
+        top: coords.top,
+        left: coords.left,
         width: coords.width,
-        zIndex: 9999 
+        zIndex: 9999
       } : {}}
       className={cn(
         "bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top",
@@ -102,7 +103,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
             onChange={e => setSearchTerm(e.target.value)}
           />
           {searchTerm && (
-            <button 
+            <button
               onClick={() => setSearchTerm('')}
               className="absolute right-2 top-2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
             >
@@ -140,8 +141,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   return (
     <div className={cn("relative space-y-1", className)} ref={containerRef}>
-      {label && <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">{label}</label>}
-      
+      {label && <label className="text-xs font-bold text-slate-700 uppercase tracking-tight flex items-center gap-1.5">{label} {required && <span className="text-red-500">*</span>}</label>}
+
       <button
         type="button"
         disabled={disabled}

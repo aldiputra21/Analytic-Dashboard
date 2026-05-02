@@ -17,6 +17,12 @@ import type { CashFlowDataPoint } from '../../../services/mafinda/dashboardServi
 import { SearchableSelect } from '../../financial/shared/SearchableSelect';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { mafindaI18n } from '../../../i18n/mafinda';
+import { dashboardI18n } from '../../../i18n/dashboard';
+
+const monthNames: Record<string, string> = {
+  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
+  '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
+};
 
 interface CashFlowChartProps {
   data: CashFlowDataPoint[];
@@ -34,9 +40,15 @@ const CustomTooltip = ({ active, payload, label, t }: any) => {
   const cashIn = payload.find((p: any) => p.dataKey === 'cashIn')?.value ?? 0;
   const cashOut = payload.find((p: any) => p.dataKey === 'cashOut')?.value ?? 0;
   const net = cashIn - cashOut;
+  
+  // label is period|week
+  const [period, week] = (label || '').split('|');
+  const month = period?.split('-')[1] || '';
+  const displayLabel = `${monthNames[month]} ${week}`;
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-xs">
-      <p className="font-semibold text-slate-700 mb-2">{label}</p>
+      <p className="font-semibold text-slate-700 mb-2">{displayLabel}</p>
       <p className="text-emerald-600">{t.cashIn}: <span className="font-medium">{formatRupiah(cashIn)}</span></p>
       <p className="text-red-500">{t.cashOut}: <span className="font-medium">{formatRupiah(cashOut)}</span></p>
       <p className={`mt-1 font-semibold ${net >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
@@ -58,12 +70,40 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
 }) => {
   const { language } = useAuth();
   const t = mafindaI18n[language].dashboard.cashFlow;
+  const ft = mafindaI18n[language].filters;
+  const dt = dashboardI18n[language];
   const common = mafindaI18n[language].dashboard;
+
+  const [selectedMonth, setSelectedMonth] = React.useState<string>('all');
+
+  const safeData = Array.isArray(data) ? data : [];
+
+  const monthsInData = React.useMemo(() => {
+    const set = new Set<string>();
+    safeData.forEach(d => set.add(d.period));
+    return Array.from(set).sort().map(p => ({
+      value: p,
+      label: `${monthNames[p.split('-')[1]]} ${p.split('-')[0]}`
+    }));
+  }, [safeData]);
+
+  const chartData = React.useMemo(() => {
+    let filtered = safeData;
+    if (selectedMonth !== 'all') {
+      filtered = safeData.filter(d => d.period === selectedMonth);
+    }
+    return filtered.map(d => ({
+      ...d,
+      fullKey: `${d.period}|${d.week}`,
+      label: selectedMonth === 'all' 
+        ? `${monthNames[d.period.split('-')[1]]} ${d.week}`
+        : d.week
+    }));
+  }, [safeData, selectedMonth]);
+
   const filteredProjects = projects.filter(
     (p) => p.departmentId === selectedDepartmentId
   );
-
-  const safeData = Array.isArray(data) ? data : [];
   const totalNetCashFlow = safeData.reduce((sum, d) => sum + (d.netCashFlow || 0), 0);
 
   if (isLoading) {
@@ -80,7 +120,17 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
       {/* Header + filters */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className="text-sm font-semibold text-slate-800">{t.title}</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Month Selector */}
+          <div className="w-32">
+            <SearchableSelect
+              options={[{ value: 'all', label: ft.month + ': All' }, ...monthsInData]}
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+              placeholder={ft.month}
+              size="sm"
+            />
+          </div>
           <div className="w-40">
             <SearchableSelect
               options={departments}
@@ -90,6 +140,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
                 onProjectChange('');
               }}
               placeholder={common.allDepartments}
+              size="sm"
             />
           </div>
           {selectedDepartmentId && (
@@ -99,6 +150,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
                 value={selectedProjectId}
                 onChange={onProjectChange}
                 placeholder={common.allProjects}
+                size="sm"
               />
             </div>
           )}
@@ -112,7 +164,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
       ) : (
         <>
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={safeData} margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
               <defs>
                 <linearGradient id="cashInGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -124,7 +176,16 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <XAxis 
+                dataKey="fullKey" 
+                tickFormatter={(val) => {
+                  const [p, w] = val.split('|');
+                  return selectedMonth === 'all' ? `${monthNames[p.split('-')[1]]} ${w}` : w;
+                }}
+                tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 500 }} 
+                axisLine={false} 
+                tickLine={false} 
+              />
               <YAxis
                 tickFormatter={(v) => formatRupiah(v)}
                 tick={{ fontSize: 10, fill: '#94a3b8' }}

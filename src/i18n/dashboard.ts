@@ -28,6 +28,12 @@ export interface DashboardCopy {
   inactive: string;
   periods: Record<string, string>;
   healthScore: string;
+  mainFilters: {
+    year: string;
+    periodType: string;
+    quarter: string;
+    semester: string;
+  };
 }
 
 export const dashboardI18n: Record<Locale, DashboardCopy> = {
@@ -64,6 +70,12 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
       '5y': '5 Tahun',
     },
     healthScore: 'Skor Kesehatan',
+    mainFilters: {
+      year: 'Tahun',
+      periodType: 'Tipe Periode',
+      quarter: 'Kuartal',
+      semester: 'Semester',
+    },
   },
   en: {
     title: 'Financial Dashboard',
@@ -98,5 +110,11 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
       '5y': '5Y',
     },
     healthScore: 'Health Score',
+    mainFilters: {
+      year: 'Year',
+      periodType: 'Period Type',
+      quarter: 'Quarter',
+      semester: 'Semester',
+    },
   },
 };

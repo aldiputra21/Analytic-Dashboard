@@ -103,47 +103,71 @@ export interface MafindaCopy {
     alerts: {
       limitedData: string;
     };
-    targetManager: {
-      title: string;
-      targetCount: string;
-      department: string;
-      project: string;
-      setTarget: string;
-      editTarget: string;
-      noTargets: string;
-      noTargetsDesc: string;
-      entity: string;
-      type: string;
-      period: string;
-      kind: string;
-      revenueTarget: string;
-      opsCostTarget: string;
-      entityType: string;
-      selectEntity: string;
-      periodKind: string;
-      monthly: string;
-      quarterly: string;
-      annual: string;
-      update: string;
-      revenueError: string;
-      opsCostError: string;
-      saveSuccess: string;
-      updateSuccess: string;
-      deleteSuccess: string;
-      saveError: string;
-      deleteError: string;
-      actions: string;
+  };
+  filters: {
+    year: string;
+    periodType: string;
+    quarter: string;
+    semester: string;
+    month: string;
+    quarterly: string;
+    semiannual: string;
+    quarters: {
+      q1: string;
+      q2: string;
+      q3: string;
+      q4: string;
     };
-    management: {
-      title: string;
-      subtitle: string;
-      tabs: {
-        departments: string;
-        projects: string;
-        targets: string;
-      };
-      errorLoad: string;
+    semesters: {
+      s1: string;
+      s2: string;
     };
+  };
+  trends: {
+    revenueProfit: string;
+    assetLiability: string;
+    yearlyTrend: string;
+  };
+  targetManager: {
+    title: string;
+    targetCount: string;
+    department: string;
+    project: string;
+    setTarget: string;
+    editTarget: string;
+    noTargets: string;
+    noTargetsDesc: string;
+    entity: string;
+    type: string;
+    period: string;
+    kind: string;
+    revenueTarget: string;
+    opsCostTarget: string;
+    entityType: string;
+    selectEntity: string;
+    periodKind: string;
+    monthly: string;
+    quarterly: string;
+    annual: string;
+    update: string;
+    revenueError: string;
+    opsCostError: string;
+    saveSuccess: string;
+    updateSuccess: string;
+    deleteSuccess: string;
+    saveError: string;
+    deleteError: string;
+    actions: string;
+  };
+  management: {
+    title: string;
+    subtitle: string;
+    tabs: {
+      departments: string;
+      projects: string;
+      targets: string;
+    };
+    errorLoad: string;
   };
 }
 
@@ -250,47 +274,71 @@ export const mafindaI18n: Record<Locale, MafindaCopy> = {
       alerts: {
         limitedData: 'Data terbatas — hanya {count} periode tersedia. Menampilkan data yang ada.',
       },
-      targetManager: {
-        title: 'Target Keuangan',
-        targetCount: 'target',
-        department: 'Departemen',
-        project: 'Proyek',
-        setTarget: 'Tetapkan Target',
-        editTarget: 'Edit Target',
-        noTargets: 'Belum ada target',
-        noTargetsDesc: 'Tetapkan target keuangan pertama.',
-        entity: 'Entitas',
-        type: 'Tipe',
-        period: 'Periode',
-        kind: 'Jenis',
-        revenueTarget: 'Target Revenue',
-        opsCostTarget: 'Target Biaya Ops',
-        entityType: 'Tipe Entitas',
-        selectEntity: 'Pilih...',
-        periodKind: 'Jenis Periode',
-        monthly: 'Bulanan',
-        quarterly: 'Kuartalan',
-        annual: 'Tahunan',
-        update: 'Perbarui',
-        revenueError: 'Target revenue harus berupa angka non-negatif',
-        opsCostError: 'Target biaya operasional harus berupa angka non-negatif',
-        saveSuccess: 'Target berhasil disimpan',
-        updateSuccess: 'Target berhasil diperbarui',
-        deleteSuccess: 'Target berhasil dihapus',
-        saveError: 'Gagal menyimpan target',
-        deleteError: 'Gagal menghapus target',
-        actions: 'Aksi',
+    },
+    filters: {
+      year: 'Tahun',
+      periodType: 'Tipe Periode',
+      quarter: 'Kuartal',
+      semester: 'Semester',
+      month: 'Bulan',
+      quarterly: 'Kuartalan',
+      semiannual: 'Semesteran',
+      quarters: {
+        q1: 'K1',
+        q2: 'K2',
+        q3: 'K3',
+        q4: 'K4',
       },
-      management: {
-        title: 'Manajemen Proyek & Target',
-        subtitle: 'Kelola departemen, proyek, dan target',
-        tabs: {
-          departments: 'Departemen',
-          projects: 'Proyek',
-          targets: 'Target',
-        },
-        errorLoad: 'Gagal memuat data',
+      semesters: {
+        s1: 'S1',
+        s2: 'S2',
       },
+    },
+    trends: {
+      revenueProfit: 'Tren Pendapatan & Laba Bersih',
+      assetLiability: 'Tren Aset & Liabilitas',
+      yearlyTrend: 'Perbandingan Tahunan (5 Tahun)',
+    },
+    targetManager: {
+      title: 'Target Keuangan',
+      targetCount: 'target',
+      department: 'Departemen',
+      project: 'Proyek',
+      setTarget: 'Tetapkan Target',
+      editTarget: 'Edit Target',
+      noTargets: 'Belum ada target',
+      noTargetsDesc: 'Tetapkan target keuangan pertama.',
+      entity: 'Entitas',
+      type: 'Tipe',
+      period: 'Periode',
+      kind: 'Jenis',
+      revenueTarget: 'Target Revenue',
+      opsCostTarget: 'Target Biaya Ops',
+      entityType: 'Tipe Entitas',
+      selectEntity: 'Pilih...',
+      periodKind: 'Jenis Periode',
+      monthly: 'Bulanan',
+      quarterly: 'Kuartalan',
+      annual: 'Tahunan',
+      update: 'Perbarui',
+      revenueError: 'Target revenue harus berupa angka non-negatif',
+      opsCostError: 'Target biaya operasional harus berupa angka non-negatif',
+      saveSuccess: 'Target berhasil disimpan',
+      updateSuccess: 'Target berhasil diperbarui',
+      deleteSuccess: 'Target berhasil dihapus',
+      saveError: 'Gagal menyimpan target',
+      deleteError: 'Gagal menghapus target',
+      actions: 'Aksi',
+    },
+    management: {
+      title: 'Manajemen Proyek & Target',
+      subtitle: 'Kelola departemen, proyek, dan target',
+      tabs: {
+        departments: 'Departemen',
+        projects: 'Proyek',
+        targets: 'Target',
+      },
+      errorLoad: 'Gagal memuat data',
     },
   },
   en: {
@@ -395,47 +443,71 @@ export const mafindaI18n: Record<Locale, MafindaCopy> = {
       alerts: {
         limitedData: 'Limited data — only {count} periods available. Showing existing data.',
       },
-      targetManager: {
-        title: 'Financial Targets',
-        targetCount: 'targets',
-        department: 'Department',
-        project: 'Project',
-        setTarget: 'Set Target',
-        editTarget: 'Edit Target',
-        noTargets: 'No targets yet',
-        noTargetsDesc: 'Set your first financial target.',
-        entity: 'Entity',
-        type: 'Type',
-        period: 'Period',
-        kind: 'Kind',
-        revenueTarget: 'Revenue Target',
-        opsCostTarget: 'Ops Cost Target',
-        entityType: 'Entity Type',
-        selectEntity: 'Select...',
-        periodKind: 'Period Kind',
-        monthly: 'Monthly',
-        quarterly: 'Quarterly',
-        annual: 'Annual',
-        update: 'Update',
-        revenueError: 'Revenue target must be a non-negative number',
-        opsCostError: 'Operational cost target must be a non-negative number',
-        saveSuccess: 'Target saved successfully',
-        updateSuccess: 'Target updated successfully',
-        deleteSuccess: 'Target deleted successfully',
-        saveError: 'Failed to save target',
-        deleteError: 'Failed to delete target',
-        actions: 'Actions',
+    },
+    filters: {
+      year: 'Year',
+      periodType: 'Period Type',
+      quarter: 'Quarter',
+      semester: 'Semester',
+      month: 'Month',
+      quarterly: 'Quarterly',
+      semiannual: 'Semiannual',
+      quarters: {
+        q1: 'Q1',
+        q2: 'Q2',
+        q3: 'Q3',
+        q4: 'Q4',
       },
-      management: {
-        title: 'Projects & Targets Management',
-        subtitle: 'Manage departments, projects, and targets',
-        tabs: {
-          departments: 'Departments',
-          projects: 'Projects',
-          targets: 'Targets',
-        },
-        errorLoad: 'Failed to load data',
+      semesters: {
+        s1: 'S1',
+        s2: 'S2',
       },
+    },
+    trends: {
+      revenueProfit: 'Revenue & Net Profit Trend',
+      assetLiability: 'Asset & Liability Trend',
+      yearlyTrend: '5-Year Annual Comparison',
+    },
+    targetManager: {
+      title: 'Financial Targets',
+      targetCount: 'targets',
+      department: 'Department',
+      project: 'Project',
+      setTarget: 'Set Target',
+      editTarget: 'Edit Target',
+      noTargets: 'No targets yet',
+      noTargetsDesc: 'Set your first financial target.',
+      entity: 'Entity',
+      type: 'Type',
+      period: 'Period',
+      kind: 'Kind',
+      revenueTarget: 'Revenue Target',
+      opsCostTarget: 'Ops Cost Target',
+      entityType: 'Entity Type',
+      selectEntity: 'Select...',
+      periodKind: 'Period Kind',
+      monthly: 'Monthly',
+      quarterly: 'Quarterly',
+      annual: 'Annual',
+      update: 'Update',
+      revenueError: 'Revenue target must be a non-negative number',
+      opsCostError: 'Operational cost target must be a non-negative number',
+      saveSuccess: 'Target saved successfully',
+      updateSuccess: 'Target updated successfully',
+      deleteSuccess: 'Target deleted successfully',
+      saveError: 'Failed to save target',
+      deleteError: 'Failed to delete target',
+      actions: 'Actions',
+    },
+    management: {
+      title: 'Projects & Targets Management',
+      subtitle: 'Manage departments, projects, and targets',
+      tabs: {
+        departments: 'Departments',
+        projects: 'Projects',
+        targets: 'Targets',
+      },
+      errorLoad: 'Failed to load data',
     },
   },
 };

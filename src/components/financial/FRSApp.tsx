@@ -319,7 +319,7 @@ const FRSAppWithProviders: React.FC = () => (
       <Toaster 
         position="bottom-right" 
         closeButton 
-        duration={8000} 
+        duration={5000} 
         richColors 
         expand={true}
         toastOptions={{

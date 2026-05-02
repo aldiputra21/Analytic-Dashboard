@@ -177,6 +177,8 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       EMAIL_SEND_FAILED: 'Gagal mengirim email',
       PERIOD_REQUIRED: 'Periode wajib diisi',
       MAINTENANCE_MODE: 'Sistem sedang dalam pemeliharaan. Silakan coba beberapa saat lagi.',
+      FILE_TOO_LARGE: 'Ukuran file terlalu besar',
+      INVALID_FILE_TYPE: 'Format file tidak didukung',
     },
   },
   en: {
@@ -286,6 +288,8 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       EMAIL_SEND_FAILED: 'Failed to send email',
       PERIOD_REQUIRED: 'Period is required',
       MAINTENANCE_MODE: 'System is currently under maintenance. Please try again later.',
+      FILE_TOO_LARGE: 'File size is too large',
+      INVALID_FILE_TYPE: 'Unsupported file format',
     },
   },
 };

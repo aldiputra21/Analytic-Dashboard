@@ -9,7 +9,7 @@ export interface NavigationCopy {
     crm: string;
     admin: string;
   };
-    menus: {
+  menus: {
     dashboard: string;
     benchmarking: string;
     trends: string;
@@ -72,7 +72,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       costCenters: 'Cost Center',
       departments: 'Departemen',
       projects: 'Proyek',
-      targets: 'Target',
+      targets: 'Proyeksi',
       users: 'Pengguna',
       roles: 'Peran',
       permissions: 'Izin',
@@ -121,7 +121,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       costCenters: 'Cost Center',
       departments: 'Departments',
       projects: 'Projects',
-      targets: 'Targets',
+      targets: 'Projections',
       users: 'Users',
       roles: 'Roles',
       permissions: 'Permissions',

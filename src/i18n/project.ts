@@ -49,6 +49,7 @@ export interface ProjectCopy {
     codeMin: string;
     nameMin: string;
     startDateRequired: string;
+    endDateRequired: string;
   };
 }
 
@@ -101,6 +102,7 @@ export const projectI18n: Record<Locale, ProjectCopy> = {
       codeMin: 'Kode minimal 2 karakter',
       nameMin: 'Nama minimal 3 karakter',
       startDateRequired: 'Tanggal mulai harus diisi',
+      endDateRequired: 'Tanggal selesai harus diisi',
     },
   },
   en: {
@@ -151,6 +153,7 @@ export const projectI18n: Record<Locale, ProjectCopy> = {
       codeMin: 'Code must be at least 2 characters',
       nameMin: 'Name must be at least 3 characters',
       startDateRequired: 'Start date is required',
+      endDateRequired: 'End date is required',
     },
   },
 };

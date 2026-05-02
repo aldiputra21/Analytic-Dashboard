@@ -1,52 +1,44 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../../services/financial/apiFetch';
 import { Corporate } from '../../types/financial/corporate';
 import { useAuth } from './useAuth';
+import { DASHBOARD_QUERY_KEYS } from '../../constants/queryKeys';
 
 export function useCorporates() {
-  const { user, scope, hasFullCorporateAccess, subsidiaryIds } = useAuth();
-  const [corporates, setCorporates] = useState<Corporate[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { user, scope, subsidiaryIds } = useAuth();
 
-  // Show selector ONLY if system scope
-  const showSelector = scope === 'system';
+  // Show selector if system scope OR user has access to multiple subsidiaries
+  const showSelector = scope === 'system' || (subsidiaryIds && subsidiaryIds.length > 1);
   const defaultCorporateId = user?.corporateId || (subsidiaryIds?.[0]);
 
-  const fetchCorporates = useCallback(async () => {
-    // Only fetch if we need to show the selector OR if we are system scope
-    if (!showSelector) return;
-
-    setIsLoading(true);
-    setError(null);
-    try {
+  const {
+    data: corporates = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: DASHBOARD_QUERY_KEYS.corporates,
+    queryFn: async () => {
       const res = await apiFetch('/api/frs/corporates/dropdown-items');
       if (!res.ok) throw new Error('Failed to fetch corporates');
       const data = await res.json();
-      setCorporates(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      console.error('[useCorporates] Error:', err);
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [showSelector, scope]);
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: showSelector, // Only fetch if we need to show the selector
+  });
 
-  useEffect(() => {
-    fetchCorporates();
-  }, [fetchCorporates]);
-
-  const options = useMemo(() => corporates.map(c => ({
+  const options = useMemo(() => (corporates as Corporate[]).map(c => ({
     value: c.id,
     label: c.name,
     sublabel: c.code
   })), [corporates]);
 
   return {
-    corporates,
+    corporates: corporates as Corporate[],
     isLoading,
-    error,
-    refetch: fetchCorporates,
+    error: error ? (error as Error).message : null,
+    refetch,
     options,
     showSelector,
     defaultCorporateId

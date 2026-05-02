@@ -24,6 +24,7 @@ import { departmentI18n } from '../../../i18n/department';
 import { commonsI18n } from '../../../i18n/commons';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { CorporateSelector } from '../shared/CorporateSelector';
 import { z } from 'zod';
 
 interface Department {
@@ -350,16 +351,14 @@ export const DepartmentManager: React.FC = () => {
       </div>
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
-        <div className="w-full md:w-64">
-          <SearchableSelect
-            options={corporateOptions}
-            value={filterCorporate}
-            onChange={(val) => setFilterCorporate(val)}
-            placeholder={t.modal.selectCorporate}
-            disabled={isCorpsLoading}
-          />
-        </div>
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4 mb-6">
+        <CorporateSelector
+          className="w-full md:w-72"
+          value={filterCorporate}
+          onChange={(val) => setFilterCorporate(val)}
+          placeholder={t.modal.selectCorporate}
+          disabled={isCorpsLoading}
+        />
 
         <div className="flex-1 min-w-[240px] relative group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
@@ -650,15 +649,14 @@ export const DepartmentManager: React.FC = () => {
 
                 {/* Row 1: Perusahaan + Kode */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField label={t.modal.corporate} required>
-                    <SearchableSelect
-                      options={corporateOptions}
-                      value={formData.corporateId}
-                      onChange={(val) => setFormData({ ...formData, corporateId: val })}
-                      disabled={!!editingDept || isViewOnly || isCorpsLoading}
-                      placeholder={t.modal.selectCorporate}
-                    />
-                  </FormField>
+                  <CorporateSelector
+                    label={t.modal.corporate}
+                    value={formData.corporateId}
+                    onChange={(val) => setFormData({ ...formData, corporateId: val })}
+                    disabled={!!editingDept || isViewOnly || isCorpsLoading}
+                    placeholder={t.modal.selectCorporate}
+                    required
+                  />
 
                   <FormField label={t.modal.code} required>
                     <div className="relative">

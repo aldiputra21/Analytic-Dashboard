@@ -18,6 +18,7 @@ import { useCostCenters } from '../../../hooks/financial/useCostCenters';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import { getErrorMessage } from '../../../utils/errorUtils';
+import { ErrorCode } from '../../../utils/errors';
 import { z } from 'zod';
 import {
   AlertDialog,
@@ -34,9 +35,11 @@ import { commonsI18n } from '../../../i18n/commons';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { CorporateSelector } from '../shared/CorporateSelector';
 import { DepartmentSelector } from '../shared/DepartmentSelector';
+import { useRealizationConfigs } from '../../../hooks/financial/useRealizationConfigs';
 
-const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// Fallback defaults if config fails to load
+const DEFAULT_ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
+const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 interface Attachment {
   id: string;
@@ -114,6 +117,12 @@ export const RealizationManager: React.FC = () => {
   });
 
   const { hasPermission, language, user, accessContext } = useAuth();
+
+  // Fetch dynamic upload configuration from dedicated module endpoint
+  const { data: realizationConfig } = useRealizationConfigs();
+  const allowedExtensions = realizationConfig?.allowedFormats || DEFAULT_ALLOWED_EXTENSIONS;
+  const maxFileSize = realizationConfig?.maxSize || DEFAULT_MAX_FILE_SIZE;
+
   const { departments, isLoading: isDeptsLoading, showSelector: showDeptSelector } = useDepartments();
   const { projects, isLoading: isProjsLoading } = useProjects({
     corporateId: formData.corporateId,
@@ -173,6 +182,7 @@ export const RealizationManager: React.FC = () => {
 
   const realizationSchema = z.object({
     entityType: z.enum(['department', 'project']),
+    corporateId: z.string().optional(),
     departmentId: z.string().optional(),
     projectId: z.string().optional(),
     transactionDate: z.string().min(1, t.validation.transactionDateRequired),
@@ -184,18 +194,29 @@ export const RealizationManager: React.FC = () => {
     }, { message: t.validation.amountMin }),
     notes: z.string().optional(),
   }).refine(data => {
-    if (data.category === 'cash-out' && !data.costCenterId) return false;
+    if (showCorpSelector && (!data.corporateId || data.corporateId === '')) return false;
     return true;
   }, {
-    message: language === 'id' ? 'Cost Center wajib dipilih untuk pengeluaran' : 'Cost Center is required for cash-out',
-    path: ['costCenterId']
+    message: t.validation.corporateRequired,
+    path: ['corporateId']
   }).refine(data => {
-    if (data.entityType === 'department' && !data.departmentId) return false;
-    if (data.entityType === 'project' && !data.projectId) return false;
+    if (showDeptSelector && (!data.departmentId || data.departmentId === '')) return false;
     return true;
   }, {
-    message: language === 'id' ? 'Departemen/Proyek wajib dipilih' : 'Department/Project is required',
-    path: ['departmentId'] // Use departmentId as base error path
+    message: t.validation.departmentRequired,
+    path: ['departmentId']
+  }).refine(data => {
+    if (data.entityType === 'project' && (!data.projectId || data.projectId === '')) return false;
+    return true;
+  }, {
+    message: t.validation.projectRequired,
+    path: ['projectId']
+  }).refine(data => {
+    if (data.category === 'cash-out' && (!data.costCenterId || data.costCenterId === '')) return false;
+    return true;
+  }, {
+    message: t.validation.costCenterRequired,
+    path: ['costCenterId']
   });
 
 
@@ -332,7 +353,14 @@ export const RealizationManager: React.FC = () => {
 
     const validation = realizationSchema.safeParse(formData);
     if (!validation.success) {
-      validation.error.issues.forEach(err => toast.error(err.message));
+      const uniqueErrors = new Set(validation.error.issues.map(err => err.message));
+      uniqueErrors.forEach(msg => toast.error(msg));
+      return;
+    }
+
+    // Attachment validation for new records
+    if (!editingId && pendingFiles.length === 0) {
+      toast.error(t.validation.attachmentRequired);
       return;
     }
 
@@ -419,12 +447,12 @@ export const RealizationManager: React.FC = () => {
     const validFiles: File[] = [];
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop()?.toLowerCase();
-      if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
-        toast.error(`${file.name}: ${t.alerts.invalidFileType}`);
+      if (!ext || !allowedExtensions.includes(ext)) {
+        toast.error(`${file.name}: ${getErrorMessage(ErrorCode.INVALID_FILE_TYPE, language)}`);
         continue;
       }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`${file.name}: ${t.alerts.fileTooLarge}`);
+      if (file.size > maxFileSize) {
+        toast.error(`${file.name}: ${getErrorMessage(ErrorCode.FILE_TOO_LARGE, language)}`);
         continue;
       }
       validFiles.push(file);
@@ -558,6 +586,13 @@ export const RealizationManager: React.FC = () => {
       </div>
 
       <div className="sticky top-[88px] z-10 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+        <CorporateSelector
+          className="w-full md:w-72"
+          value={filterCorporate}
+          onChange={(val) => setFilterCorporate(val)}
+          placeholder={t.filters.corporate || "Corporate"}
+        />
+
         <div className="flex-1 min-w-[240px] relative group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
           <input
@@ -566,7 +601,7 @@ export const RealizationManager: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold"
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-normal"
           />
         </div>
 
@@ -581,14 +616,6 @@ export const RealizationManager: React.FC = () => {
             <option value="project">{t.modal.project}</option>
           </select>
           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-        </div>
-
-        <div className="flex-1 min-w-[200px]">
-          <CorporateSelector
-            value={filterCorporate}
-            onChange={(val) => setFilterCorporate(val)}
-            placeholder={t.filters.corporate || "Corporate"}
-          />
         </div>
 
         <div className="relative">
@@ -723,7 +750,7 @@ export const RealizationManager: React.FC = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-sm font-medium">
+                      <td className="px-6 py-4 text-slate-600 text-sm font-bold">
                         {new Date(item.transactionDate).toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', {
                           year: 'numeric', month: 'short', day: 'numeric'
                         })}
@@ -870,7 +897,7 @@ export const RealizationManager: React.FC = () => {
                   : t.modal.viewTitle
             }
           >
-            <form onSubmit={handleSave} className="flex-1 overflow-hidden flex flex-col">
+            <form onSubmit={handleSave} noValidate className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Left Column: Basic Info */}
@@ -912,39 +939,36 @@ export const RealizationManager: React.FC = () => {
                     </div>
 
                     {/* Corporate Select */}
-                    <div className="space-y-1.5">
-                      <CorporateSelector
-                        value={formData.corporateId}
-                        onChange={(val) => setFormData(p => ({ ...p, corporateId: val, departmentId: '', projectId: '' }))}
-                        disabled={isReadOnly}
-                      />
-                    </div>
+                    <CorporateSelector
+                      label={t.modal.corporate}
+                      value={formData.corporateId}
+                      onChange={(val) => setFormData(p => ({ ...p, corporateId: val, departmentId: '', projectId: '' }))}
+                      placeholder={t.modal.selectCorporate}
+                      disabled={isReadOnly}
+                      required
+                    />
 
                     {/* Department Select */}
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        {t.modal.department} <span className="text-red-500">*</span>
-                      </label>
-                      <DepartmentSelector
-                        value={formData.departmentId}
-                        onChange={(val) => setFormData(p => ({ ...p, departmentId: val, projectId: '' }))}
-                        disabled={isReadOnly || isDeptsLoading}
-                        corporateId={formData.corporateId}
-                      />
-                    </div>
+                    <DepartmentSelector
+                      label={t.modal.department}
+                      value={formData.departmentId}
+                      onChange={(val) => setFormData(p => ({ ...p, departmentId: val, projectId: '' }))}
+                      disabled={isReadOnly || isDeptsLoading}
+                      corporateId={formData.corporateId}
+                      required
+                    />
 
                     {/* Project Select (Conditional) */}
                     {formData.entityType === 'project' && (
                       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                          {t.modal.project} <span className="text-red-500">*</span>
-                        </label>
                         <SearchableSelect
+                          label={t.modal.project}
                           options={projects.filter(p => p.departmentId === formData.departmentId).map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
                           value={formData.projectId}
                           onChange={(val) => setFormData(p => ({ ...p, projectId: val }))}
                           placeholder={t.modal.project}
                           disabled={isReadOnly || !formData.departmentId || isProjsLoading}
+                          required
                         />
                       </motion.div>
                     )}
@@ -1012,15 +1036,14 @@ export const RealizationManager: React.FC = () => {
                     {/* Cost Center Select (Conditional) */}
                     {formData.category === 'cash-out' && (
                       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                          Cost Center <span className="text-red-500">*</span>
-                        </label>
                         <SearchableSelect
+                          label={t.modal.costCenter}
                           options={costCenterOptions}
                           value={formData.costCenterId || ''}
                           onChange={(val) => setFormData(p => ({ ...p, costCenterId: val }))}
-                          placeholder="Select Cost Center"
+                          placeholder={t.modal.selectCostCenter}
                           disabled={isReadOnly || isCCLoading}
+                          required
                         />
                       </motion.div>
                     )}
@@ -1084,7 +1107,7 @@ export const RealizationManager: React.FC = () => {
                         <input
                           type="file"
                           multiple
-                          accept=".png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.pdf"
+                          accept={allowedExtensions.map(ext => `.${ext}`).join(',')}
                           className="absolute inset-0 opacity-0 cursor-pointer z-10"
                           id="file-upload"
                           onChange={(e) => handleFileUpload(e.target.files)}
@@ -1098,7 +1121,9 @@ export const RealizationManager: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-slate-700">{t.modal.dropOrClick}</p>
-                          <p className="text-[10px] text-slate-400 font-medium mt-1 whitespace-pre-line">{t.modal.fileHint}</p>
+                          <p className="text-[10px] text-slate-400 font-medium mt-1 whitespace-pre-line">
+                            {allowedExtensions.join(', ').toUpperCase()} • MAX {(maxFileSize / (1024 * 1024)).toFixed(0)}MB
+                          </p>
                         </div>
                       </div>
                     )}
@@ -1171,7 +1196,6 @@ export const RealizationManager: React.FC = () => {
                           ))}
 
                           {/* Empty State for Attachments */}
-                          {/* Empty State for Attachments */}
                           {((editingId && attachments.length === 0) || (!editingId && pendingFiles.length === 0)) && (
                             <div className="col-span-full text-center py-10 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/30">
                               <div className="flex flex-col items-center gap-3">
@@ -1180,7 +1204,6 @@ export const RealizationManager: React.FC = () => {
                                 </div>
                                 <div>
                                   <p className="text-sm font-black text-slate-400">{t.modal.noAttachments}</p>
-                                  <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">Ready for upload</p>
                                 </div>
                               </div>
                             </div>

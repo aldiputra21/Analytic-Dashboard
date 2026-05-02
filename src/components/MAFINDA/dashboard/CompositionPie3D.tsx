@@ -184,7 +184,7 @@ export const CompositionPie3D: React.FC<Props> = ({ assetData, equityData, isLoa
   }
 
   const assetSection: PieSection = {
-    title: t.assetComposition + ' (3D)',
+    title: t.assetComposition,
     subtitle: `${t.fields.totalAssets}: ${formatRupiah(assetData?.totalAssets ?? 0, false)} · ${assetData?.period ?? '—'}`,
     total: assetData?.totalAssets ?? 0,
     colors: ASSET_COLORS,
@@ -200,7 +200,7 @@ export const CompositionPie3D: React.FC<Props> = ({ assetData, equityData, isLoa
   const grandTotal = equityTotal + liabTotal;
 
   const equitySection: PieSection = {
-    title: t.equityLiabilityComposition + ' (3D)',
+    title: t.equityLiabilityComposition,
     subtitle: `${t.totalLiabilities} + ${t.totalEquity}: ${formatRupiah(grandTotal, false)} · ${equityData?.period ?? '—'}`,
     total: grandTotal,
     colors: EQUITY_COLORS,

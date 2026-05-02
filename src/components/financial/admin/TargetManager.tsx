@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Search, Edit2, Trash2, Eye,
   ChevronLeft, ChevronRight, Target, X, AlertCircle, CheckCircle2,
@@ -133,7 +134,8 @@ const FormField: React.FC<{
 // --- Main Component ---
 
 export const TargetManager: React.FC = () => {
-  const { hasPermission, language } = useAuth();
+  const { user, hasPermission, language, scope, subsidiaryIds } = useAuth();
+  const queryClient = useQueryClient();
   const { options: departmentOptions, isLoading: isDeptsLoading, departments: allDepartments } = useDepartments();
   const { options: projectOptions, isLoading: isProjsLoading, projects } = useProjects();
   const { options: costCenterOptions, isLoading: isCCLoading } = useCostCenters();
@@ -142,18 +144,20 @@ export const TargetManager: React.FC = () => {
 
   // Validation Schema
   const targetSchema = z.object({
-    departmentId: z.string().min(1, language === 'id' ? 'Departemen wajib dipilih' : 'Department is required'),
+    corporateId: z.string().optional(),
+    departmentId: z.string().min(1, t.validation.departmentRequired),
     projectId: z.string().nullable(),
     fiscalYear: z.number().min(2000).max(2100),
+    relatedToProject: z.boolean(),
     revenueDetails: z.array(z.object({
       month: z.number().min(1).max(12),
-      amount: z.string().refine(v => !isNaN(parseFloat(v)), language === 'id' ? 'Nilai tidak valid' : 'Invalid value'),
+      amount: z.string().refine(v => !isNaN(parseFloat(v)), t.validation.invalidValue),
       notes: z.string().optional()
     })),
     costDetails: z.array(z.object({
       month: z.number().min(1).max(12),
-      costCenter: z.string().min(1),
-      amount: z.string().refine(v => !isNaN(parseFloat(v)), language === 'id' ? 'Nilai tidak valid' : 'Invalid value'),
+      costCenter: z.string().min(1, t.validation.costCenterRequired),
+      amount: z.string().refine(v => !isNaN(parseFloat(v)), t.validation.invalidValue),
       notes: z.string().optional()
     })),
     notes: z.string().optional()
@@ -261,10 +265,10 @@ export const TargetManager: React.FC = () => {
 
           data.months.forEach((m: any) => {
             if (parseFloat(m.revenue) !== 0) {
-              revs.push({ month: m.fiscalMonth, amount: m.revenue, notes: m.notes });
+              revs.push({ month: m.fiscalMonth, amount: m.revenue.toString(), notes: m.notes });
             }
             if (parseFloat(m.cost) !== 0) {
-              costs.push({ month: m.fiscalMonth, costCenter: m.costCenter || 'operational', amount: m.cost, notes: m.notes });
+              costs.push({ month: m.fiscalMonth, costCenter: m.costCenter || 'operational', amount: m.cost.toString(), notes: m.notes });
             }
           });
 
@@ -305,7 +309,7 @@ export const TargetManager: React.FC = () => {
     } else {
       setEditingSummary(null);
       setFormData({
-        corporateId: '',
+        corporateId: allDepartments[0]?.corporateId || '',
         departmentId: allDepartments[0]?.id || '',
         projectId: null,
         fiscalYear: new Date().getFullYear(),
@@ -327,23 +331,56 @@ export const TargetManager: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isViewOnly) return;
+
+    const isMultiCorporate = subsidiaryIds.length > 1 || scope === 'system';
+    const isMultiDepartment = scope === 'system' || scope === 'corporate';
+
+    // Manual validation for mandatory fields based on user access
+    if (isMultiCorporate && !formData.corporateId) {
+      toast.error(t.validation.corporateRequired);
+      return;
+    }
+
+    if (isMultiDepartment && !formData.departmentId) {
+      toast.error(t.validation.departmentRequired);
+      return;
+    }
+
+    if (formData.relatedToProject && !formData.projectId) {
+      toast.error(t.validation.projectRequired);
+      return;
+    }
+
     const validation = targetSchema.safeParse(formData);
     if (!validation.success) {
       validation.error.issues.forEach(err => toast.error(err.message));
       return;
     }
 
+    // Nominal validation
+    const totalRevenue = formData.revenueDetails.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0);
+    const totalCost = formData.costDetails.reduce((acc, c) => acc + (parseFloat(c.amount) || 0), 0);
+
+    if (formData.relatedToProject && totalRevenue <= 0) {
+      toast.error(t.validation.revenueZero);
+      return;
+    }
+
+    if (totalCost <= 0) {
+      toast.error(t.validation.costZero);
+      return;
+    }
+
     // Deduplication checks
     const revMonths = formData.revenueDetails.map(r => r.month);
     if (new Set(revMonths).size !== revMonths.length) {
-      toast.error(t.alerts.duplicateMonth + ' (Revenue)');
+      toast.error(t.alerts.duplicateMonthRevenue);
       return;
     }
 
     const costKeys = formData.costDetails.map(c => `${c.month}-${c.costCenter}`);
     if (new Set(costKeys).size !== costKeys.length) {
-      toast.error(t.alerts.duplicateMonth + ' (Cost)');
+      toast.error(t.alerts.duplicateMonthCost);
       return;
     }
 
@@ -360,6 +397,7 @@ export const TargetManager: React.FC = () => {
 
       if (res.ok) {
         toast.success(common.successSave);
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         setIsModalOpen(false);
         fetchSummaries(true);
       } else {
@@ -385,6 +423,7 @@ export const TargetManager: React.FC = () => {
 
       if (res.ok) {
         toast.success(common.successDelete);
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         setTargetToDelete(null);
         fetchSummaries(true);
       } else {
@@ -435,18 +474,17 @@ export const TargetManager: React.FC = () => {
 
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
-        <div className="w-full md:w-52">
-          <CorporateSelector
-            value={filterCorporateId}
-            onChange={(val) => {
-              setFilterCorporateId(val);
-              setFilterDepartmentId('');
-            }}
-            placeholder={t.filter.allCorporates}
-          />
-        </div>
+        <CorporateSelector
+          className="w-full md:w-72"
+          value={filterCorporateId}
+          onChange={(val) => {
+            setFilterCorporateId(val);
+            setFilterDepartmentId('');
+          }}
+          placeholder={t.filter.allCorporates}
+        />
 
-        <div className="w-full md:w-52 relative group">
+        <div className="w-full md:w-72 relative group">
           <SearchableSelect
             options={departmentOptions.filter(opt => !filterCorporateId || opt.corporateId === filterCorporateId)}
             value={filterDepartmentId}
@@ -754,17 +792,18 @@ export const TargetManager: React.FC = () => {
 
                 <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-12 gap-6 items-start">
                   <div className="sm:col-span-6">
-                    <FormField label={t.fields.corporate} required>
+                    <FormField label={t.fields.corporate} required={subsidiaryIds.length > 1 || scope === 'system'}>
                       <CorporateSelector
                         value={formData.corporateId}
                         onChange={(val) => setFormData({ ...formData, corporateId: val, departmentId: '', projectId: null })}
                         disabled={!!editingSummary || isViewOnly}
+                        placeholder={t.fields.corporate}
                       />
                     </FormField>
                   </div>
 
                   <div className="sm:col-span-6">
-                    <FormField label={t.fields.department} required>
+                    <FormField label={t.fields.department} required={scope === 'system' || scope === 'corporate'}>
                       <SearchableSelect
                         options={departmentOptions.filter(opt => !formData.corporateId || opt.corporateId === formData.corporateId)}
                         value={formData.departmentId}
@@ -842,122 +881,124 @@ export const TargetManager: React.FC = () => {
               <div className="px-6 space-y-8">
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
                   {/* Revenue Table */}
-                  <div className="xl:col-span-5 space-y-4">
-                    <SectionHeader title={t.fields.revenueTarget} icon={<TrendingUp size={14} className="text-emerald-600" />} color="border-emerald-100">
-                      {!isViewOnly && (
-                        <button
-                          type="button"
-                          onClick={() => setFormData({
-                            ...formData,
-                            revenueDetails: [...formData.revenueDetails, { month: formData.revenueDetails.length + 1, amount: '0' }]
-                          })}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-lg hover:bg-emerald-100 transition-all border border-emerald-100 tracking-wider cursor-pointer"
-                        >
-                          <Plus size={12} strokeWidth={3} />
-                          {t.modal.addRow}
-                        </button>
-                      )}
-                    </SectionHeader>
+                  {formData.relatedToProject && (
+                    <div className="xl:col-span-5 space-y-4">
+                      <SectionHeader title={t.fields.revenueTarget} icon={<TrendingUp size={14} className="text-emerald-600" />} color="border-emerald-100">
+                        {!isViewOnly && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({
+                              ...formData,
+                              revenueDetails: [...formData.revenueDetails, { month: formData.revenueDetails.length + 1, amount: '0' }]
+                            })}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-lg hover:bg-emerald-100 transition-all border border-emerald-100 tracking-wider cursor-pointer"
+                          >
+                            <Plus size={12} strokeWidth={3} />
+                            {t.modal.addRow}
+                          </button>
+                        )}
+                      </SectionHeader>
 
-                    <div className="bg-white border border-slate-100 rounded-lg overflow-hidden shadow-sm">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="bg-slate-50/50 border-b border-slate-50">
-                            <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">{t.fields.month}</th>
-                            <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.revenueTarget}</th>
-                            {!isViewOnly && <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-12">Aksi</th>}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {formData.revenueDetails.map((r, idx) => (
-                            <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
-                              <td className="px-1.5 py-1">
-                                <div className="relative">
-                                  <select
-                                    value={r.month}
-                                    disabled={isViewOnly}
-                                    onChange={(e) => {
-                                      const newRevs = [...formData.revenueDetails];
-                                      newRevs[idx].month = parseInt(e.target.value);
-                                      setFormData({ ...formData, revenueDetails: newRevs });
-                                    }}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
-                                  >
-                                    {common.months.map((name, mIdx) => (
-                                      <option key={mIdx + 1} value={mIdx + 1}>{name}</option>
-                                    ))}
-                                  </select>
-                                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
-                                </div>
-                              </td>
-                              <td className="px-1.5 py-1">
-                                <div className="relative group/input flex items-center">
-                                  <input
-                                    type="text"
-                                    value={r.amount === '0' ? '' : (parseInt(r.amount) || 0).toLocaleString('id-ID')}
-                                    disabled={isViewOnly}
-                                    onChange={(e) => {
-                                      const rawValue = e.target.value.replace(/\D/g, '');
-                                      const newRevs = [...formData.revenueDetails];
-                                      newRevs[idx].amount = rawValue || '0';
-                                      setFormData({ ...formData, revenueDetails: newRevs });
-                                    }}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
-                                    placeholder="0"
-                                  />
-                                  {!isViewOnly && (
-                                    <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const val = (parseInt(r.amount) || 0) + 1000000;
-                                          const newRevs = [...formData.revenueDetails];
-                                          newRevs[idx].amount = val.toString();
-                                          setFormData({ ...formData, revenueDetails: newRevs });
-                                        }}
-                                        className="p-0.5 hover:text-indigo-600 transition-colors"
-                                      >
-                                        <ChevronUp size={10} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const val = Math.max(0, (parseInt(r.amount) || 0) - 1000000);
-                                          const newRevs = [...formData.revenueDetails];
-                                          newRevs[idx].amount = val.toString();
-                                          setFormData({ ...formData, revenueDetails: newRevs });
-                                        }}
-                                        className="p-0.5 hover:text-indigo-600 transition-colors"
-                                      >
-                                        <ChevronDown size={10} />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              {!isViewOnly && (
-                                <td className="px-1 py-1 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newRevs = formData.revenueDetails.filter((_, i) => i !== idx);
-                                      setFormData({ ...formData, revenueDetails: newRevs });
-                                    }}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                  >
-                                    <Trash size={12} />
-                                  </button>
-                                </td>
-                              )}
+                      <div className="bg-white border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-50">
+                              <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest w-32">{t.fields.month}</th>
+                              <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">{t.fields.revenueTarget}</th>
+                              {!isViewOnly && <th className="px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center w-12">Aksi</th>}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {formData.revenueDetails.map((r, idx) => (
+                              <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
+                                <td className="px-1.5 py-1">
+                                  <div className="relative">
+                                    <select
+                                      value={r.month}
+                                      disabled={isViewOnly}
+                                      onChange={(e) => {
+                                        const newRevs = [...formData.revenueDetails];
+                                        newRevs[idx].month = parseInt(e.target.value);
+                                        setFormData({ ...formData, revenueDetails: newRevs });
+                                      }}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:ring-0 cursor-pointer pl-2 pr-7 py-1 appearance-none"
+                                    >
+                                      {common.months.map((name, mIdx) => (
+                                        <option key={mIdx + 1} value={mIdx + 1}>{name}</option>
+                                      ))}
+                                    </select>
+                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                                  </div>
+                                </td>
+                                <td className="px-1.5 py-1">
+                                  <div className="relative group/input flex items-center">
+                                    <input
+                                      type="text"
+                                      value={r.amount === '0' ? '' : (parseInt(r.amount) || 0).toLocaleString('id-ID')}
+                                      disabled={isViewOnly}
+                                      onChange={(e) => {
+                                        const rawValue = e.target.value.replace(/\D/g, '');
+                                        const newRevs = [...formData.revenueDetails];
+                                        newRevs[idx].amount = rawValue || '0';
+                                        setFormData({ ...formData, revenueDetails: newRevs });
+                                      }}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
+                                      placeholder="0"
+                                    />
+                                    {!isViewOnly && (
+                                      <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const val = (parseInt(r.amount) || 0) + 1000000;
+                                            const newRevs = [...formData.revenueDetails];
+                                            newRevs[idx].amount = val.toString();
+                                            setFormData({ ...formData, revenueDetails: newRevs });
+                                          }}
+                                          className="p-0.5 hover:text-indigo-600 transition-colors"
+                                        >
+                                          <ChevronUp size={10} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const val = Math.max(0, (parseInt(r.amount) || 0) - 1000000);
+                                            const newRevs = [...formData.revenueDetails];
+                                            newRevs[idx].amount = val.toString();
+                                            setFormData({ ...formData, revenueDetails: newRevs });
+                                          }}
+                                          className="p-0.5 hover:text-indigo-600 transition-colors"
+                                        >
+                                          <ChevronDown size={10} />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                {!isViewOnly && (
+                                  <td className="px-1 py-1 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newRevs = formData.revenueDetails.filter((_, i) => i !== idx);
+                                        setFormData({ ...formData, revenueDetails: newRevs });
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                    >
+                                      <Trash size={12} />
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Cost Table */}
-                  <div className="xl:col-span-7 space-y-4">
+                  <div className={cn("space-y-4", formData.relatedToProject ? "xl:col-span-7" : "xl:col-span-12")}>
                     <SectionHeader title={t.fields.costTarget} icon={<TrendingDown size={14} className="text-red-600" />} color="border-red-100">
                       {!isViewOnly && (
                         <button
@@ -1106,13 +1147,17 @@ export const TargetManager: React.FC = () => {
               {/* Action Buttons & Totals Fixed Footer */}
               <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4 px-5 py-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.totalRevenue}</p>
-                    <p className="text-sm font-black text-emerald-600">
-                      {formatRupiah(formData.revenueDetails.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0))}
-                    </p>
-                  </div>
-                  <div className="w-px h-8 bg-slate-100" />
+                  {formData.relatedToProject && (
+                    <>
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.totalRevenue}</p>
+                        <p className="text-sm font-black text-emerald-600">
+                          {formatRupiah(formData.revenueDetails.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0))}
+                        </p>
+                      </div>
+                      <div className="w-px h-8 bg-slate-100" />
+                    </>
+                  )}
                   <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.fields.totalCost}</p>
                     <p className="text-sm font-black text-red-500">

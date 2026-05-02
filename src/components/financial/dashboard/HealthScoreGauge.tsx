@@ -57,7 +57,7 @@ export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = React.memo(({
   const label = React.useMemo(() => getHealthScoreLabel(score), [score]);
   const needleAngle = React.useMemo(() => scoreToAngle(score), [score]);
 
-  const heights: Record<string, string> = { sm: 'h-[120px]', md: 'h-[160px]', lg: 'h-[200px]' };
+  const heights: Record<string, number> = { sm: 120, md: 160, lg: 200 };
   const textSizes: Record<string, string> = { sm: 'text-2xl', md: 'text-3xl', lg: 'text-4xl' };
   const innerR: Record<string, number> = { sm: 50, md: 65, lg: 85 };
   const outerR: Record<string, number> = { sm: 70, md: 90, lg: 115 };
@@ -72,8 +72,8 @@ export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = React.memo(({
       </div>
 
       {/* Gauge */}
-      <div className={cn('relative w-full', heights[size])}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="relative w-full min-w-[150px] overflow-hidden" style={{ height: heights[size] }}>
+        <ResponsiveContainer width="100%" height="100%" debounce={100}>
           <PieChart>
             <Pie
               data={GAUGE_DATA}

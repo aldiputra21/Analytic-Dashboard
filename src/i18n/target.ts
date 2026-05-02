@@ -55,15 +55,25 @@ export interface TargetCopy {
   alerts: {
     deleteTitle: string;
     deleteDesc: string;
-    duplicateMonth: string;
+    duplicateMonthRevenue: string;
+    duplicateMonthCost: string;
+  };
+  validation: {
+    corporateRequired: string;
+    departmentRequired: string;
+    projectRequired: string;
+    revenueZero: string;
+    costZero: string;
+    costCenterRequired: string;
+    invalidValue: string;
   };
 }
 
 export const targetI18n: Record<Locale, TargetCopy> = {
   id: {
-    title: 'Target Finansial',
-    subtitle: 'Kelola target pendapatan dan biaya operasional per periode.',
-    addNew: 'Buat Target Baru',
+    title: 'Proyeksi Keuangan',
+    subtitle: 'Kelola proyeksi pendapatan dan biaya operasional per periode.',
+    addNew: 'Buat Proyeksi Baru',
     searchPlaceholder: 'Cari departemen atau proyek...',
     tableHead: {
       entity: 'Entitas',
@@ -86,10 +96,10 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       corporate: 'Perusahaan',
       department: 'Departemen',
       project: 'Proyek',
-      year: 'Tahun Target',
+      year: 'Tahun Proyeksi',
       relatedToProject: 'Terkait Proyek?',
-      revenueTarget: 'Target Pendapatan',
-      costTarget: 'Target Biaya',
+      revenueTarget: 'Proyeksi Pendapatan',
+      costTarget: 'Proyeksi Biaya',
       month: 'Bulan',
       amount: 'Nilai (Rp)',
       costCenter: 'Cost Center',
@@ -98,29 +108,39 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       totalCost: 'Total Tahunan Biaya',
     },
     modal: {
-      createTitle: 'Input Target Tahunan',
-      editTitle: 'Edit Data Target',
-      viewTitle: 'Detail Target Finansial',
-      contextTitle: 'Konteks Target',
+      createTitle: 'Input Proyeksi Tahunan',
+      editTitle: 'Edit Data Proyeksi',
+      viewTitle: 'Detail Proyeksi Keuangan',
+      contextTitle: 'Konteks Proyeksi',
       contextDesc: 'TENTUKAN DEPARTEMEN, TAHUN, DAN ASOSIASI PROYEK OPSIONAL.',
       selectEntity: 'Pilih entitas...',
       revenueTitle: 'Pendapatan',
       costTitle: 'Biaya',
       addRow: 'Tambah Baris',
       notes: 'Catatan (Opsional)',
-      notesPlaceholder: 'Catatan tambahan untuk target tahunan ini...',
+      notesPlaceholder: 'Catatan tambahan untuk proyeksi tahunan ini...',
       total: 'Total Keseluruhan',
     },
     alerts: {
-      deleteTitle: 'Hapus data target?',
-      deleteDesc: 'Tindakan ini akan menghapus seluruh rincian target pendapatan dan biaya untuk entitas ini di tahun fiskal yang dipilih.',
-      duplicateMonth: 'Terdapat duplikasi bulan pada rincian target',
+      deleteTitle: 'Hapus data proyeksi?',
+      deleteDesc: 'Tindakan ini akan menghapus seluruh rincian proyeksi pendapatan dan biaya untuk entitas ini di tahun fiskal yang dipilih.',
+      duplicateMonthRevenue: 'Terdapat duplikasi bulan pada rincian pendapatan',
+      duplicateMonthCost: 'Terdapat duplikasi bulan pada rincian biaya',
+    },
+    validation: {
+      corporateRequired: 'Perusahaan wajib dipilih',
+      departmentRequired: 'Departemen wajib dipilih',
+      projectRequired: 'Proyek wajib dipilih',
+      revenueZero: 'Total pendapatan tidak boleh nol',
+      costZero: 'Total biaya tidak boleh nol',
+      costCenterRequired: 'Cost Center wajib dipilih',
+      invalidValue: 'Nilai tidak valid',
     },
   },
   en: {
-    title: 'Financial Targets',
-    subtitle: 'Manage revenue and operational cost targets per period.',
-    addNew: 'Create New Target',
+    title: 'Financial Projections',
+    subtitle: 'Manage revenue and operational cost projections per period.',
+    addNew: 'Create New Projection',
     searchPlaceholder: 'Search department or project...',
     tableHead: {
       entity: 'Entity',
@@ -145,8 +165,8 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       project: 'Project',
       year: 'Fiscal Year',
       relatedToProject: 'Related to Project?',
-      revenueTarget: 'Revenue Target',
-      costTarget: 'Cost Target',
+      revenueTarget: 'Revenue Projection',
+      costTarget: 'Cost Projection',
       month: 'Month',
       amount: 'Amount (IDR)',
       costCenter: 'Cost Center',
@@ -155,23 +175,33 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       totalCost: 'Annual Cost Total',
     },
     modal: {
-      createTitle: 'Create New Target',
-      editTitle: 'Edit Target Data',
-      viewTitle: 'Financial Target Details',
-      contextTitle: 'Target Context',
+      createTitle: 'Create New Projection',
+      editTitle: 'Edit Projection Data',
+      viewTitle: 'Financial Projection Details',
+      contextTitle: 'Projection Context',
       contextDesc: 'Define the department, project (optional), and fiscal year for this target.',
       selectEntity: 'Select entity...',
-      revenueTitle: 'Revenue Target',
-      costTitle: 'Cost Target (Expenses)',
+      revenueTitle: 'Revenue Projection',
+      costTitle: 'Cost Projection (Expenses)',
       addRow: 'Add Row',
       notes: 'Notes',
       notesPlaceholder: 'Add optional notes here...',
       total: 'Grand Total',
     },
     alerts: {
-      deleteTitle: 'Delete target data?',
-      deleteDesc: 'This action will delete all revenue and cost target details for this entity in the selected fiscal year.',
-      duplicateMonth: 'Duplicate month found in target details',
+      deleteTitle: 'Delete projection data?',
+      deleteDesc: 'This action will delete all revenue and cost projection details for this entity in the selected fiscal year.',
+      duplicateMonthRevenue: 'Duplicate month found in revenue details',
+      duplicateMonthCost: 'Duplicate month found in cost details',
+    },
+    validation: {
+      corporateRequired: 'Corporate is required',
+      departmentRequired: 'Department is required',
+      projectRequired: 'Project is required',
+      revenueZero: 'Total revenue cannot be zero',
+      costZero: 'Total cost cannot be zero',
+      costCenterRequired: 'Cost Center is required',
+      invalidValue: 'Invalid value',
     },
   },
 };

@@ -155,6 +155,8 @@ export const incomeStatements = cfdSchema.table('income_statements', {
   operatingExpenses: numeric('operating_expenses', { precision: 18, scale: 2 }).notNull().default('0'),
   interestExpense: numeric('interest_expense', { precision: 18, scale: 2 }).notNull().default('0'),
   taxExpense: numeric('tax_expense', { precision: 18, scale: 2 }).notNull().default('0'),
+  otherIncome: numeric('other_income', { precision: 18, scale: 2 }).notNull().default('0'),
+  otherExpense: numeric('other_expense', { precision: 18, scale: 2 }).notNull().default('0'),
   notes: text(),
   createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -230,6 +232,7 @@ export const bankLoans = cfdSchema.table('bank_loans', {
   interestRate: numeric('interest_rate', { precision: 5, scale: 4 }).notNull(),
   status: varchar({ length: 20 }).notNull().default('ongoing'),
   alertMinDays: integer('alert_min_days').notNull().default(5),
+  creditType: varchar('credit_type', { length: 20 }).notNull().default('KMK'),
   createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid('updated_by'),
@@ -238,6 +241,7 @@ export const bankLoans = cfdSchema.table('bank_loans', {
   check('chk_loan_interest_type', sql`${table.interestType} IN ('flat', 'effective')`),
   check('chk_loan_status', sql`${table.status} IN ('ongoing', 'paid')`),
   check('chk_loan_tenor_positive', sql`${table.tenor} > 0`),
+  check('chk_loan_credit_type', sql`${table.creditType} IN ('KMK', 'KMI')`),
 ]);
 
 // --- 9. bank_loan_installments ----------------------------------------------

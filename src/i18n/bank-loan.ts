@@ -56,6 +56,9 @@ export interface BankLoanCopy {
     installmentAmount: string;
     selectBank: string;
     selectCorporate: string;
+    creditType: string;
+    kmk: string;
+    kmi: string;
   };
   installment: {
     sectionTitle: string;
@@ -95,6 +98,7 @@ export interface BankLoanCopy {
     startDateRequired: string;
     tenorMin: string;
     interestRateInvalid: string;
+    nominalZero: string;
   };
 }
 
@@ -110,7 +114,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       amount: 'Jumlah Pinjaman',
       tenor: 'Tenor',
       interestType: 'Jenis Bunga',
-      interestRate: 'Suku Bunga',
+      interestRate: 'Suku Bunga (% p.a.)',
       startDate: 'Tanggal Mulai',
       status: 'Status',
       progress: 'Progress Cicilan',
@@ -147,13 +151,16 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       tenor: 'Tenor',
       tenorUnit: 'bulan',
       interestType: 'Jenis Bunga',
-      interestRate: 'Suku Bunga (%)',
+      interestRate: 'Suku Bunga (% p.a.)',
       interestRateUnit: '% per tahun',
       alertMinDays: 'Notifikasi Sebelum Jatuh Tempo',
       alertMinDaysHint: 'Hari sebelum jatuh tempo untuk mengirim notifikasi',
       installmentAmount: 'Jumlah Cicilan per Bulan',
       selectBank: 'Pilih Bank',
       selectCorporate: 'Pilih Perusahaan',
+      creditType: 'Jenis Kredit',
+      kmk: 'Kredit Modal Kerja (KMK)',
+      kmi: 'Kredit Melingkar Investasi (KMI)',
     },
     installment: {
       sectionTitle: 'Jadwal Cicilan',
@@ -193,6 +200,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       startDateRequired: 'Tanggal mulai wajib diisi',
       tenorMin: 'Tenor minimal 1 bulan',
       interestRateInvalid: 'Suku bunga tidak valid',
+      nominalZero: 'Jumlah pinjaman tidak boleh nol',
     },
   },
   en: {
@@ -206,7 +214,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       amount: 'Loan Amount',
       tenor: 'Tenor',
       interestType: 'Interest Type',
-      interestRate: 'Interest Rate',
+      interestRate: 'Interest Rate (% p.a.)',
       startDate: 'Start Date',
       status: 'Status',
       progress: 'Installment Progress',
@@ -243,13 +251,16 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       tenor: 'Tenor',
       tenorUnit: 'months',
       interestType: 'Interest Type',
-      interestRate: 'Interest Rate (%)',
+      interestRate: 'Interest Rate (% p.a.)',
       interestRateUnit: '% per year',
       alertMinDays: 'Notify Before Due Date',
       alertMinDaysHint: 'Days before due date to send notification',
       installmentAmount: 'Monthly Installment Amount',
       selectBank: 'Select Bank',
       selectCorporate: 'Select Corporate',
+      creditType: 'Credit Type',
+      kmk: 'Working Capital Loan (KMK)',
+      kmi: 'Investment Revolving Credit (KMI)',
     },
     installment: {
       sectionTitle: 'Installment Schedule',
@@ -289,6 +300,7 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       startDateRequired: 'Start date is required',
       tenorMin: 'Tenor must be at least 1 month',
       interestRateInvalid: 'Invalid interest rate',
+      nominalZero: 'Loan amount cannot be zero',
     },
   },
 };

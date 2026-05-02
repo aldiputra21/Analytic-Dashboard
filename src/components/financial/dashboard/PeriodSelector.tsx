@@ -42,15 +42,15 @@ export const PeriodSelector: React.FC<PeriodSelectorProps> = ({ value, onChange,
 };
 
 /**
- * Returns the start date for a given period range from today.
+ * Returns the start date for a given period range relative to a reference date.
  */
-export function getPeriodStartDate(range: PeriodRange): Date {
-  const now = new Date();
+export function getPeriodStartDate(range: PeriodRange, referenceDate: Date = new Date()): Date {
+  const base = new Date(referenceDate);
   switch (range) {
-    case '3m': return new Date(now.getFullYear(), now.getMonth() - 3, 1);
-    case '6m': return new Date(now.getFullYear(), now.getMonth() - 6, 1);
-    case '1y': return new Date(now.getFullYear() - 1, now.getMonth(), 1);
-    case '3y': return new Date(now.getFullYear() - 3, now.getMonth(), 1);
-    case '5y': return new Date(now.getFullYear() - 5, now.getMonth(), 1);
+    case '3m': return new Date(base.getFullYear(), base.getMonth() - 3, 1);
+    case '6m': return new Date(base.getFullYear(), base.getMonth() - 6, 1);
+    case '1y': return new Date(base.getFullYear() - 1, base.getMonth(), 1);
+    case '3y': return new Date(base.getFullYear() - 3, base.getMonth(), 1);
+    case '5y': return new Date(base.getFullYear() - 5, base.getMonth(), 1);
   }
 }

@@ -90,6 +90,16 @@ export function createCashRealizationsRouter(): Router {
   const router = Router();
 
   /**
+   * GET /api/cash-realizations/configs
+   * Returns configurations relevant to realizations (e.g. max file size, allowed formats).
+   * This avoids needing broad system-configs read permission.
+   */
+  router.get('/configs', requirePermission('cfd.realizations.read'), asyncHandler(async (_req: Request, res: Response) => {
+    const config = await getAttachmentConfig();
+    res.json(config);
+  }));
+
+  /**
    * GET /api/cash-realizations
    * List realizations with filters: entityType, category, dateFrom, dateTo, search, pagination.
    * Also includes attachment count per record.

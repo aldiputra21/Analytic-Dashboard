@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Search, Filter, Eye, Edit2, Trash2,
   ChevronLeft, ChevronRight, Scale, X, AlertCircle, CheckCircle,
@@ -141,7 +142,7 @@ const FormField: React.FC<{
           placeholder={placeholder}
           readOnly={readOnly}
           className={cn(
-            "w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30 font-bold",
+            "w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30",
             readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
           )}
         />
@@ -183,12 +184,13 @@ const SummaryCard: React.FC<{ label: string; value: number; color: 'indigo' | 'e
 
 export const BalanceSheetManager: React.FC = () => {
   const { user, hasPermission, language, hasFullCorporateAccess, subsidiaryIds } = useAuth();
+  const queryClient = useQueryClient();
   const t = balanceSheetI18n[language];
   const common = commonsI18n[language];
 
   // Validation Schema
-  const balanceSheetSchema = z.object({
-    corporateId: z.string().min(1, t.validation.corporateRequired),
+  const balanceSheetSchema = (hasFullAccess: boolean) => z.object({
+    corporateId: z.string().optional(),
     period: z.string().regex(/^\d{4}-\d{2}$/, t.validation.periodInvalid),
     cashAndBank: z.number().min(0, t.validation.amountMin),
     accountsReceivable: z.number().min(0, t.validation.amountMin),
@@ -210,16 +212,41 @@ export const BalanceSheetManager: React.FC = () => {
     retainedEarnings: z.number().min(0, t.validation.amountMin),
     dividends: z.number().min(0, t.validation.amountMin),
     notes: z.string().optional()
-  }).refine((data) => {
-    const totalAssets = (data.cashAndBank || 0) + (data.accountsReceivable || 0) + (data.workInProgress || 0) + (data.inventory || 0) + (data.prepaidExpenses || 0) + (data.land || 0) + (data.building || 0) + (data.equipment || 0) + (data.otherFixedAssets || 0);
-    const totalLiabilities = (data.accountsPayable || 0) + (data.bankLoanCurrent || 0) + (data.otherCurrentLiabilities || 0) + (data.bankLoanLongTerm || 0) + (data.otherLongTermLiabilities || 0) + (data.shareholderLoan || 0);
-    const totalEquity = (data.capital || 0) + (data.earningsAfterTax || 0) + (data.retainedEarnings || 0) - (data.dividends || 0);
-    const diff = Math.abs(totalAssets - (totalLiabilities + totalEquity));
-    return diff < 1; // Tolerance for floating point
-  }, {
-    message: t.validation.unbalancedError,
-    path: ['totalAssets']
-  });
+  })
+    .superRefine((data, ctx) => {
+      if (showSelector && (!data.corporateId || data.corporateId === '')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t.validation.corporateRequired,
+          path: ['corporateId']
+        });
+      }
+
+      const totalAssets = (data.cashAndBank || 0) + (data.accountsReceivable || 0) + (data.workInProgress || 0) + (data.inventory || 0) + (data.prepaidExpenses || 0) + (data.land || 0) + (data.building || 0) + (data.equipment || 0) + (data.otherFixedAssets || 0);
+      const totalLiabilities = (data.accountsPayable || 0) + (data.bankLoanCurrent || 0) + (data.otherCurrentLiabilities || 0) + (data.bankLoanLongTerm || 0) + (data.otherLongTermLiabilities || 0) + (data.shareholderLoan || 0);
+      const totalEquity = (data.capital || 0) + (data.earningsAfterTax || 0) + (data.retainedEarnings || 0) - (data.dividends || 0);
+
+      // Check total zero (sum of all asset fields)
+      const sumAssets = (data.cashAndBank || 0) + (data.accountsReceivable || 0) + (data.workInProgress || 0) + (data.inventory || 0) + (data.prepaidExpenses || 0) + (data.land || 0) + (data.building || 0) + (data.equipment || 0) + (data.otherFixedAssets || 0);
+
+      if (sumAssets === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t.validation.nominalZero || 'Financial data cannot be empty or zero',
+          path: ['cashAndBank']
+        });
+      }
+
+      // Check balance
+      const diff = Math.abs(totalAssets - (totalLiabilities + totalEquity));
+      if (diff >= 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t.validation.unbalancedError,
+          path: ['cashAndBank']
+        });
+      }
+    });
 
   const canWrite = hasPermission('cfd.balance_sheets.write');
   const canDelete = hasPermission('cfd.balance_sheets.delete');
@@ -318,6 +345,8 @@ export const BalanceSheetManager: React.FC = () => {
       const res = await apiFetch(`/api/financial-statements/balance-sheet/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success(common.successDelete);
+        queryClient.invalidateQueries({ queryKey: ['ratios'] });
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         fetchData();
       } else {
         const errData = await res.json();
@@ -376,9 +405,10 @@ export const BalanceSheetManager: React.FC = () => {
     if (isSaving) return;
 
     // Declarative validation with Zod
-    const validation = balanceSheetSchema.safeParse(formData);
+    const validation = balanceSheetSchema(hasFullCorporateAccess).safeParse(formData);
     if (!validation.success) {
-      validation.error.issues.forEach(err => toast.error(err.message));
+      const uniqueErrors = new Set(validation.error.issues.map(err => err.message));
+      uniqueErrors.forEach(msg => toast.error(msg));
       return;
     }
 
@@ -395,6 +425,8 @@ export const BalanceSheetManager: React.FC = () => {
 
       if (res.ok) {
         toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
+        queryClient.invalidateQueries({ queryKey: ['ratios'] });
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         setIsModalOpen(false);
         fetchData();
       } else {
@@ -438,7 +470,7 @@ export const BalanceSheetManager: React.FC = () => {
             </div>
             {t.title}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
             <Info size={14} className="text-indigo-400" />
             {t.subtitle}
           </p>
@@ -460,14 +492,13 @@ export const BalanceSheetManager: React.FC = () => {
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          <div className="flex-1 min-w-[200px]">
-            <CorporateSelector
-              value={filterCorporate}
-              onChange={(val) => setFilterCorporate(val)}
-              placeholder={t.modal.selectCorporate}
-              disabled={isCorpsLoading}
-            />
-          </div>
+          <CorporateSelector
+            className="w-full md:w-72"
+            value={filterCorporate}
+            onChange={(val) => setFilterCorporate(val)}
+            placeholder={t.modal.selectCorporate}
+            disabled={isCorpsLoading}
+          />
 
           <div className="flex items-center gap-2 flex-1 min-w-[280px]">
             <MonthRangePicker
@@ -516,7 +547,7 @@ export const BalanceSheetManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{common.actions}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-sm font-bold">
+            <tbody className="divide-y divide-slate-50 text-sm">
               <AnimatePresence>
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
@@ -748,12 +779,12 @@ export const BalanceSheetManager: React.FC = () => {
             size="2xl"
           >
             <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-              <form id="balanceSheetForm" onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="space-y-8">
+              <form id="balanceSheetForm" onSubmit={handleSave} noValidate className="space-y-8">
                 {/* Header Info */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 items-end">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                      <FileSpreadsheet size={12} /> {t.modal.period}
+                      <FileSpreadsheet size={12} /> {t.modal.period} <span className="text-red-500">*</span>
                     </label>
                     <MonthPicker
                       value={formData.period || ''}
@@ -767,14 +798,15 @@ export const BalanceSheetManager: React.FC = () => {
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <CorporateSelector
-                      value={formData.corporateId || ''}
-                      onChange={(val) => setFormData(prev => ({ ...prev, corporateId: val }))}
-                      placeholder={t.modal.selectCorporate}
-                      disabled={isCorpsLoading || modalMode === 'view'}
-                    />
-                  </div>
+                  <CorporateSelector
+                    label={t.modal.corporate}
+                    value={formData.corporateId || ''}
+                    onChange={(val) => setFormData(prev => ({ ...prev, corporateId: val }))}
+                    className="md:col-span-1"
+                    placeholder={t.modal.selectCorporate}
+                    disabled={isCorpsLoading || modalMode === 'view' || !hasFullCorporateAccess}
+                    required
+                  />
 
                   <div className="flex flex-col justify-end">
                     <div className={cn(
@@ -910,6 +942,7 @@ export const BalanceSheetManager: React.FC = () => {
               {modalMode !== 'view' && (
                 <button
                   type="submit"
+                  form="balanceSheetForm"
                   disabled={isSaving}
                   className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
                 >

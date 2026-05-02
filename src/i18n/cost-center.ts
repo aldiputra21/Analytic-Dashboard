@@ -46,10 +46,11 @@ export interface CostCenterCopy {
     errorSave: string;
     errorDelete: string;
   };
-  validation: {
+    validation: {
     codeMin: string;
     nameMin: string;
     categoryRequired: string;
+    corporateRequired: string;
   };
 }
 
@@ -103,6 +104,7 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       codeMin: 'Kode minimal 2 karakter',
       nameMin: 'Nama minimal 3 karakter',
       categoryRequired: 'Kategori wajib dipilih untuk level atas',
+      corporateRequired: 'Perusahaan wajib dipilih',
     },
   },
   en: {
@@ -154,6 +156,7 @@ export const costCenterI18n: Record<Locale, CostCenterCopy> = {
       codeMin: 'Code must be at least 2 characters',
       nameMin: 'Name must be at least 3 characters',
       categoryRequired: 'Category is required for top-level centers',
+      corporateRequired: 'Corporate is required',
     },
   },
 };

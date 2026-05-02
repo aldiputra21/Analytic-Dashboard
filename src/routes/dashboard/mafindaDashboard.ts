@@ -12,6 +12,7 @@ import {
   getAssetComposition,
   getEquityLiabilityComposition,
   getHistoricalData,
+  getDashboardAggregated,
 } from '../../services/mafinda/dashboardService';
 
 export function createMafindaDashboardRouter(): Router {
@@ -101,7 +102,7 @@ export function createMafindaDashboardRouter(): Router {
       targetCorpId = corporateId || access.corporateIds[0];
     }
 
-    const data = await getCashFlowData(period, monthsNum, targetCorpId, entityType, entityId);
+    const data = await getCashFlowData(period, monthsNum, targetCorpId, entityType === 'department' ? entityId : undefined, entityType === 'project' ? entityId : undefined);
     res.json(data);
   }));
 
@@ -170,12 +171,12 @@ export function createMafindaDashboardRouter(): Router {
     const access = (req as any).accessContext!;
 
     if (!months) {
-      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months is required (3|6|12|24)');
+      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months is required (3|6|12|24|60)');
     }
 
     const monthsNum = parseInt(months, 10);
-    if (isNaN(monthsNum) || ![3, 6, 12, 24].includes(monthsNum)) {
-      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months must be one of: 3, 6, 12, 24');
+    if (isNaN(monthsNum) || ![3, 6, 12, 24, 60].includes(monthsNum)) {
+      throw AppError.badRequest(ErrorCode.INVALID_INPUT, 'Parameter months must be one of: 3, 6, 12, 24, 60');
     }
 
     // RBAC: Enforce corporate filtering
@@ -188,6 +189,40 @@ export function createMafindaDashboardRouter(): Router {
     }
 
     const data = await getHistoricalData(monthsNum, targetCorpId);
+    res.json(data);
+  }));
+
+  /**
+   * GET /api/mafinda/dashboard/aggregated
+   * Aggregated dashboard data in a single request.
+   * Query params: period (req), corporateId (opt), historicalMonths (opt), cashFlowMonths (opt), revCostDeptId (opt), cashFlowDeptId (opt)
+   */
+  router.get('/aggregated', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
+    const { period, corporateId, historicalMonths, cashFlowMonths, revCostDeptId, cashFlowDeptId } = req.query as Record<string, string>;
+    const access = (req as any).accessContext!;
+
+    if (!period) {
+      throw AppError.badRequest(ErrorCode.PERIOD_REQUIRED, 'Period is required');
+    }
+
+    // RBAC: Enforce corporate filtering
+    let targetCorpId = corporateId;
+    if (access.scope !== 'system') {
+      if (corporateId && !access.corporateIds.includes(corporateId)) {
+        throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
+      }
+      targetCorpId = corporateId || access.corporateIds[0];
+    }
+
+    const data = await getDashboardAggregated({
+      period,
+      corporateId: targetCorpId,
+      historicalMonths: historicalMonths ? parseInt(historicalMonths, 10) : 12,
+      cashFlowMonths: cashFlowMonths ? parseInt(cashFlowMonths, 10) : 6,
+      revCostDeptId,
+      cashFlowDeptId,
+    });
+
     res.json(data);
   }));
 

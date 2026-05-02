@@ -2,16 +2,19 @@ import React, { useEffect } from 'react';
 import { SearchableSelect } from './SearchableSelect';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
 import { useAuth } from '../../../hooks/financial/useAuth';
+import { cn } from '../../../utils/cn';
 
 interface DepartmentSelectorProps {
   value: string;
   onChange: (value: string) => void;
-  label?: string;
+  label?: React.ReactNode | string;
   placeholder?: string;
   error?: string;
   disabled?: boolean;
   size?: 'sm' | 'md';
   corporateId?: string; // Optional filtering by corporate
+  required?: boolean;
+  className?: string;
 }
 
 /**
@@ -20,12 +23,14 @@ interface DepartmentSelectorProps {
 export const DepartmentSelector: React.FC<DepartmentSelectorProps> = ({
   value,
   onChange,
-  label = 'Department',
+  label,
   placeholder = 'Select Department...',
   error,
   disabled,
   size = 'md',
-  corporateId
+  corporateId,
+  required,
+  className
 }) => {
   const { options, showSelector, defaultDepartmentId, isLoading } = useDepartments();
   const { scope } = useAuth();
@@ -42,13 +47,12 @@ export const DepartmentSelector: React.FC<DepartmentSelectorProps> = ({
   }
 
   // Filter options by corporateId if provided
-  const filteredOptions = corporateId 
+  const filteredOptions = corporateId
     ? options.filter(opt => (opt as any).corporateId === corporateId)
     : options;
 
-  return (
+  const select = (
     <SearchableSelect
-      label={label}
       placeholder={placeholder}
       options={filteredOptions}
       value={value}
@@ -56,6 +60,24 @@ export const DepartmentSelector: React.FC<DepartmentSelectorProps> = ({
       error={error}
       disabled={disabled || isLoading}
       size={size}
+      className={!label ? className : undefined}
     />
   );
+
+  if (label) {
+    return (
+      <div className={cn("space-y-1.5", className)}>
+        {typeof label === 'string' ? (
+          <label className="text-xs font-bold text-slate-700 uppercase tracking-tight flex items-center gap-1.5">
+            {label} {required && <span className="text-red-500">*</span>}
+          </label>
+        ) : (
+          label
+        )}
+        {select}
+      </div>
+    );
+  }
+
+  return select;
 };

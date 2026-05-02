@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Search, Filter, Eye, Edit2, Trash2,
   ChevronLeft, ChevronRight, X, AlertCircle,
@@ -43,6 +44,8 @@ interface IncomeStatement {
   operatingExpenses: number;
   interestExpense: number;
   taxExpense: number;
+  otherIncome: number;
+  otherExpense: number;
   notes?: string;
   createdAt: string;
   createdBy: string;
@@ -127,7 +130,7 @@ const FormField: React.FC<{
         placeholder={placeholder}
         readOnly={readOnly}
         className={cn(
-          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30 font-bold",
+          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30",
           readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
         )}
       />
@@ -154,20 +157,40 @@ const SummaryCard: React.FC<{ label: string; value: number; color: 'emerald' | '
 // --- Main Component ---
 
 export const IncomeStatementManager: React.FC = () => {
-  const { user, hasPermission, language, hasFullCorporateAccess, subsidiaryIds } = useAuth();
+  const { user, hasPermission, language, subsidiaryIds, hasFullCorporateAccess } = useAuth();
+  const queryClient = useQueryClient();
   const t = incomeStatementI18n[language];
   const common = commonsI18n[language];
 
   // Validation Schema
-  const incomeStatementSchema = z.object({
-    corporateId: z.string().min(1, t.validation.corporateRequired),
+  const incomeStatementSchema = (hasFullAccess: boolean) => z.object({
+    corporateId: z.string().optional(),
     period: z.string().regex(/^\d{4}-\d{2}$/, t.validation.periodInvalid),
     revenue: z.number().min(0, t.validation.amountMin),
     cogs: z.number().min(0, t.validation.amountMin),
     operatingExpenses: z.number().min(0, t.validation.amountMin),
     interestExpense: z.number().min(0, t.validation.amountMin),
     taxExpense: z.number().min(0, t.validation.amountMin),
+    otherIncome: z.number().min(0, t.validation.amountMin).default(0),
+    otherExpense: z.number().min(0, t.validation.amountMin).default(0),
     notes: z.string().optional()
+  }).superRefine((data, ctx) => {
+    if (showSelector && (!data.corporateId || data.corporateId === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.corporateRequired,
+        path: ['corporateId']
+      });
+    }
+
+    const total = (data.revenue || 0) + (data.cogs || 0) + (data.operatingExpenses || 0) + (data.interestExpense || 0) + (data.taxExpense || 0) + (data.otherIncome || 0) + (data.otherExpense || 0);
+    if (total === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t.validation.nominalZero,
+        path: ['revenue']
+      });
+    }
   });
 
   const canWrite = hasPermission('cfd.income_statements.write');
@@ -268,6 +291,8 @@ export const IncomeStatementManager: React.FC = () => {
       });
       if (res.ok) {
         toast.success(common.successDelete);
+        queryClient.invalidateQueries({ queryKey: ['ratios'] });
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         fetchData();
       } else {
         const errData = await res.json();
@@ -292,11 +317,15 @@ export const IncomeStatementManager: React.FC = () => {
         operatingExpenses: Number(item.operatingExpenses),
         interestExpense: Number(item.interestExpense),
         taxExpense: Number(item.taxExpense),
+        otherIncome: Number(item.otherIncome || 0),
+        otherExpense: Number(item.otherExpense || 0),
       });
     } else {
       setFormData({
+        period: new Date().toISOString().slice(0, 7),
         corporateId: showSelector ? '' : (subsidiaryIds?.[0] || ''),
         revenue: 0, cogs: 0, operatingExpenses: 0, interestExpense: 0, taxExpense: 0,
+        otherIncome: 0, otherExpense: 0,
         notes: ''
       });
     }
@@ -308,9 +337,10 @@ export const IncomeStatementManager: React.FC = () => {
     if (isSaving) return;
 
     // Declarative validation with Zod
-    const validation = incomeStatementSchema.safeParse(formData);
+    const validation = incomeStatementSchema(hasFullCorporateAccess).safeParse(formData);
     if (!validation.success) {
-      validation.error.issues.forEach(err => toast.error(err.message));
+      const uniqueErrors = new Set(validation.error.issues.map(err => err.message));
+      uniqueErrors.forEach(msg => toast.error(msg));
       return;
     }
 
@@ -327,6 +357,8 @@ export const IncomeStatementManager: React.FC = () => {
 
       if (res.ok) {
         toast.success(modalMode === 'create' ? common.successSave : common.successUpdate);
+        queryClient.invalidateQueries({ queryKey: ['ratios'] });
+        queryClient.invalidateQueries({ queryKey: ['mafinda', 'dashboard'] });
         setIsModalOpen(false);
         fetchData();
       } else {
@@ -346,14 +378,15 @@ export const IncomeStatementManager: React.FC = () => {
 
   const grossProfit = n(formData.revenue) - n(formData.cogs);
   const ebit = grossProfit - n(formData.operatingExpenses);
-  const netProfit = ebit - n(formData.interestExpense) - n(formData.taxExpense);
+  const ebt = ebit + n(formData.otherIncome) - n(formData.interestExpense) - n(formData.otherExpense);
+  const netProfit = ebt - n(formData.taxExpense);
 
   const profitMargin = n(formData.revenue) > 0 ? (netProfit / n(formData.revenue)) * 100 : 0;
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-full font-bold">
+    <div className="p-6 space-y-6 bg-slate-50 min-h-full">
 
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -364,7 +397,7 @@ export const IncomeStatementManager: React.FC = () => {
             </div>
             {t.title}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1 font-bold">
+          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 ml-1">
             <Info size={14} className="text-indigo-400" />
             {t.subtitle}
           </p>
@@ -385,14 +418,13 @@ export const IncomeStatementManager: React.FC = () => {
       {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          <div className="flex-1 min-w-[200px]">
-            <CorporateSelector
-              value={filterCorporate}
-              onChange={(val) => setFilterCorporate(val)}
-              placeholder={t.modal.selectCorporate}
-              disabled={isCorpsLoading}
-            />
-          </div>
+          <CorporateSelector
+            className="w-full md:w-72"
+            value={filterCorporate}
+            onChange={(val) => setFilterCorporate(val)}
+            placeholder={t.modal.selectCorporate}
+            disabled={isCorpsLoading}
+          />
 
           <div className="flex items-center gap-2 flex-1 min-w-[280px]">
             <MonthRangePicker
@@ -441,7 +473,7 @@ export const IncomeStatementManager: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.tableHead.actions}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-sm font-bold">
+            <tbody className="divide-y divide-slate-50 text-sm">
               <AnimatePresence>
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
@@ -501,7 +533,10 @@ export const IncomeStatementManager: React.FC = () => {
                   </motion.tr>
                 ) : (
                   data.map((item, idx) => {
-                    const np = n(item.revenue) - n(item.cogs) - n(item.operatingExpenses) - n(item.interestExpense) - n(item.taxExpense);
+                    const gp = n(item.revenue) - n(item.cogs);
+                    const eb = gp - n(item.operatingExpenses);
+                    const et = eb + n(item.otherIncome) - n(item.interestExpense) - n(item.otherExpense);
+                    const np = et - n(item.taxExpense);
                     const margin = n(item.revenue) > 0 ? (np / n(item.revenue)) * 100 : 0;
 
                     return (
@@ -511,13 +546,13 @@ export const IncomeStatementManager: React.FC = () => {
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ delay: idx * 0.03 }}
-                        className="hover:bg-slate-50/50 transition-colors group text-sm font-bold"
+                        className="hover:bg-slate-50/50 transition-colors group text-sm"
                       >
                         <td className="px-6 py-4 text-slate-700">{formatPeriod(item.period, language)}</td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <span className="text-slate-800">{item.corporateName}</span>
-                            <span className="text-[10px] text-slate-400 font-bold tracking-tighter uppercase">ID: {item.corporateId.slice(0, 8)}</span>
+                            <span className="text-[10px] text-slate-400 tracking-tighter uppercase">ID: {item.corporateId.slice(0, 8)}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right text-slate-700">{formatRupiah(n(item.revenue), true)}</td>
@@ -664,12 +699,12 @@ export const IncomeStatementManager: React.FC = () => {
             title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : t.modal.viewTitle}
             size="xl"
           >
-            <form onSubmit={handleSave} onInvalid={() => toast.error(common.errorRequired, { id: 'errorRequired' })} className="flex-1 overflow-hidden flex flex-col">
+            <form onSubmit={handleSave} noValidate className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-y-auto p-6 scrollbar-hide space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                      <FileBarChart size={12} /> {t.modal.period}
+                      <FileBarChart size={12} /> {t.modal.period} <span className="text-red-500">*</span>
                     </label>
                     <MonthPicker
                       value={formData.period || ''}
@@ -683,12 +718,14 @@ export const IncomeStatementManager: React.FC = () => {
                     />
                   </div>
 
-                    <CorporateSelector
-                      value={formData.corporateId || ''}
-                      onChange={(val) => setFormData({ ...formData, corporateId: val })}
-                      placeholder={t.modal.selectCorporate}
-                      disabled={isCorpsLoading || modalMode === 'view'}
-                    />
+                  <CorporateSelector
+                    label={t.modal.corporate}
+                    value={formData.corporateId || ''}
+                    onChange={(val) => setFormData(prev => ({ ...prev, corporateId: val }))}
+                    placeholder={t.modal.selectCorporate}
+                    disabled={isCorpsLoading || modalMode === 'view'}
+                    required
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-8 gap-y-6 items-start">
@@ -715,11 +752,15 @@ export const IncomeStatementManager: React.FC = () => {
                       <FormField label={t.fields.operatingExpenses} value={formData.operatingExpenses || 0} onChange={(v) => setFormData(p => ({ ...p, operatingExpenses: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                       <SummaryCard label={t.modal.ebit} value={ebit} color="amber" />
 
-                      {/* Row 2: Interest & EBT */}
+                      {/* Row 2: Interest & Other Income */}
                       <FormField label={t.fields.interest} value={formData.interestExpense || 0} onChange={(v) => setFormData(p => ({ ...p, interestExpense: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                      <SummaryCard label={t.modal.ebt} value={ebit - n(formData.interestExpense)} color="amber" />
+                      <FormField label={t.fields.otherIncome} value={formData.otherIncome || 0} onChange={(v) => setFormData(p => ({ ...p, otherIncome: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
 
-                      {/* Row 3: Tax & Net Profit */}
+                      {/* Row 3: Other Expense & EBT */}
+                      <FormField label={t.fields.otherExpense} value={formData.otherExpense || 0} onChange={(v) => setFormData(p => ({ ...p, otherExpense: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                      <SummaryCard label={t.modal.ebt} value={ebt} color="amber" />
+
+                      {/* Row 4: Tax & Net Profit */}
                       <FormField label={t.fields.tax} value={formData.taxExpense || 0} onChange={(v) => setFormData(p => ({ ...p, taxExpense: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
                       <SummaryCard label={t.modal.netProfit} value={netProfit} color="emerald" />
                     </div>
@@ -741,7 +782,7 @@ export const IncomeStatementManager: React.FC = () => {
                     value={formData.notes || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     readOnly={modalMode === 'view'}
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30 min-h-[100px] font-bold"
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30 min-h-[100px]"
                     placeholder={t.modal.notesPlaceholder}
                   />
                 </div>

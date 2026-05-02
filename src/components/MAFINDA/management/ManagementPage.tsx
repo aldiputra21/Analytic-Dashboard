@@ -588,7 +588,7 @@ const TargetsTab: React.FC<{
 }> = ({ departments, projects, targets, onUpsert, onDelete, corporateId }) => {
   const { language } = useAuth();
   const c = commonsI18n[language];
-  const tm = mafindaI18n[language].dashboard.targetManager;
+  const tm = mafindaI18n[language].targetManager;
   const { showSuccess, showError } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingTarget, setEditingTarget] = useState<FinancialTarget | null>(null);
@@ -808,9 +808,9 @@ export const ManagementPage: React.FC = () => {
   const { language } = useAuth();
 
   const TABS: TabDef[] = [
-    { id: 'departments', label: mafindaI18n[language].dashboard.management.tabs.departments, icon: Building2 },
-    { id: 'projects', label: mafindaI18n[language].dashboard.management.tabs.projects, icon: FolderOpen },
-    { id: 'targets', label: mafindaI18n[language].dashboard.management.tabs.targets, icon: Target },
+    { id: 'departments', label: mafindaI18n[language].management.tabs.departments, icon: Building2 },
+    { id: 'projects', label: mafindaI18n[language].management.tabs.projects, icon: FolderOpen },
+    { id: 'targets', label: mafindaI18n[language].management.tabs.targets, icon: Target },
   ];
 
   const [activeTab, setActiveTab] = useState<Tab>('departments');
@@ -838,8 +838,8 @@ export const ManagementPage: React.FC = () => {
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{mafindaI18n[language].dashboard.management.title}</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{mafindaI18n[language].dashboard.management.subtitle}</p>
+          <h1 className="text-2xl font-bold text-slate-900">{mafindaI18n[language].management.title}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{mafindaI18n[language].management.subtitle}</p>
         </div>
         <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
           <Briefcase className="w-5 h-5 text-indigo-600" />
@@ -859,7 +859,7 @@ export const ManagementPage: React.FC = () => {
       {/* Error banner */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-xs text-red-700">
-          {mafindaI18n[language].dashboard.management.errorLoad}: {error}
+          {mafindaI18n[language].management.errorLoad}: {error}
         </div>
       )}
 

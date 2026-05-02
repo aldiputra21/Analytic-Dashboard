@@ -50,6 +50,8 @@ export interface IncomeStatementCopy {
     operatingExpenses: string;
     interest: string;
     tax: string;
+    otherIncome: string;
+    otherExpense: string;
   };
   alerts: {
     deleteTitle: string;
@@ -61,6 +63,7 @@ export interface IncomeStatementCopy {
     corporateRequired: string;
     periodInvalid: string;
     amountMin: string;
+    nominalZero: string;
   };
 }
 
@@ -91,11 +94,11 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       period: 'Periode',
       revenueAndCogs: 'Pendapatan & HPP',
       expensesAndProfit: 'Biaya & Profit',
-      grossProfit: 'LABA KOTOR (GROSS PROFIT)',
-      ebit: 'EBIT (OPERATING PROFIT)',
-      ebt: 'EBT (EARNINGS BEFORE TAX)',
-      netProfit: 'LABA BERSIH (NET PROFIT / EAT)',
-      netMargin: 'MARGIN BERSIH (NET MARGIN)',
+      grossProfit: 'LABA KOTOR',
+      ebit: 'LABA OPERASI (EBIT)',
+      ebt: 'LABA SEBELUM PAJAK (EBT)',
+      netProfit: 'LABA BERSIH (EAT)',
+      netMargin: 'MARGIN BERSIH (NPM)',
       notes: 'Catatan tambahan',
       notesPlaceholder: 'Tambahkan catatan jika diperlukan...',
       selectCorporate: 'Pilih Perusahaan',
@@ -109,11 +112,13 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       overwrite: 'Timpa Data',
     },
     fields: {
-      revenue: 'Pendapatan (Revenue)',
-      cogs: 'HPP (COGS)',
+      revenue: 'Pendapatan',
+      cogs: 'HPP',
       operatingExpenses: 'Biaya Operasional',
-      interest: 'Bunga',
+      interest: 'Beban Bunga',
       tax: 'Pajak',
+      otherIncome: 'Pendapatan Lainnya',
+      otherExpense: 'Beban Lainnya',
     },
     alerts: {
       deleteTitle: 'Hapus laporan laba rugi?',
@@ -125,6 +130,7 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       corporateRequired: 'Perusahaan wajib dipilih',
       periodInvalid: 'Periode tidak valid',
       amountMin: 'Nilai tidak boleh negatif',
+      nominalZero: 'Total nominal tidak boleh nol',
     },
   },
   en: {
@@ -154,10 +160,10 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       revenueAndCogs: 'Revenue & COGS',
       expensesAndProfit: 'Expenses & Profit',
       grossProfit: 'GROSS PROFIT',
-      ebit: 'EBIT (OPERATING PROFIT)',
-      ebt: 'EBT (EARNINGS BEFORE TAX)',
+      ebit: 'OPERATING PROFIT (EBIT)',
+      ebt: 'EARNINGS BEFORE TAX (EBT)',
       netProfit: 'NET PROFIT (EAT)',
-      netMargin: 'Net Margin',
+      netMargin: 'Net Margin (NPM)',
       notes: 'Additional Notes',
       notesPlaceholder: 'Add notes if needed...',
       selectCorporate: 'Select Corporate',
@@ -174,8 +180,10 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       revenue: 'Revenue',
       cogs: 'COGS',
       operatingExpenses: 'Operating Expenses',
-      interest: 'Interest',
+      interest: 'Interest Expense',
       tax: 'Tax',
+      otherIncome: 'Other Income',
+      otherExpense: 'Other Expense',
     },
     alerts: {
       deleteTitle: 'Delete income statement report?',
@@ -187,6 +195,7 @@ export const incomeStatementI18n: Record<Locale, IncomeStatementCopy> = {
       corporateRequired: 'Corporate is required',
       periodInvalid: 'Invalid period',
       amountMin: 'Value cannot be negative',
+      nominalZero: 'Total nominal cannot be zero',
     },
   },
 };

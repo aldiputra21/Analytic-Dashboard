@@ -38,6 +38,9 @@ export interface RealizationCopy {
     amount: string;
     notes: string;
     corporate: string;
+    costCenter: string;
+    selectCostCenter: string;
+    selectCorporate: string;
     basicInfo: string;
     attachmentSection: string;
     transactionDetail: string;
@@ -75,12 +78,15 @@ export interface RealizationCopy {
     errorDeleteAttachment: string;
     errorFetchMasterData: string;
   };
-  validation: {
-    departmentRequired: string;
-    projectRequired: string;
-    transactionDateRequired: string;
-    amountMin: string;
-  };
+    validation: {
+      departmentRequired: string;
+      projectRequired: string;
+      corporateRequired: string;
+      costCenterRequired: string;
+      attachmentRequired: string;
+      transactionDateRequired: string;
+      amountMin: string;
+    };
 }
 
 export const realizationI18n: Record<Locale, RealizationCopy> = {
@@ -121,6 +127,9 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       amount: 'Jumlah',
       notes: 'Catatan',
       corporate: 'Perusahaan',
+      costCenter: 'Cost Center',
+      selectCostCenter: 'Pilih Cost Center...',
+      selectCorporate: 'Pilih Perusahaan',
       basicInfo: 'Informasi Dasar',
       attachmentSection: 'Lampiran File',
       transactionDetail: 'Detail Transaksi',
@@ -161,6 +170,9 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     validation: {
       departmentRequired: 'Departemen wajib dipilih',
       projectRequired: 'Proyek wajib dipilih',
+      corporateRequired: 'Perusahaan wajib dipilih',
+      costCenterRequired: 'Cost Center wajib dipilih',
+      attachmentRequired: 'Wajib mengunggah setidaknya 1 lampiran',
       transactionDateRequired: 'Tanggal transaksi wajib diisi',
       amountMin: 'Jumlah harus lebih besar dari 0',
     },
@@ -202,6 +214,9 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
       amount: 'Amount',
       notes: 'Notes',
       corporate: 'Corporate',
+      costCenter: 'Cost Center',
+      selectCostCenter: 'Select Cost Center...',
+      selectCorporate: 'Select Corporate',
       basicInfo: 'Basic Information',
       attachmentSection: 'File Attachments',
       transactionDetail: 'Transaction Details',
@@ -242,6 +257,9 @@ export const realizationI18n: Record<Locale, RealizationCopy> = {
     validation: {
       departmentRequired: 'Department is required',
       projectRequired: 'Project is required',
+      corporateRequired: 'Corporate is required',
+      costCenterRequired: 'Cost Center is required',
+      attachmentRequired: 'At least 1 attachment is required',
       transactionDateRequired: 'Transaction date is required',
       amountMin: 'Amount must be greater than 0',
     },

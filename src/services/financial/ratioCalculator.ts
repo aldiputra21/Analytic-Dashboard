@@ -136,21 +136,24 @@ export function calculateRatios(data: FinancialData): Omit<CalculatedRatios, 'id
  */
 export function mapRowToRatios(row: Record<string, unknown>): CalculatedRatios {
   const n = (v: unknown) => (v != null ? parseFloat(String(v)) : null);
-  return {
+  const ratios = {
     id: String(row.id ?? ''),
     financialDataId: '',
     subsidiaryId: String(row.corporate_id ?? row.corporateId ?? ''),
     corporateName: String(row.corporate_name ?? row.corporateName ?? ''),
-    roa: n(row.roa),
-    roe: n(row.roe),
-    npm: n(row.npm),
+    roa: n(row.roa) !== null ? n(row.roa)! * 100 : null,
+    roe: n(row.roe) !== null ? n(row.roe)! * 100 : null,
+    npm: n(row.npm) !== null ? n(row.npm)! * 100 : null,
     der: n(row.der),
     currentRatio: n(row.current_ratio ?? row.currentRatio),
     quickRatio: n(row.quick_ratio ?? row.quickRatio),
     cashRatio: n(row.cash_ratio ?? row.cashRatio),
     ocfRatio: n(row.ocf_ratio ?? row.ocfRatio),
     dscr: n(row.dscr),
-    healthScore: n(row.health_score ?? row.healthScore) ?? 0,
+    healthScore: 0,
     calculatedAt: row.calculated_at instanceof Date ? row.calculated_at : new Date(),
   };
+
+  ratios.healthScore = calculateHealthScore(ratios);
+  return ratios;
 }

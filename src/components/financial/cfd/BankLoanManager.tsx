@@ -49,6 +49,7 @@ interface BankLoan {
   tenor: number;
   interestType: 'flat' | 'effective';
   interestRate: string | number;
+  creditType: 'KMK' | 'KMI';
   status: 'ongoing' | 'paid';
   alertMinDays: number;
   createdBy: string;
@@ -109,17 +110,18 @@ const parseCurrencyInput = (value: string): string => {
 };
 
 export const BankLoanManager: React.FC = () => {
-  const { hasPermission, language } = useAuth();
+  const { hasPermission, language, subsidiaryIds, hasFullCorporateAccess } = useAuth();
   const { options: bankOptions, isLoading: isBanksLoading } = useBanks();
   const { options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
   const t = bankLoanI18n[language];
   const common = commonsI18n[language];
 
   // Validation Schema
-  const bankLoanSchema = z.object({
+  const bankLoanSchema = (hasFullAccess: boolean) => z.object({
     bankId: z.string().min(1, t.validation.bankRequired),
-    corporateId: z.string().min(1, t.validation.corporateRequired),
-    amount: z.string().refine(v => !isNaN(parseFloat(v)) && parseFloat(v) > 0, t.validation.amountMin),
+    corporateId: hasFullAccess ? z.string().min(1, t.validation.corporateRequired) : z.string().optional(),
+    creditType: z.enum(['KMK', 'KMI']),
+    amount: z.string().refine(v => !isNaN(parseFloat(v)) && parseFloat(v) > 0, t.validation.nominalZero),
     startDate: z.string().min(1, t.validation.startDateRequired),
     tenor: z.number().min(1, t.validation.tenorMin),
     interestType: z.enum(['flat', 'effective']),
@@ -165,6 +167,7 @@ export const BankLoanManager: React.FC = () => {
     tenor: 12,
     interestType: 'flat' as 'flat' | 'effective',
     interestRate: '5',
+    creditType: 'KMK' as 'KMK' | 'KMI',
     alertMinDays: 5,
   });
 
@@ -263,6 +266,7 @@ export const BankLoanManager: React.FC = () => {
         tenor: item.tenor,
         interestType: item.interestType,
         interestRate: (Number(item.interestRate) * 100).toString(), // Convert from 0.05 to 5
+        creditType: item.creditType || 'KMK',
         alertMinDays: item.alertMinDays,
       });
 
@@ -286,6 +290,7 @@ export const BankLoanManager: React.FC = () => {
         tenor: 12,
         interestType: 'flat',
         interestRate: '',
+        creditType: 'KMK',
         alertMinDays: 5,
       });
       setInstallments([]);
@@ -297,9 +302,10 @@ export const BankLoanManager: React.FC = () => {
     e.preventDefault();
     if (isSaving) return;
 
-    const validation = bankLoanSchema.safeParse(formData);
+    const validation = bankLoanSchema(hasFullCorporateAccess).safeParse(formData);
     if (!validation.success) {
-      validation.error.issues.forEach(err => toast.error(err.message));
+      const uniqueErrors = new Set(validation.error.issues.map(err => err.message));
+      uniqueErrors.forEach(msg => toast.error(msg));
       return;
     }
 
@@ -430,6 +436,12 @@ export const BankLoanManager: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex flex-wrap items-center gap-4">
+        <CorporateSelector
+          className="w-full md:w-72"
+          value={filterCorporate}
+          onChange={(val) => setFilterCorporate(val)}
+          placeholder={t.filter.allCorporates}
+        />
         <div className="flex-1 min-w-[240px] relative group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
           <input
@@ -452,13 +464,6 @@ export const BankLoanManager: React.FC = () => {
             <option value="paid">{t.loanStatus.paid}</option>
           </select>
           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <CorporateSelector
-            value={filterCorporate}
-            onChange={(val) => setFilterCorporate(val)}
-            placeholder={t.filter.allCorporates}
-          />
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -559,7 +564,7 @@ export const BankLoanManager: React.FC = () => {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ delay: idx * 0.03 }}
-                      className="hover:bg-slate-50/50 transition-colors group font-bold"
+                      className="hover:bg-slate-50/50 transition-colors group"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2 text-slate-800">
@@ -712,7 +717,7 @@ export const BankLoanManager: React.FC = () => {
                   : t.modal.viewTitle
             }
           >
-            <form onSubmit={handleSave} className="space-y-8">
+            <form onSubmit={handleSave} noValidate className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Basic Info Column */}
                 <div className="space-y-5">
@@ -734,15 +739,46 @@ export const BankLoanManager: React.FC = () => {
                     />
                   </div>
 
+                  <CorporateSelector
+                    label={t.modal.corporate}
+                    value={formData.corporateId}
+                    onChange={(val) => setFormData(p => ({ ...p, corporateId: val }))}
+                    disabled={isReadOnly || isCorpsLoading}
+                    required
+                  />
+
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      {t.modal.corporate} <span className="text-red-500">*</span>
+                      {t.modal.creditType} <span className="text-red-500">*</span>
                     </label>
-                    <CorporateSelector
-                      value={formData.corporateId}
-                      onChange={(val) => setFormData(p => ({ ...p, corporateId: val }))}
-                      disabled={isReadOnly || isCorpsLoading}
-                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        disabled={isReadOnly}
+                        onClick={() => setFormData(p => ({ ...p, creditType: 'KMK' }))}
+                        className={cn(
+                          'py-2 px-2 rounded-xl border-2 transition-all flex items-center justify-center text-xs font-black uppercase tracking-wider',
+                          formData.creditType === 'KMK'
+                            ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                            : 'bg-white border-slate-100 text-slate-400'
+                        )}
+                      >
+                        {t.modal.kmk}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isReadOnly}
+                        onClick={() => setFormData(p => ({ ...p, creditType: 'KMI' }))}
+                        className={cn(
+                          'py-2 px-2 rounded-xl border-2 transition-all flex items-center justify-center text-xs font-black uppercase tracking-wider',
+                          formData.creditType === 'KMI'
+                            ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                            : 'bg-white border-slate-100 text-slate-400'
+                        )}
+                      >
+                        {t.modal.kmi}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
