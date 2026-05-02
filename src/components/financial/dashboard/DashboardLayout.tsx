@@ -47,7 +47,7 @@ interface NavItem {
   icon: React.ElementType;
   requiredPermissions: string[];
   badge?: number;
-  group: 'main' | 'data' | 'corporate-management' | 'crm' | 'admin';
+  group: 'main' | 'financial-statements' | 'cash-flow' | 'corporate-management' | 'business-management' | 'crm' | 'system-admin';
   children?: NavChild[];
 }
 
@@ -75,20 +75,25 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'trends', label: t.menus.trends, icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
       { id: 'reports', label: t.menus.reports, icon: FileText, group: 'main', requiredPermissions: ['cfd.reports.read'] },
       { id: 'alerts', label: t.menus.alerts, icon: Bell, group: 'main', requiredPermissions: ['cfd.alerts.read'] },
-      // Data
-      { id: 'cfd-balance-sheets', label: balanceSheetI18n[language].title, icon: Scale, requiredPermissions: ['cfd.balance_sheets.read'], group: 'data' },
-      { id: 'cfd-income-statements', label: incomeStatementI18n[language].title, icon: FileBarChart, requiredPermissions: ['cfd.income_statements.read'], group: 'data' },
-      { id: 'cfd-weekly-cash-flows', label: weeklyCashFlowI18n[language].title, icon: ArrowLeftRight, requiredPermissions: ['cfd.weekly_cash_flows.read'], group: 'data' },
-      { id: 'cfd-realizations', label: t.menus.realizations, icon: ClipboardList, requiredPermissions: ['cfd.realizations.read'], group: 'data' },
-      { id: 'cfd-bank-loans', label: t.menus.bankLoans, icon: Landmark, requiredPermissions: ['cfd.bank_loans.read'], group: 'data' },
-      // Corporate Management
+
+      // 1. Financial Statements (Laporan Keuangan)
+      { id: 'cfd-balance-sheets', label: balanceSheetI18n[language].title, icon: Scale, requiredPermissions: ['cfd.balance_sheets.read'], group: 'financial-statements' },
+      { id: 'cfd-income-statements', label: incomeStatementI18n[language].title, icon: FileBarChart, requiredPermissions: ['cfd.income_statements.read'], group: 'financial-statements' },
+      { id: 'targets', label: t.menus.targets, icon: Target, requiredPermissions: ['public.targets.read'], group: 'financial-statements' },
+
+      // 2. Cash Flow (Arus Kas)
+      { id: 'cfd-weekly-cash-flows', label: weeklyCashFlowI18n[language].title, icon: ArrowLeftRight, requiredPermissions: ['cfd.weekly_cash_flows.read'], group: 'cash-flow' },
+      { id: 'cfd-realizations', label: t.menus.realizations, icon: ClipboardList, requiredPermissions: ['cfd.realizations.read'], group: 'cash-flow' },
+      { id: 'cfd-cash-flow-projections', label: t.menus.cashFlowProjections, icon: TrendingUp, requiredPermissions: ['cfd.cash_flow_projections.read'], group: 'cash-flow' },
+      { id: 'cfd-bank-loans', label: t.menus.bankLoans, icon: Landmark, requiredPermissions: ['cfd.bank_loans.read'], group: 'cash-flow' },
+
+      // 3. Corporate Management (Pengelolaan Perusahaan)
       { id: 'corporates', label: t.menus.corporates, icon: Building2, requiredPermissions: ['cfd.corporates.read'], group: 'corporate-management' },
-      { id: 'cost-centers', label: t.menus.costCenters, icon: Target, requiredPermissions: ['cfd.cost_centers.read'], group: 'corporate-management' },
       { id: 'departments', label: t.menus.departments, icon: Building2, requiredPermissions: ['public.departments.read'], group: 'corporate-management' },
+      { id: 'cost-centers', label: t.menus.costCenters, icon: Target, requiredPermissions: ['cfd.cost_centers.read'], group: 'corporate-management' },
       { id: 'projects', label: t.menus.projects, icon: FolderKanban, requiredPermissions: ['public.projects.read'], group: 'corporate-management' },
-      { id: 'targets', label: t.menus.targets, icon: Target, requiredPermissions: ['public.targets.read'], group: 'corporate-management' },
-      { id: 'cfd-cash-flow-projections', label: t.menus.cashFlowProjections, icon: TrendingUp, requiredPermissions: ['cfd.cash_flow_projections.read'], group: 'corporate-management' },
-      // CRM — tree with children
+
+      // CRM
       {
         id: 'crm-dashboard',
         label: t.menus.crm.dashboard,
@@ -105,18 +110,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           { id: 'crm-reimburse', label: t.menus.crm.reimburse, icon: Receipt, requiredPermissions: ['crm.reimburse.read'] },
         ],
       },
-      // Admin
-      { id: 'users', label: t.menus.users, icon: Users, requiredPermissions: ['cfd.users.read'], group: 'admin' },
-      { id: 'roles', label: t.menus.roles, icon: Shield, requiredPermissions: ['cfd.roles.read'], group: 'admin' },
-      { id: 'permissions', label: t.menus.permissions, icon: Shield, requiredPermissions: ['cfd.permissions.read'], group: 'admin' },
-      { id: 'thresholds', label: t.menus.thresholds, icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'admin' },
-      { id: 'audit-logs', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'admin' },
-      { id: 'bank-manager', label: t.menus.masterBank, icon: Building2, requiredPermissions: ['public.banks.read'], group: 'admin' },
-      { id: 'corporate-sectors-manager', label: t.menus.corporateSectors, icon: Building2, requiredPermissions: ['public.corporate_sectors.read'], group: 'admin' },
-      { id: 'currencies-manager', label: t.menus.currencies, icon: DollarSign, requiredPermissions: ['public.currencies.read'], group: 'admin' },
-      { id: 'cost-center-categories-manager', label: t.menus.costCenterCategories, icon: Layers, requiredPermissions: ['public.cost_center_categories.read'], group: 'admin' },
-      { id: 'notification-configs-manager', label: t.menus.notificationConfigs, icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'admin' },
-      { id: 'system-configs', label: t.menus.systemConfigs, icon: Settings, requiredPermissions: ['public.system_configs.read'], group: 'admin' },
+
+      // 4. Business Management (Pengelolaan Bisnis)
+      { id: 'corporate-sectors-manager', label: t.menus.corporateSectors, icon: Building2, requiredPermissions: ['public.corporate_sectors.read'], group: 'business-management' },
+      { id: 'currencies-manager', label: t.menus.currencies, icon: DollarSign, requiredPermissions: ['public.currencies.read'], group: 'business-management' },
+      { id: 'bank-manager', label: t.menus.masterBank, icon: Building2, requiredPermissions: ['public.banks.read'], group: 'business-management' },
+      { id: 'cost-center-categories-manager', label: t.menus.costCenterCategories, icon: Layers, requiredPermissions: ['public.cost_center_categories.read'], group: 'business-management' },
+
+      // 5. System Admin (Pengelolaan & Monitoring Sistem)
+      { id: 'users', label: t.menus.users, icon: Users, requiredPermissions: ['cfd.users.read'], group: 'system-admin' },
+      { id: 'roles', label: t.menus.roles, icon: Shield, requiredPermissions: ['cfd.roles.read'], group: 'system-admin' },
+      { id: 'permissions', label: t.menus.permissions, icon: Shield, requiredPermissions: ['cfd.permissions.read'], group: 'system-admin' },
+      { id: 'thresholds', label: t.menus.thresholds, icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'system-admin' },
+      { id: 'notification-configs-manager', label: t.menus.notificationConfigs, icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'system-admin' },
+      { id: 'system-configs', label: t.menus.systemConfigs, icon: Settings, requiredPermissions: ['public.system_configs.read'], group: 'system-admin' },
+      { id: 'audit-logs', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'system-admin' },
     ];
     return items;
   }, [language]);
@@ -142,10 +150,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     const t = navigationI18n[language];
     return [
       { key: 'main', label: t.groups.main },
-      { key: 'data', label: t.groups.data },
+      { key: 'financial-statements', label: t.groups.financialStatements },
+      { key: 'cash-flow', label: t.groups.cashFlow },
       { key: 'corporate-management', label: t.groups.corporateManagement },
       { key: 'crm', label: t.groups.crm },
-      { key: 'admin', label: t.groups.admin },
+      { key: 'business-management', label: t.groups.businessManagement },
+      { key: 'system-admin', label: t.groups.systemAdmin },
     ];
   }, [language]);
 

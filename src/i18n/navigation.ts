@@ -4,10 +4,12 @@ import { Locale } from './commons';
 export interface NavigationCopy {
   groups: {
     main: string;
-    data: string;
+    financialStatements: string;
+    cashFlow: string;
     corporateManagement: string;
+    businessManagement: string;
     crm: string;
-    admin: string;
+    systemAdmin: string;
   };
   menus: {
     dashboard: string;
@@ -56,10 +58,12 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
   id: {
     groups: {
       main: 'Analitik',
-      data: 'Input Data',
+      financialStatements: 'Laporan Keuangan',
+      cashFlow: 'Arus Kas',
       corporateManagement: 'Pengelolaan Perusahaan',
+      businessManagement: 'Pengelolaan Bisnis',
       crm: 'CRM',
-      admin: 'Admin',
+      systemAdmin: 'Pengelolaan & Monitoring Sistem',
     },
     menus: {
       dashboard: 'Dashboard',
@@ -73,7 +77,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       costCenters: 'Cost Center',
       departments: 'Departemen',
       projects: 'Proyek',
-      targets: 'Proyeksi',
+      targets: 'Proyeksi Laba Rugi',
       cashFlowProjections: 'Proyeksi Arus Kas',
       users: 'Pengguna',
       roles: 'Peran',
@@ -106,10 +110,12 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
   en: {
     groups: {
       main: 'Analytics',
-      data: 'Data Entry',
+      financialStatements: 'Financial Statements',
+      cashFlow: 'Cash Flow',
       corporateManagement: 'Corporate Management',
+      businessManagement: 'Business Management',
       crm: 'CRM',
-      admin: 'Admin',
+      systemAdmin: 'System Management & Monitoring',
     },
     menus: {
       dashboard: 'Dashboard',
@@ -123,7 +129,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       costCenters: 'Cost Center',
       departments: 'Departments',
       projects: 'Projects',
-      targets: 'Projections',
+      targets: 'Income Statement Projection',
       cashFlowProjections: 'Cash Flow Projection',
       users: 'Users',
       roles: 'Roles',

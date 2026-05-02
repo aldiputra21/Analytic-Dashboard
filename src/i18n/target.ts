@@ -71,7 +71,7 @@ export interface TargetCopy {
 
 export const targetI18n: Record<Locale, TargetCopy> = {
   id: {
-    title: 'Proyeksi Keuangan',
+    title: 'Proyeksi Laba Rugi',
     subtitle: 'Kelola proyeksi pendapatan dan biaya operasional per periode.',
     addNew: 'Buat Proyeksi Baru',
     searchPlaceholder: 'Cari departemen atau proyek...',
@@ -89,8 +89,8 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       allCorporates: 'Semua Perusahaan',
     },
     status: {
-      empty: 'Tidak ada data target',
-      emptyDesc: 'Belum ada data target yang terdaftar untuk periode ini.',
+      empty: 'Tidak ada data proyeksi laba rugi',
+      emptyDesc: 'Belum ada data proyeksi laba rugi yang terdaftar untuk periode ini.',
     },
     fields: {
       corporate: 'Perusahaan',
@@ -110,7 +110,7 @@ export const targetI18n: Record<Locale, TargetCopy> = {
     modal: {
       createTitle: 'Input Proyeksi Tahunan',
       editTitle: 'Edit Data Proyeksi',
-      viewTitle: 'Detail Proyeksi Keuangan',
+      viewTitle: 'Detail Proyeksi Laba Rugi',
       contextTitle: 'Konteks Proyeksi',
       contextDesc: 'TENTUKAN DEPARTEMEN, TAHUN, DAN ASOSIASI PROYEK OPSIONAL.',
       selectEntity: 'Pilih entitas...',
@@ -138,7 +138,7 @@ export const targetI18n: Record<Locale, TargetCopy> = {
     },
   },
   en: {
-    title: 'Financial Projections',
+    title: 'Income Statement Projection',
     subtitle: 'Manage revenue and operational cost projections per period.',
     addNew: 'Create New Projection',
     searchPlaceholder: 'Search department or project...',
@@ -156,8 +156,8 @@ export const targetI18n: Record<Locale, TargetCopy> = {
       allCorporates: 'All Corporates',
     },
     status: {
-      empty: 'No target data found',
-      emptyDesc: 'No target data has been registered for this period.',
+      empty: 'No income statement projection data found',
+      emptyDesc: 'No income statement projection data has been registered for this period.',
     },
     fields: {
       corporate: 'Corporate',
@@ -177,7 +177,7 @@ export const targetI18n: Record<Locale, TargetCopy> = {
     modal: {
       createTitle: 'Create New Projection',
       editTitle: 'Edit Projection Data',
-      viewTitle: 'Financial Projection Details',
+      viewTitle: 'Income Statement Projection Details',
       contextTitle: 'Projection Context',
       contextDesc: 'Define the department, project (optional), and fiscal year for this target.',
       selectEntity: 'Select entity...',
