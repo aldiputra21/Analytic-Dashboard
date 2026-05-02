@@ -12,6 +12,8 @@ import {
   targetDetails,
   weeklyCashFlows,
   cashRealizations,
+  cashFlowProjectionHeaders,
+  cashFlowProjectionDetails,
 } from '../../db/schema/cfd';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,6 +69,30 @@ export interface AssetComposition {
   totalAssets: number;
 }
 
+export interface HistoricalDataPoint {
+  period: string;
+  revenue: number;
+  netProfit: number;
+  totalAssets: number;
+  totalLiabilities: number;
+}
+
+export interface CashFlowBridgeItem {
+  label: string;
+  value: number;
+  /** type: 'start' | 'inflow' | 'outflow' | 'net' | 'end' */
+  type: string;
+  isCumulative?: boolean;
+}
+
+export interface ProjectionRealizationItem {
+  period: string;
+  projectedIn: number;
+  actualIn: number;
+  projectedOut: number;
+  actualOut: number;
+}
+
 export interface DashboardAggregatedResult {
   revenueTarget: DeptRevenueTargetResult;
   revenueCostSummary: RevenueCostSummary;
@@ -74,6 +100,8 @@ export interface DashboardAggregatedResult {
   assetComposition: AssetComposition | null;
   equityLiabilityComposition: EquityLiabilityComposition | null;
   historicalData: HistoricalDataPoint[];
+  cashFlowBridge: CashFlowBridgeItem[];
+  projectionRealization: ProjectionRealizationItem[];
 }
 
 export interface EquityLiabilityComposition {
@@ -202,8 +230,9 @@ function parsePeriod(period: string): {
   return { year, month: parseInt(part, 10), quarter: null, semester: null };
 }
 
-/** Parse numeric string to number, defaulting to 0. */
-function n(value: string | null | undefined): number {
+/** Parse numeric string or number to number, defaulting to 0. */
+function n(value: string | number | null | undefined): number {
+  if (typeof value === 'number') return value;
   return parseFloat(value ?? '0') || 0;
 }
 
@@ -422,15 +451,22 @@ export async function getCashFlowData(
   ];
   if (departmentId) crConditions.push(eq(cashRealizations.departmentId, departmentId));
   if (projectId) crConditions.push(eq(cashRealizations.projectId, projectId));
+  if (corporateId && !departmentId) crConditions.push(eq(departments.corporateId, corporateId));
 
-  const crRows = await db
+  let crQuery = db
     .select({
       transactionDate: cashRealizations.transactionDate,
       category: cashRealizations.category,
       amount: cashRealizations.amount,
     })
     .from(cashRealizations)
-    .where(and(...crConditions));
+    .$dynamic();
+
+  if (corporateId && !departmentId) {
+    crQuery = crQuery.innerJoin(departments, eq(cashRealizations.departmentId, departments.id));
+  }
+
+  const crRows = await crQuery.where(and(...crConditions));
 
   // --- 3. Aggregate Data by (Period, Week) ---
   const weeklyMap = new Map<string, { cashIn: number; cashOut: number }>();
@@ -659,6 +695,167 @@ export async function getHistoricalData(
 }
 
 /**
+ * Returns waterfall chart data for cash flow bridge.
+ */
+export async function getCashFlowBridgeData(
+  period: string,
+  corporateId?: string,
+): Promise<CashFlowBridgeItem[]> {
+  const { year, month, quarter, semester } = parsePeriod(period);
+  
+  let startMonth = 1;
+  let endMonth = 12;
+
+  if (month) {
+    startMonth = month;
+    endMonth = month;
+  } else if (quarter) {
+    startMonth = (quarter - 1) * 3 + 1;
+    endMonth = quarter * 3;
+  } else if (semester) {
+    startMonth = (semester - 1) * 6 + 1;
+    endMonth = semester * 6;
+  }
+
+  const headerConditions = [eq(cashFlowProjectionHeaders.fiscalYear, year)];
+  if (corporateId) headerConditions.push(eq(cashFlowProjectionHeaders.corporateId, corporateId));
+
+  // Get header for initial balance
+  const headers = await db
+    .select({ initialBalance: cashFlowProjectionHeaders.initialBalance })
+    .from(cashFlowProjectionHeaders)
+    .where(and(...headerConditions));
+
+  let openingBalance = headers.reduce((sum, h) => sum + n(h.initialBalance), 0);
+
+  const detailConditions = [
+    eq(cashFlowProjectionHeaders.fiscalYear, year),
+    sql`${cashFlowProjectionDetails.month} <= ${endMonth}`
+  ];
+  if (corporateId) detailConditions.push(eq(cashFlowProjectionHeaders.corporateId, corporateId));
+
+  // Get all details up to target month to calculate opening balance
+  const details = await db
+    .select({
+      month: cashFlowProjectionDetails.month,
+      type: cashFlowProjectionDetails.type,
+      amount: cashFlowProjectionDetails.amount,
+    })
+    .from(cashFlowProjectionDetails)
+    .innerJoin(
+      cashFlowProjectionHeaders,
+      eq(cashFlowProjectionDetails.headerId, cashFlowProjectionHeaders.id)
+    )
+    .where(and(...detailConditions));
+
+
+  let currentMonthIn = 0;
+  let currentMonthOut = 0;
+
+  for (const d of details) {
+    const amt = n(d.amount);
+    if (d.month < startMonth) {
+      if (d.type === 'cash-in') openingBalance += amt;
+      else openingBalance -= amt;
+    } else if (d.month >= startMonth && d.month <= endMonth) {
+      if (d.type === 'cash-in') currentMonthIn += amt;
+      else currentMonthOut += amt;
+    }
+  }
+
+  const endingBalance = openingBalance + currentMonthIn - currentMonthOut;
+
+  return [
+    { label: 'Opening', value: openingBalance, type: 'start' },
+    { label: 'Cash In', value: currentMonthIn, type: 'inflow' },
+    { label: 'Cash Out', value: -currentMonthOut, type: 'outflow' },
+    { label: 'Ending', value: endingBalance, type: 'end', isCumulative: true },
+  ];
+}
+
+/**
+ * Returns projection vs realization data for a range of months.
+ */
+export async function getProjectionRealizationData(
+  period: string,
+  months = 6,
+  corporateId?: string,
+): Promise<ProjectionRealizationItem[]> {
+  const { year, month, quarter, semester } = parsePeriod(period);
+  const targetMonth = month || (quarter ? quarter * 3 : (semester ? semester * 6 : 12));
+  const periods: string[] = [];
+  
+  // Standard N months trailing
+  for (let i = (months || 6) - 1; i >= 0; i--) {
+    const d = new Date(year, targetMonth - 1 - i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    periods.push(`${y}-${m}`);
+  }
+
+  const result: ProjectionRealizationItem[] = [];
+
+  for (const p of periods) {
+    const [pYear, pMonth] = p.split('-').map(Number);
+
+    const pDetailsConditions = [
+      eq(cashFlowProjectionHeaders.fiscalYear, pYear),
+      eq(cashFlowProjectionDetails.month, pMonth)
+    ];
+    if (corporateId) pDetailsConditions.push(eq(cashFlowProjectionHeaders.corporateId, corporateId));
+
+    const pDetails = await db
+      .select({
+        type: cashFlowProjectionDetails.type,
+        amount: cashFlowProjectionDetails.amount,
+      })
+      .from(cashFlowProjectionDetails)
+      .innerJoin(
+        cashFlowProjectionHeaders,
+        eq(cashFlowProjectionDetails.headerId, cashFlowProjectionHeaders.id)
+      )
+      .where(and(...pDetailsConditions));
+    
+    let projectedIn = pDetails.filter(d => d.type === 'cash-in').reduce((sum, d) => sum + n(d.amount), 0);
+    let projectedOut = pDetails.filter(d => d.type === 'cash-out').reduce((sum, d) => sum + n(d.amount), 0);
+
+    // Get actual (aggregated from realizations)
+    const startDate = `${p}-01`;
+    const lastDay = new Date(pYear, pMonth, 0).getDate();
+    const endDate = `${p}-${String(lastDay).padStart(2, '0')}`;
+
+    const actualConditions = [
+      sql`${cashRealizations.transactionDate} >= ${startDate}`,
+      sql`${cashRealizations.transactionDate} <= ${endDate}`
+    ];
+    if (corporateId) actualConditions.push(eq(departments.corporateId, corporateId));
+
+    const actualRows = await db
+      .select({
+        category: cashRealizations.category,
+        total: sql<number>`SUM(${cashRealizations.amount})::float`,
+      })
+      .from(cashRealizations)
+      .innerJoin(departments, eq(cashRealizations.departmentId, departments.id))
+      .where(and(...actualConditions))
+      .groupBy(cashRealizations.category);
+
+    const actualIn = n(actualRows.find(r => r.category === 'cash-in')?.total);
+    const actualOut = n(actualRows.find(r => r.category === 'cash-out')?.total);
+
+    result.push({
+      period: p,
+      projectedIn,
+      actualIn,
+      projectedOut,
+      actualOut,
+    });
+  }
+
+  return result;
+}
+
+/**
  * Aggregates all dashboard data into a single object to reduce API requests.
  */
 export async function getDashboardAggregated(params: {
@@ -677,14 +874,18 @@ export async function getDashboardAggregated(params: {
     cashFlowData,
     assetComposition,
     equityLiabilityComposition,
-    historicalData
+    historicalData,
+    cashFlowBridge,
+    projectionRealization,
   ] = await Promise.all([
     getDeptRevenueTarget(period, corporateId),
     getRevenueCostSummary(period, corporateId),
     getCashFlowData(period, cashFlowMonths || 6, corporateId, cashFlowDeptId),
     getAssetComposition(period, corporateId),
     getEquityLiabilityComposition(period, corporateId),
-    getHistoricalData(historicalMonths, corporateId)
+    getHistoricalData(historicalMonths, corporateId),
+    getCashFlowBridgeData(period, corporateId),
+    getProjectionRealizationData(period, 6, corporateId),
   ]);
 
   return {
@@ -693,6 +894,8 @@ export async function getDashboardAggregated(params: {
     cashFlowData,
     assetComposition,
     equityLiabilityComposition,
-    historicalData
+    historicalData,
+    cashFlowBridge,
+    projectionRealization,
   };
 }

@@ -23,6 +23,8 @@ export interface DashboardCopy {
   periodLabel: string;
   yoy: string;
   notAvailable: string;
+  projectionVsRealization: string;
+  cashFlowBridge: string;
   allCompanies: string;
   selectCompany: string;
   inactive: string;
@@ -34,6 +36,14 @@ export interface DashboardCopy {
     quarter: string;
     semester: string;
   };
+  projCashIn: string;
+  actCashIn: string;
+  projCashOut: string;
+  actCashOut: string;
+  bridgeOpening: string;
+  bridgeCashIn: string;
+  bridgeCashOut: string;
+  bridgeEnding: string;
 }
 
 export const dashboardI18n: Record<Locale, DashboardCopy> = {
@@ -59,6 +69,8 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
     periodLabel: 'Periode',
     yoy: 'YoY',
     notAvailable: 'T/A',
+    projectionVsRealization: 'Proyeksi vs Realisasi',
+    cashFlowBridge: 'Jembatan Arus Kas',
     allCompanies: 'Semua Perusahaan',
     selectCompany: 'Pilih Perusahaan',
     inactive: 'Tidak Aktif',
@@ -76,6 +88,14 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
       quarter: 'Kuartal',
       semester: 'Semester',
     },
+    projCashIn: 'Proyeksi Kas Masuk',
+    actCashIn: 'Aktual Kas Masuk',
+    projCashOut: 'Proyeksi Kas Keluar',
+    actCashOut: 'Aktual Kas Keluar',
+    bridgeOpening: 'Saldo Awal',
+    bridgeCashIn: 'Kas Masuk',
+    bridgeCashOut: 'Kas Keluar',
+    bridgeEnding: 'Saldo Akhir',
   },
   en: {
     title: 'Financial Dashboard',
@@ -99,6 +119,8 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
     periodLabel: 'Period',
     yoy: 'YoY',
     notAvailable: 'N/A',
+    projectionVsRealization: 'Projection vs Realization',
+    cashFlowBridge: 'Cash Flow Bridge',
     allCompanies: 'All Companies',
     selectCompany: 'Select Company',
     inactive: 'Inactive',
@@ -116,5 +138,13 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
       quarter: 'Quarter',
       semester: 'Semester',
     },
+    projCashIn: 'Cash In Projection',
+    actCashIn: 'Cash In Actual',
+    projCashOut: 'Cash Out Projection',
+    actCashOut: 'Cash Out Actual',
+    bridgeOpening: 'Opening Balance',
+    bridgeCashIn: 'Cash In',
+    bridgeCashOut: 'Cash Out',
+    bridgeEnding: 'Ending Balance',
   },
 };

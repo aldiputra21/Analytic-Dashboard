@@ -256,3 +256,36 @@ export const bankLoanInstallments = cfdSchema.table('bank_loan_installments', {
 }, (table) => [
   check('chk_installment_status', sql`${table.status} IN ('paid', 'unpaid')`),
 ]);
+
+// --- 10. cash_flow_projection_headers ---------------------------------------
+
+export const cashFlowProjectionHeaders = cfdSchema.table('cash_flow_projection_headers', {
+  id: uuid().primaryKey().defaultRandom(),
+  corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
+  fiscalYear: integer('fiscal_year').notNull(),
+  initialBalance: numeric('initial_balance', { precision: 18, scale: 2 }).notNull().default('0'),
+  notes: text(),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  unique('uq_cf_projection_header').on(table.corporateId, table.fiscalYear),
+]);
+
+// --- 11. cash_flow_projection_details ---------------------------------------
+
+export const cashFlowProjectionDetails = cfdSchema.table('cash_flow_projection_details', {
+  id: uuid().primaryKey().defaultRandom(),
+  headerId: uuid('header_id').notNull().references(() => cashFlowProjectionHeaders.id, { onDelete: 'cascade' }),
+  month: integer('month').notNull(),
+  group: varchar({ length: 50 }).notNull(), // 'operating', 'investing', 'financing'
+  type: varchar({ length: 20 }).notNull(),  // 'cash-in', 'cash-out'
+  category: varchar({ length: 100 }).notNull(), // e.g., 'Collection', 'Payroll'
+  amount: numeric({ precision: 18, scale: 2 }).notNull().default('0'),
+  notes: text(),
+}, (table) => [
+  check('chk_projection_month', sql`${table.month} >= 1 AND ${table.month} <= 12`),
+  check('chk_projection_group', sql`${table.group} IN ('operating', 'investing', 'financing')`),
+  check('chk_projection_type', sql`${table.type} IN ('cash-in', 'cash-out')`),
+]);

@@ -29,3 +29,12 @@ export function formatPeriod(periodStr: string | null | undefined, language: str
     return periodStr;
   }
 }
+
+export function parseFormattedNumber(value: string): number {
+  if (!value) return 0;
+  // Remove non-digit characters except dot and comma
+  // Since we use id-ID (dot as thousand separator), we remove all dots
+  // And replace comma with dot for float parsing if needed
+  const cleaned = value.replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.]/g, '');
+  return parseFloat(cleaned) || 0;
+}

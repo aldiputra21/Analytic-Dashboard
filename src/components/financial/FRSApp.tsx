@@ -26,6 +26,7 @@ const CostCenterManager = lazy(() => import('./admin/CostCenterManager').then((m
 const DepartmentManager = lazy(() => import('./admin/DepartmentManager').then((m) => ({ default: m.DepartmentManager })));
 const ProjectManager = lazy(() => import('./admin/ProjectManager').then((m) => ({ default: m.ProjectManager })));
 const TargetManager = lazy(() => import('./admin/TargetManager').then((m) => ({ default: m.TargetManager })));
+const CashFlowProjectionManager = lazy(() => import('./admin/CashFlowProjectionManager').then((m) => ({ default: m.CashFlowProjectionManager })));
 const UserManager = lazy(() => import('./admin/UserManager').then((m) => ({ default: m.UserManager })));
 const PermissionManager = lazy(() => import('./admin/PermissionManager').then((m) => ({ default: m.PermissionManager })));
 const RoleManager = lazy(() => import('./admin/RoleManager').then((m) => ({ default: m.RoleManager })));
@@ -119,6 +120,7 @@ const AppContent: React.FC = () => {
       );
       case 'alerts': return <AlertsInbox />;
       case 'targets': return <TargetManager />;
+      case 'cfd-cash-flow-projections': return <CashFlowProjectionManager />;
       case 'thresholds': return (
         <ThresholdConfig 
           subsidiaryId={thresholdSubsidiaryId} 

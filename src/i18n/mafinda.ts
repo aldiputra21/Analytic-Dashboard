@@ -258,12 +258,12 @@ export const mafindaI18n: Record<Locale, MafindaCopy> = {
         table: 'Table',
       },
       cashFlow: {
-        title: 'Arus Kas (Cash Flow)',
-        cashIn: 'Cash In',
-        cashOut: 'Cash Out',
-        net: 'Net',
-        totalNet: 'Net Cash Flow (total periode)',
-        empty: 'Tidak ada data arus kas untuk filter yang dipilih.',
+        title: 'Arus Kas',
+        cashIn: 'Kas Masuk',
+        cashOut: 'Kas Keluar',
+        net: 'Netto',
+        totalNet: 'Total Arus Kas',
+        empty: 'Tidak ada data arus kas untuk periode yang dipilih.',
       },
       ranges: {
         months3: '3 Bulan',

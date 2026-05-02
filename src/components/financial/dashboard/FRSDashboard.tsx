@@ -8,6 +8,8 @@ import { CompanySelector, getSubsidiaryColor } from './CompanySelector';
 import { PeriodSelector, PeriodRange, getPeriodStartDate } from './PeriodSelector';
 import { HealthScoreGauge } from './HealthScoreGauge';
 import { RatioCard } from './RatioCard';
+import { WaterfallChart } from '../../MAFINDA/dashboard/WaterfallChart';
+import { ProjectionRealizationChart } from '../../MAFINDA/dashboard/ProjectionRealizationChart';
 import { TrendChart, calculateYoY, TrendDataPoint, TrendSeries } from './TrendChart';
 import { ComparisonChart, ComparisonDataPoint } from './ComparisonChart';
 import { AlertPanel } from './AlertPanel';
@@ -430,7 +432,6 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
           />
         </div>
 
-        {/* Revenue Cost + Cash Flow — 2 col */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
             <RevenueCostCards
@@ -453,6 +454,18 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
               isLoading={mafindaData.isLoading || isDeptsLoading}
             />
           </div>
+        </div>
+
+        {/* Projection Visualization Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <WaterfallChart 
+            data={mafindaData.cashFlowBridge ?? []} 
+            isLoading={mafindaData.isLoading} 
+          />
+          <ProjectionRealizationChart 
+            data={mafindaData.projectionRealization ?? []} 
+            isLoading={mafindaData.isLoading} 
+          />
         </div>
 
         {/* Pie 3D — Asset & Equity Composition */}

@@ -22,6 +22,7 @@ export interface NavigationCopy {
     departments: string;
     projects: string;
     targets: string;
+    cashFlowProjections: string;
     users: string;
     roles: string;
     permissions: string;
@@ -73,6 +74,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       departments: 'Departemen',
       projects: 'Proyek',
       targets: 'Proyeksi',
+      cashFlowProjections: 'Proyeksi Arus Kas',
       users: 'Pengguna',
       roles: 'Peran',
       permissions: 'Izin',
@@ -122,6 +124,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       departments: 'Departments',
       projects: 'Projects',
       targets: 'Projections',
+      cashFlowProjections: 'Cash Flow Projection',
       users: 'Users',
       roles: 'Roles',
       permissions: 'Permissions',

@@ -43,6 +43,13 @@
       "when": 1777685629926,
       "tag": "0005_magical_gravity",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777709918982,
+      "tag": "0006_premium_ultimatum",
+      "breakpoints": true
     }
   ]
 }

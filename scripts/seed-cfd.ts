@@ -15,7 +15,7 @@
 import 'dotenv/config';
 import { db } from '../src/db/connection';
 import { users, corporates, departments, projects } from '../src/db/schema/public';
-import { targetHeaders, targetDetails, weeklyCashFlows, balanceSheets, incomeStatements, costCenters } from '../src/db/schema/cfd';
+import { targetHeaders, targetDetails, weeklyCashFlows, balanceSheets, incomeStatements, costCenters, cashFlowProjectionHeaders, cashFlowProjectionDetails } from '../src/db/schema/cfd';
 import { eq } from 'drizzle-orm';
 
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
@@ -305,6 +305,68 @@ async function main() {
 
   console.log(`   ✅ Generated ${recordCount} historical financial records (balance sheets + income statements)`);
   console.log('   🏢 Companies: ASI, TSI, SUB3, SUB4, SUB5');
+
+  // ── Cash Flow Projections (2024-2026) ───────────────────
+  console.log('📈 Seeding cash flow projections (2024-2026)...');
+  const projectionYears = [2024, 2025, 2026];
+  for (const year of projectionYears) {
+    for (const corp of allCorps) {
+      // Upsert Header
+      const [header] = await db
+        .insert(cashFlowProjectionHeaders)
+        .values({
+          corporateId: corp.id,
+          fiscalYear: year,
+          initialBalance: '500000000',
+          notes: `Seeded projection for ${year}`,
+          createdBy: seedActorId,
+        })
+        .onConflictDoUpdate({
+          target: [cashFlowProjectionHeaders.corporateId, cashFlowProjectionHeaders.fiscalYear],
+          set: { updatedBy: seedActorId }
+        })
+        .returning();
+
+      if (header) {
+        // Clean old details to avoid duplicates if re-running
+        await db.delete(cashFlowProjectionDetails).where(eq(cashFlowProjectionDetails.headerId, header.id));
+        
+        const details = [];
+        for (let month = 1; month <= 12; month++) {
+          details.push({
+            headerId: header.id,
+            month,
+            group: 'operating' as const,
+            type: 'cash-in' as const,
+            category: 'Collection',
+            amount: (200000000 + Math.random() * 50000000).toFixed(0),
+            notes: 'Monthly collection projection',
+          });
+          details.push({
+            headerId: header.id,
+            month,
+            group: 'operating' as const,
+            type: 'cash-out' as const,
+            category: 'Payroll',
+            amount: '120000000',
+            notes: 'Staff salaries',
+          });
+          details.push({
+            headerId: header.id,
+            month,
+            group: 'operating' as const,
+            type: 'cash-out' as const,
+            category: 'Operational',
+            amount: (50000000 + Math.random() * 20000000).toFixed(0),
+            notes: 'Opex',
+          });
+        }
+        await db.insert(cashFlowProjectionDetails).values(details);
+      }
+    }
+  }
+  console.log('   ✅ Cash flow projections seeded for all companies (2024-2026)');
+
   console.log('\n🎉 CFD schema seeding complete!');
   process.exit(0);
 }

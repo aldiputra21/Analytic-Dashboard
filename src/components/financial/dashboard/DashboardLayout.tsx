@@ -24,7 +24,7 @@ export type FRSPage =
   | 'corporates' | 'cost-centers' | 'departments' | 'projects' | 'targets'
   | 'users' | 'roles' | 'permissions' | 'thresholds' | 'audit-logs' | 'profile'
   | 'cfd-balance-sheets' | 'cfd-income-statements' | 'cfd-weekly-cash-flows'
-  | 'cfd-realizations' | 'cfd-bank-loans'
+  | 'cfd-realizations' | 'cfd-bank-loans' | 'cfd-cash-flow-projections'
   | 'weekly-cashflow-manager' | 'realization-manager' | 'bank-loan-manager'
   | 'bank-manager' | 'corporate-sectors-manager' | 'currencies-manager'
   | 'cost-center-categories-manager' | 'notification-configs-manager'
@@ -87,6 +87,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'departments', label: t.menus.departments, icon: Building2, requiredPermissions: ['public.departments.read'], group: 'corporate-management' },
       { id: 'projects', label: t.menus.projects, icon: FolderKanban, requiredPermissions: ['public.projects.read'], group: 'corporate-management' },
       { id: 'targets', label: t.menus.targets, icon: Target, requiredPermissions: ['public.targets.read'], group: 'corporate-management' },
+      { id: 'cfd-cash-flow-projections', label: t.menus.cashFlowProjections, icon: TrendingUp, requiredPermissions: ['cfd.cash_flow_projections.read'], group: 'corporate-management' },
       // CRM — tree with children
       {
         id: 'crm-dashboard',

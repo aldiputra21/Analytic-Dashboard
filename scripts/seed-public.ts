@@ -93,6 +93,9 @@ async function main() {
     { key: 'cfd.bank_loans.read', module: 'cfd', description: 'Read bank loans' },
     { key: 'cfd.bank_loans.write', module: 'cfd', description: 'Manage bank loans' },
     { key: 'cfd.bank_loans.delete', module: 'cfd', description: 'Delete bank loans' },
+    { key: 'cfd.cash_flow_projections.read', module: 'cfd', description: 'Read cash flow projections' },
+    { key: 'cfd.cash_flow_projections.write', module: 'cfd', description: 'Manage cash flow projections' },
+    { key: 'cfd.cash_flow_projections.delete', module: 'cfd', description: 'Delete cash flow projections' },
     { key: 'public.banks.read', module: 'public', description: 'Read banks' },
     { key: 'public.banks.write', module: 'public', description: 'Manage banks' },
     { key: 'public.banks.delete', module: 'public', description: 'Delete banks' },
@@ -179,6 +182,7 @@ async function main() {
       'cfd.cost_centers.write',
       'cfd.cost_centers.delete',
       'cfd.audit_log.read',
+      'cfd.cash_flow_projections.read',
     ],
     corporate_executive: permissionCatalog
       .filter(p => p.key.endsWith('.read'))
@@ -195,6 +199,7 @@ async function main() {
       'cfd.cost_centers.read',
       'cfd.cost_centers.write',
       'cfd.realizations.read',
+      'cfd.cash_flow_projections.read',
     ],
     finance_manager: [
       'cfd.dashboard.read',
@@ -208,6 +213,7 @@ async function main() {
       'cfd.cost_centers.read',
       'cfd.cost_centers.write',
       'cfd.realizations.read',
+      'cfd.cash_flow_projections.read',
     ],
     finance_staff: [
       'cfd.dashboard.read',
@@ -223,6 +229,8 @@ async function main() {
       'cfd.realizations.write',
       'cfd.cost_centers.read',
       'cfd.cost_centers.write',
+      'cfd.cash_flow_projections.read',
+      'cfd.cash_flow_projections.write',
     ],
     dept_leader: [
       'cfd.dashboard.read',

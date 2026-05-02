@@ -14,6 +14,7 @@ import { createCorporatesRouter } from '../routes/financial/corporates.js';
 import { createDepartmentRouter } from '../routes/management/departments.js';
 import { createProjectRouter } from '../routes/management/projects.js';
 import { createTargetRouter } from '../routes/management/targets.js';
+import { createCashFlowProjectionRouter } from '../routes/management/cash-flow-projections.js';
 import { createFinancialStatementRouter } from '../routes/management/financialStatements.js';
 import { createMafindaDashboardRouter } from '../routes/dashboard/mafindaDashboard.js';
 import { createOpportunityRouter, createPipelineRouter } from '../routes/crm/opportunities.js';
@@ -101,6 +102,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use('/api/departments', authenticate, checkMaintenance, createDepartmentRouter());
   app.use('/api/projects', authenticate, checkMaintenance, createProjectRouter());
   app.use('/api/targets', authenticate, checkMaintenance, createTargetRouter());
+  app.use('/api/cash-flow-projections', authenticate, checkMaintenance, createCashFlowProjectionRouter());
   app.use('/api/financial-statements', authenticate, checkMaintenance, createFinancialStatementRouter());
   app.use('/api/mafinda/dashboard', authenticate, checkMaintenance, createMafindaDashboardRouter());
   app.use('/api/cost-centers', authenticate, checkMaintenance, createCostCenterRouter());

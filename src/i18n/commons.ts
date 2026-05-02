@@ -28,6 +28,7 @@ export interface CommonsCopy {
   successDelete: string;
   errorSave: string;
   errorDelete: string;
+  errorValidation: string;
   errorNetwork: string;
   apply: string;
   clear: string;
@@ -64,9 +65,14 @@ export interface CommonsCopy {
     good: string;
     strong: string;
   };
+  selectCorporate: string;
+  createdAt: string;
+  noData: string;
   errors: {
     [key in keyof typeof import('../utils/errors').ErrorCode]?: string;
   };
+  saveChanges: string;
+  confirmDelete: string;
 }
 
 export const commonsI18n: Record<Locale, CommonsCopy> = {
@@ -97,7 +103,8 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     successDelete: 'Data berhasil dihapus',
     errorSave: 'Gagal menyimpan data',
     errorDelete: 'Gagal menghapus data',
-    errorNetwork: 'Terjadi kesalahan jaringan',
+    errorValidation: 'Mohon periksa kembali inputan Anda',
+    errorNetwork: 'Kesalahan jaringan, silakan coba lagi',
     apply: 'Terapkan',
     clear: 'Bersihkan',
     search: 'Cari...',
@@ -180,6 +187,11 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       FILE_TOO_LARGE: 'Ukuran file terlalu besar',
       INVALID_FILE_TYPE: 'Format file tidak didukung',
     },
+    selectCorporate: 'Pilih Perusahaan',
+    createdAt: 'Dibuat Pada',
+    noData: 'Tidak ada data ditemukan',
+    saveChanges: 'Simpan Perubahan',
+    confirmDelete: 'Konfirmasi Hapus',
   },
   en: {
     networkOnline: 'Network connection restored',
@@ -208,7 +220,8 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     successDelete: 'Data deleted successfully',
     errorSave: 'Failed to save data',
     errorDelete: 'Failed to delete data',
-    errorNetwork: 'Network error',
+    errorValidation: 'Please check your inputs',
+    errorNetwork: 'Network error, please try again',
     apply: 'Apply',
     clear: 'Clear',
     search: 'Search...',
@@ -291,5 +304,10 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       FILE_TOO_LARGE: 'File size is too large',
       INVALID_FILE_TYPE: 'Unsupported file format',
     },
+    selectCorporate: 'Select Corporate',
+    createdAt: 'Created At',
+    noData: 'No data found',
+    saveChanges: 'Save Changes',
+    confirmDelete: 'Confirm Delete',
   },
 };

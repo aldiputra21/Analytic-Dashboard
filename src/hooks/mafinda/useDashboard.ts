@@ -35,6 +35,8 @@ export interface DashboardData {
   assetComposition: AssetComposition | null;
   equityLiabilityComposition: EquityLiabilityComposition | null;
   historicalData: HistoricalDataPoint[];
+  cashFlowBridge: any[] | null;
+  projectionRealization: any[] | null;
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
@@ -132,6 +134,8 @@ export function useDashboard(filters: DashboardFilters): DashboardData {
     assetComposition: data?.assetComposition ?? null,
     equityLiabilityComposition: data?.equityLiabilityComposition ?? null,
     historicalData: data?.historicalData ?? [],
+    cashFlowBridge: null, // Legacy doesn't support bridge
+    projectionRealization: null, // Legacy doesn't support comparison
     isLoading,
     error: error ? (error as Error).message : null,
     refetch,
@@ -171,6 +175,8 @@ export function useDashboardAggregated(filters: DashboardAggregatedFilters): Das
     assetComposition: data?.assetComposition ?? null,
     equityLiabilityComposition: data?.equityLiabilityComposition ?? null,
     historicalData: data?.historicalData ?? [],
+    cashFlowBridge: data?.cashFlowBridge ?? null,
+    projectionRealization: data?.projectionRealization ?? null,
     isLoading,
     error: error ? (error as Error).message : null,
     refetch,
