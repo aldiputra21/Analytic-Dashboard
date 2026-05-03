@@ -7,6 +7,9 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { alertsI18n } from '../../../i18n/alerts';
 import { ratiosI18n } from '../../../i18n/ratios';
+import { bankLoanI18n } from '../../../i18n/bank-loan';
+import { thresholdI18n } from '../../../i18n/thresholds';
+import { renderNotificationMessage } from '../../../utils/notification';
 import { cn } from '../../../utils/cn';
 
 interface NotificationPopoverProps {
@@ -22,6 +25,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
   const { token, user, language } = useAuth();
   const { corporates } = useCorporates();
   const t = alertsI18n[language];
+  const tLoan = bankLoanI18n[language];
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -38,6 +42,8 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
     () => Object.fromEntries(corporates.map((c) => [c.id, c.name])),
     [corporates],
   );
+
+  const renderMessage = (notification: any) => renderNotificationMessage(notification, language);
 
   // Close on click outside
   useEffect(() => {
@@ -124,8 +130,16 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                   {notifications.slice(0, 5).map((notification) => {
                     const payload = notification.payload ?? {};
                     const corporateId = String(payload.corporateId ?? '');
-                    const ratioName = String(payload.ratioName ?? notification.category);
-                    const message = String(payload.message ?? notification.templateKey);
+                    const ratioName = String(payload.ratioName ?? payload.ratio ?? '');
+                    const message = renderMessage(notification);
+                    
+                    // Determine label
+                    let categoryLabel = notification.category;
+                    if (notification.category === 'loan-installment-due' || notification.sourceEntityType === 'bank_loan_installment') {
+                      categoryLabel = tLoan.installment.sectionTitle;
+                    } else if (ratioName && ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]) {
+                      categoryLabel = ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]?.label;
+                    }
 
                     return (
                       <div 
@@ -150,7 +164,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                               {message}
                             </p>
                             <p className="text-[10px] text-indigo-500 font-medium mt-1">
-                              {ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]?.label ?? ratioName}
+                              {categoryLabel}
                             </p>
                           </div>
                         </div>

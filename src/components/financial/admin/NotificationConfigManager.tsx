@@ -27,6 +27,7 @@ import { notificationConfigI18n } from '../../../i18n/notification-config';
 import { commonsI18n } from '../../../i18n/commons';
 import { z } from 'zod';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { MultiSearchableSelect } from '../shared/MultiSearchableSelect';
 
 interface Role {
   id: string;
@@ -38,9 +39,7 @@ interface NotificationConfig {
   id: string;
   module: string;
   eventType: string;
-  roleId: string;
-  roleName: string | null;
-  roleDescription: string | null;
+  targetRoles: string[];
   isActive: boolean;
   createdBy: string;
   createdAt: string;
@@ -91,7 +90,7 @@ export const NotificationConfigManager: React.FC = () => {
   const configSchema = z.object({
     module: z.string().min(1, t.validation.moduleRequired),
     eventType: z.string().min(1, t.validation.eventTypeRequired),
-    roleId: z.string().min(1, t.validation.roleRequired),
+    targetRoles: z.array(z.string()).min(1, t.validation.roleRequired),
     isActive: z.boolean()
   });
 
@@ -131,7 +130,7 @@ export const NotificationConfigManager: React.FC = () => {
   const [formData, setFormData] = useState({
     module: '',
     eventType: '',
-    roleId: '',
+    targetRoles: [] as string[],
     isActive: true,
   });
 
@@ -185,12 +184,12 @@ export const NotificationConfigManager: React.FC = () => {
       setFormData({
         module: item.module,
         eventType: item.eventType,
-        roleId: item.roleId,
+        targetRoles: item.targetRoles,
         isActive: item.isActive,
       });
     } else {
       setEditingId(null);
-      setFormData({ module: '', eventType: '', roleId: '', isActive: true });
+      setFormData({ module: '', eventType: '', targetRoles: [], isActive: true });
     }
     setIsModalOpen(true);
   };
@@ -265,9 +264,9 @@ export const NotificationConfigManager: React.FC = () => {
     sublabel: r.description ?? undefined,
   }));
 
-  const getRoleName = (roleId: string, roleName: string | null) => {
-    if (roleName) return roleName;
-    return roles.find((r) => r.id === roleId)?.name ?? roleId;
+  const getRoleNames = (roleIds: string[]) => {
+    if (!roleIds || roleIds.length === 0) return '-';
+    return roleIds.map(id => roles.find(r => r.id === id)?.name ?? id).join(', ');
   };
 
   return (
@@ -427,8 +426,8 @@ export const NotificationConfigManager: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-slate-700 text-xs font-mono">{cfg.eventType}</td>
-                      <td className="px-6 py-4 text-slate-800 text-sm font-semibold">
-                        {getRoleName(cfg.roleId, cfg.roleName)}
+                      <td className="px-6 py-4 text-slate-800 text-sm font-semibold max-w-[200px] truncate">
+                        {getRoleNames(cfg.targetRoles)}
                       </td>
                       <td className="px-6 py-4">
                         <div className={cn(
@@ -599,10 +598,10 @@ export const NotificationConfigManager: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     {t.modal.role} <span className="text-red-500">*</span>
                   </label>
-                  <SearchableSelect
+                  <MultiSearchableSelect
                     options={roleOptions}
-                    value={formData.roleId}
-                    onChange={(val) => setFormData(p => ({ ...p, roleId: val }))}
+                    value={formData.targetRoles}
+                    onChange={(vals) => setFormData(p => ({ ...p, targetRoles: vals }))}
                     placeholder={t.role.placeholder}
                     disabled={isReadOnly}
                   />

@@ -30,6 +30,7 @@ import { DepartmentPerformance } from '../../MAFINDA/dashboard/DepartmentPerform
 import { DashboardGlobalFilter, type PeriodType as GlobalPeriodType } from './DashboardGlobalFilter';
 import { useDashboard, useDashboardAggregated, type DashboardFilters } from '../../../hooks/mafinda/useDashboard';
 import { FinancialSummaryCards } from '../../MAFINDA/dashboard/FinancialSummaryCards';
+import AlertBanner from './AlertBanner';
 
 function parseDateSafe(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
@@ -319,6 +320,9 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Financial Alerts Banner */}
+      <AlertBanner corporateId={selectedCompany !== 'all' ? selectedCompany : undefined} />
 
       {/* Health Score Gauges - responsive grid */}
       {displayedRatios.length > 0 && (

@@ -75,9 +75,9 @@ export function createRatiosRouter(): Router {
     if (corporateId) {
       conditions.push(sql`corporate_id = ${corporateId}`);
     }
-    if (departmentId) {
-      conditions.push(sql`department_id = ${departmentId}`);
-    }
+    // if (departmentId) {
+    //   conditions.push(sql`department_id = ${departmentId}`);
+    // }
 
     // Context Filtering
     const access = req.accessContext!;

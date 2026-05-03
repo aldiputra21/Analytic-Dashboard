@@ -9,7 +9,6 @@ export const V_FINANCIAL_RATIOS_SQL = `
 CREATE OR REPLACE VIEW cfd.v_financial_ratios AS
 SELECT
   fs.balance_sheet_id,
-  fs.department_id,
   fs.corporate_id,
   fs.period,
 

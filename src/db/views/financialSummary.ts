@@ -9,9 +9,8 @@ export const V_FINANCIAL_SUMMARY_SQL = `
 CREATE OR REPLACE VIEW cfd.v_financial_summary AS
 SELECT
   bs.id AS balance_sheet_id,
-  bs.department_id,
+  bs.corporate_id,
   bs.period,
-  d.corporate_id,
 
   -- From income_statements
   COALESCE(ist.revenue, 0) AS revenue,
@@ -61,8 +60,7 @@ SELECT
   ) AS total_equity
 
 FROM cfd.balance_sheets bs
-JOIN public.departments d ON d.id = bs.department_id
 LEFT JOIN cfd.income_statements ist
-  ON ist.department_id = bs.department_id
+  ON ist.corporate_id = bs.corporate_id
   AND ist.period = bs.period;
 `;

@@ -4,6 +4,7 @@
 import { eq, and, desc, sql, count, gte, lte } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema/index.js';
+import { reevaluateAlertsForSubsidiary } from '../financial/alertEngine';
 
 // ─── Error Classes ────────────────────────────────────────────────────────────
 
@@ -259,7 +260,10 @@ export async function saveBalanceSheet(input: BalanceSheetInput, userId: string)
       updatedAt: new Date(),
     }).where(eq(balanceSheets.id, target.id)).returning();
 
-    return mapBalanceSheetRow(updated);
+    const result = mapBalanceSheetRow(updated);
+    // Background re-evaluation
+    reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+    return result;
   }
 
   // Insert new record
@@ -289,7 +293,10 @@ export async function saveBalanceSheet(input: BalanceSheetInput, userId: string)
     createdBy: userId,
   }).returning();
 
-  return mapBalanceSheetRow(inserted);
+  const result = mapBalanceSheetRow(inserted);
+  // Background re-evaluation
+  reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+  return result;
 }
 
 /**
@@ -437,7 +444,10 @@ export async function saveIncomeStatement(
       updatedAt: new Date(),
     }).where(eq(incomeStatements.id, input.id)).returning();
 
-    return mapIncomeStatementRow(updated);
+    const result = mapIncomeStatementRow(updated);
+    // Background re-evaluation
+    reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+    return result;
   }
 
   const [inserted] = await db.insert(incomeStatements).values({
@@ -452,7 +462,10 @@ export async function saveIncomeStatement(
     createdBy: userId,
   }).returning();
 
-  return mapIncomeStatementRow(inserted);
+  const result = mapIncomeStatementRow(inserted);
+  // Background re-evaluation
+  reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+  return result;
 }
 
 /**

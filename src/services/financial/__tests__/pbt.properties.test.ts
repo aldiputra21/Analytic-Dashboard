@@ -587,7 +587,7 @@ describe('P20-P24: Benchmarking & Thresholds', () => {
     expect(RATIO_NAMES).toHaveLength(9);
 
     for (const ratioName of RATIO_NAMES) {
-      const defaults = getDefaultsForRatio('manufacturing', ratioName);
+      const defaults = getDefaultsForRatio({} as any, {}, 'manufacturing', ratioName);
       expect(defaults).toBeTruthy();
       expect(Object.keys(defaults).length).toBeGreaterThan(0);
     }

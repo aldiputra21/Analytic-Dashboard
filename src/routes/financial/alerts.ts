@@ -22,7 +22,7 @@ export function createAlertsRouter(): Router {
    */
   router.get(
     '/history', 
-    requirePermission('cfd.alerts.read'), 
+    requirePermission('cfd.dashboard.read'), 
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       const { corporateId, severity, limit, offset } = req.query as any;
@@ -52,7 +52,7 @@ export function createAlertsRouter(): Router {
    */
   router.get(
     '/', 
-    requirePermission('cfd.alerts.read'), 
+    requirePermission('cfd.dashboard.read'), 
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       const { corporateId, severity, status, limit, offset } = req.query as any;
@@ -83,7 +83,7 @@ export function createAlertsRouter(): Router {
    */
   router.get(
     '/:id', 
-    requirePermission('cfd.alerts.read'), 
+    requirePermission('cfd.dashboard.read'), 
     injectAccessContext,
     asyncHandler(async (req: Request, res: Response) => {
       const alert = await getUserAlertById(req.params.id, req.user!.userId);

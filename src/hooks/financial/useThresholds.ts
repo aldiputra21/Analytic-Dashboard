@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Threshold, CreateThresholdInput } from '../../types/financial/threshold';
-import { PeriodType } from '../../types/financial/financialData';
 import { apiFetch } from '../../services/financial/apiFetch';
 
 interface UseThresholdsOptions {
   subsidiaryId?: string;
-  periodType?: PeriodType;
   enabled?: boolean;
 }
 
@@ -19,7 +17,7 @@ interface UseThresholdsResult {
 }
 
 export function useThresholds(options: UseThresholdsOptions = {}): UseThresholdsResult {
-  const { subsidiaryId, periodType, enabled = true } = options;
+  const { subsidiaryId, enabled = true } = options;
   const [thresholds, setThresholds] = useState<Threshold[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,10 +27,7 @@ export function useThresholds(options: UseThresholdsOptions = {}): UseThresholds
     setIsLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (periodType) params.set('periodType', periodType);
-
-      const res = await apiFetch(`/api/frs/thresholds/${subsidiaryId}?${params}`);
+      const res = await apiFetch(`/api/frs/thresholds/${subsidiaryId}`);
       if (!res.ok) {
         const errData = await res.json();
         throw errData;
@@ -45,7 +40,7 @@ export function useThresholds(options: UseThresholdsOptions = {}): UseThresholds
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, subsidiaryId, periodType]);
+  }, [enabled, subsidiaryId]);
 
   useEffect(() => { fetchThresholds(); }, [fetchThresholds]);
 

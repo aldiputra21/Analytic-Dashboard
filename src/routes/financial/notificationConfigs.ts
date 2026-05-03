@@ -18,14 +18,14 @@ import { AppError, ErrorCode } from '../../utils/errors';
 const createNotificationConfigSchema = z.object({
   module: z.string().min(1).max(50),
   eventType: z.string().min(1).max(100),
-  roleId: z.string().uuid(),
+  targetRoles: z.array(z.string().uuid()).min(1),
   isActive: z.boolean().default(true),
 });
 
 const updateNotificationConfigSchema = z.object({
   module: z.string().min(1).max(50).optional(),
   eventType: z.string().min(1).max(100).optional(),
-  roleId: z.string().uuid().optional(),
+  targetRoles: z.array(z.string().uuid()).min(1).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -66,9 +66,7 @@ export function createNotificationConfigsRouter(): Router {
           id: notificationConfigs.id,
           module: notificationConfigs.module,
           eventType: notificationConfigs.eventType,
-          roleId: notificationConfigs.roleId,
-          roleName: roles.name,
-          roleDescription: roles.description,
+          targetRoles: notificationConfigs.targetRoles,
           isActive: notificationConfigs.isActive,
           createdBy: notificationConfigs.createdBy,
           createdAt: notificationConfigs.createdAt,
@@ -76,7 +74,6 @@ export function createNotificationConfigsRouter(): Router {
           updatedAt: notificationConfigs.updatedAt,
         })
         .from(notificationConfigs)
-        .leftJoin(roles, eq(roles.id, notificationConfigs.roleId))
         .where(where)
         .orderBy(notificationConfigs.module, notificationConfigs.eventType)
         .limit(pageSize)
@@ -101,14 +98,14 @@ export function createNotificationConfigsRouter(): Router {
     asyncHandler(async (req: Request, res: Response) => {
     const data = createNotificationConfigSchema.parse(req.body);
 
-    const { module, eventType, roleId, isActive } = data;
+    const { module, eventType, targetRoles, isActive } = data;
 
     const [config] = await db
       .insert(notificationConfigs)
       .values({
         module,
         eventType,
-        roleId,
+        targetRoles,
         isActive,
         createdBy: req.user!.userId,
       })

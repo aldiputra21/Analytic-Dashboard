@@ -44,6 +44,12 @@ export interface DashboardCopy {
   bridgeCashIn: string;
   bridgeCashOut: string;
   bridgeEnding: string;
+  alerts: {
+    title: string;
+    dismiss: string;
+    critical: string;
+    warning: string;
+  };
 }
 
 export const dashboardI18n: Record<Locale, DashboardCopy> = {
@@ -96,6 +102,12 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
     bridgeCashIn: 'Kas Masuk',
     bridgeCashOut: 'Kas Keluar',
     bridgeEnding: 'Saldo Akhir',
+    alerts: {
+      title: 'Peringatan Keuangan',
+      dismiss: 'Abaikan',
+      critical: 'Kritis',
+      warning: 'Peringatan',
+    },
   },
   en: {
     title: 'Financial Dashboard',
@@ -146,5 +158,11 @@ export const dashboardI18n: Record<Locale, DashboardCopy> = {
     bridgeCashIn: 'Cash In',
     bridgeCashOut: 'Cash Out',
     bridgeEnding: 'Ending Balance',
+    alerts: {
+      title: 'Financial Alerts',
+      dismiss: 'Dismiss',
+      critical: 'Critical',
+      warning: 'Warning',
+    },
   },
 };

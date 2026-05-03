@@ -100,6 +100,9 @@ export interface BankLoanCopy {
     interestRateInvalid: string;
     nominalZero: string;
   };
+  notifications: {
+    installmentDue: string;
+  };
 }
 
 export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
@@ -202,6 +205,9 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       interestRateInvalid: 'Suku bunga tidak valid',
       nominalZero: 'Jumlah pinjaman tidak boleh nol',
     },
+    notifications: {
+      installmentDue: 'Tagihan pinjaman sebesar Rp{amount} akan jatuh tempo pada {dueDate}',
+    },
   },
   en: {
     title: 'Bank Loan Management',
@@ -301,6 +307,9 @@ export const bankLoanI18n: Record<Locale, BankLoanCopy> = {
       tenorMin: 'Tenor must be at least 1 month',
       interestRateInvalid: 'Invalid interest rate',
       nominalZero: 'Loan amount cannot be zero',
+    },
+    notifications: {
+      installmentDue: 'Loan installment of {amount} is due on {dueDate}',
     },
   },
 };

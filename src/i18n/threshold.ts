@@ -44,6 +44,12 @@ export const thresholdI18n = {
     },
     validation: {
       positiveNumber: 'Nilai harus angka positif'
+    },
+    messages: {
+      belowHealthy: '{ratio} ({value}) berada di bawah ambang batas sehat ({threshold})',
+      criticallyBelow: '{ratio} ({value}) berada jauh di bawah ambang batas moderat ({threshold})',
+      aboveHealthy: '{ratio} ({value}) melebihi ambang batas sehat ({threshold})',
+      criticallyAbove: '{ratio} ({value}) melebihi ambang batas moderat ({threshold})',
     }
   },
   en: {
@@ -91,6 +97,12 @@ export const thresholdI18n = {
     },
     validation: {
       positiveNumber: 'Value must be a positive number'
+    },
+    messages: {
+      belowHealthy: '{ratio} ({value}) is below healthy threshold ({threshold})',
+      criticallyBelow: '{ratio} ({value}) is critically below moderate threshold ({threshold})',
+      aboveHealthy: '{ratio} ({value}) exceeds healthy threshold ({threshold})',
+      criticallyAbove: '{ratio} ({value}) critically exceeds moderate threshold ({threshold})',
     }
   }
 };

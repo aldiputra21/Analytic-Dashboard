@@ -7,6 +7,7 @@ import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { cn } from '../../../utils/cn';
 import { alertsI18n } from '../../../i18n/alerts';
 import { ratiosI18n } from '../../../i18n/ratios';
+import { renderNotificationMessage } from '../../../utils/notification';
 
 export const AlertsInbox: React.FC = () => {
   const { token, user, language } = useAuth();
@@ -108,7 +109,7 @@ export const AlertsInbox: React.FC = () => {
           const ratioName = String(payload.ratioName ?? notification.category);
           const currentValue = Number(payload.currentValue ?? 0);
           const thresholdValue = Number(payload.thresholdValue ?? 0);
-          const message = String(payload.message ?? notification.templateKey);
+          const message = renderNotificationMessage(notification, language);
 
           return (
             <div key={notification.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -2,7 +2,6 @@
 // Requirements: 5.10, 15.1 - 15.8
 
 import { RatioName } from './ratio';
-import { PeriodType } from './financialData';
 
 export type ThresholdStatus = 'healthy' | 'moderate' | 'risky';
 
@@ -10,7 +9,6 @@ export interface Threshold {
   id: string;
   subsidiaryId: string;
   ratioName: RatioName;
-  periodType: PeriodType;
 
   // For ratios where higher is better (ROA, ROE, NPM, Current Ratio, Quick Ratio, Cash Ratio, OCF Ratio, DSCR)
   healthyMin?: number;
@@ -31,7 +29,6 @@ export interface Threshold {
 export interface CreateThresholdInput {
   subsidiaryId: string;
   ratioName: RatioName;
-  periodType: PeriodType;
   healthyMin?: number;
   moderateMin?: number;
   riskyMax?: number;
@@ -43,6 +40,6 @@ export interface CreateThresholdInput {
 // Industry default thresholds per ratio
 export interface IndustryDefaults {
   [industrySector: string]: {
-    [ratioName: string]: Omit<CreateThresholdInput, 'subsidiaryId' | 'ratioName' | 'periodType'>;
+    [ratioName: string]: Omit<CreateThresholdInput, 'subsidiaryId' | 'ratioName'>;
   };
 }

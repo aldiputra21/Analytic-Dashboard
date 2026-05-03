@@ -1,15 +1,17 @@
 // Alert Engine Service
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, and, ne, desc, sql } from 'drizzle-orm';
+import { eq, and, ne, desc, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { randomUUID } from 'node:crypto';
-import { notifications, permissions, rolePermissions, userCorporateAccesses } from '../../db/schema/index.js';
+import { notifications, permissions, rolePermissions, userCorporateAccesses, notificationConfigs } from '../../db/schema/index.js';
 import { CalculatedRatios, RatioName } from '../../types/financial/ratio';
 import { Alert, AlertSeverity } from '../../types/financial/alert';
 import { Threshold } from '../../types/financial/threshold';
 import { getThreshold } from './thresholdService';
 import { createNotification } from './notificationService';
+import { queryFinancialData } from './financialDataService';
+import { calculateRatios } from './ratioCalculator';
 
 type NotificationRow = typeof notifications.$inferSelect;
 
@@ -21,7 +23,8 @@ interface NotificationAlertDraft {
   severity: AlertSeverity;
   currentValue: number;
   thresholdValue: number;
-  message: string;
+  messageKey: string; // Key for thresholdI18n.messages
+  templateVars: Record<string, any>;
   period: string;
   createdAt: Date;
 }
@@ -35,7 +38,7 @@ function mapDraftToAlert(draft: NotificationAlertDraft): Alert {
     severity: draft.severity,
     currentValue: draft.currentValue,
     thresholdValue: draft.thresholdValue,
-    message: draft.message,
+    message: draft.messageKey, // Use key as message for frontend mapping
     status: 'active',
     createdAt: draft.createdAt,
   };
@@ -69,67 +72,104 @@ function mapNotificationToAlert(row: NotificationRow): Alert {
   };
 }
 
-async function resolveActiveNotificationsForPeriod(
+async function resolveRatioAlertIfHealthy(
   corporateId: string,
-  period: string,
+  ratioName: RatioName,
 ): Promise<void> {
   await db.update(notifications).set({
     status: 'archived',
     updatedAt: new Date(),
   }).where(and(
     eq(notifications.sourceModule, 'cfd'),
-    eq(notifications.sourceEntityType, 'alert'),
+    eq(notifications.sourceEntityType, 'dashboard-alert'),
     sql`${notifications.payload} ->> 'corporateId' = ${corporateId}`,
-    sql`${notifications.payload} ->> 'period' = ${period}`,
+    sql`${notifications.payload} ->> 'ratioName' = ${ratioName}`,
     sql`${notifications.status} IN ('unread', 'read')`,
   ));
 }
 
 async function fanOutAlertNotification(draft: NotificationAlertDraft): Promise<void> {
+  // 1. Get the notification configuration for ratio breach
+  const [config] = await db.select()
+    .from(notificationConfigs)
+    .where(and(
+      eq(notificationConfigs.module, 'cfd'),
+      eq(notificationConfigs.eventType, 'ratio-breach'),
+      eq(notificationConfigs.isActive, true)
+    ))
+    .limit(1);
+
+  if (!config || !config.targetRoles || config.targetRoles.length === 0) {
+    console.warn('⚠️ No active notification configuration found for cfd:ratio-breach. Alerts will not be sent.');
+    return;
+  }
+
+  // 2. Resolve users who have the target roles and correct corporate scope
   const recipientRows = await db.select({
     userId: userCorporateAccesses.userId,
     roleId: userCorporateAccesses.roleId,
   })
     .from(userCorporateAccesses)
-    .where(sql`
-      (
-        ${userCorporateAccesses.scope} = 'system'
-        OR ${userCorporateAccesses.corporateId} = ${draft.corporateId}
-      )
-      AND EXISTS (
-        SELECT 1
-        FROM ${rolePermissions} rp
-        INNER JOIN ${permissions} p ON p.id = rp.permission_id
-        WHERE rp.role_id = ${userCorporateAccesses.roleId}
-          AND p.key = 'cfd.alerts.read'
-      )
-    `);
+    .where(and(
+      sql`
+        (
+          ${userCorporateAccesses.scope} = 'system'
+          OR ${userCorporateAccesses.corporateId} = ${draft.corporateId}
+        )
+      `,
+      inArray(userCorporateAccesses.roleId, config.targetRoles)
+    ));
 
-  await Promise.all(recipientRows.map((recipient) => createNotification({
-    sourceModule: 'cfd',
-    sourceEntityType: 'alert',
-    sourceEntityId: draft.sourceEntityId,
-    recipientUserId: recipient.userId,
-    recipientRoleId: recipient.roleId,
-    category: 'alert',
-    templateKey: 'cfd.ratio.breach',
-    templateVars: {
-      ratioName: draft.ratioName,
-      currentValue: draft.currentValue,
-      thresholdValue: draft.thresholdValue,
-      period: draft.period,
-    },
-    payload: {
-      corporateId: draft.corporateId,
-      departmentId: draft.departmentId,
-      ratioName: draft.ratioName,
-      currentValue: draft.currentValue,
-      thresholdValue: draft.thresholdValue,
-      message: draft.message,
-      period: draft.period,
-    },
-    severity: draft.severity,
-  })));
+  await Promise.all(recipientRows.map(async (recipient) => {
+    // Check if an existing dashboard-alert for this ratio exists for this user
+    const [existing] = await db.select()
+      .from(notifications)
+      .where(and(
+        eq(notifications.sourceModule, 'cfd'),
+        eq(notifications.sourceEntityType, 'dashboard-alert'),
+        eq(notifications.recipientUserId, recipient.userId),
+        sql`${notifications.payload} ->> 'ratioName' = ${draft.ratioName}`,
+        sql`${notifications.payload} ->> 'corporateId' = ${draft.corporateId}`
+      ))
+      .limit(1);
+
+    if (existing) {
+      // Re-trigger if already breached
+      await db.update(notifications).set({
+        status: 'unread',
+        severity: draft.severity,
+        templateKey: `cfd.threshold.${draft.messageKey}`,
+        payload: {
+          ...draft,
+          updatedAt: new Date()
+        },
+        templateVars: draft.templateVars,
+        updatedAt: new Date(),
+      }).where(eq(notifications.id, existing.id));
+    } else {
+      // Create new
+      await createNotification({
+        sourceModule: 'cfd',
+        sourceEntityType: 'dashboard-alert',
+        sourceEntityId: draft.sourceEntityId,
+        recipientUserId: recipient.userId,
+        recipientRoleId: recipient.roleId,
+        category: 'alert',
+        templateKey: `cfd.threshold.${draft.messageKey}`,
+        templateVars: draft.templateVars,
+        payload: {
+          corporateId: draft.corporateId,
+          departmentId: draft.departmentId,
+          ratioName: draft.ratioName,
+          currentValue: draft.currentValue,
+          thresholdValue: draft.thresholdValue,
+          messageKey: draft.messageKey,
+          period: draft.period,
+        },
+        severity: draft.severity,
+      });
+    }
+  }));
 }
 
 function buildAlertDraft(
@@ -139,7 +179,8 @@ function buildAlertDraft(
   severity: AlertSeverity,
   currentValue: number,
   thresholdValue: number,
-  message: string,
+  messageKey: string,
+  templateVars: Record<string, any>,
   departmentId?: string,
 ): NotificationAlertDraft {
   return {
@@ -150,7 +191,8 @@ function buildAlertDraft(
     severity,
     currentValue,
     thresholdValue,
-    message,
+    messageKey,
+    templateVars,
     period,
     createdAt: new Date(),
   };
@@ -164,7 +206,7 @@ function evaluateThresholdBreach(
   ratioName: RatioName,
   value: number,
   threshold: Threshold,
-): { severity: AlertSeverity; thresholdValue: number; message: string } | null {
+): { severity: AlertSeverity; thresholdValue: number; messageKey: string } | null {
   // "Higher is better" ratios
   if (threshold.healthyMin != null || threshold.moderateMin != null) {
     const healthyMin = threshold.healthyMin ?? Infinity;
@@ -174,14 +216,14 @@ function evaluateThresholdBreach(
       return {
         severity: 'high',
         thresholdValue: moderateMin,
-        message: `${ratioName} value ${value.toFixed(2)} is critically below threshold ${moderateMin.toFixed(2)}`,
+        messageKey: 'criticallyBelow',
       };
     }
     if (value < healthyMin) {
       return {
         severity: 'medium',
         thresholdValue: healthyMin,
-        message: `${ratioName} value ${value.toFixed(2)} is below healthy threshold ${healthyMin.toFixed(2)}`,
+        messageKey: 'belowHealthy',
       };
     }
     return null;
@@ -196,14 +238,14 @@ function evaluateThresholdBreach(
       return {
         severity: 'high',
         thresholdValue: moderateMax,
-        message: `${ratioName} value ${value.toFixed(2)} critically exceeds threshold ${moderateMax.toFixed(2)}`,
+        messageKey: 'criticallyAbove',
       };
     }
     if (value > healthyMax) {
       return {
         severity: 'medium',
         thresholdValue: healthyMax,
-        message: `${ratioName} value ${value.toFixed(2)} exceeds healthy threshold ${healthyMax.toFixed(2)}`,
+        messageKey: 'aboveHealthy',
       };
     }
     return null;
@@ -212,60 +254,14 @@ function evaluateThresholdBreach(
   return null;
 }
 
-// ============================================================
-// Specific Alert Rules
-// ============================================================
 
-interface AlertCandidate {
-  ratioName: RatioName;
-  severity: AlertSeverity;
-  currentValue: number;
-  thresholdValue: number;
-  message: string;
-}
-
-function buildSpecificAlerts(ratios: CalculatedRatios): AlertCandidate[] {
-  const result: AlertCandidate[] = [];
-
-  if (ratios.der !== null && ratios.der > 2.0) {
-    result.push({
-      ratioName: 'der',
-      severity: 'high',
-      currentValue: ratios.der,
-      thresholdValue: 2.0,
-      message: `DER ${ratios.der.toFixed(2)} exceeds critical threshold of 2.0`,
-    });
-  }
-
-  if (ratios.currentRatio !== null && ratios.currentRatio < 1.0) {
-    result.push({
-      ratioName: 'currentRatio',
-      severity: 'high',
-      currentValue: ratios.currentRatio,
-      thresholdValue: 1.0,
-      message: `Current Ratio ${ratios.currentRatio.toFixed(2)} is below critical threshold of 1.0`,
-    });
-  }
-
-  if (ratios.npm !== null && ratios.npm < 5) {
-    result.push({
-      ratioName: 'npm',
-      severity: 'medium',
-      currentValue: ratios.npm,
-      thresholdValue: 5,
-      message: `NPM ${ratios.npm.toFixed(2)}% is below moderate threshold of 5%`,
-    });
-  }
-
-  return result;
-}
 
 // ============================================================
 // Main Alert Evaluation
 // ============================================================
 
 /**
- * Evaluates ratio values against thresholds and generates alerts.
+ * Evaluates ratio values against thresholds and syncs alerts (create/update/resolve).
  */
 export async function evaluateAlerts(
   corporateId: string,
@@ -273,63 +269,48 @@ export async function evaluateAlerts(
   ratios: CalculatedRatios,
   departmentId?: string,
 ): Promise<Alert[]> {
-  const generatedAlerts: Alert[] = [];
-
-  await resolveActiveNotificationsForPeriod(corporateId, period);
-
+  const syncResults: Alert[] = [];
   const ratioNames: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
   // Threshold-based evaluation
   for (const ratioName of ratioNames) {
     const value = ratios[ratioName] as number | null;
-    if (value === null) continue;
-
+    
+    // 1. Evaluate Breach
     const threshold = await getThreshold(corporateId, ratioName);
-    if (!threshold) continue;
+    const breach = (value !== null && threshold) 
+      ? evaluateThresholdBreach(ratioName, value, threshold) 
+      : null;
 
-    const breach = evaluateThresholdBreach(ratioName, value, threshold);
-    if (!breach) continue;
-
-    const draft = buildAlertDraft(
-      corporateId,
-      period,
-      ratioName,
-      breach.severity,
-      value,
-      breach.thresholdValue,
-      breach.message,
-      departmentId,
-    );
-
-    await fanOutAlertNotification(draft);
-
-    generatedAlerts.push(mapDraftToAlert(draft));
+    if (breach) {
+      // 2a. Sync active breach
+      const draft = buildAlertDraft(
+        corporateId,
+        period,
+        ratioName,
+        breach.severity,
+        value!,
+        breach.thresholdValue,
+        breach.messageKey,
+        {
+          ratio: ratioName,
+          value: value!.toFixed(2),
+          threshold: breach.thresholdValue.toFixed(2),
+          period,
+        },
+        departmentId,
+      );
+      await fanOutAlertNotification(draft);
+      syncResults.push(mapDraftToAlert(draft));
+    } else {
+      // 2b. Auto-resolve if no longer breached
+      await resolveRatioAlertIfHealthy(corporateId, ratioName);
+    }
   }
 
-  // Specific hard-coded alert rules
-  const specificAlerts = buildSpecificAlerts(ratios);
-  for (const candidate of specificAlerts) {
-    const alreadyCreated = generatedAlerts.some((a) => a.ratioName === candidate.ratioName);
-    if (alreadyCreated) continue;
-
-    const draft = buildAlertDraft(
-      corporateId,
-      period,
-      candidate.ratioName,
-      candidate.severity,
-      candidate.currentValue,
-      candidate.thresholdValue,
-      candidate.message,
-      departmentId,
-    );
-
-    await fanOutAlertNotification(draft);
-
-    generatedAlerts.push(mapDraftToAlert(draft));
-  }
-
-  return generatedAlerts;
+  return syncResults;
 }
+
 
 // ============================================================
 // Negative OCF Detection
@@ -350,7 +331,11 @@ export async function checkNegativeOCF(
     'high',
     operatingCashFlow,
     0,
-    `Negative Operating Cash Flow: ${operatingCashFlow.toFixed(2)}`,
+    'negativeOcf',
+    {
+      value: operatingCashFlow.toLocaleString(),
+      period,
+    },
     departmentId,
   );
 
@@ -395,7 +380,7 @@ export async function detectDecliningTrend(
       .from(notifications)
       .where(and(
         eq(notifications.sourceModule, 'cfd'),
-        eq(notifications.sourceEntityType, 'alert'),
+        eq(notifications.sourceEntityType, 'dashboard-alert'),
         sql`${notifications.status} IN ('unread', 'read')`,
         sql`${notifications.payload} ->> 'corporateId' = ${corporateId}`,
         sql`${notifications.payload} ->> 'ratioName' = ${ratioName}`,
@@ -411,7 +396,14 @@ export async function detectDecliningTrend(
       'medium',
       latest,
       oldest,
-      `${ratioName.toUpperCase()} shows declining trend over 3 consecutive periods: ${oldest.toFixed(2)} -> ${middle.toFixed(2)} -> ${latest.toFixed(2)}`,
+      'decliningTrend',
+      {
+        ratio: ratioName,
+        latest: latest.toFixed(2),
+        middle: middle.toFixed(2),
+        oldest: oldest.toFixed(2),
+        period,
+      },
       departmentId,
     );
 
@@ -432,10 +424,11 @@ export async function reevaluateAlertsForSubsidiary(
 ): Promise<void> {
   // Get the most recent period from the financial ratios view
   const rows = (await db.execute(sql`
-    SELECT DISTINCT ON (department_id) *
+    SELECT *
     FROM cfd.v_financial_ratios
     WHERE corporate_id = ${corporateId}
-    ORDER BY department_id, period DESC
+    ORDER BY period DESC
+    LIMIT 1
   `)).rows as {
     period: string;
     roa: string | null; roe: string | null; npm: string | null;
@@ -481,7 +474,7 @@ export interface AlertFilters {
 export async function listAlerts(filters: AlertFilters): Promise<Alert[]> {
   const conditions = [
     eq(notifications.sourceModule, 'cfd'),
-    eq(notifications.sourceEntityType, 'alert'),
+    eq(notifications.sourceEntityType, 'dashboard-alert'),
   ];
 
   if (filters.recipientUserId) {
@@ -518,7 +511,7 @@ export async function getAlertById(id: string): Promise<Alert | null> {
     .where(and(
       eq(notifications.id, id),
       eq(notifications.sourceModule, 'cfd'),
-      eq(notifications.sourceEntityType, 'alert'),
+      eq(notifications.sourceEntityType, 'dashboard-alert'),
     ))
     .limit(1);
 
@@ -538,7 +531,7 @@ export async function getUserAlertById(
       eq(notifications.id, id),
       eq(notifications.recipientUserId, userId),
       eq(notifications.sourceModule, 'cfd'),
-      eq(notifications.sourceEntityType, 'alert'),
+      eq(notifications.sourceEntityType, 'dashboard-alert'),
     ))
     .limit(1);
 
@@ -558,7 +551,7 @@ export async function acknowledgeAlert(
       eq(notifications.id, id),
       eq(notifications.recipientUserId, userId),
       eq(notifications.sourceModule, 'cfd'),
-      eq(notifications.sourceEntityType, 'alert'),
+      eq(notifications.sourceEntityType, 'dashboard-alert'),
     ))
     .limit(1);
 
@@ -580,7 +573,7 @@ export async function acknowledgeAlert(
 export async function getAlertHistory(filters: AlertFilters): Promise<Alert[]> {
   const conditions = [
     eq(notifications.sourceModule, 'cfd'),
-    eq(notifications.sourceEntityType, 'alert'),
+    eq(notifications.sourceEntityType, 'dashboard-alert'),
     ne(notifications.status, 'unread'),
   ];
 

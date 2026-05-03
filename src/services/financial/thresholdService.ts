@@ -3,9 +3,10 @@
 
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { thresholds } from '../../db/schema/index.js';
+import { thresholds, systemConfigs } from '../../db/schema/index.js';
 import { Threshold, CreateThresholdInput } from '../../types/financial/threshold';
 import { RatioName } from '../../types/financial/ratio';
+import { reevaluateAlertsForSubsidiary } from './alertEngine';
 
 export const RATIO_NAMES: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 
@@ -22,7 +23,8 @@ type RatioThresholdDefaults = {
   risky_min?: number;
 };
 
-const BASE_DEFAULTS: Record<RatioName, RatioThresholdDefaults> = {
+// Fallback safety values if database is empty
+const FALLBACK_DEFAULTS: Record<RatioName, RatioThresholdDefaults> = {
   roa:          { healthy_min: 5,   moderate_min: 2,   risky_max: 0 },
   roe:          { healthy_min: 10,  moderate_min: 5,   risky_max: 0 },
   npm:          { healthy_min: 10,  moderate_min: 5,   risky_max: 0 },
@@ -34,35 +36,45 @@ const BASE_DEFAULTS: Record<RatioName, RatioThresholdDefaults> = {
   dscr:         { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
 };
 
-const INDUSTRY_OVERRIDES: Record<string, Partial<Record<RatioName, RatioThresholdDefaults>>> = {
-  manufacturing: {
-    roa:          { healthy_min: 4,   moderate_min: 2,   risky_max: 0 },
-    der:          { healthy_max: 1.5, moderate_max: 2.5, risky_min: 2.5 },
-    currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
-  },
-  retail: {
-    npm:          { healthy_min: 5,   moderate_min: 2,   risky_max: 0 },
-    currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
-    der:          { healthy_max: 1.5, moderate_max: 2.5, risky_min: 2.5 },
-  },
-  banking: {
-    roa:          { healthy_min: 1,   moderate_min: 0.5, risky_max: 0 },
-    roe:          { healthy_min: 12,  moderate_min: 8,   risky_max: 0 },
-    der:          { healthy_max: 8.0, moderate_max: 12.0, risky_min: 12.0 },
-  },
-  property: {
-    der:          { healthy_max: 2.0, moderate_max: 3.0, risky_min: 3.0 },
-    currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
-  },
-  technology: {
-    npm:          { healthy_min: 15,  moderate_min: 8,   risky_max: 0 },
-    roa:          { healthy_min: 8,   moderate_min: 4,   risky_max: 0 },
-  },
-};
+/**
+ * Gets global default thresholds from system_configs
+ */
+export async function getDefaultsFromConfig(): Promise<Record<RatioName, RatioThresholdDefaults>> {
+  const [config] = await db
+    .select()
+    .from(systemConfigs)
+    .where(eq(systemConfigs.key, 'cfd_default_thresholds'))
+    .limit(1);
 
-export function getDefaultsForRatio(industrySector: string, ratioName: RatioName): RatioThresholdDefaults {
-  const sector = industrySector.toLowerCase();
-  return INDUSTRY_OVERRIDES[sector]?.[ratioName] ?? BASE_DEFAULTS[ratioName];
+  return (config?.value as Record<RatioName, RatioThresholdDefaults>) ?? FALLBACK_DEFAULTS;
+}
+
+/**
+ * Gets industry-specific threshold overrides from system_configs
+ */
+export async function getIndustryOverrides(): Promise<Record<string, Partial<Record<RatioName, RatioThresholdDefaults>>>> {
+  const [config] = await db
+    .select()
+    .from(systemConfigs)
+    .where(eq(systemConfigs.key, 'cfd_industry_thresholds'))
+    .limit(1);
+
+  return (config?.value as Record<string, Partial<Record<RatioName, RatioThresholdDefaults>>>) ?? {};
+}
+
+export function getDefaultsForRatio(
+  defaults: Record<RatioName, RatioThresholdDefaults>,
+  industryOverrides: Record<string, Partial<Record<RatioName, RatioThresholdDefaults>>>,
+  industrySector: string,
+  ratioName: RatioName
+): RatioThresholdDefaults {
+  const sector = (industrySector ?? '').toLowerCase();
+  
+  // Priority: 
+  // 1. Database Industry Overrides
+  // 2. Database Global Defaults
+  // 3. Code Fallback
+  return industryOverrides[sector]?.[ratioName] ?? defaults[ratioName] ?? FALLBACK_DEFAULTS[ratioName];
 }
 
 type ThresholdRow = typeof thresholds.$inferSelect;
@@ -73,7 +85,6 @@ function mapRowToThreshold(row: ThresholdRow): Threshold {
     id: row.id,
     subsidiaryId: row.corporateId,
     ratioName: row.ratioName as RatioName,
-    periodType: 'monthly', // no periodType distinction in new schema
     healthyMin: tv.healthy_min,
     moderateMin: tv.moderate_min,
     riskyMax: tv.risky_max,
@@ -95,9 +106,12 @@ export async function initDefaultThresholds(
   industrySector: string,
   updatedBy: string,
 ): Promise<void> {
+  const defaultsMap = await getDefaultsFromConfig();
+  const industryOverrides = await getIndustryOverrides();
+  
   await db.transaction(async (tx) => {
     for (const ratioName of RATIO_NAMES) {
-      const defaults = getDefaultsForRatio(industrySector, ratioName);
+      const defaults = getDefaultsForRatio(defaultsMap, industryOverrides, industrySector, ratioName);
       await tx.insert(thresholds).values({
         corporateId,
         ratioName,
@@ -186,6 +200,9 @@ export async function updateThresholds(
       }
     }
   });
+  
+  // Trigger re-evaluation of alerts after thresholds are updated
+  await reevaluateAlertsForSubsidiary(corporateId);
 
   return { success: true };
 }
@@ -212,5 +229,8 @@ export async function resetThresholdsToDefaults(
 ): Promise<void> {
   await db.delete(thresholds).where(eq(thresholds.corporateId, corporateId));
   await initDefaultThresholds(corporateId, industrySector, updatedBy);
+  
+  // Trigger re-evaluation of alerts after resetting to defaults
+  await reevaluateAlertsForSubsidiary(corporateId);
 }
 

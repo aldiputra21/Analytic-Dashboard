@@ -30,13 +30,8 @@ const LOWER_IS_BETTER: RatioName[] = ['der'];
 const RATIO_NAMES: RatioName[] = ['roa', 'roe', 'npm', 'der', 'currentRatio', 'quickRatio', 'cashRatio', 'ocfRatio', 'dscr'];
 const PERIOD_TYPES: PeriodType[] = ['monthly', 'quarterly', 'annual'];
 
-function getThresholdKey(ratioName: RatioName, periodType: PeriodType): string {
-  return `${ratioName}__${periodType}`;
-}
-
 type EditableThreshold = {
   ratioName: RatioName;
-  periodType: PeriodType;
   healthyMin?: string;
   moderateMin?: string;
   healthyMax?: string;
@@ -62,29 +57,26 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
     message: t.validation.positiveNumber
   });
 
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('annual');
   const [editValues, setEditValues] = useState<Record<string, EditableThreshold>>({});
   const [saving, setSaving] = useState(false);
 
   const { thresholds, isLoading, error, updateThresholds, resetToDefaults } = useThresholds({
     subsidiaryId,
-    periodType: selectedPeriod,
   });
 
   const thresholdMap = useMemo(() => {
     const map: Record<string, Threshold> = {};
     for (const threshold of thresholds) {
-      map[getThresholdKey(threshold.ratioName, threshold.periodType)] = threshold;
+      map[threshold.ratioName] = threshold;
     }
     return map;
   }, [thresholds]);
 
   function getEditValue(ratioName: RatioName, field: keyof EditableThreshold): string {
-    const key = getThresholdKey(ratioName, selectedPeriod);
-    const edit = editValues[key];
+    const edit = editValues[ratioName];
     if (edit && field in edit) return (edit as any)[field] ?? '';
 
-    const threshold = thresholdMap[key];
+    const threshold = thresholdMap[ratioName];
     if (!threshold) return '';
 
     if (field === 'healthyMin') return threshold.healthyMin?.toString() ?? '';
@@ -95,17 +87,16 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
   }
 
   function handleChange(ratioName: RatioName, field: keyof EditableThreshold, value: string) {
-    const key = getThresholdKey(ratioName, selectedPeriod);
     setEditValues((prev) => ({
       ...prev,
-      [key]: { ...prev[key], ratioName, periodType: selectedPeriod, [field]: value },
+      [ratioName]: { ...prev[ratioName], ratioName, [field]: value },
     }));
   }
 
   async function handleSave() {
     // Basic validation check
-    for (const key in editValues) {
-      const edit = editValues[key];
+    for (const ratioName in editValues) {
+      const edit = editValues[ratioName];
       const fields: (keyof EditableThreshold)[] = ['healthyMin', 'moderateMin', 'healthyMax', 'moderateMax'];
       for (const field of fields) {
         if (edit[field] !== undefined) {
@@ -121,12 +112,12 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
     setSaving(true);
     try {
       const updates: Omit<CreateThresholdInput, 'subsidiaryId'>[] = RATIO_NAMES.map((ratioName) => {
-        const key = getThresholdKey(ratioName, selectedPeriod);
-        const edit = editValues[key];
-        const existing = thresholdMap[key];
+        const edit = editValues[ratioName];
+        const existing = thresholdMap[ratioName];
 
         const parseNum = (v: string | undefined, fallback: number | undefined) => {
           if (v === undefined) return fallback;
+          if (v === '') return undefined;
           const n = parseFloat(v);
           return isNaN(n) ? fallback : n;
         };
@@ -134,14 +125,12 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
         if (LOWER_IS_BETTER.includes(ratioName)) {
           return {
             ratioName,
-            periodType: selectedPeriod,
             healthyMax: parseNum(edit?.healthyMax, existing?.healthyMax),
             moderateMax: parseNum(edit?.moderateMax, existing?.moderateMax),
           };
         }
         return {
           ratioName,
-          periodType: selectedPeriod,
           healthyMin: parseNum(edit?.healthyMin, existing?.healthyMin),
           moderateMin: parseNum(edit?.moderateMin, existing?.moderateMin),
         };
@@ -208,23 +197,7 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Period selector */}
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-            {PERIOD_TYPES.map((pt) => (
-              <button
-                key={pt}
-                onClick={() => setSelectedPeriod(pt)}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-black rounded-lg transition-all uppercase tracking-widest",
-                  selectedPeriod === pt
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                {t.periods[pt]}
-              </button>
-            ))}
-          </div>
+          {/* Period selector removed as per requirement: 1 threshold per company */}
 
           <button
             onClick={handleReset}
@@ -292,8 +265,7 @@ export const ThresholdConfig: React.FC<ThresholdConfigProps> = ({
                   </motion.tr>
                 ) : (
                   RATIO_NAMES.map((ratioName, idx) => {
-                    const key = getThresholdKey(ratioName, selectedPeriod);
-                    const threshold = thresholdMap[key];
+                    const threshold = thresholdMap[ratioName];
                     const isLower = LOWER_IS_BETTER.includes(ratioName);
 
                     return (

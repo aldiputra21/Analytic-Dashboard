@@ -405,14 +405,14 @@ export const notificationConfigs = pgTable('notification_configs', {
   id: uuid().primaryKey().defaultRandom(),
   module: varchar({ length: 50 }).notNull(),
   eventType: varchar('event_type', { length: 100 }).notNull(),
-  roleId: uuid('role_id').notNull().references(() => roles.id),
+  targetRoles: jsonb('target_roles').notNull().$type<string[]>().default([]),
   isActive: boolean('is_active').notNull().default(true),
   createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
-  unique('uq_notification_config_module_event_role').on(table.module, table.eventType, table.roleId),
+  unique('uq_notification_config_module_event').on(table.module, table.eventType),
 ]);
 
 // --- 20. notification_broadcasts ---------------------------------------------

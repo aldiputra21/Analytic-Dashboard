@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/connection.js';
 import { notificationConfigs, userCorporateAccesses } from '../../db/schema/public.js';
 import { bankLoanInstallments, bankLoans } from '../../db/schema/cfd.js';
@@ -67,13 +67,23 @@ export async function getActiveNotificationConfigs(
 }
 
 /**
- * Returns all users that have the given role in user_corporate_accesses.
+ * Returns all users that have any of the given roles in user_corporate_accesses,
+ * filtered by the corporate scope.
  */
-export async function getUsersByRole(dbClient: DbClient, roleId: string) {
+export async function getUsersByRoles(dbClient: DbClient, roleIds: string[], corporateId: string) {
+  if (roleIds.length === 0) return [];
   return dbClient
-    .select({ userId: userCorporateAccesses.userId })
+    .select({ userId: userCorporateAccesses.userId, roleId: userCorporateAccesses.roleId })
     .from(userCorporateAccesses)
-    .where(eq(userCorporateAccesses.roleId, roleId));
+    .where(
+      and(
+        inArray(userCorporateAccesses.roleId, roleIds),
+        sql`(
+          ${userCorporateAccesses.scope} = 'system'
+          OR ${userCorporateAccesses.corporateId} = ${corporateId}
+        )`,
+      ),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -83,7 +93,7 @@ export async function getUsersByRole(dbClient: DbClient, roleId: string) {
 /**
  * Main cron logic.
  * - Queries due installments
- * - Queries active notification configs for module='cfd', event_type='loan_installment_due'
+ * - Queries active notification configs for module='cfd', event_type='loan-installment-due'
  * - For each installment × role config, dispatches a notification to every user with that role
  * - Handles per-user errors gracefully (continues on error, counts errors)
  * - Logs summary: [NotificationCron] Done: sent=N, skipped=M, errors=K
@@ -97,7 +107,7 @@ export async function runInstallmentNotificationCron(dbClient: DbClient = db) {
   try {
     const [installments, configs] = await Promise.all([
       queryDueInstallments(dbClient, today),
-      getActiveNotificationConfigs(dbClient, 'cfd', 'loan_installment_due'),
+      getActiveNotificationConfigs(dbClient, 'cfd', 'loan-installment-due'),
     ]);
 
     if (installments.length === 0 || configs.length === 0) {
@@ -107,29 +117,29 @@ export async function runInstallmentNotificationCron(dbClient: DbClient = db) {
 
     for (const installment of installments) {
       for (const config of configs) {
-        let users: { userId: string }[];
+        let recipients: { userId: string; roleId: string }[];
         try {
-          users = await getUsersByRole(dbClient, config.roleId);
+          recipients = await getUsersByRoles(dbClient, config.targetRoles, installment.corporateId);
         } catch (err) {
-          console.error(`[NotificationCron] ERROR fetching users for role ${config.roleId}:`, err);
+          console.error(`[NotificationCron] ERROR fetching users for roles ${config.targetRoles.join(', ')}:`, err);
           errors++;
           continue;
         }
 
-        if (users.length === 0) {
+        if (recipients.length === 0) {
           skipped++;
           continue;
         }
 
-        for (const { userId } of users) {
+        for (const { userId, roleId } of recipients) {
           try {
             await createNotification({
               sourceModule: 'cfd',
               sourceEntityType: 'bank_loan_installment',
               sourceEntityId: installment.installmentId,
               recipientUserId: userId,
-              recipientRoleId: config.roleId,
-              category: 'loan_installment_due',
+              recipientRoleId: roleId,
+              category: 'loan-installment-due',
               templateKey: 'cfd.loan_installment_due',
               templateVars: {
                 installmentDate: installment.installmentDate,

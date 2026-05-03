@@ -48,8 +48,6 @@ async function main() {
     { key: 'cfd.cost_centers.delete', module: 'cfd', description: 'Delete cost centers' },
     { key: 'cfd.benchmarking.read', module: 'cfd', description: 'Read benchmarking analysis' },
     { key: 'cfd.trends.read', module: 'cfd', description: 'Read trend analysis' },
-    { key: 'cfd.alerts.read', module: 'cfd', description: 'Read alerts' },
-    { key: 'cfd.alerts.write', module: 'cfd', description: 'Acknowledge or manage alerts' },
     { key: 'cfd.thresholds.read', module: 'cfd', description: 'Read thresholds' },
     { key: 'cfd.thresholds.write', module: 'cfd', description: 'Write thresholds' },
     { key: 'cfd.thresholds.configure', module: 'cfd', description: 'Configure thresholds' },
@@ -449,6 +447,87 @@ async function main() {
     { key: 'REALIZATION_ATTACHMENT_UPLOAD_DIR', value: 'assets/attachments/realisasi', description: 'Directory for realization attachments', createdBy: SYSTEM_ACTOR_ID },
     { key: 'REALIZATION_ATTACHMENT_MAX_SIZE', value: 10485760, description: 'Max size for realization attachments (bytes)', createdBy: SYSTEM_ACTOR_ID },
     { key: 'REALIZATION_ATTACHMENT_ALLOWED_FORMATS', value: ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'], description: 'Allowed formats for realization attachments', createdBy: SYSTEM_ACTOR_ID },
+    { 
+      key: 'cfd_default_thresholds', 
+      value: {
+        roa: { healthy_min: 5, moderate_min: 2, risky_max: 0 },
+        roe: { healthy_min: 10, moderate_min: 5, risky_max: 0 },
+        npm: { healthy_min: 10, moderate_min: 5, risky_max: 0 },
+        der: { healthy_max: 1.0, moderate_max: 2.0, risky_min: 2.0 },
+        currentRatio: { healthy_min: 2.0, moderate_min: 1.0, risky_max: 1.0 },
+        quickRatio: { healthy_min: 1.0, moderate_min: 0.5, risky_max: 0.5 },
+        cashRatio: { healthy_min: 0.5, moderate_min: 0.2, risky_max: 0.2 },
+        ocfRatio: { healthy_min: 1.0, moderate_min: 0.5, risky_max: 0 },
+        dscr: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 }
+      }, 
+      description: 'Default financial ratio thresholds for alerts', 
+      createdBy: SYSTEM_ACTOR_ID 
+    },
+    {
+      key: 'cfd_industry_thresholds',
+      value: {
+        manufacturing: {
+          roa: { healthy_min: 4, moderate_min: 2, risky_max: 0 },
+          der: { healthy_max: 1.5, moderate_max: 2.5, risky_min: 2.5 },
+          currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
+        },
+        retail: {
+          npm: { healthy_min: 5, moderate_min: 2, risky_max: 0 },
+          currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
+          der: { healthy_max: 1.5, moderate_max: 2.5, risky_min: 2.5 },
+        },
+        banking: {
+          roa: { healthy_min: 1, moderate_min: 0.5, risky_max: 0 },
+          roe: { healthy_min: 12, moderate_min: 8, risky_max: 0 },
+          der: { healthy_max: 8.0, moderate_max: 12.0, risky_min: 12.0 },
+        },
+        property: {
+          der: { healthy_max: 2.0, moderate_max: 3.0, risky_min: 3.0 },
+          currentRatio: { healthy_min: 1.5, moderate_min: 1.0, risky_max: 1.0 },
+        },
+        technology: {
+          npm: { healthy_min: 15, moderate_min: 8, risky_max: 0 },
+          roa: { healthy_min: 8, moderate_min: 4, risky_max: 0 },
+        },
+      },
+      description: 'Industry-specific threshold overrides',
+      createdBy: SYSTEM_ACTOR_ID
+    },
+  ]).onConflictDoNothing();
+
+  // ── Notification Configs ─────────────────────────────────
+  console.log('🔔 Seeding notification configs...');
+  
+  const getRoleIds = (names: string[]) => 
+    allRoles.filter(r => names.includes(r.name)).map(r => r.id);
+
+  const ratioRoles = getRoleIds([
+    'system_admin', 
+    'finance_leader', 
+    'finance_manager', 
+    'global_executive', 
+    'corporate_executive'
+  ]);
+
+  const loanRoles = getRoleIds([
+    'finance_leader', 
+    'finance_manager', 
+    'finance_staff'
+  ]);
+
+  await db.insert(notificationConfigs).values([
+    {
+      module: 'cfd',
+      eventType: 'ratio-breach',
+      targetRoles: ratioRoles,
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+    {
+      module: 'cfd',
+      eventType: 'loan-installment-due',
+      targetRoles: loanRoles,
+      createdBy: SYSTEM_ACTOR_ID,
+    }
   ]).onConflictDoNothing();
 
   // ── Banks ─────────────────────────────────────────────────
@@ -495,27 +574,6 @@ async function main() {
     await db.insert(projects).values(pv).onConflictDoNothing();
   }
 
-  // ── Notification Configs ──────────────────────────────────
-  console.log('🔔 Seeding notification configs...');
-  const globalAdminRoleId = roleMap.get('global_admin')!;
-  const financeLeaderRoleId = roleMap.get('finance_leader')!;
-
-  await db.insert(notificationConfigs).values([
-    {
-      module: 'cfd',
-      eventType: 'RATIO_ALERT',
-      roleId: globalAdminRoleId,
-      isActive: true,
-      createdBy: SYSTEM_ACTOR_ID
-    },
-    {
-      module: 'public',
-      eventType: 'APPROVAL_REQUEST',
-      roleId: financeLeaderRoleId,
-      isActive: true,
-      createdBy: SYSTEM_ACTOR_ID
-    },
-  ]).onConflictDoNothing();
 
   console.log('   ✅ User access ready');
 
