@@ -33,6 +33,10 @@ export interface AlertsCopy {
   };
   activeAlerts: string;
   noActiveAlerts: string;
+  allCaughtUp: string;
+  viewAll: string;
+  newBadge: string;
+  loadingNotifications: string;
 }
 
 export const alertsI18n: Record<Locale, AlertsCopy> = {
@@ -68,6 +72,10 @@ export const alertsI18n: Record<Locale, AlertsCopy> = {
     },
     activeAlerts: 'Pemberitahuan Aktif',
     noActiveAlerts: 'Tidak ada pemberitahuan aktif',
+    allCaughtUp: 'Semua sudah beres!',
+    viewAll: 'Lihat Semua Pemberitahuan',
+    newBadge: 'BARU',
+    loadingNotifications: 'Memuat pemberitahuan...',
   },
   en: {
     title: 'Alerts Inbox',
@@ -101,5 +109,9 @@ export const alertsI18n: Record<Locale, AlertsCopy> = {
     },
     activeAlerts: 'Active Alerts',
     noActiveAlerts: 'No active alerts',
+    allCaughtUp: "You're all caught up!",
+    viewAll: 'View All Notifications',
+    newBadge: 'NEW',
+    loadingNotifications: 'Loading notifications...',
   },
 };

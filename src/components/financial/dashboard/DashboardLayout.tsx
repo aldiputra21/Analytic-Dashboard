@@ -18,6 +18,7 @@ import { incomeStatementI18n } from '../../../i18n/income-statement';
 import { weeklyCashFlowI18n } from '../../../i18n/weekly-cash-flow';
 import { navigationI18n } from '../../../i18n/navigation';
 import { useNetworkResilience } from '../../../hooks/financial/useNetworkResilience';
+import { NotificationPopover } from './NotificationPopover';
 
 export type FRSPage =
   | 'dashboard' | 'benchmarking' | 'trends' | 'reports' | 'alerts'
@@ -65,16 +66,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 }) => {
   const { user, logout, hasPermission, language, setLanguage } = useAuth();
   useNetworkResilience();
+  const t = navigationI18n[language];
   
   const navItems = useMemo(() => {
-    const t = navigationI18n[language];
     const items: NavItem[] = [
       // Main
       { id: 'dashboard', label: t.menus.dashboard, icon: LayoutDashboard, group: 'main', requiredPermissions: ['cfd.dashboard.read'] },
       { id: 'benchmarking', label: t.menus.benchmarking, icon: BarChart3, group: 'main', requiredPermissions: ['cfd.benchmarking.read'] },
       { id: 'trends', label: t.menus.trends, icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
       { id: 'reports', label: t.menus.reports, icon: FileText, group: 'main', requiredPermissions: ['cfd.reports.read'] },
-      { id: 'alerts', label: t.menus.alerts, icon: Bell, group: 'main', requiredPermissions: ['cfd.alerts.read'] },
 
       // 1. Financial Statements (Laporan Keuangan)
       { id: 'cfd-balance-sheets', label: balanceSheetI18n[language].title, icon: Scale, requiredPermissions: ['cfd.balance_sheets.read'], group: 'financial-statements' },
@@ -149,7 +149,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }), [navItems, user?.id, user?.permissions]);
 
   const groups: { key: NavItem['group']; label: string }[] = useMemo(() => {
-    const t = navigationI18n[language];
     return [
       { key: 'main', label: t.groups.main },
       { key: 'financial-statements', label: t.groups.financialStatements },
@@ -352,6 +351,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <h1 className="text-base font-semibold text-slate-900">{getPageLabel()}</h1>
           </div>
           
+          <NotificationPopover 
+            onNavigate={onNavigate}
+            unreadCount={alertCount}
+          />
+
+          <div className="h-4 w-px bg-slate-200 mx-1" />
+
           {/* Language Switcher */}
           <div className="flex bg-slate-100 p-1 rounded-xl items-center gap-0.5">
             <div className="flex items-center justify-center w-6 h-6 text-slate-400 ml-1">
@@ -376,14 +382,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               EN
             </button>
           </div>
-
-          {alertCount > 0 && (
-            <button onClick={() => onNavigate('alerts')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors">
-              <Bell className="w-3.5 h-3.5" />
-              {navigationI18n[language].user.alertsHeader.replace('{count}', String(alertCount))}
-            </button>
-          )}
 
           <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block" />
           
