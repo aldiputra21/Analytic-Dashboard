@@ -9,7 +9,7 @@ export const UserMenu: React.FC<{ onNavigate: (page: any) => void }> = ({ onNavi
   const { user, logout, language } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  
+
   const t = userMenuI18n[language];
   const common = commonsI18n[language];
 
@@ -38,7 +38,7 @@ export const UserMenu: React.FC<{ onNavigate: (page: any) => void }> = ({ onNavi
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 p-1 pr-3 rounded-full hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 active:scale-95"
+        className="flex items-center gap-2 p-1 pr-3 rounded-full hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 active:scale-95 cursor-pointer"
       >
         <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-sm shadow-indigo-200">
           {user.avatarUrl ? (
@@ -73,21 +73,21 @@ export const UserMenu: React.FC<{ onNavigate: (page: any) => void }> = ({ onNavi
           <div className="px-2 space-y-0.5">
             <button
               onClick={() => { onNavigate('profile'); setIsOpen(false); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
             >
               <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
                 <User size={18} />
               </div>
               {t.profile}
             </button>
-            
+
             <div className="py-1">
               <div className="h-px bg-slate-100 mx-3" />
             </div>
 
             <button
               onClick={logout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
             >
               <div className="w-8 h-8 rounded-lg bg-red-100/50 flex items-center justify-center text-red-600">
                 <LogOut size={18} />

@@ -32,10 +32,10 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
     notifications,
     isLoading,
     markAsRead,
-  } = useNotifications({ 
-    status: 'unread', 
-    enabled: isOpen && Boolean(user), 
-    token 
+  } = useNotifications({
+    status: 'unread',
+    enabled: isOpen && Boolean(user),
+    token
   });
 
   const subsidiaryMap = useMemo(
@@ -71,7 +71,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "relative p-2 rounded-xl transition-all active:scale-95",
+          "relative p-2 rounded-xl transition-all active:scale-95 cursor-pointer",
           isOpen ? "bg-slate-100 text-indigo-600" : "text-slate-500 hover:bg-slate-100"
         )}
       >
@@ -102,7 +102,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                   </span>
                 )}
               </div>
-              <button 
+              <button
                 onClick={() => setIsOpen(false)}
                 className="p-1 hover:bg-slate-200 rounded-lg text-slate-400 transition-colors"
               >
@@ -132,7 +132,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                     const corporateId = String(payload.corporateId ?? '');
                     const ratioName = String(payload.ratioName ?? payload.ratio ?? '');
                     const message = renderMessage(notification);
-                    
+
                     // Determine label
                     let categoryLabel = notification.category;
                     if (notification.category === 'loan-installment-due' || notification.sourceEntityType === 'bank_loan_installment') {
@@ -142,8 +142,8 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                     }
 
                     return (
-                      <div 
-                        key={notification.id} 
+                      <div
+                        key={notification.id}
                         className="p-4 hover:bg-slate-50 transition-colors group cursor-pointer"
                         onClick={() => {
                           markAsRead(notification.id);
@@ -182,7 +182,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                   onNavigate('alerts');
                   setIsOpen(false);
                 }}
-                className="w-full py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2"
+                className="w-full py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{t.viewAll}</span>
                 <ExternalLink className="w-3 h-3" />

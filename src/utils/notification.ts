@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { id, enUS } from 'date-fns/locale';
 import { Locale } from '../i18n/commons';
 import { thresholdI18n } from '../i18n/thresholds';
 import { ratiosI18n } from '../i18n/ratios';
@@ -11,7 +12,8 @@ export const renderNotificationMessage = (notification: any, language: Locale) =
   // 1. Handle Loan Installments
   if (category === 'loan-installment-due' || notification.sourceEntityType === 'bank_loan_installment') {
     const amount = Number(msgVars.amount || 0).toLocaleString(language === 'id' ? 'id-ID' : 'en-US');
-    const dueDate = msgVars.dueDate ? format(new Date(msgVars.dueDate), 'dd MMM yyyy') : '';
+    const dateLocale = language === 'id' ? id : enUS;
+    const dueDate = msgVars.dueDate ? format(new Date(msgVars.dueDate), 'dd MMM yyyy', { locale: dateLocale }) : '';
     
     return bankLoanI18n[language].notifications.installmentDue
       .replace('{amount}', amount)

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Archive, Bell, CheckCheck, Radio, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
+import { id, enUS } from 'date-fns/locale';
 import { useNotifications, type NotificationStatus } from '../../../hooks/financial/useNotifications';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
@@ -14,6 +15,7 @@ export const AlertsInbox: React.FC = () => {
   const { corporates: subsidiaries } = useCorporates();
   const [status, setStatus] = useState<NotificationStatus>('unread');
   const t = alertsI18n[language];
+  const dateLocale = language === 'id' ? id : enUS;
 
   const STATUS_OPTIONS: Array<{ key: NotificationStatus; label: string }> = [
     { key: 'unread', label: t.status.unread },
@@ -122,16 +124,40 @@ export const AlertsInbox: React.FC = () => {
                     <span className="text-sm font-semibold text-slate-900">
                       {(subsidiaryMap[corporateId] ?? corporateId) || 'System'}
                     </span>
-                    <span className="text-xs text-slate-400">•</span>
-                    <span className="text-xs text-slate-500">
-                      {ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]?.label ?? ratioName}
-                    </span>
+                    {notification.sourceEntityType === 'dashboard-alert' && (
+                      <>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs text-slate-500">
+                          {ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]?.label ?? ratioName}
+                        </span>
+                      </>
+                    )}
+                    {notification.sourceEntityType === 'broadcast' && (
+                      <>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs text-indigo-500 font-medium">
+                          {language === 'id' ? 'Pengumuman' : 'Announcement'}
+                        </span>
+                      </>
+                    )}
+                    {(notification.sourceEntityType === 'bank_loan_installment' || notification.category === 'loan-installment-due') && (
+                      <>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs text-amber-600 font-medium">
+                          {language === 'id' ? 'Pinjaman Bank' : 'Bank Loan'}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <p className="text-sm text-slate-700">{message}</p>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span>{t.fields.current}: <strong className="text-slate-700">{currentValue.toFixed(2)}</strong></span>
-                    <span>{t.fields.threshold}: <strong className="text-slate-700">{thresholdValue.toFixed(2)}</strong></span>
-                    <span>{format(new Date(notification.createdAt), 'dd MMM yyyy HH:mm')}</span>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-3 mt-3 border-t border-slate-100">
+                    {notification.sourceEntityType === 'dashboard-alert' && (
+                      <>
+                        <span>{t.fields.current}: <strong className="text-slate-700">{currentValue.toFixed(2)}</strong></span>
+                        <span>{t.fields.threshold}: <strong className="text-slate-700">{thresholdValue.toFixed(2)}</strong></span>
+                      </>
+                    )}
+                    <span>{format(new Date(notification.createdAt), 'dd MMM yyyy HH:mm', { locale: dateLocale })}</span>
                   </div>
                 </div>
 

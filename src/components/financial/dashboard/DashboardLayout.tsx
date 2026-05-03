@@ -68,7 +68,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const { user, logout, hasPermission, language, setLanguage } = useAuth();
   useNetworkResilience();
   const t = navigationI18n[language];
-  
+
   const navItems = useMemo(() => {
     const items: NavItem[] = [
       // Main
@@ -228,7 +228,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                           if (!crmOpen) onNavigate('crm-dashboard');
                         }}
                         className={cn(
-                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative',
+                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative cursor-pointer',
                           isCrmActive ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white',
                           collapsed && 'justify-center px-2'
                         )}
@@ -253,7 +253,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                                 key={child.id}
                                 onClick={() => { onNavigate(child.id); setMobileOpen(false); }}
                                 className={cn(
-                                  'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors',
+                                  'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer',
                                   isChildActive
                                     ? 'bg-indigo-500 text-white'
                                     : 'text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -275,7 +275,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                     key={item.id}
                     onClick={() => { onNavigate(item.id); setMobileOpen(false); }}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative',
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative cursor-pointer',
                       isActive ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white',
                       collapsed && 'justify-center px-2'
                     )}
@@ -308,7 +308,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <button
           onClick={logout}
           className={cn(
-            'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm transition-colors',
+            'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm transition-colors cursor-pointer',
             collapsed && 'justify-center px-2'
           )}
           title={collapsed ? navigationI18n[language].user.logout : undefined}
@@ -327,7 +327,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <SidebarContent />
         <button
           onClick={() => setCollapsed(c => !c)}
-          className="absolute -right-3 top-16 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 transition-colors z-10"
+          className="absolute -right-3 top-16 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 transition-colors z-10 cursor-pointer"
         >
           {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
         </button>
@@ -352,8 +352,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <div className="flex-1">
             <h1 className="text-base font-semibold text-slate-900">{getPageLabel()}</h1>
           </div>
-          
-          <NotificationPopover 
+
+          <NotificationPopover
             onNavigate={onNavigate}
             unreadCount={alertCount}
           />
@@ -365,7 +365,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <div className="flex items-center justify-center w-6 h-6 text-slate-400 ml-1">
               <Languages size={14} />
             </div>
-            <button 
+            <button
               onClick={() => setLanguage('id')}
               className={cn(
                 "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer",
@@ -374,7 +374,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             >
               ID
             </button>
-            <button 
+            <button
               onClick={() => setLanguage('en')}
               className={cn(
                 "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer",
@@ -386,7 +386,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </div>
 
           <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block" />
-          
+
           <UserMenu onNavigate={onNavigate} />
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
