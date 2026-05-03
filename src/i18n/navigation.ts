@@ -9,6 +9,7 @@ export interface NavigationCopy {
     corporateManagement: string;
     businessManagement: string;
     crm: string;
+    userManagement: string;
     systemAdmin: string;
   };
   menus: {
@@ -63,6 +64,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       corporateManagement: 'Pengelolaan Perusahaan',
       businessManagement: 'Pengelolaan Bisnis',
       crm: 'CRM',
+      userManagement: 'Pengelolaan Pengguna',
       systemAdmin: 'Pengelolaan & Monitoring Sistem',
     },
     menus: {
@@ -115,6 +117,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       corporateManagement: 'Corporate Management',
       businessManagement: 'Business Management',
       crm: 'CRM',
+      userManagement: 'User Management',
       systemAdmin: 'System Management & Monitoring',
     },
     menus: {

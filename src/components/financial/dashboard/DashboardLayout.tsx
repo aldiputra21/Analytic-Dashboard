@@ -47,7 +47,7 @@ interface NavItem {
   icon: React.ElementType;
   requiredPermissions: string[];
   badge?: number;
-  group: 'main' | 'financial-statements' | 'cash-flow' | 'corporate-management' | 'business-management' | 'crm' | 'system-admin';
+  group: 'main' | 'financial-statements' | 'cash-flow' | 'corporate-management' | 'business-management' | 'crm' | 'user-management' | 'system-admin';
   children?: NavChild[];
 }
 
@@ -117,10 +117,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'bank-manager', label: t.menus.masterBank, icon: Building2, requiredPermissions: ['public.banks.read'], group: 'business-management' },
       { id: 'cost-center-categories-manager', label: t.menus.costCenterCategories, icon: Layers, requiredPermissions: ['public.cost_center_categories.read'], group: 'business-management' },
 
-      // 5. System Admin (Pengelolaan & Monitoring Sistem)
-      { id: 'users', label: t.menus.users, icon: Users, requiredPermissions: ['cfd.users.read'], group: 'system-admin' },
-      { id: 'roles', label: t.menus.roles, icon: Shield, requiredPermissions: ['cfd.roles.read'], group: 'system-admin' },
-      { id: 'permissions', label: t.menus.permissions, icon: Shield, requiredPermissions: ['cfd.permissions.read'], group: 'system-admin' },
+      // 5. User Management (Pengelolaan Pengguna)
+      { id: 'users', label: t.menus.users, icon: Users, requiredPermissions: ['cfd.users.read'], group: 'user-management' },
+      { id: 'roles', label: t.menus.roles, icon: Shield, requiredPermissions: ['cfd.roles.read'], group: 'user-management' },
+      { id: 'permissions', label: t.menus.permissions, icon: Shield, requiredPermissions: ['cfd.permissions.read'], group: 'user-management' },
+
+      // 6. System Management (Pengelolaan & Monitoring Sistem)
       { id: 'thresholds', label: t.menus.thresholds, icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'system-admin' },
       { id: 'notification-configs-manager', label: t.menus.notificationConfigs, icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'system-admin' },
       { id: 'system-configs', label: t.menus.systemConfigs, icon: Settings, requiredPermissions: ['public.system_configs.read'], group: 'system-admin' },
@@ -155,6 +157,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { key: 'corporate-management', label: t.groups.corporateManagement },
       { key: 'crm', label: t.groups.crm },
       { key: 'business-management', label: t.groups.businessManagement },
+      { key: 'user-management', label: t.groups.userManagement },
       { key: 'system-admin', label: t.groups.systemAdmin },
     ];
   }, [language]);
