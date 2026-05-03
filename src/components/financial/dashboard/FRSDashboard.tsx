@@ -276,8 +276,8 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header - Sticky with glassmorphism for premium feel */}
+      <div className="sticky top-[-1rem] md:top-[-1.5rem] z-30 bg-slate-50/95 backdrop-blur-md -mx-4 md:-mx-6 px-4 md:px-6 py-4 border-b border-slate-200/60 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2 transition-all duration-300">
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
             {t.title}
@@ -313,7 +313,7 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
 
           <button
             onClick={handleRefresh}
-            className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-95 shadow-sm bg-white border border-slate-200"
+            className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-95 shadow-sm bg-white border border-slate-200 cursor-pointer"
             title="Refresh Dashboard"
           >
             <RefreshCw className={cn("w-5 h-5", isLoading && "animate-spin text-indigo-600")} />
