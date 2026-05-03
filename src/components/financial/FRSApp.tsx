@@ -54,6 +54,7 @@ const CurrencyManager = lazy(() => import('./admin/CurrencyManager').then((m) =>
 const CostCenterCategoryManager = lazy(() => import('./admin/CostCenterCategoryManager').then((m) => ({ default: m.CostCenterCategoryManager })));
 const NotificationConfigManager = lazy(() => import('./admin/NotificationConfigManager').then((m) => ({ default: m.NotificationConfigManager })));
 const SystemConfigManager = lazy(() => import('./admin/SystemConfigManager').then((m) => ({ default: m.SystemConfigManager })));
+const BroadcastManager = lazy(() => import('./admin/BroadcastManager').then((m) => ({ default: m.BroadcastManager })));
 
 // Skeleton screen for loading states (Req 12.1)
 const PageSkeleton: React.FC = () => (
@@ -221,6 +222,12 @@ const AppContent: React.FC = () => {
         return (
           <div className="p-6">
             <SystemConfigManager />
+          </div>
+        );
+      case 'notification-broadcast':
+        return (
+          <div className="p-6">
+            <BroadcastManager />
           </div>
         );
       case 'crm-dashboard': return <CRMPage activeTab="dashboard" />;

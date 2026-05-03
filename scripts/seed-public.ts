@@ -113,6 +113,7 @@ async function main() {
     { key: 'public.notification_configs.delete', module: 'public', description: 'Delete notification configs' },
     { key: 'public.system_configs.read', module: 'public', description: 'Read system configs' },
     { key: 'public.system_configs.write', module: 'public', description: 'Manage system configs' },
+    { key: 'public.notification.broadcast', module: 'public', description: 'Broadcast notifications to users and roles' },
 
     // CRM Module
     { key: 'crm.dashboard.read', module: 'crm', description: 'Read CRM dashboard' },

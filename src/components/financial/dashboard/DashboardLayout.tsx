@@ -7,7 +7,7 @@ import {
   Users, Upload, Bell, LogOut, Building2, ChevronLeft, ChevronRight,
   Shield, Menu, Target, Database, UserSquare2, FolderKanban,
   CheckCircle, Receipt, ChevronDown, Scale, FileBarChart, ArrowLeftRight,
-  ClipboardList, Landmark, DollarSign, Layers, Languages,
+  ClipboardList, Landmark, DollarSign, Layers, Languages, Megaphone,
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
@@ -33,7 +33,8 @@ export type FRSPage =
   | 'balance-sheet-manager' | 'income-statement-manager' | 'system-configs'
   // CRM sub-pages
   | 'crm-dashboard' | 'crm-opportunities' | 'crm-customers'
-  | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse';
+  | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse'
+  | 'notification-broadcast';
 
 interface NavChild {
   id: FRSPage;
@@ -126,6 +127,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'thresholds', label: t.menus.thresholds, icon: Settings, requiredPermissions: ['cfd.thresholds.read'], group: 'system-admin' },
       { id: 'notification-configs-manager', label: t.menus.notificationConfigs, icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'system-admin' },
       { id: 'system-configs', label: t.menus.systemConfigs, icon: Settings, requiredPermissions: ['public.system_configs.read'], group: 'system-admin' },
+      { id: 'notification-broadcast', label: t.menus.broadcast, icon: Megaphone, requiredPermissions: ['public.notification.broadcast'], group: 'system-admin' },
       { id: 'audit-logs', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'system-admin' },
     ];
     return items;

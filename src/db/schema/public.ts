@@ -414,3 +414,23 @@ export const notificationConfigs = pgTable('notification_configs', {
 }, (table) => [
   unique('uq_notification_config_module_event_role').on(table.module, table.eventType, table.roleId),
 ]);
+
+// --- 20. notification_broadcasts ---------------------------------------------
+
+export const notificationBroadcasts = pgTable('notification_broadcasts', {
+  id: uuid().primaryKey().defaultRandom(),
+  message: text().notNull(),
+  severity: varchar({ length: 20 }).notNull().default('medium'),
+  targetRoles: jsonb('target_roles').notNull().$type<string[]>().default([]),
+  targetUsers: jsonb('target_users').notNull().$type<string[]>().default([]),
+  targetCorporates: jsonb('target_corporates').notNull().$type<string[]>().default([]),
+  targetDepartments: jsonb('target_departments').notNull().$type<string[]>().default([]),
+  recipientCount: integer('recipient_count').notNull().default(0),
+  sentBy: uuid('sent_by').notNull().references(() => users.id),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+}, (table) => [
+  check('chk_notification_broadcasts_severity', sql`${table.severity} IN ('low', 'medium', 'high')`),
+]);

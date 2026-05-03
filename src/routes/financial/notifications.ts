@@ -4,6 +4,8 @@ import { db } from '../../db/connection';
 import { users } from '../../db/schema';
 import {
   archiveNotification,
+  broadcastNotification,
+  listBroadcastHistory,
   listUserNotifications,
   markNotificationAsRead,
   subscribeNotificationEvents,
@@ -121,6 +123,32 @@ export function createNotificationsRouter(): Router {
     }
 
     res.json(updated);
+  }));
+
+  router.post('/broadcast', requirePermission('public.notification.broadcast'), asyncHandler(async (req: Request, res: Response) => {
+    const { message, severity, targetRoles, targetUsers, targetCorporates, targetDepartments } = req.body;
+
+    if (!message) {
+      throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'Message is required');
+    }
+
+    const broadcast = await broadcastNotification({
+      message,
+      severity: severity || 'medium',
+      targetRoles,
+      targetUsers,
+      targetCorporates,
+      targetDepartments,
+      sentBy: req.user!.userId,
+    });
+
+    res.status(201).json(broadcast);
+  }));
+
+  router.get('/broadcast/history', requirePermission('public.notification.broadcast'), asyncHandler(async (req: Request, res: Response) => {
+    const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 20;
+    const history = await listBroadcastHistory(limit);
+    res.json(history);
   }));
 
   return router;

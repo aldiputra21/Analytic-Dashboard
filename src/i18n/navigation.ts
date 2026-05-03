@@ -46,6 +46,7 @@ export interface NavigationCopy {
       approvals: string;
       reimburse: string;
     };
+    broadcast: string;
   };
   user: {
     logout: string;
@@ -101,6 +102,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
         approvals: 'Persetujuan',
         reimburse: 'Reimburse',
       },
+      broadcast: 'Broadcast Notifikasi',
     },
     user: {
       logout: 'Keluar',
@@ -154,6 +156,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
         approvals: 'Approvals',
         reimburse: 'Reimburse',
       },
+      broadcast: 'Notification Broadcast',
     },
     user: {
       logout: 'Logout',

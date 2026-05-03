@@ -1,11 +1,21 @@
 import { EventEmitter } from 'events';
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, lt, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { notifications } from '../../db/schema';
+import { notifications, notificationBroadcasts, users, userCorporateAccesses } from '../../db/schema';
 
 export type NotificationStatus = 'unread' | 'read' | 'archived' | 'dismissed';
 export type NotificationSeverity = 'low' | 'medium' | 'high';
 export type NotificationEventType = 'created' | 'read' | 'archived';
+
+export interface BroadcastNotificationInput {
+  message: string;
+  severity: NotificationSeverity;
+  targetRoles?: string[];
+  targetUsers?: string[];
+  targetCorporates?: string[];
+  targetDepartments?: string[];
+  sentBy: string;
+}
 
 export interface NotificationRealtimeEvent {
   type: NotificationEventType;
@@ -157,4 +167,89 @@ export async function archiveNotification(notificationId: string, userId: string
   }
 
   return updated;
+}
+
+export async function broadcastNotification(input: BroadcastNotificationInput) {
+  return db.transaction(async (tx) => {
+    // 1. Determine recipients
+    const conditions = [eq(users.isActive, true)];
+
+    // Inclusive Target (User OR Role)
+    const targetConditions = [];
+    if (input.targetUsers && input.targetUsers.length > 0) {
+      targetConditions.push(inArray(users.id, input.targetUsers));
+    }
+    if (input.targetRoles && input.targetRoles.length > 0) {
+      targetConditions.push(inArray(userCorporateAccesses.roleId, input.targetRoles));
+    }
+
+    if (targetConditions.length > 0) {
+      conditions.push(sql`(${sql.join(targetConditions, sql` OR `)})`);
+    }
+
+    // Context Filters (AND Corporate AND Department)
+    if (input.targetCorporates && input.targetCorporates.length > 0) {
+      conditions.push(inArray(userCorporateAccesses.corporateId, input.targetCorporates));
+    }
+    if (input.targetDepartments && input.targetDepartments.length > 0) {
+      conditions.push(inArray(userCorporateAccesses.departmentId, input.targetDepartments));
+    }
+
+    const recipientIds = (await tx.selectDistinct({ id: users.id })
+      .from(users)
+      .leftJoin(userCorporateAccesses, eq(users.id, userCorporateAccesses.userId))
+      .where(and(...conditions))).map(r => r.id);
+
+    if (recipientIds.length === 0) {
+      throw new Error('No recipients found for the specified broadcast criteria');
+    }
+
+    // 2. Insert into notification_broadcasts
+    const [broadcast] = await tx.insert(notificationBroadcasts).values({
+      message: input.message,
+      severity: input.severity,
+      targetRoles: input.targetRoles ?? [],
+      targetUsers: input.targetUsers ?? [],
+      targetCorporates: input.targetCorporates ?? [],
+      targetDepartments: input.targetDepartments ?? [],
+      recipientCount: recipientIds.length,
+      sentBy: input.sentBy,
+      createdBy: input.sentBy,
+    }).returning();
+
+    // 3. Insert into notifications (Bulk)
+    const notificationEntries = recipientIds.map(userId => ({
+      sourceModule: 'public',
+      sourceEntityType: 'broadcast',
+      sourceEntityId: broadcast.id,
+      recipientUserId: userId,
+      category: 'system',
+      templateKey: 'broadcast_message',
+      payload: { message: input.message },
+      severity: input.severity,
+      status: 'unread' as const,
+      createdBy: input.sentBy,
+    }));
+
+    await tx.insert(notifications).values(notificationEntries);
+
+    // 4. Emit real-time events
+    recipientIds.forEach(userId => {
+      emitNotificationEvent({
+        type: 'created',
+        userId,
+        notificationId: broadcast.id,
+        occurredAt: new Date().toISOString(),
+      });
+    });
+
+    return broadcast;
+  });
+}
+
+export async function listBroadcastHistory(limit = 20) {
+  return db.select()
+    .from(notificationBroadcasts)
+    .orderBy(desc(notificationBroadcasts.createdAt))
+    .limit(limit);
 }
