@@ -63,27 +63,29 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json());
 
-  // Global API Rate Limiter
-  const rateLimit = (await import('express-rate-limit')).default;
+  // Global API Rate Limiter (skipped entirely if RATE_LIMIT_MAX=0)
+  if (config.RATE_LIMIT_MAX > 0) {
+    const rateLimit = (await import('express-rate-limit')).default;
 
-  const globalLimiter = rateLimit({
-    windowMs: config.RATE_LIMIT_WINDOW_MS,
-    max: config.RATE_LIMIT_MAX,
-    message: { error: { code: 'FRS_RATE_LIMIT', message: 'Too many requests, please try again later' } },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => {
-      // Skip rate limiting for essential polling:
-      // 1. Session keep-alive (GET /auth/me)
-      // 2. Notification polling/stream (GET /notifications*)
-      const isKeepAlive = req.originalUrl.includes('/auth/me') && req.method === 'GET';
-      const isNotification = req.originalUrl.includes('/notifications') && req.method === 'GET';
-      return isKeepAlive || isNotification;
-    },
-  });
+    const globalLimiter = rateLimit({
+      windowMs: config.RATE_LIMIT_WINDOW_MS,
+      max: config.RATE_LIMIT_MAX,
+      message: { error: { code: 'FRS_RATE_LIMIT', message: 'Too many requests, please try again later' } },
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: (req) => {
+        // Skip rate limiting for essential polling:
+        // 1. Session keep-alive (GET /auth/me)
+        // 2. Notification polling/stream (GET /notifications*)
+        const isKeepAlive = req.originalUrl.includes('/auth/me') && req.method === 'GET';
+        const isNotification = req.originalUrl.includes('/notifications') && req.method === 'GET';
+        return isKeepAlive || isNotification;
+      },
+    });
 
-  // Apply to all API routes
-  app.use('/api', globalLimiter);
+    // Apply to all API routes
+    app.use('/api', globalLimiter);
+  }
 
   app.use('/upload', express.static(path.resolve('public/upload')));
 
