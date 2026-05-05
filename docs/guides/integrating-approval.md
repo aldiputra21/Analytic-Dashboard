@@ -39,6 +39,7 @@ const [workflow] = await db.insert(approvalWorkflows).values({
   entityType: 'my_entity',
   action: 'create',
   name: 'Persetujuan Input My Entity',
+  nameEn: 'My Entity Input Approval',
   callbackHandler: 'handleMyEntityCreate',
   viewComponent: 'MyEntityApprovalForm',   // ← key di FORM_REGISTRY
   makerRole: financeStaffRoleId,           // ← UUID role yang boleh buat draft
@@ -46,22 +47,31 @@ const [workflow] = await db.insert(approvalWorkflows).values({
   createdBy: SYSTEM_ACTOR_ID,
 }).onConflictDoUpdate({
   target: [approvalWorkflows.module, approvalWorkflows.entityType, approvalWorkflows.action],
-  set: { name: ..., callbackHandler: ..., viewComponent: ..., makerRole: ..., subjectFields: ..., updatedBy: ..., updatedAt: new Date() },
+  set: { name: ..., nameEn: ..., callbackHandler: ..., viewComponent: ..., makerRole: ..., subjectFields: ..., updatedBy: ..., updatedAt: new Date() },
 }).returning();
 
-await db.delete(approvalWorkflowSteps).where(eq(approvalWorkflowSteps.workflowId, workflow.id));
-await db.insert(approvalWorkflowSteps).values([
-  { workflowId: workflow.id, stepOrder: 1, stepType: 'approval', requiredRole: managerRoleId },
-  { workflowId: workflow.id, stepOrder: 2, stepType: 'approval', requiredRole: leaderRoleId },
-]);
+// PENTING: Jangan delete steps jika sudah ada approval_histories yang referensi step tersebut
+// (FK constraint). Gunakan pola ini:
+const existingSteps = await db.select({ id: approvalWorkflowSteps.id })
+  .from(approvalWorkflowSteps)
+  .where(eq(approvalWorkflowSteps.workflowId, workflow.id));
+
+if (existingSteps.length === 0) {
+  await db.insert(approvalWorkflowSteps).values([
+    { workflowId: workflow.id, stepOrder: 1, stepType: 'approval', requiredRole: managerRoleId },
+    { workflowId: workflow.id, stepOrder: 2, stepType: 'approval', requiredRole: leaderRoleId },
+  ]);
+}
 ```
 
 **Catatan penting:**
 - `makerRole` adalah **UUID role** dari tabel `roles`, bukan nama role
 - `requiredRole` di steps juga **UUID role**
 - Gunakan `roleMap.get('finance_staff')!` untuk mendapatkan UUID dari nama role
+- `nameEn` wajib diisi untuk dukungan bilingual di monitoring dan konfigurasi
+- Jangan delete steps jika sudah ada history — gunakan pola `existingSteps.length === 0`
 
-- [ ] Insert `approval_workflows` dengan `makerRole`
+- [ ] Insert `approval_workflows` dengan `makerRole` dan `nameEn`
 - [ ] Insert `approval_workflow_steps` dengan `requiredRole` (UUID)
 - [ ] Tidak perlu tambah permission baru — akses dikontrol oleh role
 
@@ -72,13 +82,21 @@ Buka `src/services/approval/approvalCallbacks.ts` dan tambahkan:
 ```typescript
 import { myTable } from '../../db/schema';
 
-registerCallback('handleMyEntityCreate', async (payload) => {
-  await db.insert(myTable).values(payload as any);
+// requestedBy = UUID user yang membuat draft, digunakan sebagai createdBy untuk audit fields
+registerCallback('handleMyEntityCreate', async (payload, _entityId, _stagedFiles, requestedBy) => {
+  const { id: _id, ...data } = payload as Record<string, unknown>;
+  await db.insert(myTable).values({
+    ...data,
+    createdBy: requestedBy ?? '00000000-0000-0000-0000-000000000000',
+  } as any);
 });
 
-registerCallback('handleMyEntityEdit', async (payload, entityId) => {
+registerCallback('handleMyEntityEdit', async (payload, entityId, _stagedFiles, requestedBy) => {
   if (!entityId) throw new Error('entityId required');
-  await db.update(myTable).set(payload as any).where(eq(myTable.id, entityId));
+  const { id: _id, createdBy: _cb, createdAt: _ca, ...data } = payload as Record<string, unknown>;
+  await db.update(myTable)
+    .set({ ...data, updatedBy: requestedBy ?? null, updatedAt: new Date() } as any)
+    .where(eq(myTable.id, entityId));
 });
 
 registerCallback('handleMyEntityDelete', async (_payload, entityId) => {
@@ -87,12 +105,45 @@ registerCallback('handleMyEntityDelete', async (_payload, entityId) => {
 });
 ```
 
+**Aturan callback:**
+- Signature: `(payload, entityId?, stagedFiles?, requestedBy?)` — selalu gunakan `requestedBy` sebagai `createdBy`/`updatedBy`
+- Strip field `id`, `createdBy`, `createdAt` dari payload sebelum insert/update (biarkan DB generate atau pertahankan nilai asli)
+- Handler hanya boleh berisi logika DB — JANGAN duplikasi logic dari route modul
+- **Callback dieksekusi dalam transaksi** bersama history insert dan status update — jika callback throw, seluruh transaksi rollback dan status approval tetap `pending`
+
 - [ ] Tambahkan `registerCallback` untuk setiap action (create/edit/delete)
-- [ ] Handler hanya boleh berisi logika DB — JANGAN duplikasi logic dari route modul
+- [ ] Gunakan `requestedBy` sebagai `createdBy`/`updatedBy`
+- [ ] Strip audit fields dari payload sebelum insert/update
 
-### Step 3 — Buat Shared Form & Daftarkan ke Registry
+### Step 3 — Daftarkan Modul ke `workflowCatalog.ts`
 
-#### 3a. Buat Shared Form Component
+Buka `src/components/financial/approval/workflowCatalog.ts` dan tambahkan entry:
+
+```typescript
+export const WORKFLOW_CATALOG: WorkflowCatalogEntry[] = [
+  // ... existing entries ...
+  {
+    labelId: 'Nama Modul (ID)',
+    labelEn: 'Module Name (EN)',
+    module: 'cfd',
+    entityType: 'my_entity',
+    viewComponent: 'MyEntityApprovalForm',
+    callbacks: {
+      create: 'handleMyEntityCreate',
+      edit: 'handleMyEntityEdit',
+      delete: 'handleMyEntityDelete',
+    },
+  },
+];
+```
+
+Catalog ini digunakan oleh `ApprovalConfigManager` untuk dropdown modul dan auto-fill `entityType`, `callbackHandler`, `viewComponent` di form konfigurasi.
+
+- [ ] Tambahkan entry ke `WORKFLOW_CATALOG`
+
+### Step 4 — Buat Shared Form & Daftarkan ke Registry
+
+#### 4a. Buat Shared Form Component
 
 Buat `src/components/financial/shared/forms/MyEntityForm.tsx`:
 
@@ -111,7 +162,6 @@ export interface MyEntityFormProps {
   language: 'id' | 'en';
   showCorporateSelector?: boolean;
   corporateSelectorDisabled?: boolean;
-  // Props tambahan spesifik modul jika ada
 }
 
 export const MyEntityForm: React.FC<MyEntityFormProps> = ({
@@ -119,39 +169,33 @@ export const MyEntityForm: React.FC<MyEntityFormProps> = ({
 }) => {
   // Kalkulasi dihitung dari payload — pure function, tidak butuh state eksternal
   const total = (payload.fieldA ?? 0) + (payload.fieldB ?? 0);
-
   const isReadOnly = readOnly || !onChange;
 
   return (
-    <div className="space-y-8">
+    <div>
+      {/* Sticky status bar di atas form (opsional, untuk form dengan validasi balance) */}
+      {/* Header: periode, corporate selector */}
       {/* Form fields */}
-      {/* Kalkulasi/summary di footer form — BUKAN di footer modal */}
+      {/* Footer: kalkulasi/summary — BUKAN di footer modal */}
     </div>
   );
 };
 ```
 
 **Aturan shared form:**
-- Kalkulasi (total, selisih, dll.) dihitung dari `payload` — **pure function**, tidak butuh state eksternal
-- Info kalkulasi diletakkan di **footer form** (bagian bawah komponen), bukan di footer modal
-- Form harus support `readOnly` dan `onChange` — dipakai di manager (editable) dan approval (read-only/editable)
-- **JANGAN** berisi logic fetch data — hanya UI rendering dari `payload` prop
+- Kalkulasi dihitung dari `payload` — **pure function**, tidak butuh state eksternal
+- Info kalkulasi di **footer form** (bukan footer modal)
+- Support `readOnly` dan `onChange`
+- **JANGAN** berisi logic fetch data
 
-#### 3b. Daftarkan ke `formRegistry.tsx` — Cukup 1 Baris
-
-Buka `src/components/financial/approval/formRegistry.tsx` dan tambahkan:
+#### 4b. Daftarkan ke `formRegistry.tsx` — Cukup 1 Baris
 
 ```typescript
 import { MyEntityForm } from '../shared/forms/MyEntityForm';
 import type { MyEntityPayload } from '../shared/forms/MyEntityForm';
 
 export const FORM_REGISTRY: Record<string, React.ComponentType<ApprovalFormProps>> = {
-  BalanceSheetApprovalForm: createApprovalFormAdapter<BalanceSheetPayload>(
-    BalanceSheetForm as React.ComponentType<SharedFormProps<BalanceSheetPayload>>,
-    { extraProps: { showCorporateSelector: true, corporateSelectorDisabled: true } },
-  ),
-
-  // Tambahkan modul baru di sini — TIDAK perlu file wrapper terpisah:
+  // ... existing entries ...
   MyEntityApprovalForm: createApprovalFormAdapter<MyEntityPayload>(
     MyEntityForm as React.ComponentType<SharedFormProps<MyEntityPayload>>,
     { extraProps: { showCorporateSelector: true, corporateSelectorDisabled: true } },
@@ -159,20 +203,11 @@ export const FORM_REGISTRY: Record<string, React.ComponentType<ApprovalFormProps
 };
 ```
 
-`createApprovalFormAdapter` adalah HOC generic yang mengkonversi `ApprovalFormProps` (dari `ApprovalDetailModal`) ke props shared form. Tidak perlu membuat file `MyEntityApprovalForm.tsx` terpisah.
-
-**`extraProps`** adalah props tambahan yang selalu diteruskan ke shared form saat dirender di approval context. Contoh umum:
-- `showCorporateSelector: true` — tampilkan selector corporate
-- `corporateSelectorDisabled: true` — corporate tidak bisa diubah di approval (sudah ditentukan saat draft dibuat)
-
-#### 3c. Gunakan Shared Form di Manager
-
-Di `MyEntityManager.tsx`, ganti form JSX inline dengan shared form:
+#### 4c. Gunakan Shared Form di Manager
 
 ```typescript
 import { MyEntityForm, type MyEntityPayload } from '../shared/forms/MyEntityForm';
 
-// Di dalam modal:
 <MyEntityForm
   payload={formData as MyEntityPayload}
   onChange={modalMode !== 'view'
@@ -187,13 +222,12 @@ import { MyEntityForm, type MyEntityPayload } from '../shared/forms/MyEntityForm
 ```
 
 - [ ] Buat `MyEntityForm.tsx` di `src/components/financial/shared/forms/`
-- [ ] Kalkulasi di footer form, bukan footer modal
 - [ ] Daftarkan di `formRegistry.tsx` dengan `createApprovalFormAdapter` (1 baris)
-- [ ] Gunakan shared form di manager — hapus form JSX inline
+- [ ] Gunakan shared form di manager
 
-### Step 4 — Integrasi di Manager Component
+### Step 5 — Integrasi di Manager Component
 
-#### 4a. State dan Hook
+#### 5a. State dan Hook
 
 ```typescript
 import { useApproval } from '../../../hooks/financial/useApproval';
@@ -202,38 +236,33 @@ import { approvalI18n } from '../../../i18n/approval';
 
 const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
 
-// Scope check (corporate/department) dilakukan di backend berdasarkan JWT user.
-// Tidak perlu pass corporateId dari form ke hook.
+// Scope check dilakukan di backend berdasarkan accessContext user (JWT).
+// TIDAK perlu pass corporateId dari form ke hook.
 const approvalCreate = useApproval('cfd', 'my_entity', 'create');
 const approvalEdit   = useApproval('cfd', 'my_entity', 'edit');
 const approvalDelete = useApproval('cfd', 'my_entity', 'delete');
 ```
 
-#### 4b. Re-fetch saat Modal Dibuka
-
-Panggil `recheck()` saat modal dibuka agar `hasWorkflow` selalu mencerminkan state terkini dari DB (antisipasi admin mengubah `is_active` workflow):
+#### 5b. Re-fetch saat Modal Dibuka
 
 ```typescript
 const openModal = (mode: 'create' | 'edit' | 'view', item?: MyEntity) => {
   setModalMode(mode);
-
-  // Re-fetch workflow status setiap kali modal dibuka
   if (mode === 'create') approvalCreate.recheck();
   else if (mode === 'edit') approvalEdit.recheck();
-
   // ... set formData ...
   setIsModalOpen(true);
 };
 ```
 
-#### 4c. Intercept `handleSave()` — Urutan Wajib
+#### 5c. Intercept `handleSave()` — Urutan Wajib
 
 ```typescript
 const handleSave = async (e: React.FormEvent) => {
   e.preventDefault();
   if (isSaving) return;
 
-  // LANGKAH 1: Validasi Zod — WAJIB sebelum cek approval
+  // 1. Validasi Zod — WAJIB sebelum cek approval
   const validation = schema.safeParse(formData);
   if (!validation.success) {
     const errors = new Set(validation.error.issues.map(i => i.message));
@@ -241,16 +270,10 @@ const handleSave = async (e: React.FormEvent) => {
     return;
   }
 
-  // LANGKAH 2: Pre-condition check bisnis (jika ada)
-  if (modalMode === 'create') {
-    const isDuplicate = await checkDuplicate(validation.data);
-    if (isDuplicate) {
-      toast.error(t.validation.duplicateEntry);
-      return;
-    }
-  }
+  // 2. Pre-condition check bisnis (duplikasi, dll.)
+  // ...
 
-  // LANGKAH 3: Cek approval workflow
+  // 3. Cek approval workflow
   const approvalHook = modalMode === 'create' ? approvalCreate : approvalEdit;
   if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
     setIsSaving(true);
@@ -272,17 +295,12 @@ const handleSave = async (e: React.FormEvent) => {
     return;
   }
 
-  // LANGKAH 4: Flow normal
-  setIsSaving(true);
-  try {
-    // ... simpan langsung ke DB ...
-  } finally {
-    setIsSaving(false);
-  }
+  // 4. Flow normal (tidak ada workflow atau user tidak punya makerRole)
+  // ...
 };
 ```
 
-#### 4d. Intercept `handleDelete()`
+#### 5d. Intercept `handleDelete()`
 
 ```typescript
 const handleDelete = async (id: string) => {
@@ -294,7 +312,6 @@ const handleDelete = async (id: string) => {
         payload: { ...item },
         entityId: id,
         originalData: { ...item },
-        // corporateId TIDAK dikirim — backend ambil dari accessContext user (JWT)
       });
       setDeleteConfirmId(null);
       setActiveDraftApprovalId(draft.id);
@@ -308,7 +325,7 @@ const handleDelete = async (id: string) => {
 };
 ```
 
-#### 4e. Tambahkan `ApprovalDetailModal` di JSX
+#### 5e. Tambahkan `ApprovalDetailModal` di JSX
 
 ```tsx
 <AnimatePresence>
@@ -322,23 +339,19 @@ const handleDelete = async (id: string) => {
 </AnimatePresence>
 ```
 
-- [ ] Tambahkan `activeDraftApprovalId` state
-- [ ] Panggil `useApproval` tanpa corporateId
-- [ ] Panggil `recheck()` di `openModal` untuk create dan edit
-- [ ] Intercept `handleSave()` dengan urutan: Zod → pre-condition → approval check → flow normal
-- [ ] Intercept `handleDelete()` dengan approval check
-- [ ] Tambahkan `<ApprovalDetailModal>` di JSX
-
-### Step 5 — Verifikasi
+### Step 6 — Verifikasi
 
 - [ ] `npx tsc --noEmit` — zero errors
 - [ ] Login sebagai user dengan `makerRole` → simpan → draft terbuat, modal approval terbuka
 - [ ] Login sebagai user **tanpa** `makerRole` (e.g., system_admin) → simpan → langsung ke DB
 - [ ] Nonaktifkan workflow (`is_active=false`) → buka modal → simpan → langsung ke DB (bypass)
-- [ ] Submit draft → approver terima notifikasi
-- [ ] Approve semua step → callback dieksekusi → data masuk ke tabel modul
+- [ ] Submit draft → approver terima notifikasi dengan workflow name + title
+- [ ] Approve step 1 → advance ke step 2, notifikasi dikirim ke approver step 2
+- [ ] Approve step terakhir → callback dieksekusi dalam transaksi → data masuk ke tabel modul
+- [ ] Jika callback gagal → status tetap `pending`, tidak ada history approve yang tersimpan
 - [ ] Reject → kembali ke draft → resubmit → approve
 - [ ] Cancel di draft → status `cancelled`
+- [ ] Klik notifikasi approval → buka `ApprovalDetailModal` + mark as read
 
 ---
 
@@ -352,22 +365,28 @@ const handleDelete = async (id: string) => {
 
 ## Tips & Gotchas
 
-1. **Validasi Zod WAJIB sebelum `createDraft()`** — jangan buat draft dari data yang belum valid. Draft yang sudah dibuat tidak bisa dihapus otomatis jika validasi gagal setelahnya.
+1. **Validasi Zod WAJIB sebelum `createDraft()`** — jangan buat draft dari data yang belum valid.
 
-2. **Pre-condition check sebelum `createDraft()`** — cek duplikasi, ketersediaan data, atau kondisi bisnis lain sebelum membuat draft. Setelah draft dibuat, pembatalan harus manual via cancel.
+2. **Pre-condition check sebelum `createDraft()`** — cek duplikasi sebelum membuat draft. Setelah draft dibuat, pembatalan harus manual via cancel.
 
-3. **`isChecking` guard** — selalu cek `!approvalHook.isChecking` sebelum render tombol Simpan. Saat `isChecking = true`, tombol harus disabled untuk menghindari race condition.
+3. **`isChecking` guard** — selalu cek `!approvalHook.isChecking` sebelum render tombol Simpan.
 
-4. **`recheck()` saat modal dibuka** — panggil `approvalHook.recheck()` di `openModal` agar `hasWorkflow` selalu mencerminkan state terkini. Ini mencegah stale cache saat admin mengubah `is_active` workflow di DB.
+4. **`recheck()` saat modal dibuka** — panggil `approvalHook.recheck()` di `openModal` agar `hasWorkflow` selalu mencerminkan state terkini dari DB.
 
-5. **Scope check dari JWT, bukan dari form** — `corporateId`/`departmentId` diambil dari `accessContext` user di backend, bukan dari konten form. Ini memastikan scope selalu berdasarkan identitas user, bukan input form — sehingga modul yang tidak punya field `corporateId` tetap bisa diintegrasikan.
+5. **Scope dari JWT, bukan dari form** — `corporateId`/`departmentId` diambil dari `accessContext` user di backend. Modul yang tidak punya field `corporateId` di form tetap bisa diintegrasikan.
 
-6. **Shared form, bukan wrapper per-modul** — buat shared form di `src/components/financial/shared/forms/` dan daftarkan via `createApprovalFormAdapter` di `formRegistry.tsx`. Tidak perlu file `XxxApprovalForm.tsx` terpisah.
+6. **`requestedBy` sebagai `createdBy`** — callback menerima `requestedBy` (UUID maker) sebagai parameter ke-4. Wajib digunakan sebagai `createdBy` saat insert ke tabel yang punya `created_by NOT NULL`.
 
-7. **Kalkulasi di footer form** — info kalkulasi (total, selisih, dll.) diletakkan di dalam shared form (footer form), bukan di footer modal. Ini memastikan kalkulasi tampil konsisten di manager maupun di approval detail modal.
+7. **Callback dalam transaksi** — final approve (step terakhir) membungkus history insert + status update + callback dalam satu transaksi. Jika callback throw, seluruh transaksi rollback — status tetap `pending`, tidak ada data corrupt.
 
-8. **`requiredRole` dan `makerRole` adalah UUID** — bukan nama role. Selalu gunakan `roleMap.get('role_name')!` saat seed.
+8. **`canApprove`/`canCancel` dari backend** — `ApprovalDetailModal` membaca `detail.canApprove` dan `detail.canCancel` yang dihitung di backend berdasarkan role user. Tidak perlu cek permission di frontend.
 
-9. **`system_admin` bypass approval** — karena `system_admin` tidak punya role `finance_staff` di `user_corporate_accesses`, `hasWorkflow` akan `false` dan data langsung disimpan ke DB.
+9. **Shared form, bukan wrapper per-modul** — daftarkan via `createApprovalFormAdapter` di `formRegistry.tsx`. Tidak perlu file `XxxApprovalForm.tsx` terpisah.
 
-10. **Callback dipanggil setelah step terakhir disetujui** — jangan lakukan mutasi DB di luar callback untuk data yang memerlukan approval.
+10. **`workflowCatalog.ts` wajib diupdate** — saat menambah modul baru, tambahkan entry ke catalog agar muncul di dropdown `ApprovalConfigManager`.
+
+11. **`requiredRole` dan `makerRole` adalah UUID** — bukan nama role. Gunakan `roleMap.get('role_name')!` saat seed.
+
+12. **`system_admin` bypass approval** — karena tidak punya role `finance_staff`, `hasWorkflow = false` dan data langsung disimpan ke DB.
+
+13. **Seed steps — FK constraint** — jangan delete steps jika sudah ada `approval_histories` yang referensi step tersebut. Gunakan pola `if (existingSteps.length === 0)`.
