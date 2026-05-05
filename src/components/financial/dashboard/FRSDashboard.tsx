@@ -15,7 +15,7 @@ import { ComparisonChart, ComparisonDataPoint } from './ComparisonChart';
 import { AlertPanel } from './AlertPanel';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { useRatios, useLatestRatios } from '../../../hooks/financial/useRatios';
-import { useDashboardDepartments } from '../../../hooks/financial/useDashboardData';
+import { useDashboardDepartments, useDashboardProjects } from '../../../hooks/financial/useDashboardData';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { RatioName } from '../../../types/financial/ratio';
 import { cn } from '../../../utils/cn';
@@ -124,6 +124,7 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
 
   const [revenueDeptId, setRevenueDeptId] = useState('');
   const [cashFlowDeptId, setCashFlowDeptId] = useState('');
+  const [cashFlowProjectId, setCashFlowProjectId] = useState('');
 
   const aggregatedFilters = useMemo(
     () => ({
@@ -133,8 +134,9 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
       corporateId: selectedCompany !== 'all' ? selectedCompany : undefined,
       revCostDeptId: revenueDeptId || undefined,
       cashFlowDeptId: cashFlowDeptId || undefined,
+      cashFlowProjectId: cashFlowProjectId || undefined,
     }),
-    [mafindaPeriod, mafindaHistoricalMonths, globalPeriodType, selectedCompany, revenueDeptId, cashFlowDeptId]
+    [mafindaPeriod, mafindaHistoricalMonths, globalPeriodType, selectedCompany, revenueDeptId, cashFlowDeptId, cashFlowProjectId]
   );
 
   const mafindaData = useDashboardAggregated(aggregatedFilters);
@@ -151,6 +153,7 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
   }, [mafindaData.cashFlowData]);
 
   const { departments, options: departmentOptions, isLoading: isDeptsLoading } = useDashboardDepartments(selectedCompany);
+  const { options: projectOptions, isLoading: isProjectsLoading } = useDashboardProjects(cashFlowDeptId || undefined);
 
   // Filter latest ratios by selected company
   const displayedRatios = useMemo(() => {
@@ -450,11 +453,14 @@ export const FRSDashboard: React.FC<FRSDashboardProps> = ({
             <CashFlowChart
               data={mafindaData.cashFlowData?.data ?? []}
               departments={departmentOptions}
-              projects={[]} // Removed project filter from dashboard
+              projects={projectOptions}
               selectedDepartmentId={cashFlowDeptId}
-              selectedProjectId={''}
-              onDepartmentChange={setCashFlowDeptId}
-              onProjectChange={() => { }}
+              selectedProjectId={cashFlowProjectId}
+              onDepartmentChange={(val) => {
+                setCashFlowDeptId(val);
+                setCashFlowProjectId('');
+              }}
+              onProjectChange={setCashFlowProjectId}
               isLoading={mafindaData.isLoading || isDeptsLoading}
             />
           </div>

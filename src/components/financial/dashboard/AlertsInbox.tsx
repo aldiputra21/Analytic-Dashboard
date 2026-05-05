@@ -148,6 +148,16 @@ export const AlertsInbox: React.FC = () => {
                         </span>
                       </>
                     )}
+                    {notification.sourceEntityType === 'approval' && (
+                      <>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs text-indigo-600 font-medium">
+                          {language === 'id'
+                            ? (String(notification.templateVars?.workflowName || 'Persetujuan'))
+                            : (String(notification.templateVars?.workflowNameEn || notification.templateVars?.workflowName || 'Approval'))}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <p className="text-sm text-slate-700">{message}</p>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-3 mt-3 border-t border-slate-100">

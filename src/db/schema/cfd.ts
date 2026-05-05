@@ -15,7 +15,7 @@ import {
   varchar,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { banks, corporates, departments, projects } from './public';
+import { banks, corporates, costCenterCategories, departments, projects } from './public';
 
 // ============================================================================
 // cfd schema — 8 tables
@@ -29,7 +29,7 @@ export const costCenters = cfdSchema.table('cost_centers', {
   id: uuid().primaryKey().defaultRandom(),
   corporateId: uuid('corporate_id').notNull().references(() => corporates.id),
   parentId: uuid('parent_id').references((): AnyPgColumn => costCenters.id),
-  category: varchar({ length: 50 }).notNull(),
+  category: varchar({ length: 50 }).notNull().references(() => costCenterCategories.code),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 20 }).notNull(),
   description: text(),

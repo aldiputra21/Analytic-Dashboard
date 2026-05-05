@@ -8,8 +8,7 @@ import {
   Shield, Menu, Target, Database, UserSquare2, FolderKanban,
   CheckCircle, Receipt, ChevronDown, Scale, FileBarChart, ArrowLeftRight,
   ClipboardList, Landmark, DollarSign, Layers, Languages, Megaphone,
-} from 'lucide-react';
-import { cn } from '../../../utils/cn';
+} from 'lucide-react';import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { UserRole } from '../../../types/financial/user';
 import { UserMenu } from '../UserMenu';
@@ -34,7 +33,9 @@ export type FRSPage =
   // CRM sub-pages
   | 'crm-dashboard' | 'crm-opportunities' | 'crm-customers'
   | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse'
-  | 'notification-broadcast';
+  | 'notification-broadcast'
+  // Approval module
+  | 'approval-monitor' | 'approval-configs';
 
 interface NavChild {
   id: FRSPage;
@@ -49,7 +50,7 @@ interface NavItem {
   icon: React.ElementType;
   requiredPermissions: string[];
   badge?: number;
-  group: 'main' | 'financial-statements' | 'cash-flow' | 'corporate-management' | 'business-management' | 'crm' | 'user-management' | 'system-admin';
+  group: 'main' | 'approval' | 'financial-statements' | 'cash-flow' | 'corporate-management' | 'business-management' | 'crm' | 'user-management' | 'system-admin';
   children?: NavChild[];
 }
 
@@ -76,6 +77,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'benchmarking', label: t.menus.benchmarking, icon: BarChart3, group: 'main', requiredPermissions: ['cfd.benchmarking.read'] },
       { id: 'trends', label: t.menus.trends, icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
       { id: 'reports', label: t.menus.reports, icon: FileText, group: 'main', requiredPermissions: ['cfd.reports.read'] },
+
+      // Approval — grup baru, posisi di bawah Analitik
+      { id: 'approval-monitor', label: t.menus.approvalMonitor, icon: ClipboardList, requiredPermissions: ['approvals.read'], group: 'approval' },
 
       // 1. Financial Statements (Laporan Keuangan)
       { id: 'cfd-balance-sheets', label: balanceSheetI18n[language].title, icon: Scale, requiredPermissions: ['cfd.balance_sheets.read'], group: 'financial-statements' },
@@ -128,6 +132,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'notification-configs-manager', label: t.menus.notificationConfigs, icon: Bell, requiredPermissions: ['public.notification_configs.read'], group: 'system-admin' },
       { id: 'system-configs', label: t.menus.systemConfigs, icon: Settings, requiredPermissions: ['public.system_configs.read'], group: 'system-admin' },
       { id: 'notification-broadcast', label: t.menus.broadcast, icon: Megaphone, requiredPermissions: ['public.notification.broadcast'], group: 'system-admin' },
+      { id: 'approval-configs', label: t.menus.approvalConfigs, icon: CheckCircle, requiredPermissions: ['public.approval_configs.read'], group: 'system-admin' },
       { id: 'audit-logs', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'system-admin' },
     ];
     return items;
@@ -153,6 +158,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const groups: { key: NavItem['group']; label: string }[] = useMemo(() => {
     return [
       { key: 'main', label: t.groups.main },
+      { key: 'approval', label: t.groups.approval },
       { key: 'financial-statements', label: t.groups.financialStatements },
       { key: 'cash-flow', label: t.groups.cashFlow },
       { key: 'corporate-management', label: t.groups.corporateManagement },

@@ -71,7 +71,7 @@ export const RevenueCostCards: React.FC<RevenueCostCardsProps> = ({
         <h3 className="text-sm font-semibold text-slate-800 shrink-0">{t.revenue} & {t.operationalCost}</h3>
         <div className="w-48">
           <SearchableSelect
-            options={departments}
+            options={[{ value: '', label: t.allDepartments }, ...departments]}
             value={selectedDepartmentId}
             onChange={onDepartmentChange}
             placeholder={t.allDepartments}

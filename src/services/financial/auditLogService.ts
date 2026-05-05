@@ -1,9 +1,10 @@
 // Audit Log Service
 // Drizzle ORM PostgreSQL implementation
 
-import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { auditLogs } from '../../db/schema/index.js';
+import { users } from '../../db/schema/public.js';
 import { CreateAuditLogInput, AuditLogEntry } from '../../types/financial/user';
 
 export interface RequestContext {
@@ -11,12 +12,17 @@ export interface RequestContext {
   userAgent?: string;
 }
 
-type AuditLogRow = typeof auditLogs.$inferSelect;
+type AuditLogRow = typeof auditLogs.$inferSelect & {
+  userName: string | null;
+  userEmail: string | null;
+};
 
 function mapRowToAuditLog(row: AuditLogRow): AuditLogEntry {
   return {
     id: row.id,
     userId: row.userId ?? '',
+    userName: row.userName ?? undefined,
+    userEmail: row.userEmail ?? undefined,
     action: row.action as AuditLogEntry['action'],
     entityType: row.entityType,
     entityId: row.entityId ?? undefined,
@@ -57,6 +63,7 @@ export async function createFRSAuditLog(
 
 /**
  * Retrieves audit log entries with optional filters.
+ * Joins with users table to return full name and email.
  */
 export async function getFRSAuditLog(
   access: { scope: string; corporateIds: string[]; departmentIds: string[] },
@@ -88,12 +95,12 @@ export async function getFRSAuditLog(
   } else if (access.scope === 'corporate') {
     const { inArray } = await import('drizzle-orm');
     const { departments } = await import('../../db/schema/public.js');
-    
+
     // Subquery to get all departments for allowed corporates
     const allowedDeptIds = db.select({ id: departments.id })
       .from(departments)
       .where(inArray(departments.corporateId, access.corporateIds));
-      
+
     conditions.push(inArray(auditLogs.departmentId, allowedDeptIds));
   }
 
@@ -101,8 +108,25 @@ export async function getFRSAuditLog(
   const offset = filters.offset ?? 0;
 
   const rows = await db
-    .select()
+    .select({
+      id: auditLogs.id,
+      userId: auditLogs.userId,
+      module: auditLogs.module,
+      action: auditLogs.action,
+      entityType: auditLogs.entityType,
+      entityId: auditLogs.entityId,
+      departmentId: auditLogs.departmentId,
+      oldValues: auditLogs.oldValues,
+      newValues: auditLogs.newValues,
+      justification: auditLogs.justification,
+      ipAddress: auditLogs.ipAddress,
+      userAgent: auditLogs.userAgent,
+      createdAt: auditLogs.createdAt,
+      userName: users.fullName,
+      userEmail: users.email,
+    })
     .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit)
@@ -110,4 +134,3 @@ export async function getFRSAuditLog(
 
   return rows.map(mapRowToAuditLog);
 }
-

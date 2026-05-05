@@ -70,9 +70,19 @@ export interface CommonsCopy {
   noData: string;
   errors: {
     [key in keyof typeof import('../utils/errors').ErrorCode]?: string;
+  } & {
+    SESSION_EXPIRED?: string;
   };
   saveChanges: string;
   confirmDelete: string;
+  approve: string;
+  reject: string;
+  resubmit: string;
+  submitRequest: string;
+  approvalHistory: string;
+  dataHistory: string;
+  originalData: string;
+  comparedData: string;
 }
 
 export const commonsI18n: Record<Locale, CommonsCopy> = {
@@ -144,6 +154,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       strong: 'Kuat',
     },
     errors: {
+      SESSION_EXPIRED: 'Sesi Anda telah berakhir, silakan login kembali',
       AUTH_UNAUTHORIZED: 'Sesi berakhir, silakan login kembali',
       AUTH_FORBIDDEN: 'Anda tidak memiliki akses ke fitur ini',
       AUTH_TOKEN_EXPIRED: 'Token telah kedaluwarsa',
@@ -177,7 +188,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       NOTIFICATION_CONFIG_NOT_FOUND: 'Konfigurasi notifikasi tidak ditemukan',
       NOTIFICATION_NOT_FOUND: 'Notifikasi tidak ditemukan',
       INTERNAL_SERVER_ERROR: 'Terjadi kesalahan pada server',
-      DELETE_PROTECTED: 'Data tidak bisa dihapus karena masih digunakan',
+      DELETE_PROTECTED: 'Data tidak dapat dihapus karena masih diperlukan oleh entitas lain',
       AUTH_UPDATE_FAILED: 'Gagal memperbarui data user',
       AUTH_ACTIVATION_FAILED: 'Gagal mengirim aktivasi',
       AUTH_RESET_FAILED: 'Gagal mereset password',
@@ -192,6 +203,14 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     noData: 'Tidak ada data ditemukan',
     saveChanges: 'Simpan Perubahan',
     confirmDelete: 'Konfirmasi Hapus',
+    approve: 'Setujui',
+    reject: 'Tolak',
+    resubmit: 'Ajukan Ulang',
+    submitRequest: 'Ajukan Permohonan',
+    approvalHistory: 'Riwayat Approval',
+    dataHistory: 'Riwayat Perubahan',
+    originalData: 'Data Awal',
+    comparedData: 'Data Perbandingan',
   },
   en: {
     networkOnline: 'Network connection restored',
@@ -261,6 +280,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       strong: 'Strong',
     },
     errors: {
+      SESSION_EXPIRED: 'Your session has expired, please login again',
       AUTH_UNAUTHORIZED: 'Session expired, please login again',
       AUTH_FORBIDDEN: 'You do not have access to this feature',
       AUTH_TOKEN_EXPIRED: 'Token has expired',
@@ -294,7 +314,7 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
       NOTIFICATION_CONFIG_NOT_FOUND: 'Notification configuration not found',
       NOTIFICATION_NOT_FOUND: 'Notification not found',
       INTERNAL_SERVER_ERROR: 'Internal server error occurred',
-      DELETE_PROTECTED: 'Resource cannot be deleted because it is in use',
+      DELETE_PROTECTED: 'Data cannot be deleted because it is still required by other entities',
       AUTH_UPDATE_FAILED: 'Failed to update user data',
       AUTH_ACTIVATION_FAILED: 'Failed to send activation',
       AUTH_RESET_FAILED: 'Failed to reset password',
@@ -309,5 +329,13 @@ export const commonsI18n: Record<Locale, CommonsCopy> = {
     noData: 'No data found',
     saveChanges: 'Save Changes',
     confirmDelete: 'Confirm Delete',
+    approve: 'Approve',
+    reject: 'Reject',
+    resubmit: 'Resubmit',
+    submitRequest: 'Submit Request',
+    approvalHistory: 'Approval History',
+    dataHistory: 'Change History',
+    originalData: 'Original Data',
+    comparedData: 'Compared Data',
   },
 };

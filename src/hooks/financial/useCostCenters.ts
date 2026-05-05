@@ -8,19 +8,27 @@ export interface CostCenterDropdownItem {
   parentId: string | null;
 }
 
-export function useCostCenters(parentId?: string | null) {
+export function useCostCenters(parentId?: string | null, corporateId?: string) {
   const [costCenters, setCostCenters] = useState<CostCenterDropdownItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCostCenters = useCallback(async () => {
+    // Don't fetch if no corporateId is provided — parent list is meaningless without it
+    if (corporateId === '') {
+      setCostCenters([]);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const url = parentId 
-        ? `/api/cost-centers/dropdown-items?parentId=${parentId}`
-        : '/api/cost-centers/dropdown-items';
-        
+      const params = new URLSearchParams();
+      if (parentId !== undefined && parentId !== null) params.set('parentId', parentId);
+      if (corporateId) params.set('corporateId', corporateId);
+
+      const url = `/api/cost-centers/dropdown-items${params.toString() ? `?${params.toString()}` : ''}`;
+
       const res = await apiFetch(url);
       if (!res.ok) throw new Error('Failed to fetch cost centers');
       const data = await res.json();
@@ -31,7 +39,7 @@ export function useCostCenters(parentId?: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [parentId]);
+  }, [parentId, corporateId]);
 
   useEffect(() => {
     fetchCostCenters();

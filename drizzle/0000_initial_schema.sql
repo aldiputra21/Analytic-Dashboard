@@ -33,8 +33,87 @@ CREATE TABLE "cfd"."balance_sheets" (
 	CONSTRAINT "uq_balance_sheet_corp_period" UNIQUE("corporate_id","period")
 );
 --> statement-breakpoint
+CREATE TABLE "cfd"."bank_loan_installments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"bank_loan_id" uuid NOT NULL,
+	"installment_date" date NOT NULL,
+	"amount" numeric(18, 2) NOT NULL,
+	"status" varchar(20) DEFAULT 'unpaid' NOT NULL,
+	"paid_date" date,
+	CONSTRAINT "chk_installment_status" CHECK ("cfd"."bank_loan_installments"."status" IN ('paid', 'unpaid'))
+);
+--> statement-breakpoint
+CREATE TABLE "cfd"."bank_loans" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"bank_id" uuid NOT NULL,
+	"corporate_id" uuid NOT NULL,
+	"amount" numeric(18, 2) NOT NULL,
+	"start_date" date NOT NULL,
+	"tenor" integer NOT NULL,
+	"interest_type" varchar(20) NOT NULL,
+	"interest_rate" numeric(5, 4) NOT NULL,
+	"status" varchar(20) DEFAULT 'ongoing' NOT NULL,
+	"alert_min_days" integer DEFAULT 5 NOT NULL,
+	"credit_type" varchar(20) DEFAULT 'KMK' NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "chk_loan_interest_type" CHECK ("cfd"."bank_loans"."interest_type" IN ('flat', 'effective')),
+	CONSTRAINT "chk_loan_status" CHECK ("cfd"."bank_loans"."status" IN ('ongoing', 'paid')),
+	CONSTRAINT "chk_loan_tenor_positive" CHECK ("cfd"."bank_loans"."tenor" > 0),
+	CONSTRAINT "chk_loan_credit_type" CHECK ("cfd"."bank_loans"."credit_type" IN ('KMK', 'KMI'))
+);
+--> statement-breakpoint
+CREATE TABLE "cfd"."cash_flow_projection_details" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"header_id" uuid NOT NULL,
+	"month" integer NOT NULL,
+	"group" varchar(50) NOT NULL,
+	"type" varchar(20) NOT NULL,
+	"category" varchar(100) NOT NULL,
+	"amount" numeric(18, 2) DEFAULT '0' NOT NULL,
+	"notes" text,
+	CONSTRAINT "chk_projection_month" CHECK ("cfd"."cash_flow_projection_details"."month" >= 1 AND "cfd"."cash_flow_projection_details"."month" <= 12),
+	CONSTRAINT "chk_projection_group" CHECK ("cfd"."cash_flow_projection_details"."group" IN ('operating', 'investing', 'financing')),
+	CONSTRAINT "chk_projection_type" CHECK ("cfd"."cash_flow_projection_details"."type" IN ('cash-in', 'cash-out'))
+);
+--> statement-breakpoint
+CREATE TABLE "cfd"."cash_flow_projection_headers" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"corporate_id" uuid NOT NULL,
+	"fiscal_year" integer NOT NULL,
+	"initial_balance" numeric(18, 2) DEFAULT '0' NOT NULL,
+	"notes" text,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "uq_cf_projection_header" UNIQUE("corporate_id","fiscal_year")
+);
+--> statement-breakpoint
+CREATE TABLE "cfd"."cash_realizations" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"entity_type" varchar(20) NOT NULL,
+	"department_id" uuid NOT NULL,
+	"project_id" uuid,
+	"cost_center_id" uuid,
+	"transaction_date" date NOT NULL,
+	"category" varchar(20) NOT NULL,
+	"amount" numeric(18, 2) NOT NULL,
+	"notes" text,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "chk_realization_entity_type" CHECK ("cfd"."cash_realizations"."entity_type" IN ('department', 'project')),
+	CONSTRAINT "chk_realization_category" CHECK ("cfd"."cash_realizations"."category" IN ('cash-in', 'cash-out')),
+	CONSTRAINT "chk_realization_project_required" CHECK (NOT ("cfd"."cash_realizations"."entity_type" = 'project' AND "cfd"."cash_realizations"."project_id" IS NULL))
+);
+--> statement-breakpoint
 CREATE TABLE "cfd"."cost_centers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"corporate_id" uuid NOT NULL,
 	"parent_id" uuid,
 	"category" varchar(50) NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -45,7 +124,7 @@ CREATE TABLE "cfd"."cost_centers" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_by" uuid,
 	"updated_at" timestamp with time zone,
-	CONSTRAINT "cost_centers_code_unique" UNIQUE("code")
+	CONSTRAINT "uq_cost_center_corp_code" UNIQUE("corporate_id","code")
 );
 --> statement-breakpoint
 CREATE TABLE "cfd"."income_statements" (
@@ -57,6 +136,8 @@ CREATE TABLE "cfd"."income_statements" (
 	"operating_expenses" numeric(18, 2) DEFAULT '0' NOT NULL,
 	"interest_expense" numeric(18, 2) DEFAULT '0' NOT NULL,
 	"tax_expense" numeric(18, 2) DEFAULT '0' NOT NULL,
+	"other_income" numeric(18, 2) DEFAULT '0' NOT NULL,
+	"other_expense" numeric(18, 2) DEFAULT '0' NOT NULL,
 	"notes" text,
 	"created_by" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -340,10 +421,11 @@ CREATE TABLE "crm"."stage_transitions" (
 CREATE TABLE "approval_histories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"approval_id" uuid NOT NULL,
-	"step_id" uuid NOT NULL,
+	"step_id" uuid,
 	"action" varchar(20) NOT NULL,
 	"acted_by" uuid NOT NULL,
 	"comments" text,
+	"payload" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -367,6 +449,9 @@ CREATE TABLE "approval_workflows" (
 	"name" varchar(100) NOT NULL,
 	"description" text,
 	"callback_handler" varchar(100) NOT NULL,
+	"view_component" varchar(100) DEFAULT '' NOT NULL,
+	"maker_role" varchar(50) NOT NULL,
+	"subject_fields" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_by" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -379,19 +464,36 @@ CREATE TABLE "approvals" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workflow_id" uuid NOT NULL,
 	"current_step_id" uuid,
-	"module" varchar(50) NOT NULL,
-	"entity_type" varchar(50) NOT NULL,
 	"entity_id" uuid,
 	"payload" jsonb NOT NULL,
-	"status" varchar(20) DEFAULT 'pending' NOT NULL,
+	"original_data" jsonb,
+	"subject" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"title" varchar(255),
+	"status" varchar(20) DEFAULT 'draft' NOT NULL,
 	"requested_by" uuid NOT NULL,
 	"approved_by" uuid,
 	"department_id" uuid,
-	"metadata" jsonb,
+	"corporate_id" uuid,
 	"rejection_notes" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
 	"completed_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "attachments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"entity_type" varchar(50) NOT NULL,
+	"entity_id" uuid,
+	"approval_id" uuid,
+	"file_name" varchar(255) NOT NULL,
+	"file_path" text NOT NULL,
+	"file_size" integer NOT NULL,
+	"mime_type" varchar(100) NOT NULL,
+	"status" varchar(20) DEFAULT 'active' NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "audit_logs" (
@@ -408,6 +510,33 @@ CREATE TABLE "audit_logs" (
 	"ip_address" "inet",
 	"user_agent" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "banks" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(20) NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"swift_code" varchar(20),
+	"status" varchar(20) DEFAULT 'active' NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "banks_code_unique" UNIQUE("code"),
+	CONSTRAINT "chk_banks_status" CHECK ("banks"."status" IN ('active', 'inactive'))
+);
+--> statement-breakpoint
+CREATE TABLE "corporate_sectors" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"label_id" varchar(100) NOT NULL,
+	"label_en" varchar(100) NOT NULL,
+	"status" varchar(20) DEFAULT 'active' NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "corporate_sectors_code_unique" UNIQUE("code")
 );
 --> statement-breakpoint
 CREATE TABLE "corporates" (
@@ -428,6 +557,31 @@ CREATE TABLE "corporates" (
 	CONSTRAINT "fiscal_month_check" CHECK ("corporates"."fiscal_year_start_month" >= 1 AND "corporates"."fiscal_year_start_month" <= 12)
 );
 --> statement-breakpoint
+CREATE TABLE "cost_center_categories" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"label_id" varchar(100) NOT NULL,
+	"label_en" varchar(100) NOT NULL,
+	"status" varchar(20) DEFAULT 'active' NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "cost_center_categories_code_unique" UNIQUE("code")
+);
+--> statement-breakpoint
+CREATE TABLE "currencies" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(10) NOT NULL,
+	"label" varchar(50) NOT NULL,
+	"status" varchar(20) DEFAULT 'active' NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "currencies_code_unique" UNIQUE("code")
+);
+--> statement-breakpoint
 CREATE TABLE "departments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"corporate_id" uuid NOT NULL,
@@ -441,6 +595,36 @@ CREATE TABLE "departments" (
 	"updated_by" uuid,
 	"updated_at" timestamp with time zone,
 	CONSTRAINT "uq_dept_corporate_code" UNIQUE("corporate_id","code")
+);
+--> statement-breakpoint
+CREATE TABLE "notification_broadcasts" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"message" text NOT NULL,
+	"severity" varchar(20) DEFAULT 'medium' NOT NULL,
+	"target_roles" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"target_users" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"target_corporates" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"target_departments" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"recipient_count" integer DEFAULT 0 NOT NULL,
+	"sent_by" uuid NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "chk_notification_broadcasts_severity" CHECK ("notification_broadcasts"."severity" IN ('low', 'medium', 'high'))
+);
+--> statement-breakpoint
+CREATE TABLE "notification_configs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"module" varchar(50) NOT NULL,
+	"event_type" varchar(100) NOT NULL,
+	"target_roles" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_by" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "uq_notification_config_module_event" UNIQUE("module","event_type")
 );
 --> statement-breakpoint
 CREATE TABLE "notifications" (
@@ -548,6 +732,15 @@ CREATE TABLE "user_corporate_accesses" (
   )
 );
 --> statement-breakpoint
+CREATE TABLE "user_login_activities" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"login_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"ip_address" "inet",
+	"user_agent" text,
+	"success" boolean DEFAULT true NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"username" varchar(50),
@@ -559,10 +752,13 @@ CREATE TABLE "users" (
 	"full_name" varchar(100) NOT NULL,
 	"avatar_url" text,
 	"is_active" boolean DEFAULT true NOT NULL,
+	"email_verified" boolean DEFAULT false NOT NULL,
 	"password_changed_at" timestamp with time zone,
 	"failed_login_attempts" integer DEFAULT 0 NOT NULL,
 	"locked_until" timestamp with time zone,
 	"last_login" timestamp with time zone,
+	"last_login_ip" varchar(45),
+	"last_login_user_agent" text,
 	"created_by" varchar(100) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_by" varchar(100),
@@ -572,6 +768,15 @@ CREATE TABLE "users" (
 );
 --> statement-breakpoint
 ALTER TABLE "cfd"."balance_sheets" ADD CONSTRAINT "balance_sheets_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."bank_loan_installments" ADD CONSTRAINT "bank_loan_installments_bank_loan_id_bank_loans_id_fk" FOREIGN KEY ("bank_loan_id") REFERENCES "cfd"."bank_loans"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."bank_loans" ADD CONSTRAINT "bank_loans_bank_id_banks_id_fk" FOREIGN KEY ("bank_id") REFERENCES "public"."banks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."bank_loans" ADD CONSTRAINT "bank_loans_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."cash_flow_projection_details" ADD CONSTRAINT "cash_flow_projection_details_header_id_cash_flow_projection_headers_id_fk" FOREIGN KEY ("header_id") REFERENCES "cfd"."cash_flow_projection_headers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."cash_flow_projection_headers" ADD CONSTRAINT "cash_flow_projection_headers_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."cash_realizations" ADD CONSTRAINT "cash_realizations_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."cash_realizations" ADD CONSTRAINT "cash_realizations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."cash_realizations" ADD CONSTRAINT "cash_realizations_cost_center_id_cost_centers_id_fk" FOREIGN KEY ("cost_center_id") REFERENCES "cfd"."cost_centers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cfd"."cost_centers" ADD CONSTRAINT "cost_centers_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cfd"."cost_centers" ADD CONSTRAINT "cost_centers_parent_id_cost_centers_id_fk" FOREIGN KEY ("parent_id") REFERENCES "cfd"."cost_centers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cfd"."income_statements" ADD CONSTRAINT "income_statements_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cfd"."target_details" ADD CONSTRAINT "target_details_target_header_id_target_headers_id_fk" FOREIGN KEY ("target_header_id") REFERENCES "cfd"."target_headers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -621,9 +826,12 @@ ALTER TABLE "approvals" ADD CONSTRAINT "approvals_current_step_id_approval_workf
 ALTER TABLE "approvals" ADD CONSTRAINT "approvals_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "approvals" ADD CONSTRAINT "approvals_approved_by_users_id_fk" FOREIGN KEY ("approved_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "approvals" ADD CONSTRAINT "approvals_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "approvals" ADD CONSTRAINT "approvals_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_approval_id_approvals_id_fk" FOREIGN KEY ("approval_id") REFERENCES "public"."approvals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "departments" ADD CONSTRAINT "departments_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_broadcasts" ADD CONSTRAINT "notification_broadcasts_sent_by_users_id_fk" FOREIGN KEY ("sent_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_user_id_users_id_fk" FOREIGN KEY ("recipient_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_role_id_roles_id_fk" FOREIGN KEY ("recipient_role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_read_by_users_id_fk" FOREIGN KEY ("read_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -638,6 +846,11 @@ ALTER TABLE "user_corporate_accesses" ADD CONSTRAINT "user_corporate_accesses_ro
 ALTER TABLE "user_corporate_accesses" ADD CONSTRAINT "user_corporate_accesses_corporate_id_corporates_id_fk" FOREIGN KEY ("corporate_id") REFERENCES "public"."corporates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_corporate_accesses" ADD CONSTRAINT "user_corporate_accesses_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_corporate_accesses" ADD CONSTRAINT "user_corporate_accesses_granted_by_users_id_fk" FOREIGN KEY ("granted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_login_activities" ADD CONSTRAINT "user_login_activities_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "idx_approvals_title" ON "approvals" USING btree ("title");--> statement-breakpoint
+CREATE INDEX "idx_approvals_workflow_status" ON "approvals" USING btree ("workflow_id","status");--> statement-breakpoint
+CREATE INDEX "idx_attachments_entity" ON "attachments" USING btree ("entity_type","entity_id");--> statement-breakpoint
+CREATE INDEX "idx_attachments_approval" ON "attachments" USING btree ("approval_id");--> statement-breakpoint
 CREATE INDEX "idx_notifications_recipient_status_created" ON "notifications" USING btree ("recipient_user_id","status","created_at");--> statement-breakpoint
 CREATE INDEX "idx_notifications_source_entity" ON "notifications" USING btree ("source_module","source_entity_type","source_entity_id");--> statement-breakpoint
 CREATE INDEX "idx_notifications_severity" ON "notifications" USING btree ("severity");--> statement-breakpoint
@@ -645,4 +858,5 @@ CREATE INDEX "idx_role_permissions_role" ON "role_permissions" USING btree ("rol
 CREATE INDEX "idx_role_permissions_permission" ON "role_permissions" USING btree ("permission_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_uca_dept" ON "user_corporate_accesses" USING btree ("user_id","role_id","department_id") WHERE "user_corporate_accesses"."scope" = 'department';--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_uca_corporate" ON "user_corporate_accesses" USING btree ("user_id","role_id","corporate_id") WHERE "user_corporate_accesses"."scope" = 'corporate';--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_uca_system" ON "user_corporate_accesses" USING btree ("user_id","role_id") WHERE "user_corporate_accesses"."scope" = 'system';
+CREATE UNIQUE INDEX "uq_uca_system" ON "user_corporate_accesses" USING btree ("user_id","role_id") WHERE "user_corporate_accesses"."scope" = 'system';--> statement-breakpoint
+CREATE INDEX "idx_user_login_activities_user_login" ON "user_login_activities" USING btree ("user_id","login_at");

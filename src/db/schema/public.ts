@@ -89,15 +89,17 @@ export const userLoginActivities = pgTable('user_login_activities', {
 ]);
 
 // --- 3. corporates ----------------------------------------------------------
+// Note: industry references corporate_sectors(code), currency references currencies(code)
+// FK added via migration 0002
 
 export const corporates = pgTable('corporates', {
   id: uuid().primaryKey().defaultRandom(),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 10 }).notNull().unique(),
   logo: text(),
-  industry: varchar({ length: 50 }),
+  industry: varchar({ length: 50 }).references(() => corporateSectors.code),
   fiscalYearStartMonth: integer('fiscal_year_start_month').notNull().default(1),
-  currency: varchar({ length: 10 }).notNull().default('IDR'),
+  currency: varchar({ length: 10 }).notNull().default('IDR').references(() => currencies.code),
   taxRate: numeric('tax_rate', { precision: 5, scale: 2 }),
   isActive: boolean('is_active').notNull().default(true),
   createdBy: uuid('created_by').notNull(),
@@ -225,8 +227,17 @@ export const approvalWorkflows = pgTable('approval_workflows', {
   entityType: varchar('entity_type', { length: 50 }).notNull(),
   action: varchar({ length: 20 }).notNull(),
   name: varchar({ length: 100 }).notNull(),
+  nameEn: varchar('name_en', { length: 100 }),
   description: text(),
   callbackHandler: varchar('callback_handler', { length: 100 }).notNull(),
+  viewComponent: varchar('view_component', { length: 100 }).notNull().default(''),
+  makerRole: varchar('maker_role', { length: 50 }).notNull(),
+  // UUID of the role that is allowed to create & edit drafts for this workflow.
+  // Validated against user_corporate_accesses (role + corporate/department scope).
+  subjectFields: jsonb('subject_fields')
+    .$type<Array<{ field: string; label: string; type: 'string' | 'currency' | 'date' | 'number' }>>()
+    .notNull()
+    .default([]),
   isActive: boolean('is_active').notNull().default(true),
   createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -257,30 +268,35 @@ export const approvals = pgTable('approvals', {
   id: uuid().primaryKey().defaultRandom(),
   workflowId: uuid('workflow_id').notNull().references(() => approvalWorkflows.id),
   currentStepId: uuid('current_step_id').references(() => approvalWorkflowSteps.id),
-  module: varchar({ length: 50 }).notNull(),
-  entityType: varchar('entity_type', { length: 50 }).notNull(),
   entityId: uuid('entity_id'),
   payload: jsonb().notNull(),
-  status: varchar({ length: 20 }).notNull().default('pending'),
+  originalData: jsonb('original_data'),
+  subject: jsonb().notNull().default({}),
+  title: varchar({ length: 255 }),
+  status: varchar({ length: 20 }).notNull().default('draft'),
   requestedBy: uuid('requested_by').notNull().references(() => users.id),
   approvedBy: uuid('approved_by').references(() => users.id),
   departmentId: uuid('department_id').references(() => departments.id),
-  metadata: jsonb(),
+  corporateId: uuid('corporate_id').references(() => corporates.id),
   rejectionNotes: text('rejection_notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-});
+}, (table) => [
+  index('idx_approvals_title').on(table.title),
+  index('idx_approvals_workflow_status').on(table.workflowId, table.status),
+]);
 
 // --- 12. approval_histories -------------------------------------------------
 
 export const approvalHistories = pgTable('approval_histories', {
   id: uuid().primaryKey().defaultRandom(),
   approvalId: uuid('approval_id').notNull().references(() => approvals.id),
-  stepId: uuid('step_id').notNull().references(() => approvalWorkflowSteps.id),
+  stepId: uuid('step_id').references(() => approvalWorkflowSteps.id),
   action: varchar({ length: 20 }).notNull(),
   actedBy: uuid('acted_by').notNull().references(() => users.id),
   comments: text(),
+  payload: jsonb(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -386,17 +402,20 @@ export const costCenterCategories = pgTable('cost_center_categories', {
 export const attachments = pgTable('attachments', {
   id: uuid().primaryKey().defaultRandom(),
   entityType: varchar('entity_type', { length: 50 }).notNull(),
-  entityId: uuid('entity_id').notNull(),
+  entityId: uuid('entity_id'),
+  approvalId: uuid('approval_id').references(() => approvals.id),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   filePath: text('file_path').notNull(),
   fileSize: integer('file_size').notNull(),
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  status: varchar({ length: 20 }).notNull().default('active'),
   createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }),
 }, (table) => [
   index('idx_attachments_entity').on(table.entityType, table.entityId),
+  index('idx_attachments_approval').on(table.approvalId),
 ]);
 
 // --- 19. notification_configs -----------------------------------------------

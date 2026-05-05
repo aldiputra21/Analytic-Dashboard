@@ -198,3 +198,59 @@ Standardisasi ini wajib diikuti untuk seluruh modul entri data keuangan (Balance
 | Seed All (Full) | `npx tsx scripts/seed-all.ts` |
 | Reset & Re-Seed | `npx tsx scripts/reset-db.ts` |
 | Jalankan dev server | `npm run dev` |
+
+---
+
+## 7. Aturan Integrasi Approval Module
+
+Sistem approval dinamis sudah diimplementasikan. Setiap modul yang memerlukan workflow persetujuan **wajib** mengikuti aturan berikut.
+
+Dokumentasi lengkap:
+- Arsitektur: [`docs/modules/approval-system.md`](docs/modules/approval-system.md)
+- Panduan integrasi: [`docs/guides/integrating-approval.md`](docs/guides/integrating-approval.md)
+
+### 7.1 Wajib Gunakan Engine
+
+- **Dilarang** memanggil langsung DB insert/update di backend jika modul tersebut terdaftar di `approval_workflows`. Semua mutasi data harus melalui `approvalEngine` → `callbackRegistry`.
+- **Dilarang** membuat endpoint approval ad-hoc di route modul. Semua approval via `/api/frs/approvals/*`.
+
+### 7.2 Callback Handler
+
+- Setiap handler **wajib** didaftarkan di `src/services/approval/approvalCallbacks.ts`.
+- Handler hanya boleh berisi logika DB yang sudah ada di service/route modul — JANGAN duplikasi logic.
+- File `approvalCallbacks.ts` **wajib** diimport di `server.ts` agar handler terdaftar saat startup.
+
+### 7.3 Frontend Form
+
+- Setiap modul yang terintegrasi **wajib** punya `XxxApprovalForm.tsx` sebagai komponen terpisah.
+- Form harus mendukung prop `readOnly: boolean` — dipakai di `ApprovalDetailModal` (view-only) dan draft (editable).
+- Form **tidak boleh** berisi logic fetch data — hanya UI rendering dari `payload` prop.
+- Daftarkan di `formRegistry.tsx` dengan key yang sama dengan `view_component` di database.
+
+### 7.4 Hook useApproval
+
+- Gunakan `useApproval(module, entityType, action)` di setiap manager yang butuh approval.
+- Selalu check `isChecking` sebelum render tombol Simpan — agar tidak race condition.
+- Jika `hasWorkflow = false`, JANGAN ubah flow normal — biarkan berjalan seperti sebelum integrasi.
+
+### 7.5 File Upload
+
+- Frontend **tidak boleh** upload file secara terpisah.
+- File harus dikirim sebagai bagian dari `createDraft()` atau `submitDraft()` via `FormData`.
+- Backend yang bertanggung jawab menyimpan ke staging — frontend hanya kirim `File[]`.
+
+### 7.6 Permissions Approval
+
+| Permission | Deskripsi |
+|---|---|
+| `public.approvals.read` | Akses monitoring approval |
+| `public.approvals.write` | Buat draft & submit |
+| `public.approvals.approve` | Approve/reject step |
+| `public.approval_configs.read` | Lihat konfigurasi workflow |
+| `public.approval_configs.write` | Kelola konfigurasi workflow |
+| `public.approval_configs.delete` | Hapus konfigurasi workflow |
+
+### 7.7 Dokumentasi Wajib
+
+- Setiap modul baru yang terintegrasi **wajib** update `docs/guides/integrating-approval.md` tabel "Modul yang Sudah Terintegrasi".
+- Update `docs/database/schema.md` jika ada perubahan schema.

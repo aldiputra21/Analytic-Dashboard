@@ -56,6 +56,10 @@ const NotificationConfigManager = lazy(() => import('./admin/NotificationConfigM
 const SystemConfigManager = lazy(() => import('./admin/SystemConfigManager').then((m) => ({ default: m.SystemConfigManager })));
 const BroadcastManager = lazy(() => import('./admin/BroadcastManager').then((m) => ({ default: m.BroadcastManager })));
 
+// Approval Module
+const ApprovalMonitor = lazy(() => import('./approval/ApprovalMonitor').then((m) => ({ default: m.ApprovalMonitor })));
+const ApprovalConfigManager = lazy(() => import('./approval/ApprovalConfigManager').then((m) => ({ default: m.ApprovalConfigManager })));
+
 // Skeleton screen for loading states (Req 12.1)
 const PageSkeleton: React.FC = () => (
   <div className="p-6 space-y-4 animate-pulse">
@@ -228,6 +232,14 @@ const AppContent: React.FC = () => {
         return (
           <div className="p-6">
             <BroadcastManager />
+          </div>
+        );
+      case 'approval-monitor':
+        return <ApprovalMonitor />;
+      case 'approval-configs':
+        return (
+          <div className="p-6">
+            <ApprovalConfigManager />
           </div>
         );
       case 'crm-dashboard': return <CRMPage activeTab="dashboard" />;

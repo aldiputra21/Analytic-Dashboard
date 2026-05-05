@@ -124,7 +124,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
           {/* Month Selector */}
           <div className="w-32">
             <SearchableSelect
-              options={[{ value: 'all', label: ft.month + ': All' }, ...monthsInData]}
+              options={[{ value: 'all', label: `${ft.month}: ${language === 'id' ? 'Semua' : 'All'}` }, ...monthsInData]}
               value={selectedMonth}
               onChange={setSelectedMonth}
               placeholder={ft.month}
@@ -133,7 +133,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
           </div>
           <div className="w-40">
             <SearchableSelect
-              options={departments}
+              options={[{ value: '', label: common.allDepartments }, ...departments]}
               value={selectedDepartmentId}
               onChange={(val) => {
                 onDepartmentChange(val);
@@ -146,7 +146,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({
           {selectedDepartmentId && (
             <div className="w-40">
               <SearchableSelect
-                options={filteredProjects}
+                options={[{ value: '', label: common.allProjects }, ...filteredProjects]}
                 value={selectedProjectId}
                 onChange={onProjectChange}
                 placeholder={common.allProjects}

@@ -3,6 +3,9 @@ import { getFRSConfig } from "./src/config/frsConfig.js";
 import { createApp } from './src/server/createApp.js';
 import { runInstallmentNotificationCron } from './src/services/financial/notificationCron.js';
 
+// Initialize approval callbacks (must be imported to register handlers)
+import './src/services/approval/approvalCallbacks.js';
+
 // Validate FRS configuration on startup (Requirements: 14.3)
 try {
   getFRSConfig();

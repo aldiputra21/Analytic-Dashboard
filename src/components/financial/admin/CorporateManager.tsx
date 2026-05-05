@@ -313,7 +313,7 @@ export const CorporateManager: React.FC = () => {
       setEditingId(null);
       setFormData({
         name: '',
-        sector: sectors.length > 0 ? sectors[0].code : 'technology',
+        sector: sectors.length > 0 ? sectors[0].code : '',
         fiscalMonth: 1,
         currency: currencies.length > 0 ? currencies[0].code : 'IDR',
         taxRate: 22,

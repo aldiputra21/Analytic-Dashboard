@@ -110,15 +110,18 @@ export const DepartmentPerformance: React.FC<Props> = ({
             </div>
 
             {/* Sort */}
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as any)}
-              className="appearance-none pl-3 pr-7 py-1.5 text-xs font-medium border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 cursor-pointer"
-            >
-              <option value="achievement">Sort: {t.fields.achievement}</option>
-              <option value="realization">Sort: {t.fields.realization}</option>
-              <option value="name">Sort: {t.sortLabels.name}</option>
-            </select>
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as 'achievement' | 'realization' | 'name')}
+                className="appearance-none pl-3 pr-8 py-1.5 text-xs font-medium border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 cursor-pointer"
+              >
+                <option value="achievement">Sort: {t.fields.achievement}</option>
+                <option value="realization">Sort: {t.fields.realization}</option>
+                <option value="name">Sort: {t.sortLabels.name}</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
 
             {/* View toggle */}
             <div className="flex border border-slate-200 rounded-lg overflow-hidden">

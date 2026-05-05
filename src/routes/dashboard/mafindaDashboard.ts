@@ -198,7 +198,7 @@ export function createMafindaDashboardRouter(): Router {
    * Query params: period (req), corporateId (opt), historicalMonths (opt), cashFlowMonths (opt), revCostDeptId (opt), cashFlowDeptId (opt)
    */
   router.get('/aggregated', requirePermission('cfd.dashboard.read'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const { period, corporateId, historicalMonths, cashFlowMonths, revCostDeptId, cashFlowDeptId } = req.query as Record<string, string>;
+    const { period, corporateId, historicalMonths, cashFlowMonths, revCostDeptId, cashFlowDeptId, cashFlowProjectId } = req.query as Record<string, string>;
     const access = (req as any).accessContext!;
 
     if (!period) {
@@ -221,6 +221,7 @@ export function createMafindaDashboardRouter(): Router {
       cashFlowMonths: cashFlowMonths ? parseInt(cashFlowMonths, 10) : 6,
       revCostDeptId,
       cashFlowDeptId,
+      cashFlowProjectId,
     });
 
     res.json(data);

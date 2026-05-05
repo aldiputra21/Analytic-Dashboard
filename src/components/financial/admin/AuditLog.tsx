@@ -17,6 +17,8 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 interface AuditLogEntry {
   id: string;
   userId: string;
+  userName?: string;
+  userEmail?: string;
   action: string;
   entityType: string;
   entityId?: string;
@@ -333,7 +335,14 @@ export const AuditLog: React.FC<AuditLogProps> = ({
                               <div className="p-1 bg-slate-100 rounded text-slate-500">
                                 <User size={12} />
                               </div>
-                              <span className="text-sm text-slate-800">{entry.userId}</span>
+                              <div className="flex flex-col">
+                                <span className="text-sm text-slate-800">
+                                  {entry.userName || entry.userId}
+                                </span>
+                                {entry.userEmail && (
+                                  <span className="text-[10px] text-slate-400">{entry.userEmail}</span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">

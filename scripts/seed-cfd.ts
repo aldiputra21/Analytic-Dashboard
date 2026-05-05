@@ -36,9 +36,9 @@ async function main() {
   // ── Additional corporates (SUB3, SUB4, SUB5) ─────────────
   console.log('🏢 Seeding additional corporates...');
   const extraCorps = [
-    { name: 'PT Subsidiary Three', code: 'SUB3', industry: 'Technology', currency: 'IDR' as const, createdBy: SYSTEM_ACTOR_ID },
-    { name: 'PT Subsidiary Four', code: 'SUB4', industry: 'Manufacturing', currency: 'IDR' as const, createdBy: SYSTEM_ACTOR_ID },
-    { name: 'PT Subsidiary Five', code: 'SUB5', industry: 'Retail', currency: 'IDR' as const, createdBy: SYSTEM_ACTOR_ID },
+    { name: 'PT Subsidiary Three', code: 'SUB3', industry: 'IT', currency: 'IDR' as const, createdBy: SYSTEM_ACTOR_ID },
+    { name: 'PT Subsidiary Four', code: 'SUB4', industry: 'IN', currency: 'IDR' as const, createdBy: SYSTEM_ACTOR_ID },
+    { name: 'PT Subsidiary Five', code: 'SUB5', industry: 'RT', currency: 'IDR' as const, createdBy: SYSTEM_ACTOR_ID },
   ];
 
   for (const corp of extraCorps) {
@@ -69,10 +69,10 @@ async function main() {
   const asiId = allCorps.find((c) => c.code === 'ASI')!.id;
   const tsiId = allCorps.find((c) => c.code === 'TSI')!.id;
   const ccValues = [
-    { corporateId: asiId, name: 'General & Admin', code: 'ASI-ADM', category: 'General', createdBy: SYSTEM_ACTOR_ID },
-    { corporateId: asiId, name: 'Production', code: 'ASI-PROD', category: 'Production', createdBy: SYSTEM_ACTOR_ID },
-    { corporateId: tsiId, name: 'General & Admin', code: 'TSI-ADM', category: 'General', createdBy: SYSTEM_ACTOR_ID },
-    { corporateId: tsiId, name: 'Operations', code: 'TSI-OPS', category: 'Operation', createdBy: SYSTEM_ACTOR_ID },
+    { corporateId: asiId, name: 'General & Admin', code: 'ASI-ADM', category: 'ADM', createdBy: SYSTEM_ACTOR_ID },
+    { corporateId: asiId, name: 'Production', code: 'ASI-PROD', category: 'OPEX', createdBy: SYSTEM_ACTOR_ID },
+    { corporateId: tsiId, name: 'General & Admin', code: 'TSI-ADM', category: 'ADM', createdBy: SYSTEM_ACTOR_ID },
+    { corporateId: tsiId, name: 'Operations', code: 'TSI-OPS', category: 'OPEX', createdBy: SYSTEM_ACTOR_ID },
   ];
 
   for (const cc of ccValues) {

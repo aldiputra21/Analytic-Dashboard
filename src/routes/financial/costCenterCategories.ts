@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { costCenterCategories } from '../../db/schema/public';
+import { costCenters } from '../../db/schema/cfd';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { AppError, ErrorCode } from '../../utils/errors';
@@ -186,7 +187,7 @@ export function createCostCenterCategoriesRouter(): Router {
 
   /**
    * DELETE /api/cost-center-categories/:id
-   * Delete a cost center category.
+   * Delete a cost center category. Blocked if used by any cost center.
    */
   router.delete('/:id', 
     requirePermission('public.cost_center_categories.delete'), 
@@ -201,6 +202,15 @@ export function createCostCenterCategoriesRouter(): Router {
 
     if (!existing) {
       throw AppError.notFound(ErrorCode.COST_CENTER_CATEGORY_NOT_FOUND, 'Cost center category not found');
+    }
+
+    // Block: cfd.cost_centers.category references this category code
+    const [cc] = await db.select({ id: costCenters.id })
+      .from(costCenters)
+      .where(eq(costCenters.category, existing.code))
+      .limit(1);
+    if (cc) {
+      throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Kategori cost center tidak dapat dihapus karena masih digunakan oleh cost center');
     }
 
     await db.delete(costCenterCategories).where(eq(costCenterCategories.id, req.params.id));

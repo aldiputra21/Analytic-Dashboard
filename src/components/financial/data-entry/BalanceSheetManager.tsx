@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Search, Filter, Eye, Edit2, Trash2,
-  ChevronLeft, ChevronRight, Scale, X, AlertCircle, CheckCircle,
-  FileSpreadsheet, ArrowLeftRight, TrendingUp, Landmark, Calculator, CheckCircle2,
-  RefreshCw, FilterX, Calendar, ChevronDown,
-  Info
+  Plus, Eye, Edit2, Trash2,
+  ChevronLeft, ChevronRight, Scale, X, AlertCircle,
+  CheckCircle2, RefreshCw, FilterX, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
@@ -15,9 +13,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
 import { getErrorMessage } from '../../../utils/errorUtils';
-import { MonthPicker } from '../shared/MonthPicker';
 import { MonthRangePicker } from '../shared/MonthRangePicker';
-import { SearchableSelect } from '../shared/SearchableSelect';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -32,6 +28,10 @@ import { CorporateSelector } from '../shared/CorporateSelector';
 import { balanceSheetI18n } from '../../../i18n/balance-sheet';
 import { commonsI18n } from '../../../i18n/commons';
 import { z } from 'zod';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
+import { BalanceSheetForm, type BalanceSheetPayload } from '../shared/forms/BalanceSheetForm';
 
 // --- Types ---
 interface BalanceSheet {
@@ -109,77 +109,6 @@ const Modal: React.FC<{
   );
 };
 
-const FormField: React.FC<{
-  label: string;
-  value: number | string;
-  onChange: (val: string) => void;
-  type?: string;
-  placeholder?: string;
-  readOnly?: boolean;
-}> = ({ label, value, onChange, placeholder = "0", readOnly = false }) => {
-  const displayValue = useMemo(() => {
-    if (value === undefined || value === null || value === "" || value === 0) {
-      return value === 0 ? "0" : "";
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? "" : num.toLocaleString('id-ID');
-  }, [value]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/[^0-9-]/g, "");
-    onChange(rawValue);
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{label}</label>
-      <div className="relative group">
-        <input
-          type="text"
-          inputMode="numeric"
-          value={displayValue}
-          onChange={handleChange}
-          placeholder={placeholder}
-          readOnly={readOnly}
-          className={cn(
-            "w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30",
-            readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
-          )}
-        />
-      </div>
-    </div>
-  );
-};
-
-const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: string }> = ({ title, icon, color }) => (
-  <div className={cn("flex items-center gap-2 mb-4 pb-2 border-b-2", color)}>
-    <div className="p-1.5 rounded-lg bg-white shadow-sm border border-slate-100">
-      {icon}
-    </div>
-    <h4 className="font-bold text-sm text-slate-700 tracking-tight uppercase">{title}</h4>
-  </div>
-);
-
-const SummaryCard: React.FC<{ label: string; value: number; color: 'indigo' | 'emerald' | 'amber' | 'rose'; fullWidth?: boolean }> = ({ label, value, color, fullWidth = false }) => {
-  const variants = {
-    indigo: 'bg-indigo-50 border-indigo-100 text-indigo-700',
-    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-700',
-    amber: 'bg-amber-50 border-amber-100 text-amber-700',
-    rose: 'bg-rose-50 border-rose-100 text-rose-700',
-  };
-
-  return (
-    <div className={cn(
-      "px-4 py-3 rounded-xl border flex flex-col gap-1 shadow-sm transition-all",
-      variants[color],
-      fullWidth ? "col-span-2 w-full" : ""
-    )}>
-      <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">{label}</span>
-      <span className="text-lg font-black">{formatRupiah(value, false)}</span>
-    </div>
-  );
-};
-
 // --- Main Component ---
 
 export const BalanceSheetManager: React.FC = () => {
@@ -236,16 +165,6 @@ export const BalanceSheetManager: React.FC = () => {
           path: ['cashAndBank']
         });
       }
-
-      // Check balance
-      const diff = Math.abs(totalAssets - (totalLiabilities + totalEquity));
-      if (diff >= 1) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: t.validation.unbalancedError,
-          path: ['cashAndBank']
-        });
-      }
     });
 
   const canWrite = hasPermission('cfd.balance_sheets.write');
@@ -257,8 +176,16 @@ export const BalanceSheetManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { options: corporateOptions, isLoading: isCorpsLoading, corporates, showSelector } = useCorporates();
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
 
+  // Scope check dilakukan di backend berdasarkan accessContext user (JWT).
+  // Tidak perlu state corporateId di sini.
+  const approvalCreate = useApproval('cfd', 'balance_sheet', 'create');
+  const approvalEdit = useApproval('cfd', 'balance_sheet', 'edit');
+  const approvalDelete = useApproval('cfd', 'balance_sheet', 'delete');
+
+  const { options: corporateOptions, isLoading: isCorpsLoading, corporates, showSelector } = useCorporates();
   // Filters
   const [filterPeriodStart, setFilterPeriodStart] = useState('');
   const [filterPeriodEnd, setFilterPeriodEnd] = useState('');
@@ -340,6 +267,26 @@ export const BalanceSheetManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {      const item = data.find(d => d.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item },
+            entityId: id,
+            originalData: { ...item },
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(err.message ?? common.errorSave);
+        }
+        return;
+      }
+    }
+
+    // Normal delete flow
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/financial-statements/balance-sheet/${id}`, { method: 'DELETE' });
@@ -362,6 +309,14 @@ export const BalanceSheetManager: React.FC = () => {
 
   const openModal = (mode: 'create' | 'edit' | 'view', item?: BalanceSheet) => {
     setModalMode(mode);
+
+    // Re-fetch workflow status setiap kali modal dibuka agar selalu pakai state terkini.
+    // Ini mencegah stale cache saat admin mengubah is_active workflow di DB.
+    if (mode !== 'view') {
+      if (mode === 'create') approvalCreate.recheck();
+      else if (mode === 'edit') approvalEdit.recheck();
+    }
+
     if (item) {
       setFormData({
         ...item,
@@ -386,9 +341,10 @@ export const BalanceSheetManager: React.FC = () => {
         dividends: Number(item.dividends),
       });
     } else {
+      const defaultCorporateId = showSelector ? '' : (subsidiaryIds?.[0] || '');
       setFormData({
         period: new Date().toISOString().slice(0, 7),
-        corporateId: showSelector ? '' : (subsidiaryIds?.[0] || ''),
+        corporateId: defaultCorporateId,
         cashAndBank: 0, accountsReceivable: 0, workInProgress: 0, inventory: 0, prepaidExpenses: 0,
         land: 0, building: 0, equipment: 0, otherFixedAssets: 0,
         accountsPayable: 0, bankLoanCurrent: 0, otherCurrentLiabilities: 0,
@@ -412,6 +368,49 @@ export const BalanceSheetManager: React.FC = () => {
       return;
     }
 
+    // Check if approval workflow is active for this action
+    const approvalHook = modalMode === 'create' ? approvalCreate : approvalEdit;
+    if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+      // Duplicate check before creating draft — the normal save path checks this
+      // server-side, but createDraft bypasses saveBalanceSheet entirely.
+      if (modalMode === 'create') {
+        const corporateId = validation.data.corporateId || subsidiaryIds?.[0] || '';
+        const period = validation.data.period;
+        try {
+          const checkRes = await apiFetch(
+            `/api/financial-statements/balance-sheet?corporateId=${corporateId}&period=${period}&pageSize=1`
+          );
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if ((checkData.totalCount ?? (checkData.records?.length ?? 0)) > 0) {
+              toast.error(getErrorMessage('DUPLICATE_ENTRY', language));
+              return;
+            }
+          }
+        } catch {
+          // If check fails, let the server handle it
+        }
+      }
+
+      setIsSaving(true);
+      try {
+        const draft = await approvalHook.createDraft({
+          payload: validation.data as Record<string, unknown>,
+          entityId: modalMode === 'edit' ? formData.id : undefined,
+          originalData: modalMode === 'edit' ? { ...formData } : undefined,
+        });
+        setIsModalOpen(false);
+        setActiveDraftApprovalId(draft.id);
+        toast.success(approvalI18n[language].toast.draftCreated);
+      } catch (err: any) {
+        toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
+    // Normal save flow (no approval workflow)
     setIsSaving(true);
     try {
       const url = modalMode === 'edit' ? `/api/financial-statements/balance-sheet/${formData.id}` : '/api/financial-statements/balance-sheet';
@@ -440,22 +439,10 @@ export const BalanceSheetManager: React.FC = () => {
     }
   };
 
-  // --- Calculations ---
-  const n = (v: any) => parseFloat(String(v)) || 0;
-
-  const totalActiva = n(formData.cashAndBank) + n(formData.accountsReceivable) + n(formData.workInProgress) + n(formData.inventory) + n(formData.prepaidExpenses);
-  const totalFixedAssets = n(formData.land) + n(formData.building) + n(formData.equipment) + n(formData.otherFixedAssets);
-  const totalAssets = totalActiva + totalFixedAssets;
-
-  const totalCurrentLiabilities = n(formData.accountsPayable) + n(formData.bankLoanCurrent) + n(formData.otherCurrentLiabilities);
-  const totalNonCurrentLiabilities = n(formData.bankLoanLongTerm) + n(formData.otherLongTermLiabilities) + n(formData.shareholderLoan);
-  const totalLiabilities = totalCurrentLiabilities + totalNonCurrentLiabilities;
-
-  const totalEquity = n(formData.capital) + n(formData.earningsAfterTax) + n(formData.retainedEarnings) - n(formData.dividends);
-  const totalLiabilitiesEquity = totalLiabilities + totalEquity;
-
-  const isBalanced = totalAssets > 0 && Math.abs(totalAssets - totalLiabilitiesEquity) < 1;
-
+  // Kalkulasi dipindah ke BalanceSheetForm (shared component) — dihitung dari payload.
+  // Di sini hanya perlu totalPages untuk pagination.
+  // Helper n() masih dipakai untuk kalkulasi per-row di tabel.
+  const n = (v: unknown) => parseFloat(String(v)) || 0;
   const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
@@ -778,155 +765,19 @@ export const BalanceSheetManager: React.FC = () => {
             title={modalMode === 'create' ? t.modal.createTitle : modalMode === 'edit' ? t.modal.editTitle : t.modal.viewTitle}
             size="2xl"
           >
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-              <form id="balanceSheetForm" onSubmit={handleSave} noValidate className="space-y-8">
-                {/* Header Info */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 items-end">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                      <FileSpreadsheet size={12} /> {t.modal.period} <span className="text-red-500">*</span>
-                    </label>
-                    <MonthPicker
-                      value={formData.period || ''}
-                      onChange={(val) => setFormData(prev => ({ ...prev, period: val }))}
-                      language={language}
-                      labels={{ month: t.modal.month, year: t.modal.year }}
-                      className={cn(
-                        "w-full",
-                        modalMode === 'view' && "pointer-events-none opacity-80"
-                      )}
-                    />
-                  </div>
-
-                  <CorporateSelector
-                    label={t.modal.corporate}
-                    value={formData.corporateId || ''}
-                    onChange={(val) => setFormData(prev => ({ ...prev, corporateId: val }))}
-                    className="md:col-span-1"
-                    placeholder={t.modal.selectCorporate}
-                    disabled={isCorpsLoading || modalMode === 'view' || !hasFullCorporateAccess}
-                    required
-                  />
-
-                  <div className="flex flex-col justify-end">
-                    <div className={cn(
-                      "px-4 py-2.5 rounded-xl border flex items-center justify-between shadow-sm transition-all",
-                      isBalanced ? "bg-emerald-50 border-emerald-100 text-emerald-700" : totalAssets > 0 ? "bg-rose-50 border-rose-100 text-rose-700" : "bg-slate-100 border-slate-200 text-slate-400"
-                    )}>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-black uppercase tracking-wider opacity-70">{t.tableHead.status}</span>
-                        <span className="text-[10px] font-black uppercase">{isBalanced ? `✓ ${t.status.balanced}` : totalAssets > 0 ? `⚠ ${t.modal.diff}: ${formatRupiah(Math.abs(totalAssets - totalLiabilitiesEquity), false)}` : '...'}</span>
-                      </div>
-                      {isBalanced ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main Form Sections */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-
-                  {/* ── LEFT: ASSETS ── */}
-                  <div className="space-y-8">
-                    {/* Current Assets */}
-                    <div>
-                      <SectionHeader title={t.modal.activa} icon={<ArrowLeftRight size={16} className="text-blue-500" />} color="border-blue-500" />
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField label={t.fields.cashAndBank} value={formData.cashAndBank || 0} onChange={(v) => setFormData(p => ({ ...p, cashAndBank: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.accountsReceivable} value={formData.accountsReceivable || 0} onChange={(v) => setFormData(p => ({ ...p, accountsReceivable: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.workInProgress} value={formData.workInProgress || 0} onChange={(v) => setFormData(p => ({ ...p, workInProgress: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.inventory} value={formData.inventory || 0} onChange={(v) => setFormData(p => ({ ...p, inventory: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.prepaidExpenses} value={formData.prepaidExpenses || 0} onChange={(v) => setFormData(p => ({ ...p, prepaidExpenses: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <div className="col-span-2">
-                          <SummaryCard label={t.modal.totalActiva} value={totalActiva} color="indigo" fullWidth />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Fixed Assets */}
-                    <div>
-                      <SectionHeader title={t.modal.fixedAsset} icon={<Landmark size={16} className="text-indigo-500" />} color="border-indigo-500" />
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField label={t.fields.land} value={formData.land || 0} onChange={(v) => setFormData(p => ({ ...p, land: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.building} value={formData.building || 0} onChange={(v) => setFormData(p => ({ ...p, building: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.equipment} value={formData.equipment || 0} onChange={(v) => setFormData(p => ({ ...p, equipment: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.otherFixedAssets} value={formData.otherFixedAssets || 0} onChange={(v) => setFormData(p => ({ ...p, otherFixedAssets: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <div className="col-span-2">
-                          <SummaryCard label={t.modal.totalFixedAsset} value={totalFixedAssets} color="indigo" fullWidth />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── RIGHT: LIABILITIES & EQUITY ── */}
-                  <div className="space-y-8">
-                    {/* Current Liabilities */}
-                    <div>
-                      <SectionHeader title={t.modal.shortTermLiabilities} icon={<TrendingUp size={16} className="text-amber-500" />} color="border-amber-500" />
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField label={t.fields.accountsPayable} value={formData.accountsPayable || 0} onChange={(v) => setFormData(p => ({ ...p, accountsPayable: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.bankLoanCurrent} value={formData.bankLoanCurrent || 0} onChange={(v) => setFormData(p => ({ ...p, bankLoanCurrent: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.otherCurrentLiabilities} value={formData.otherCurrentLiabilities || 0} onChange={(v) => setFormData(p => ({ ...p, otherCurrentLiabilities: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <div className="col-span-2">
-                          <SummaryCard label={t.modal.totalShortTermLiabilities} value={totalCurrentLiabilities} color="amber" fullWidth />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Non-Current Liabilities */}
-                    <div>
-                      <SectionHeader title={t.modal.longTermLiabilities} icon={<Landmark size={16} className="text-orange-500" />} color="border-orange-500" />
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField label={t.fields.bankLoanLongTerm} value={formData.bankLoanLongTerm || 0} onChange={(v) => setFormData(p => ({ ...p, bankLoanLongTerm: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.otherLongTermLiabilities} value={formData.otherLongTermLiabilities || 0} onChange={(v) => setFormData(p => ({ ...p, otherLongTermLiabilities: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.shareholderLoan} value={formData.shareholderLoan || 0} onChange={(v) => setFormData(p => ({ ...p, shareholderLoan: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <div className="col-span-2">
-                          <SummaryCard label={t.modal.totalLongTermLiabilities} value={totalNonCurrentLiabilities} color="amber" fullWidth />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Equity */}
-                    <div>
-                      <SectionHeader title={t.modal.equity} icon={<Calculator size={16} className="text-emerald-500" />} color="border-emerald-500" />
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField label={t.fields.capital} value={formData.capital || 0} onChange={(v) => setFormData(p => ({ ...p, capital: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.earningsAfterTax} value={formData.earningsAfterTax || 0} onChange={(v) => setFormData(p => ({ ...p, earningsAfterTax: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.retainedEarnings} value={formData.retainedEarnings || 0} onChange={(v) => setFormData(p => ({ ...p, retainedEarnings: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <FormField label={t.fields.dividends} value={formData.dividends || 0} onChange={(v) => setFormData(p => ({ ...p, dividends: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                        <div className="col-span-2">
-                          <SummaryCard label={t.modal.totalEquity} value={totalEquity} color="emerald" fullWidth />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-8 border-t border-slate-100">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <SummaryCard
-                      label={t.modal.totalAssets}
-                      value={totalAssets}
-                      color="indigo"
-                    />
-                    <SummaryCard
-                      label={t.modal.totalLiabEquity}
-                      value={totalLiabilitiesEquity}
-                      color="emerald"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tight ml-1">{t.modal.notes}</label>
-                  <textarea
-                    value={formData.notes || ''}
-                    onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
-                    readOnly={modalMode === 'view'}
-                    placeholder={t.modal.notesPlaceholder}
-                    rows={3}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all resize-none shadow-sm"
-                  />
-                </div>
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              <form id="balanceSheetForm" onSubmit={handleSave} noValidate className="px-6 pb-6">
+                <BalanceSheetForm
+                  payload={formData as BalanceSheetPayload}
+                  onChange={modalMode !== 'view'
+                    ? (field, value) => setFormData(prev => ({ ...prev, [field]: value }))
+                    : undefined
+                  }
+                  readOnly={modalMode === 'view'}
+                  language={language}
+                  showCorporateSelector={showSelector}
+                  corporateSelectorDisabled={isCorpsLoading || !hasFullCorporateAccess}
+                />
               </form>
             </div>
 
@@ -979,6 +830,17 @@ export const BalanceSheetManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={fetchData}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

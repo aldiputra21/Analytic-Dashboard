@@ -6,7 +6,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { corporateSectors } from '../../db/schema/public';
+import { corporateSectors, corporates } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { AppError, ErrorCode } from '../../utils/errors';
@@ -177,7 +177,7 @@ export function createCorporateSectorsRouter(): Router {
 
   /**
    * DELETE /api/corporate-sectors/:id
-   * Delete a corporate sector.
+   * Delete a corporate sector. Blocked if used by any corporate.
    */
   router.delete('/:id', 
     requirePermission('public.corporate_sectors.delete'), 
@@ -192,6 +192,15 @@ export function createCorporateSectorsRouter(): Router {
 
     if (!existing) {
       throw AppError.notFound(ErrorCode.CORPORATE_SECTOR_NOT_FOUND, 'Corporate sector not found');
+    }
+
+    // Block: corporates.industry references this sector code
+    const [corp] = await db.select({ id: corporates.id })
+      .from(corporates)
+      .where(eq(corporates.industry, existing.code))
+      .limit(1);
+    if (corp) {
+      throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Sektor industri tidak dapat dihapus karena masih digunakan oleh perusahaan');
     }
 
     await db.delete(corporateSectors).where(eq(corporateSectors.id, req.params.id));

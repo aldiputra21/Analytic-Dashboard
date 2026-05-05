@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { apiFetch } from '../../../services/financial/apiFetch';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { commonsI18n } from '../../../i18n/commons';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import { cn } from '../../../utils/cn';
 
@@ -48,10 +49,11 @@ export const SystemConfigManager: React.FC = () => {
         const data = await res.json();
         setConfigs(data);
       } else {
-        toast.error(common.errorLoadTable);
+        const errData = await res.json();
+        toast.error(getErrorMessage(errData.error?.code, language));
       }
-    } catch (err) {
-      toast.error(common.errorLoadTable);
+    } catch (err: any) {
+      toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsLoading(false);
     }
@@ -113,11 +115,11 @@ export const SystemConfigManager: React.FC = () => {
         setIsModalOpen(false);
         fetchConfigs();
       } else {
-        const err = await res.json();
-        toast.error(err.message || common.error);
+        const errData = await res.json();
+        toast.error(getErrorMessage(errData.error?.code, language));
       }
-    } catch (err) {
-      toast.error(common.error);
+    } catch (err: any) {
+      toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
     } finally {
       setIsSaving(false);
     }
@@ -132,10 +134,11 @@ export const SystemConfigManager: React.FC = () => {
         toast.success(common.success);
         fetchConfigs();
       } else {
-        toast.error(common.error);
+        const errData = await res.json();
+        toast.error(getErrorMessage(errData.error?.code, language));
       }
-    } catch (err) {
-      toast.error(common.error);
+    } catch (err: any) {
+      toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
     }
   };
 

@@ -26,6 +26,8 @@ import { createAttachmentsRouter } from './attachments';
 import { createBankLoansRouter } from './bankLoans';
 import { createNotificationConfigsRouter } from './notificationConfigs';
 import { createDashboardDataRouter } from './dashboardData';
+import { createApprovalsRouter } from './approvals';
+import { createApprovalConfigsRouter } from './approvalConfigs';
 import { authenticate } from '../../middleware/auth';
 import { checkMaintenance } from '../../middleware/maintenance';
 
@@ -135,6 +137,10 @@ export function createFRSRouter(): Router {
 
   // Notification Configs (owner-only write/delete)
   router.use('/notification-configs', createNotificationConfigsRouter());
+
+  // Approval system
+  router.use('/approvals', createApprovalsRouter());
+  router.use('/approval-configs', createApprovalConfigsRouter());
 
   return router;
 }

@@ -14,8 +14,9 @@ export function getErrorMessage(code: string | undefined | null, language: Local
   
   if (!code) return common.error;
 
-  // Type-safe lookup in the errors mapping
-  const mappedMessage = common.errors[code as keyof typeof ErrorCode];
+  // Type-safe lookup in the errors mapping (includes SESSION_EXPIRED and ErrorCode keys)
+  const errorsMap = common.errors as Record<string, string | undefined>;
+  const mappedMessage = errorsMap[code];
   
   if (mappedMessage) return mappedMessage;
 

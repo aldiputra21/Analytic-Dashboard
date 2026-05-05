@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { banks } from '../../db/schema/public';
+import { bankLoans } from '../../db/schema/cfd';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { AppError, ErrorCode } from '../../utils/errors';
@@ -192,6 +193,15 @@ export function createBanksRouter(): Router {
 
     if (!existing) {
       throw AppError.notFound(ErrorCode.BANK_NOT_FOUND, 'Bank not found');
+    }
+
+    // Block: bank_loans
+    const [loan] = await db.select({ id: bankLoans.id })
+      .from(bankLoans)
+      .where(eq(bankLoans.bankId, req.params.id))
+      .limit(1);
+    if (loan) {
+      throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Bank tidak dapat dihapus karena masih memiliki data pinjaman');
     }
 
     await db.delete(banks).where(eq(banks.id, req.params.id));

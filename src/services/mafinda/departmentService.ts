@@ -3,7 +3,8 @@
 
 import { eq, and, ne, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { departments, projects } from '../../db/schema/index.js';
+import { departments, projects, userCorporateAccesses } from '../../db/schema/index.js';
+import { targetHeaders, cashRealizations } from '../../db/schema/cfd.js';
 import { createFRSAuditLog } from '../financial/auditLogService';
 import { RequestContext } from '../financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors.js';
@@ -215,7 +216,7 @@ export async function updateDepartment(
 
 /**
  * Deletes a department by id.
- * Returns the list of active projects that would be affected.
+ * Blocks deletion if there are related records in dependent tables.
  * Throws NotFoundError if not found.
  */
 export async function deleteDepartment(
@@ -228,12 +229,40 @@ export async function deleteDepartment(
     .limit(1);
   if (!existing) throw AppError.notFound(ErrorCode.DEPARTMENT_NOT_FOUND, 'Departemen tidak ditemukan');
 
+  // Block: user_corporate_accesses
+  const [uca] = await db.select({ id: userCorporateAccesses.id })
+    .from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.departmentId, id))
+    .limit(1);
+  if (uca) {
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Departemen tidak dapat dihapus karena masih memiliki user yang terhubung');
+  }
+
+  // Block: target_headers
+  const [target] = await db.select({ id: targetHeaders.id })
+    .from(targetHeaders)
+    .where(eq(targetHeaders.departmentId, id))
+    .limit(1);
+  if (target) {
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Departemen tidak dapat dihapus karena masih memiliki data target');
+  }
+
+  // Block: cash_realizations
+  const [realization] = await db.select({ id: cashRealizations.id })
+    .from(cashRealizations)
+    .where(eq(cashRealizations.departmentId, id))
+    .limit(1);
+  if (realization) {
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Departemen tidak dapat dihapus karena masih memiliki data realisasi kas');
+  }
+
+  // Collect affected projects for response info (projects will be deleted below)
   const affectedRows = await db.select({
     id: projects.id,
     name: projects.name,
     departmentId: projects.departmentId,
   }).from(projects)
-    .where(and(eq(projects.departmentId, id), eq(projects.isActive, true)));
+    .where(eq(projects.departmentId, id));
 
   const affectedProjects: ActiveProject[] = affectedRows.map((r) => ({
     id: r.id,
@@ -241,7 +270,7 @@ export async function deleteDepartment(
     departmentId: r.departmentId,
   }));
 
-  // Remove child projects first to satisfy FK constraint
+  // Remove child projects first to satisfy FK constraint (projects have no financial data at this point)
   await db.delete(projects).where(eq(projects.departmentId, id));
   const result = await db.delete(departments).where(eq(departments.id, id)).returning();
 

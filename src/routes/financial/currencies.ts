@@ -6,7 +6,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { eq, ilike, or, and, count } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { currencies } from '../../db/schema/public';
+import { currencies, corporates } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { AppError, ErrorCode } from '../../utils/errors';
@@ -173,7 +173,7 @@ export function createCurrenciesRouter(): Router {
 
   /**
    * DELETE /api/currencies/:id
-   * Delete a currency.
+   * Delete a currency. Blocked if used by any corporate.
    */
   router.delete('/:id', 
     requirePermission('public.currencies.delete'), 
@@ -188,6 +188,15 @@ export function createCurrenciesRouter(): Router {
 
     if (!existing) {
       throw AppError.notFound(ErrorCode.CURRENCY_NOT_FOUND, 'Currency not found');
+    }
+
+    // Block: corporates.currency references this currency code
+    const [corp] = await db.select({ id: corporates.id })
+      .from(corporates)
+      .where(eq(corporates.currency, existing.code))
+      .limit(1);
+    if (corp) {
+      throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Mata uang tidak dapat dihapus karena masih digunakan oleh perusahaan');
     }
 
     await db.delete(currencies).where(eq(currencies.id, req.params.id));

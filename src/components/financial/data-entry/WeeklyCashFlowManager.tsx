@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import { formatRupiah, formatPeriod } from '../../../utils/format';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
@@ -267,11 +268,13 @@ export const WeeklyCashFlowManager: React.FC = () => {
         setTotalCount(d.totalCount || records.length || 0);
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || common.errorLoadTable);
+        throw errData;
       }
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+      const msg = getErrorMessage(errCode, language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -323,10 +326,10 @@ export const WeeklyCashFlowManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || common.errorDelete);
+        throw errData;
       }
     } catch (err: any) {
-      toast.error(err.message || common.errorNetwork);
+      toast.error(getErrorMessage(err.error?.code || err.code || 'NETWORK_ERROR', language));
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -394,10 +397,10 @@ export const WeeklyCashFlowManager: React.FC = () => {
         fetchData();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error?.message || common.errorSave);
+        throw errData;
       }
     } catch (err: any) {
-      toast.error(err.message || common.errorNetwork);
+      toast.error(getErrorMessage(err.error?.code || err.code || 'NETWORK_ERROR', language));
     } finally {
       setIsSaving(false);
     }

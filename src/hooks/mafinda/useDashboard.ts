@@ -16,6 +16,7 @@ export interface DashboardAggregatedFilters {
   corporateId?: string;
   revCostDeptId?: string;
   cashFlowDeptId?: string;
+  cashFlowProjectId?: string;
   cashFlowMonths?: number;
 }
 
@@ -161,6 +162,7 @@ export function useDashboardAggregated(filters: DashboardAggregatedFilters): Das
         cashFlowMonths: String(filters.cashFlowMonths || 6),
         revCostDeptId: filters.revCostDeptId,
         cashFlowDeptId: filters.cashFlowDeptId,
+        cashFlowProjectId: filters.cashFlowProjectId,
       });
 
       return await apiFetch<DashboardAggregatedResult>(`/api/mafinda/dashboard/aggregated${params}`, signal);

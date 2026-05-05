@@ -109,7 +109,7 @@ export async function setSubsidiaryStatus(
 }
 
 /**
- * Deletes a corporate. Rejects if it has financial data (balance sheets or income statements).
+ * Deletes a corporate. Rejects if it has departments or user accesses.
  */
 export async function deleteSubsidiary(
   id: string,
@@ -117,14 +117,20 @@ export async function deleteSubsidiary(
   const [existing] = await db.select().from(corporates).where(eq(corporates.id, id)).limit(1);
   if (!existing) return { success: false, error: 'Subsidiary not found' };
 
-  // Check for financial data via departments → balance_sheets / income_statements
-  // For now, check if any departments exist under this corporate
-  const { departments } = await import('../../db/schema/index.js');
+  const { departments, userCorporateAccesses } = await import('../../db/schema/index.js');
+
+  // Block: departments
   const [dept] = await db.select({ id: departments.id }).from(departments)
     .where(eq(departments.corporateId, id)).limit(1);
-
   if (dept) {
-    return { success: false, error: 'Cannot delete subsidiary with existing departments/financial data' };
+    return { success: false, error: 'DELETE_PROTECTED' };
+  }
+
+  // Block: user_corporate_accesses
+  const [uca] = await db.select({ id: userCorporateAccesses.id }).from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.corporateId, id)).limit(1);
+  if (uca) {
+    return { success: false, error: 'DELETE_PROTECTED' };
   }
 
   await db.delete(corporates).where(eq(corporates.id, id));

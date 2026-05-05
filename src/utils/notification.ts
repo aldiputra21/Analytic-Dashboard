@@ -5,9 +5,43 @@ import { thresholdI18n } from '../i18n/thresholds';
 import { ratiosI18n } from '../i18n/ratios';
 import { bankLoanI18n } from '../i18n/bank-loan';
 
+// ── Approval notification templates ──────────────────────────────────────────
+
+const approvalTemplates: Record<string, Record<Locale, string>> = {
+  'approval.pending_review': {
+    id: 'Permohonan "{workflowName}" memerlukan persetujuan Anda.\nJudul: {title}',
+    en: 'Approval request "{workflowName}" requires your review.\nTitle: {title}',
+  },
+  'approval.approved': {
+    id: 'Permohonan "{workflowName}" telah disetujui.\nJudul: {title}',
+    en: 'Approval request "{workflowName}" has been approved.\nTitle: {title}',
+  },
+  'approval.rejected': {
+    id: 'Permohonan "{workflowName}" ditolak. Silakan revisi dan ajukan ulang.\nJudul: {title}',
+    en: 'Approval request "{workflowName}" was rejected. Please revise and resubmit.\nTitle: {title}',
+  },
+  'approval.cancelled': {
+    id: 'Permohonan "{workflowName}" telah dibatalkan.\nJudul: {title}',
+    en: 'Approval request "{workflowName}" has been cancelled.\nTitle: {title}',
+  },
+};
+
 export const renderNotificationMessage = (notification: any, language: Locale) => {
   const { templateKey, templateVars, category, payload } = notification;
   const msgVars = templateVars || payload || {};
+
+  // 0. Handle Approval notifications
+  if (templateKey?.startsWith('approval.')) {
+    const template = approvalTemplates[templateKey];
+    if (template) {
+      const workflowName = language === 'en'
+        ? (msgVars.workflowNameEn || msgVars.workflowName || '')
+        : (msgVars.workflowName || '');
+      return template[language]
+        .replace('{workflowName}', workflowName)
+        .replace('{title}', msgVars.title || '');
+    }
+  }
 
   // 1. Handle Loan Installments
   if (category === 'loan-installment-due' || notification.sourceEntityType === 'bank_loan_installment') {

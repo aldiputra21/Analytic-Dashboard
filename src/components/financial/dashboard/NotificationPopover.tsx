@@ -11,6 +11,7 @@ import { bankLoanI18n } from '../../../i18n/bank-loan';
 import { thresholdI18n } from '../../../i18n/thresholds';
 import { renderNotificationMessage } from '../../../utils/notification';
 import { cn } from '../../../utils/cn';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 
 interface NotificationPopoverProps {
   onNavigate: (page: string) => void;
@@ -22,6 +23,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
   unreadCount,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeApprovalId, setActiveApprovalId] = useState<string | null>(null);
   const { token, user, language } = useAuth();
   const { corporates } = useCorporates();
   const t = alertsI18n[language];
@@ -137,6 +139,10 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                     let categoryLabel = notification.category;
                     if (notification.category === 'loan-installment-due' || notification.sourceEntityType === 'bank_loan_installment') {
                       categoryLabel = tLoan.installment.sectionTitle;
+                    } else if (notification.sourceEntityType === 'approval') {
+                      categoryLabel = language === 'en'
+                        ? String(notification.templateVars?.workflowNameEn || notification.templateVars?.workflowName || 'Approval')
+                        : String(notification.templateVars?.workflowName || 'Persetujuan');
                     } else if (ratioName && ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]) {
                       categoryLabel = ratiosI18n[language][ratioName as keyof typeof ratiosI18n['id']]?.label;
                     }
@@ -147,6 +153,19 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                         className="p-4 hover:bg-slate-50 transition-colors group cursor-pointer"
                         onClick={() => {
                           markAsRead(notification.id);
+                          // Jika notifikasi approval, buka ApprovalDetailModal
+                          if (notification.sourceEntityType === 'approval') {
+                            const approvalId = String(
+                              notification.templateVars?.approvalId ??
+                              notification.payload?.approvalId ??
+                              notification.sourceEntityId ??
+                              '',
+                            );
+                            if (approvalId) {
+                              setActiveApprovalId(approvalId);
+                              setIsOpen(false);
+                            }
+                          }
                         }}
                       >
                         <div className="flex gap-3">
@@ -189,6 +208,16 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
               </button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ApprovalDetailModal — dibuka saat notifikasi approval diklik */}
+      <AnimatePresence>
+        {activeApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeApprovalId}
+            onClose={() => setActiveApprovalId(null)}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -13,6 +13,7 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { useBanks } from '../../../hooks/financial/useBanks';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../../../utils/errorUtils';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -66,7 +67,8 @@ const Modal: React.FC<{
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-}> = ({ isOpen, onClose, title, children }) => {
+  footer?: React.ReactNode;
+}> = ({ isOpen, onClose, title, children, footer }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -90,6 +92,11 @@ const Modal: React.FC<{
         <div className="flex-1 overflow-y-auto p-6">
           {children}
         </div>
+        {footer && (
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+            {footer}
+          </div>
+        )}
       </motion.div>
     </div>
   );
@@ -194,15 +201,17 @@ export const BankLoanManager: React.FC = () => {
         setData(d.records || []);
         setTotalCount(d.totalCount || 0);
       } else {
-        throw new Error(common.errorLoadTable);
+        const errData = await res.json();
+        throw errData;
       }
     } catch (err: any) {
-      setError(err.message || common.errorLoadTable);
-      toast.error(err.message || common.errorLoadTable);
+      const msg = getErrorMessage(err.error?.code || err.code || 'NETWORK_ERROR', language);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [page, _pageSize, appliedFilters, common.errorLoadTable]);
+  }, [page, _pageSize, appliedFilters, language]);
 
 
   useEffect(() => {
@@ -344,11 +353,11 @@ export const BankLoanManager: React.FC = () => {
         setIsModalOpen(false);
         fetchData();
       } else {
-        const err = await res.json();
-        toast.error(err.error?.message || common.errorSave);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.errorNetwork);
+    } catch (err: any) {
+      toast.error(getErrorMessage(err.error?.code || err.code || 'NETWORK_ERROR', language));
     } finally {
       setIsSaving(false);
     }
@@ -393,11 +402,11 @@ export const BankLoanManager: React.FC = () => {
         setDeleteConfirmId(null);
         fetchData();
       } else {
-        const d = await res.json();
-        toast.error(d.error?.message || common.errorDelete);
+        const errData = await res.json();
+        throw errData;
       }
-    } catch {
-      toast.error(common.errorNetwork);
+    } catch (err: any) {
+      toast.error(getErrorMessage(err.error?.code || err.code || 'NETWORK_ERROR', language));
     } finally {
       setIsDeleting(false);
     }
@@ -716,8 +725,42 @@ export const BankLoanManager: React.FC = () => {
                 : modalMode === 'edit' ? t.modal.editTitle
                   : t.modal.viewTitle
             }
+            footer={
+              !isReadOnly ? (
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    form="bankLoanForm"
+                    onClick={() => setIsModalOpen(false)}
+                    disabled={isSaving}
+                    className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {common.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    form="bankLoanForm"
+                    disabled={isSaving}
+                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer disabled:opacity-70"
+                  >
+                    {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                    {isSaving ? common.saving : common.save}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm"
+                  >
+                    {common.close}
+                  </button>
+                </div>
+              )
+            }
           >
-            <form onSubmit={handleSave} noValidate className="space-y-8">
+            <form id="bankLoanForm" onSubmit={handleSave} noValidate className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Basic Info Column */}
                 <div className="space-y-5">
@@ -1033,37 +1076,6 @@ export const BankLoanManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Actions */}
-              {!isReadOnly ? (
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    disabled={isSaving}
-                    className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm disabled:opacity-50"
-                  >
-                    {common.cancel}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer disabled:opacity-70"
-                  >
-                    {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-                    {isSaving ? common.saving : common.save}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex justify-end pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-8 py-3 bg-white border border-slate-200 text-sm font-bold text-slate-500 rounded-xl hover:bg-slate-50 transition-all active:scale-95 cursor-pointer shadow-sm"
-                  >
-                    {common.close}
-                  </button>
-                </div>
-              )}
             </form>
           </Modal>
         )}

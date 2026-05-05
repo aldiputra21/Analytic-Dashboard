@@ -150,7 +150,7 @@ export function createSubsidiariesRouter(): Router {
 
   /**
    * DELETE /api/frs/subsidiaries/:id
-   * Delete a subsidiary. Rejected if it has financial data.
+   * Delete a subsidiary. Rejected if it has departments or user accesses.
    */
   router.delete('/:id', requirePermission('cfd.subsidiaries.delete'), asyncHandler(async (req: Request, res: Response) => {
     const result = await deleteSubsidiary(req.params.id);

@@ -4,6 +4,7 @@ import { Locale } from './commons';
 export interface NavigationCopy {
   groups: {
     main: string;
+    approval: string;
     financialStatements: string;
     cashFlow: string;
     corporateManagement: string;
@@ -47,6 +48,8 @@ export interface NavigationCopy {
       reimburse: string;
     };
     broadcast: string;
+    approvalMonitor: string;
+    approvalConfigs: string;
   };
   user: {
     logout: string;
@@ -60,6 +63,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
   id: {
     groups: {
       main: 'Analitik',
+      approval: 'Persetujuan',
       financialStatements: 'Laporan Keuangan',
       cashFlow: 'Arus Kas',
       corporateManagement: 'Pengelolaan Perusahaan',
@@ -103,6 +107,8 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
         reimburse: 'Reimburse',
       },
       broadcast: 'Broadcast Notifikasi',
+      approvalMonitor: 'Daftar Persetujuan',
+      approvalConfigs: 'Konfigurasi Persetujuan',
     },
     user: {
       logout: 'Keluar',
@@ -114,6 +120,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
   en: {
     groups: {
       main: 'Analytics',
+      approval: 'Approval',
       financialStatements: 'Financial Statements',
       cashFlow: 'Cash Flow',
       corporateManagement: 'Corporate Management',
@@ -157,6 +164,8 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
         reimburse: 'Reimburse',
       },
       broadcast: 'Notification Broadcast',
+      approvalMonitor: 'Approvals',
+      approvalConfigs: 'Approval Config',
     },
     user: {
       logout: 'Logout',

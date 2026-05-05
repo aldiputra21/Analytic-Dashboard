@@ -2,6 +2,7 @@
 // Run with: npx tsx scripts/seed-public.ts
 
 import 'dotenv/config';
+import { eq } from 'drizzle-orm';
 import { db } from '../src/db/connection';
 import {
   roles,
@@ -18,6 +19,8 @@ import {
   currencies,
   costCenterCategories,
   notificationConfigs,
+  approvalWorkflows,
+  approvalWorkflowSteps,
 } from '../src/db/schema/public';
 import bcrypt from 'bcryptjs';
 
@@ -113,6 +116,11 @@ async function main() {
     { key: 'public.system_configs.write', module: 'public', description: 'Manage system configs' },
     { key: 'public.notification.broadcast', module: 'public', description: 'Broadcast notifications to users and roles' },
 
+    // Approval Config Management
+    { key: 'public.approval_configs.read', module: 'public', description: 'Read approval workflow configs' },
+    { key: 'public.approval_configs.write', module: 'public', description: 'Manage approval workflow configs' },
+    { key: 'public.approval_configs.delete', module: 'public', description: 'Delete approval workflow configs' },
+
     // CRM Module
     { key: 'crm.dashboard.read', module: 'crm', description: 'Read CRM dashboard' },
     { key: 'crm.customers.read', module: 'crm', description: 'Read customers' },
@@ -139,8 +147,7 @@ async function main() {
   ];
 
   const rolePermissionMap: Record<string, string[]> = {
-    system_admin: permissionCatalog.map((p) => p.key),
-    global_admin: [
+    system_admin: permissionCatalog.map((p) => p.key),    global_admin: [
       'cfd.dashboard.read',
       'approvals.read',
       'cfd.corporates.read',
@@ -170,6 +177,7 @@ async function main() {
     corporate_admin: [
       'cfd.dashboard.read',
       'approvals.read',
+      'public.approval_configs.read',
       'cfd.users.read',
       'cfd.users.write',
       'cfd.users.manage_users',
@@ -216,6 +224,7 @@ async function main() {
     ],
     finance_staff: [
       'cfd.dashboard.read',
+      'approvals.read',
       'cfd.statements.read',
       'cfd.statements.write',
       'cfd.balance_sheets.read',
@@ -255,6 +264,7 @@ async function main() {
     ],
     dept_staff: [
       'cfd.dashboard.read',
+      'approvals.read',
       'public.targets.read',
       'public.targets.write',
       'crm.dashboard.read',
@@ -311,7 +321,9 @@ async function main() {
     { username: 'exec_tsi', email: 'exec.tsi@cfd.local', fullName: 'TSI Executive' },
     { username: 'finance_leader_tsi', email: 'finance.leader@tsi.local', fullName: 'TSI Finance Leader' },
     { username: 'finance_staff_tsi', email: 'finance.staff@tsi.local', fullName: 'TSI Finance Staff' },
+    { username: 'finance_manager_tsi', email: 'finance.manager@tsi.local', fullName: 'TSI Finance Manager' },
     { username: 'dept_leader_onm_tsi', email: 'dept.leader.onm@tsi.local', fullName: 'TSI ONM Leader' },
+    { username: 'dept_manager_onm_tsi', email: 'dept.manager.onm@tsi.local', fullName: 'TSI ONM Manager' },
     { username: 'dept_staff_onm_tsi', email: 'dept.staff.onm@tsi.local', fullName: 'TSI ONM Staff' },
   ];
 
@@ -368,18 +380,50 @@ async function main() {
   }
   console.log('   ✅ Permissions ready');
 
+  // ── Currencies ────────────────────────────────────────────
+  console.log('💵 Seeding currencies...');
+  await db.insert(currencies).values([
+    { code: 'IDR', label: 'Indonesian Rupiah', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'USD', label: 'US Dollar', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'SGD', label: 'Singapore Dollar', createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
+  // ── Cost Center Categories ────────────────────────────────
+  console.log('🏷️ Seeding cost center categories...');
+  await db.insert(costCenterCategories).values([
+    { code: 'OPEX', labelId: 'Biaya Operasional', labelEn: 'Operational Expenses', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'CAPEX', labelId: 'Biaya Modal', labelEn: 'Capital Expenditure', createdBy: SYSTEM_ACTOR_ID },
+    { code: 'ADM', labelId: 'Administrasi', labelEn: 'Administrative', createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
+  // ── Corporate Sectors ─────────────────────────────────────
+  console.log('🏢 Seeding corporate sectors...');
+  await db.insert(corporateSectors).values([
+    { code: 'BM', labelId: 'Bahan Baku',            labelEn: 'Basic Materials',          createdBy: SYSTEM_ACTOR_ID },
+    { code: 'CS', labelId: 'Layanan Konsumen',       labelEn: 'Consumer Services',        createdBy: SYSTEM_ACTOR_ID },
+    { code: 'EG', labelId: 'Energi',                 labelEn: 'Energy',                   createdBy: SYSTEM_ACTOR_ID },
+    { code: 'FN', labelId: 'Keuangan',               labelEn: 'Finance',                  createdBy: SYSTEM_ACTOR_ID },
+    { code: 'HC', labelId: 'Kesehatan',              labelEn: 'Healthcare',               createdBy: SYSTEM_ACTOR_ID },
+    { code: 'IF', labelId: 'Infrastruktur',          labelEn: 'Infrastructure',           createdBy: SYSTEM_ACTOR_ID },
+    { code: 'IN', labelId: 'Perindustrian',          labelEn: 'Industrials',              createdBy: SYSTEM_ACTOR_ID },
+    { code: 'IT', labelId: 'Teknologi Informasi',    labelEn: 'Information Technology',   createdBy: SYSTEM_ACTOR_ID },
+    { code: 'RT', labelId: 'Perdagangan & Ritel',    labelEn: 'Trade & Retail',           createdBy: SYSTEM_ACTOR_ID },
+  ]).onConflictDoNothing();
+
   // ── Corporates ────────────────────────────────────────────
+  // NOTE: industry must reference a valid corporate_sectors.code (FK constraint)
+  // Seeds above (corporate_sectors + currencies) must run first.
   console.log('🏢 Seeding corporates...');
   const [asiCorp] = await db
     .insert(corporates)
-    .values({ name: 'PT Asia Serv Indonesia', code: 'ASI', industry: 'manufacturing', currency: 'IDR', createdBy: SYSTEM_ACTOR_ID })
-    .onConflictDoUpdate({ target: corporates.code, set: { name: 'PT Asia Serv Indonesia' } })
+    .values({ name: 'PT Asia Serv Indonesia', code: 'ASI', industry: 'EG', currency: 'IDR', createdBy: SYSTEM_ACTOR_ID })
+    .onConflictDoUpdate({ target: corporates.code, set: { name: 'PT Asia Serv Indonesia', industry: 'IN' } })
     .returning();
 
   const [tsiCorp] = await db
     .insert(corporates)
-    .values({ name: 'PT Titian Servis Indonesia', code: 'TSI', industry: 'services', currency: 'IDR', createdBy: SYSTEM_ACTOR_ID })
-    .onConflictDoUpdate({ target: corporates.code, set: { name: 'PT Titian Servis Indonesia' } })
+    .values({ name: 'PT Titian Servis Indonesia', code: 'TSI', industry: 'EG', currency: 'IDR', createdBy: SYSTEM_ACTOR_ID })
+    .onConflictDoUpdate({ target: corporates.code, set: { name: 'PT Titian Servis Indonesia', industry: 'CS' } })
     .returning();
 
   const allCorps = await db.select().from(corporates);
@@ -413,9 +457,11 @@ async function main() {
     { username: 'admin_tsi', role: 'corporate_admin', scope: 'corporate', corpId: tsiId },
     { username: 'exec_tsi', role: 'corporate_executive', scope: 'corporate', corpId: tsiId },
     { username: 'finance_leader_tsi', role: 'finance_leader', scope: 'corporate', corpId: tsiId },
+    { username: 'finance_manager_tsi', role: 'finance_manager', scope: 'corporate', corpId: tsiId },
     { username: 'finance_staff_tsi', role: 'finance_staff', scope: 'corporate', corpId: tsiId },
     // TSI Department Access
     { username: 'dept_leader_onm_tsi', role: 'dept_leader', scope: 'department', corpId: tsiId, deptId: tsiOnmDeptId },
+    { username: 'dept_manager_onm_tsi', role: 'dept_manager', scope: 'department', corpId: tsiId, deptId: tsiOnmDeptId },
     { username: 'dept_staff_onm_tsi', role: 'dept_staff', scope: 'department', corpId: tsiId, deptId: tsiOnmDeptId },
   ];
 
@@ -539,31 +585,6 @@ async function main() {
     { name: 'Bank Negara Indonesia', code: 'BNI', createdBy: SYSTEM_ACTOR_ID },
   ]).onConflictDoNothing();
 
-  // ── Corporate Sectors ─────────────────────────────────────
-  console.log('🏢 Seeding corporate sectors...');
-  await db.insert(corporateSectors).values([
-    { code: 'MFG', labelId: 'Manufaktur', labelEn: 'Manufacturing', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'SVC', labelId: 'Jasa', labelEn: 'Services', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'ONG', labelId: 'Minyak & Gas', labelEn: 'Oil & Gas', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'MIN', labelId: 'Pertambangan', labelEn: 'Mining', createdBy: SYSTEM_ACTOR_ID },
-  ]).onConflictDoNothing();
-
-  // ── Currencies ────────────────────────────────────────────
-  console.log('💵 Seeding currencies...');
-  await db.insert(currencies).values([
-    { code: 'IDR', label: 'Indonesian Rupiah', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'USD', label: 'US Dollar', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'SGD', label: 'Singapore Dollar', createdBy: SYSTEM_ACTOR_ID },
-  ]).onConflictDoNothing();
-
-  // ── Cost Center Categories ────────────────────────────────
-  console.log('🏷️ Seeding cost center categories...');
-  await db.insert(costCenterCategories).values([
-    { code: 'OPEX', labelId: 'Biaya Operasional', labelEn: 'Operational Expenses', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'CAPEX', labelId: 'Biaya Modal', labelEn: 'Capital Expenditure', createdBy: SYSTEM_ACTOR_ID },
-    { code: 'ADM', labelId: 'Administrasi', labelEn: 'Administrative', createdBy: SYSTEM_ACTOR_ID },
-  ]).onConflictDoNothing();
-
   // ── Projects ──────────────────────────────────────────────
   console.log('🏗️ Seeding initial projects...');
   const projectValues = [
@@ -576,6 +597,116 @@ async function main() {
 
 
   console.log('   ✅ User access ready');
+
+  // ── Approval Workflows (PoC: Balance Sheet) ───────────────
+  console.log('✅ Seeding approval workflows...');
+
+  const financeLeaderRoleId = roleMap.get('finance_leader')!;
+  const financeManagerRoleId = roleMap.get('finance_manager')!;
+  const financeStaffRoleId = roleMap.get('finance_staff')!;
+
+  const balanceSheetSubjectFields: Array<{ field: string; label: string; type: 'string' | 'currency' | 'date' | 'number' }> = [
+    { field: 'corporateName', label: 'Perusahaan', type: 'string' },
+    { field: 'period', label: 'Periode', type: 'date' },
+  ];
+
+  const workflowDefs = [
+    {
+      module: 'cfd',
+      entityType: 'balance_sheet',
+      action: 'create',
+      name: 'Persetujuan Input Neraca',
+      nameEn: 'Balance Sheet Input Approval',
+      description: 'Workflow persetujuan untuk input data neraca baru',
+      callbackHandler: 'handleBalanceSheetCreate',
+      viewComponent: 'BalanceSheetApprovalForm',
+      makerRole: financeStaffRoleId,
+      subjectFields: balanceSheetSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd',
+      entityType: 'balance_sheet',
+      action: 'edit',
+      name: 'Persetujuan Ubah Neraca',
+      nameEn: 'Balance Sheet Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data neraca',
+      callbackHandler: 'handleBalanceSheetEdit',
+      viewComponent: 'BalanceSheetApprovalForm',
+      makerRole: financeStaffRoleId,
+      subjectFields: balanceSheetSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd',
+      entityType: 'balance_sheet',
+      action: 'delete',
+      name: 'Persetujuan Hapus Neraca',
+      nameEn: 'Balance Sheet Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data neraca',
+      callbackHandler: 'handleBalanceSheetDelete',
+      viewComponent: 'BalanceSheetApprovalForm',
+      makerRole: financeStaffRoleId,
+      subjectFields: balanceSheetSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+  ];
+
+  for (const wf of workflowDefs) {
+    const { steps, ...workflowData } = wf;
+
+    // Upsert workflow
+    const [workflow] = await db
+      .insert(approvalWorkflows)
+      .values({ ...workflowData, createdBy: SYSTEM_ACTOR_ID })
+      .onConflictDoUpdate({
+        target: [approvalWorkflows.module, approvalWorkflows.entityType, approvalWorkflows.action],
+        set: {
+          name: workflowData.name,
+          nameEn: workflowData.nameEn,
+          description: workflowData.description,
+          callbackHandler: workflowData.callbackHandler,
+          viewComponent: workflowData.viewComponent,
+          makerRole: workflowData.makerRole,
+          subjectFields: workflowData.subjectFields,
+          updatedBy: SYSTEM_ACTOR_ID,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    // Replace steps — hanya jika belum ada history yang referensi steps ini
+    // (untuk menghindari FK violation saat re-seed dengan data existing)
+    const existingSteps = await db.select({ id: approvalWorkflowSteps.id })
+      .from(approvalWorkflowSteps)
+      .where(eq(approvalWorkflowSteps.workflowId, workflow.id));
+
+    if (existingSteps.length === 0) {
+      // Tidak ada steps — insert baru
+      await db.insert(approvalWorkflowSteps).values(
+        steps.map(s => ({ ...s, workflowId: workflow.id }))
+      );
+    } else {
+      // Ada steps existing — upsert per step_order (tidak delete agar tidak break FK)
+      for (const step of steps) {
+        const existing = existingSteps.find((_, i) => i === step.stepOrder - 1);
+        if (!existing) {
+          await db.insert(approvalWorkflowSteps).values({ ...step, workflowId: workflow.id });
+        }
+        // Jika sudah ada, biarkan — perubahan step dilakukan via ApprovalConfigManager
+      }
+    }
+
+    console.log(`   ✅ Workflow: ${workflow.name}`);
+  }
 
   console.log('\n🎉 New RBAC Public schema seeding complete!');
   process.exit(0);

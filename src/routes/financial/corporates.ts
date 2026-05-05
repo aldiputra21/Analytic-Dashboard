@@ -189,7 +189,10 @@ export function createCorporatesRouter(): Router {
       userAgent: req.headers['user-agent'],
     });
     if (!result.success) {
-      throw AppError.badRequest(ErrorCode.INVALID_INPUT, result.error || 'Failed to delete corporate');
+      if (result.error === 'Corporate not found') {
+        throw AppError.notFound(ErrorCode.CORPORATE_NOT_FOUND, 'Corporate not found');
+      }
+      throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, result.error || 'Corporate cannot be deleted');
     }
     res.json({ success: true });
   }));

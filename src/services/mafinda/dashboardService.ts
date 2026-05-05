@@ -864,9 +864,10 @@ export async function getDashboardAggregated(params: {
   historicalMonths: number;
   revCostDeptId?: string;
   cashFlowDeptId?: string;
+  cashFlowProjectId?: string;
   cashFlowMonths?: number;
 }): Promise<DashboardAggregatedResult> {
-  const { period, corporateId, historicalMonths, revCostDeptId, cashFlowDeptId, cashFlowMonths } = params;
+  const { period, corporateId, historicalMonths, revCostDeptId, cashFlowDeptId, cashFlowProjectId, cashFlowMonths } = params;
 
   const [
     revenueTarget,
@@ -880,7 +881,7 @@ export async function getDashboardAggregated(params: {
   ] = await Promise.all([
     getDeptRevenueTarget(period, corporateId),
     getRevenueCostSummary(period, corporateId),
-    getCashFlowData(period, cashFlowMonths || 6, corporateId, cashFlowDeptId),
+    getCashFlowData(period, cashFlowMonths || 6, corporateId, cashFlowDeptId, cashFlowProjectId),
     getAssetComposition(period, corporateId),
     getEquityLiabilityComposition(period, corporateId),
     getHistoricalData(historicalMonths, corporateId),

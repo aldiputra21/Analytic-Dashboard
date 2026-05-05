@@ -1,7 +1,7 @@
 // src/services/mafinda/costCenterService.ts
 import { eq, asc, desc, sql, and, or, ilike } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { costCenters } from '../../db/schema/cfd';
+import { costCenters, cashRealizations } from '../../db/schema/cfd';
 import { CostCenter, CreateCostCenterInput, UpdateCostCenterInput } from '../../types/financial/costCenter';
 import { createFRSAuditLog } from '../financial/auditLogService';
 import { RequestContext } from '../financial/auditLogService';
@@ -150,10 +150,19 @@ export async function updateCostCenter(id: string, input: UpdateCostCenterInput,
 }
 
 export async function deleteCostCenter(id: string, deletedBy?: string, context?: RequestContext): Promise<boolean> {
-  // Check if it's a parent to others
+  // Block: child cost centers
   const [child] = await db.select({ id: costCenters.id }).from(costCenters).where(eq(costCenters.parentId, id)).limit(1);
   if (child) {
-    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Cannot delete cost center that has sub-centers');
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Cost center tidak dapat dihapus karena masih memiliki sub-cost center');
+  }
+
+  // Block: cash_realizations
+  const [realization] = await db.select({ id: cashRealizations.id })
+    .from(cashRealizations)
+    .where(eq(cashRealizations.costCenterId, id))
+    .limit(1);
+  if (realization) {
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Cost center tidak dapat dihapus karena masih memiliki data realisasi kas');
   }
 
   const [existing] = await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1);

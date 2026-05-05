@@ -28,6 +28,13 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     message = 'A record with this identifier already exists';
   }
 
+  // Handle Postgres Foreign Key Violation (cannot delete because referenced by another table)
+  if (err.code === '23503') {
+    status = 422;
+    code = ErrorCode.DELETE_PROTECTED;
+    message = 'Data cannot be deleted because it is still referenced by other records';
+  }
+
   // Handle AppError
   if (err instanceof AppError) {
     status = err.statusCode;

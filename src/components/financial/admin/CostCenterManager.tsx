@@ -11,7 +11,6 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCostCenterCategories } from '../../../hooks/financial/useCostCenterCategories';
 import { useCostCenters } from '../../../hooks/financial/useCostCenters';
-import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import {
@@ -120,8 +119,11 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: str
 
 export const CostCenterManager: React.FC = () => {
   const { options: categoryOptions, isLoading: isCatsLoading } = useCostCenterCategories();
-  const { options: parentOptions, isLoading: isParentsLoading } = useCostCenters();
-  const { options: corporateOptions, isLoading: isCorpsLoading } = useCorporates();
+
+  // formData is declared below — we use a ref-like pattern by passing corporateId
+  // directly into the hook via state lifted here
+  const [selectedCorporateId, setSelectedCorporateId] = useState('');
+  const { options: parentOptions, isLoading: isParentsLoading } = useCostCenters(undefined, selectedCorporateId);
   const { user, hasPermission, language } = useAuth();
   const t = costCenterI18n[language];
   const common = commonsI18n[language];
@@ -234,6 +236,7 @@ export const CostCenterManager: React.FC = () => {
     setIsViewOnly(viewOnly);
     if (cc) {
       setEditingCC(cc);
+      setSelectedCorporateId(cc.corporateId);
       setFormData({
         corporateId: cc.corporateId,
         parentId: cc.parentId || '',
@@ -251,6 +254,7 @@ export const CostCenterManager: React.FC = () => {
         defaultCorpId = user.subsidiaryIds[0];
       }
 
+      setSelectedCorporateId(defaultCorpId);
       setFormData({
         corporateId: defaultCorpId,
         parentId: '',
@@ -680,7 +684,10 @@ export const CostCenterManager: React.FC = () => {
                     className="md:col-span-1"
                     label={t.modal.corporate}
                     value={formData.corporateId}
-                    onChange={(val) => setFormData({ ...formData, corporateId: val, parentId: '' })}
+                    onChange={(val) => {
+                      setSelectedCorporateId(val);
+                      setFormData({ ...formData, corporateId: val, parentId: '' });
+                    }}
                     placeholder={t.modal.corporate}
                     disabled={isViewOnly || (!user?.hasFullCorporateAccess && user?.subsidiaryIds?.length === 1)}
                     required

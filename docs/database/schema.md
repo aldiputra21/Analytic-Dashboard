@@ -14,6 +14,42 @@ Core tables for authentication, authorization, and system-wide settings.
 - `user_corporate_accesses` (multi-corporate access mapping)
 - `notifications`, `audit_logs`, `system_configs`
 - `approval_workflows`, `approval_workflow_steps`, `approvals`, `approval_histories`
+- `attachments` (dengan field `status` dan `approval_id` untuk staging mechanism)
+- `notification_broadcasts`, `notification_configs`
+- `banks`, `corporate_sectors`, `currencies`, `cost_center_categories`
+
+### Approval Tables — Field Penting
+
+**`approval_workflows`**
+| Kolom | Deskripsi |
+|---|---|
+| `view_component` | Key string dipetakan ke komponen React di `formRegistry.tsx` |
+| `subject_fields` | Array field untuk extract subject dari payload (dot-notation support) |
+| `callback_handler` | Key di `callbackRegistry.ts` yang dipanggil saat final approve |
+| `is_active` | Jika `false`, modul kembali ke flow normal tanpa approval |
+
+**`approvals`**
+| Kolom | Deskripsi |
+|---|---|
+| `status` | `draft` \| `pending` \| `approved` \| `rejected` \| `cancelled` (default: `draft`) |
+| `original_data` | Snapshot data sebelum diubah (hanya untuk action `edit`) |
+| `subject` | Nilai yang di-extract dari payload sesuai `subject_fields` |
+| `title` | String ringkas auto-generated dari subject values |
+| `corporate_id` | Scope corporate untuk filtering approver |
+
+**`approval_histories`**
+| Kolom | Deskripsi |
+|---|---|
+| `action` | `created` \| `submit` \| `approve` \| `reject` \| `cancel` |
+| `payload` | Snapshot payload saat action `submit`/`resubmit` (NULL untuk lainnya) |
+| `step_id` | Nullable — NULL untuk action `created` dan `cancel` |
+
+**`attachments`**
+| Kolom | Deskripsi |
+|---|---|
+| `status` | `active` \| `staging` \| `orphaned` |
+| `approval_id` | FK ke `approvals` — diisi saat file diupload melalui approval flow |
+| `entity_id` | Nullable — NULL saat masih staging |
 
 ### 2. `cfd`
 Financial data for the Corporate Finance Dashboard and Financial Ratio System (FRS).

@@ -5,6 +5,7 @@ import { eq, and, desc, sql, count, gte, lte } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema/index.js';
 import { reevaluateAlertsForSubsidiary } from '../financial/alertEngine';
+import { AppError, ErrorCode } from '../../utils/errors.js';
 
 // ─── Error Classes ────────────────────────────────────────────────────────────
 
@@ -223,7 +224,7 @@ export async function saveBalanceSheet(input: BalanceSheetInput, userId: string)
     .limit(1);
 
   if (existing && existing.id !== input.id) {
-    throw new ValidationError(`Data Neraca untuk perusahaan ini pada periode ${input.period} sudah ada.`);
+    throw AppError.badRequest(ErrorCode.DUPLICATE_ENTRY, `Data Neraca untuk perusahaan ini pada periode ${input.period} sudah ada.`);
   }
 
   // If input.id is provided, check if it exists for explicit update
@@ -424,7 +425,7 @@ export async function saveIncomeStatement(
     .limit(1);
 
   if (existing && existing.id !== input.id) {
-    throw new ValidationError(`Data Laba Rugi untuk perusahaan ini pada periode ${input.period} sudah ada.`);
+    throw AppError.badRequest(ErrorCode.DUPLICATE_ENTRY, `Data Laba Rugi untuk perusahaan ini pada periode ${input.period} sudah ada.`);
   }
 
   if (input.id) {
@@ -598,7 +599,7 @@ export async function saveCashFlow(input: CashFlowInput, userId: string): Promis
     .limit(1);
 
   if (existing && existing.id !== input.id) {
-    throw new ValidationError(`Data Arus Kas untuk entitas ini pada periode ${input.period} ${input.week} sudah ada.`);
+    throw AppError.badRequest(ErrorCode.DUPLICATE_ENTRY, `Data Arus Kas untuk entitas ini pada periode ${input.period} ${input.week} sudah ada.`);
   }
 
   if (input.id) {

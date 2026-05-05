@@ -4,6 +4,7 @@
 import { eq, and, ne, asc, ilike, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { departments, projects } from '../../db/schema/index.js';
+import { targetHeaders, cashRealizations } from '../../db/schema/cfd.js';
 import { createFRSAuditLog } from '../financial/auditLogService';
 import { RequestContext } from '../financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors.js';
@@ -351,6 +352,7 @@ export async function updateProject(
 
 /**
  * Deletes a project by id.
+ * Blocks deletion if there are related records in dependent tables.
  * Throws NotFoundError if not found.
  */
 export async function deleteProject(
@@ -360,6 +362,24 @@ export async function deleteProject(
 ): Promise<{ success: boolean }> {
   const existingFull = await getProjectById(id);
   if (!existingFull) throw AppError.notFound(ErrorCode.PROJECT_NOT_FOUND, 'Proyek tidak ditemukan');
+
+  // Block: target_headers
+  const [target] = await db.select({ id: targetHeaders.id })
+    .from(targetHeaders)
+    .where(eq(targetHeaders.projectId, id))
+    .limit(1);
+  if (target) {
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Proyek tidak dapat dihapus karena masih memiliki data target');
+  }
+
+  // Block: cash_realizations
+  const [realization] = await db.select({ id: cashRealizations.id })
+    .from(cashRealizations)
+    .where(eq(cashRealizations.projectId, id))
+    .limit(1);
+  if (realization) {
+    throw AppError.unprocessable(ErrorCode.DELETE_PROTECTED, 'Proyek tidak dapat dihapus karena masih memiliki data realisasi kas');
+  }
 
   const result = await db.delete(projects).where(eq(projects.id, id)).returning();
   

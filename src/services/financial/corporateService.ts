@@ -3,7 +3,7 @@
 
 import { eq, asc, sql, inArray, and } from 'drizzle-orm';
 import { db } from '../../db/connection';
-import { corporates, departments } from '../../db/schema/index.js';
+import { corporates, departments, userCorporateAccesses } from '../../db/schema/index.js';
 import { Corporate, CreateCorporateInput, UpdateCorporateInput } from '../../types/financial/corporate';
 
 import { createFRSAuditLog } from './auditLogService';
@@ -198,7 +198,7 @@ export async function setCorporateStatus(
 }
 
 /**
- * Deletes a corporate history. Rejects if it has departments.
+ * Deletes a corporate. Rejects if it has departments or user accesses.
  */
 export async function deleteCorporate(
   id: string,
@@ -208,11 +208,18 @@ export async function deleteCorporate(
   const [existing] = await db.select().from(corporates).where(eq(corporates.id, id)).limit(1);
   if (!existing) return { success: false, error: 'Corporate not found' };
 
+  // Block: departments
   const [dept] = await db.select({ id: departments.id }).from(departments)
     .where(eq(departments.corporateId, id)).limit(1);
-
   if (dept) {
-    return { success: false, error: 'Cannot delete corporate with existing departments/financial data' };
+    return { success: false, error: 'DELETE_PROTECTED' };
+  }
+
+  // Block: user_corporate_accesses
+  const [uca] = await db.select({ id: userCorporateAccesses.id }).from(userCorporateAccesses)
+    .where(eq(userCorporateAccesses.corporateId, id)).limit(1);
+  if (uca) {
+    return { success: false, error: 'DELETE_PROTECTED' };
   }
 
   await createFRSAuditLog({
