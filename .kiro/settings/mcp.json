@@ -5,7 +5,7 @@
 			"args": [
 				"@henkey/postgres-mcp-server",
 				"--connection-string",
-				"postgresql://neondb_owner:npg_T9Hge1VCEpMB@ep-snowy-unit-a10jussp-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require"
+				"postgresql://neondb_owner:npg_DYcCK2axe4bE@ep-billowing-haze-aoky1vnb-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channelBinding=require"
 			]
 		}
 	}
