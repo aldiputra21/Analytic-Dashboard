@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { getFRSConfig } from "./src/config/frsConfig.js";
 import { createApp } from './src/server/createApp.js';
 import { runInstallmentNotificationCron } from './src/services/financial/notificationCron.js';
+import { runCleanup } from './src/services/financial/reportCleanupService.js';
 
 // Initialize approval callbacks (must be imported to register handlers)
 import './src/services/approval/approvalCallbacks.js';
@@ -33,6 +34,7 @@ function scheduleDailyCron(): { timeoutId: NodeJS.Timeout; intervalId?: NodeJS.T
   }
 
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const MS_5_MINUTES = 5 * 60 * 1000;
   let intervalId: NodeJS.Timeout | undefined;
 
   // Fire once at the next midnight, then repeat every 24 h
@@ -40,14 +42,30 @@ function scheduleDailyCron(): { timeoutId: NodeJS.Timeout; intervalId?: NodeJS.T
     runInstallmentNotificationCron().catch((err) =>
       console.error('[NotificationCron] Unhandled error:', err),
     );
+
+    // Run report cleanup at 00:05 (5-minute offset after midnight)
+    setTimeout(() => {
+      runCleanup().catch((err) =>
+        console.error('[ReportCleanup] Unhandled error:', err),
+      );
+    }, MS_5_MINUTES);
+
     intervalId = setInterval(() => {
       runInstallmentNotificationCron().catch((err) =>
         console.error('[NotificationCron] Unhandled error:', err),
       );
+
+      // Run report cleanup at 00:05 each day
+      setTimeout(() => {
+        runCleanup().catch((err) =>
+          console.error('[ReportCleanup] Unhandled error:', err),
+        );
+      }, MS_5_MINUTES);
     }, MS_PER_DAY);
   }, msUntilNextMidnight());
 
   console.log('[NotificationCron] Scheduled — next run at midnight');
+  console.log('[ReportCleanup] Scheduled — next run at 00:05');
   return { timeoutId, intervalId };
 }
 

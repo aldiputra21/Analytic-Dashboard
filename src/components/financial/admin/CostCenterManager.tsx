@@ -28,6 +28,9 @@ import { commonsI18n } from '../../../i18n/commons';
 import { z } from 'zod';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { CorporateSelector } from '../shared/CorporateSelector';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 interface CostCenter {
   id: string;
@@ -149,6 +152,13 @@ export const CostCenterManager: React.FC = () => {
   const canWrite = hasPermission('cfd.cost_centers.write');
   const canDelete = hasPermission('cfd.cost_centers.delete');
 
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+
+  const approvalCreate = useApproval('cfd', 'cost_center', 'create');
+  const approvalEdit   = useApproval('cfd', 'cost_center', 'edit');
+  const approvalDelete = useApproval('cfd', 'cost_center', 'delete');
+
   // State
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -265,6 +275,13 @@ export const CostCenterManager: React.FC = () => {
         isActive: true
       });
     }
+
+    // Re-fetch workflow status setiap kali modal dibuka agar selalu pakai state terkini.
+    if (!viewOnly) {
+      if (cc) approvalEdit.recheck();
+      else approvalCreate.recheck();
+    }
+
     setIsModalOpen(true);
   };
 
@@ -276,24 +293,45 @@ export const CostCenterManager: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const validation = costCenterSchema.safeParse({
+      ...formData,
+      parentId: formData.parentId || null
+    });
+
+    if (!validation.success) {
+      validation.error.issues.forEach(err => toast.error(err.message));
+      return;
+    }
+
     setIsSaving(true);
 
     try {
-      const url = editingCC ? `/api/cost-centers/${editingCC.id}` : '/api/cost-centers';
-      const method = editingCC ? 'PUT' : 'POST';
+      const payload = validation.data;
 
-      const validation = costCenterSchema.safeParse({
-        ...formData,
-        parentId: formData.parentId || null
-      });
-
-      if (!validation.success) {
-        validation.error.issues.forEach(err => toast.error(err.message));
-        setIsSaving(false);
+      // Check if approval workflow is active for this action
+      const approvalHook = editingCC ? approvalEdit : approvalCreate;
+      if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+        try {
+          const draft = await approvalHook.createDraft({
+            payload: payload as Record<string, unknown>,
+            entityId: editingCC ? editingCC.id : undefined,
+            originalData: editingCC ? { ...editingCC } : undefined,
+          });
+          setIsModalOpen(false);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
+        } finally {
+          setIsSaving(false);
+        }
         return;
       }
 
-      const payload = validation.data;
+      // Normal save flow (no approval workflow)
+      const url = editingCC ? `/api/cost-centers/${editingCC.id}` : '/api/cost-centers';
+      const method = editingCC ? 'PUT' : 'POST';
 
       const res = await apiFetch(url, {
         method,
@@ -317,6 +355,27 @@ export const CostCenterManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = costCenters.find(cc => cc.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item } as Record<string, unknown>,
+            entityId: id,
+            originalData: { ...item } as Record<string, unknown>,
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(err.message ?? getErrorMessage('NETWORK_ERROR', language));
+        }
+        return;
+      }
+    }
+
+    // Normal delete flow
     setIsDeleting(true);
 
     try {
@@ -791,8 +850,8 @@ export const CostCenterManager: React.FC = () => {
                 {!isViewOnly && (
                   <button
                     type="submit"
-                    disabled={isSaving}
-                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
+                    disabled={isSaving || (editingCC ? approvalEdit.isChecking : approvalCreate.isChecking)}
+                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
                     {isSaving ? common.saving : common.save}
@@ -833,6 +892,17 @@ export const CostCenterManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={() => fetchCostCenters(true)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

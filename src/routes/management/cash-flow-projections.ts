@@ -136,7 +136,7 @@ export function createCashFlowProjectionRouter(): Router {
         throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
       }
 
-      const result = await CashFlowProjectionService.deleteProjection(req.params.id);
+      const result = await CashFlowProjectionService.deleteProjection(req.params.id, req.user!.userId);
       res.json(result);
     })
   );

@@ -73,6 +73,10 @@ export async function createApp(options: CreateAppOptions = {}) {
       message: { error: { code: 'FRS_RATE_LIMIT', message: 'Too many requests, please try again later' } },
       standardHeaders: true,
       legacyHeaders: false,
+      // Key by userId when authenticated — prevents shared-IP (NAT/office) false positives.
+      // Falls back to IP only for unauthenticated requests (e.g. public endpoints).
+      // Avoids ERR_ERL_KEY_GEN_IPV6 by never passing req.ip directly.
+      keyGenerator: (req) => (req as any).user?.userId ?? req.socket.remoteAddress ?? 'unknown',
       skip: (req) => {
         // Skip rate limiting for essential polling:
         // 1. Session keep-alive (GET /auth/me)

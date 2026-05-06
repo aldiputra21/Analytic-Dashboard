@@ -10,6 +10,7 @@ import { db } from '../../db/connection';
 import { approvalWorkflows, approvalWorkflowSteps, roles } from '../../db/schema';
 import { requirePermission } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors';
 import { canUserCreateDraft } from '../../services/approval/approvalEngine';
 
@@ -204,6 +205,16 @@ export function createApprovalConfigsRouter(): Router {
       return { ...workflow, steps: stepRecords };
     });
 
+    await createFRSAuditLog({
+      userId,
+      action: 'create',
+      entityType: 'approval_workflow',
+      entityId: result.id,
+      newValues: { module: result.module, entityType: result.entityType, action: result.action, name: result.name },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     res.status(201).json(result);
   }));
 
@@ -241,6 +252,17 @@ export function createApprovalConfigsRouter(): Router {
       return { ...updated, steps: stepRecords };
     });
 
+    await createFRSAuditLog({
+      userId,
+      action: 'update',
+      entityType: 'approval_workflow',
+      entityId: req.params.id,
+      oldValues: { name: existing.name, isActive: existing.isActive },
+      newValues: workflowData,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     res.json(result);
   }));
 
@@ -252,6 +274,16 @@ export function createApprovalConfigsRouter(): Router {
     await db.transaction(async (tx) => {
       await tx.delete(approvalWorkflowSteps).where(eq(approvalWorkflowSteps.workflowId, req.params.id));
       await tx.delete(approvalWorkflows).where(eq(approvalWorkflows.id, req.params.id));
+    });
+
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'delete',
+      entityType: 'approval_workflow',
+      entityId: req.params.id,
+      oldValues: { name: existing.name, module: existing.module, entityType: existing.entityType },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
     });
 
     res.status(204).send();

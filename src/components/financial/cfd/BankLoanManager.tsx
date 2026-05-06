@@ -29,6 +29,9 @@ import { commonsI18n } from '../../../i18n/commons';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { CorporateSelector } from '../shared/CorporateSelector';
 import { z } from 'zod';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 interface Installment {
   id?: string;
@@ -165,6 +168,12 @@ export const BankLoanManager: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+  const approvalCreate = useApproval('cfd', 'bank_loan', 'create');
+  const approvalEdit = useApproval('cfd', 'bank_loan', 'edit');
+  const approvalDelete = useApproval('cfd', 'bank_loan', 'delete');
+
   // Form State
   const [formData, setFormData] = useState({
     bankId: '',
@@ -265,6 +274,13 @@ export const BankLoanManager: React.FC = () => {
 
   const openModal = async (mode: 'create' | 'edit' | 'view', item?: BankLoan) => {
     setModalMode(mode);
+
+    // Re-fetch workflow status every time modal opens to get latest state
+    if (mode !== 'view') {
+      if (mode === 'create') approvalCreate.recheck();
+      else if (mode === 'edit') approvalEdit.recheck();
+    }
+
     if (item) {
       setEditingId(item.id);
       setFormData({
@@ -315,6 +331,36 @@ export const BankLoanManager: React.FC = () => {
     if (!validation.success) {
       const uniqueErrors = new Set(validation.error.issues.map(err => err.message));
       uniqueErrors.forEach(msg => toast.error(msg));
+      return;
+    }
+
+    // Check if approval workflow is active for this action
+    const approvalHook = editingId ? approvalEdit : approvalCreate;
+    if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+      setIsSaving(true);
+      try {
+        const basePayload = {
+          ...validation.data,
+          amount: parseFloat(validation.data.amount),
+          interestRate: parseFloat(validation.data.interestRate) / 100,
+        };
+        const payload = formData.interestType === 'flat'
+          ? { ...basePayload, installmentAmount: installments.length > 0 ? parseFloat(installments[0].amount.toString()) : 0 }
+          : { ...basePayload, installments: installments.map(inst => ({ installmentDate: inst.installmentDate, amount: parseFloat(inst.amount.toString()) })) };
+
+        const draft = await approvalHook.createDraft({
+          payload: payload as Record<string, unknown>,
+          entityId: editingId ?? undefined,
+          originalData: editingId ? data.find(d => d.id === editingId) as unknown as Record<string, unknown> | undefined : undefined,
+        });
+        setIsModalOpen(false);
+        setActiveDraftApprovalId(draft.id);
+        toast.success(approvalI18n[language].toast.draftCreated);
+      } catch (err: any) {
+        toast.error(getErrorMessage(err.error?.code || err.code || 'NETWORK_ERROR', language));
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
 
@@ -394,6 +440,26 @@ export const BankLoanManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = data.find(d => d.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item } as unknown as Record<string, unknown>,
+            entityId: id,
+            originalData: { ...item } as unknown as Record<string, unknown>,
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(getErrorMessage(err.error?.code || err.code || 'NETWORK_ERROR', language));
+        }
+        return;
+      }
+    }
+
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/bank-loans/${id}`, { method: 'DELETE' });
@@ -740,7 +806,7 @@ export const BankLoanManager: React.FC = () => {
                   <button
                     type="submit"
                     form="bankLoanForm"
-                    disabled={isSaving}
+                    disabled={isSaving || (editingId ? approvalEdit.isChecking : approvalCreate.isChecking)}
                     className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer disabled:opacity-70"
                   >
                     {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
@@ -1119,6 +1185,17 @@ export const BankLoanManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={fetchData}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

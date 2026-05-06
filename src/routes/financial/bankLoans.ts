@@ -10,6 +10,7 @@ import { bankLoans, bankLoanInstallments } from '../../db/schema/cfd';
 import { banks, corporates } from '../../db/schema/public';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors.js';
 import {
   generateFlatInstallments,
@@ -258,6 +259,16 @@ export function createBankLoansRouter(): Router {
       return newLoan;
     });
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'create',
+      entityType: 'bank_loan',
+      entityId: loan.id,
+      newValues: { bankId: data.bankId, corporateId: data.corporateId, amount: data.amount, interestType: data.interestType, tenor: data.tenor },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.status(201).json(loan);
   }));
 
@@ -372,6 +383,17 @@ export function createBankLoansRouter(): Router {
       .where(eq(bankLoans.id, req.params.id))
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'update',
+      entityType: 'bank_loan',
+      entityId: req.params.id,
+      oldValues: { bankId: existing.bankId, amount: existing.amount, status: existing.status, interestRate: existing.interestRate },
+      newValues: data,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.json(updated);
   }));
 
@@ -399,6 +421,16 @@ export function createBankLoansRouter(): Router {
     }
 
     await db.delete(bankLoans).where(eq(bankLoans.id, req.params.id));
+
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'delete',
+      entityType: 'bank_loan',
+      entityId: req.params.id,
+      oldValues: { bankId: existing.bankId, corporateId: existing.corporateId, amount: existing.amount },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.json({ success: true });
   }));
@@ -529,6 +561,16 @@ export function createBankLoansRouter(): Router {
         .from(bankLoanInstallments)
         .where(eq(bankLoanInstallments.id, installmentId))
         .limit(1);
+
+      await createFRSAuditLog({
+        userId: req.user!.userId,
+        action: 'update',
+        entityType: 'bank_loan_installment',
+        entityId: installmentId,
+        newValues: { status: 'paid', paidDate: today, loanId },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
 
       return res.json(updated);
     })

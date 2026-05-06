@@ -5,6 +5,7 @@ import { eq, and, desc, sql, count, gte, lte } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema/index.js';
 import { reevaluateAlertsForSubsidiary } from '../financial/alertEngine';
+import { createFRSAuditLog } from '../financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors.js';
 
 // ─── Error Classes ────────────────────────────────────────────────────────────
@@ -264,6 +265,16 @@ export async function saveBalanceSheet(input: BalanceSheetInput, userId: string)
     const result = mapBalanceSheetRow(updated);
     // Background re-evaluation
     reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+
+    await createFRSAuditLog({
+      userId,
+      action: 'update',
+      entityType: 'balance_sheet',
+      entityId: target.id,
+      oldValues: { corporateId: target.corporateId, period: target.period },
+      newValues: { corporateId: input.corporateId, period: input.period },
+    });
+
     return result;
   }
 
@@ -297,6 +308,15 @@ export async function saveBalanceSheet(input: BalanceSheetInput, userId: string)
   const result = mapBalanceSheetRow(inserted);
   // Background re-evaluation
   reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+
+  await createFRSAuditLog({
+    userId,
+    action: 'create',
+    entityType: 'balance_sheet',
+    entityId: inserted.id,
+    newValues: { corporateId: input.corporateId, period: input.period },
+  });
+
   return result;
 }
 
@@ -366,7 +386,7 @@ export async function getBalanceSheets(
 }
 
 /** Deletes a balance sheet by ID with corporate context check. */
-export async function deleteBalanceSheet(id: string, corporateId: string): Promise<void> {
+export async function deleteBalanceSheet(id: string, corporateId: string, userId?: string): Promise<void> {
   const result = await db.delete(balanceSheets)
     .where(and(
       eq(balanceSheets.id, id),
@@ -376,6 +396,14 @@ export async function deleteBalanceSheet(id: string, corporateId: string): Promi
   if (result.rowCount === 0) {
     throw new NotFoundError('Data neraca tidak ditemukan atau Anda tidak memiliki akses');
   }
+
+  await createFRSAuditLog({
+    userId: userId ?? '',
+    action: 'delete',
+    entityType: 'balance_sheet',
+    entityId: id,
+    oldValues: { corporateId },
+  });
 }
 
 // ─── Income Statement ─────────────────────────────────────────────────────────
@@ -448,6 +476,16 @@ export async function saveIncomeStatement(
     const result = mapIncomeStatementRow(updated);
     // Background re-evaluation
     reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+
+    await createFRSAuditLog({
+      userId,
+      action: 'update',
+      entityType: 'income_statement',
+      entityId: target.id,
+      oldValues: { corporateId: target.corporateId, period: target.period },
+      newValues: { corporateId: input.corporateId, period: input.period },
+    });
+
     return result;
   }
 
@@ -466,6 +504,15 @@ export async function saveIncomeStatement(
   const result = mapIncomeStatementRow(inserted);
   // Background re-evaluation
   reevaluateAlertsForSubsidiary(input.corporateId).catch(console.error);
+
+  await createFRSAuditLog({
+    userId,
+    action: 'create',
+    entityType: 'income_statement',
+    entityId: inserted.id,
+    newValues: { corporateId: input.corporateId, period: input.period },
+  });
+
   return result;
 }
 
@@ -535,7 +582,7 @@ export async function getIncomeStatements(
 }
 
 /** Deletes an income statement by ID with corporate context check. */
-export async function deleteIncomeStatement(id: string, corporateId: string): Promise<void> {
+export async function deleteIncomeStatement(id: string, corporateId: string, userId?: string): Promise<void> {
   const result = await db.delete(incomeStatements)
     .where(and(
       eq(incomeStatements.id, id),
@@ -545,6 +592,14 @@ export async function deleteIncomeStatement(id: string, corporateId: string): Pr
   if (result.rowCount === 0) {
     throw new NotFoundError('Data laba rugi tidak ditemukan atau Anda tidak memiliki akses');
   }
+
+  await createFRSAuditLog({
+    userId: userId ?? '',
+    action: 'delete',
+    entityType: 'income_statement',
+    entityId: id,
+    oldValues: { corporateId },
+  });
 }
 
 // ─── Cash Flow (Weekly) ─────────────────────────────────────────────────────
@@ -623,6 +678,15 @@ export async function saveCashFlow(input: CashFlowInput, userId: string): Promis
       updatedAt: new Date(),
     }).where(eq(weeklyCashFlows.id, target.id)).returning();
 
+    await createFRSAuditLog({
+      userId,
+      action: 'update',
+      entityType: 'weekly_cash_flow',
+      entityId: target.id,
+      oldValues: { corporateId: target.corporateId, period: target.period, week: target.week },
+      newValues: { corporateId: input.corporateId, period: input.period, week: input.week },
+    });
+
     return mapCashFlowRow(updated);
   }
 
@@ -641,6 +705,14 @@ export async function saveCashFlow(input: CashFlowInput, userId: string): Promis
     notes: input.notes,
     createdBy: userId,
   }).returning();
+
+  await createFRSAuditLog({
+    userId,
+    action: 'create',
+    entityType: 'weekly_cash_flow',
+    entityId: inserted.id,
+    newValues: { corporateId: input.corporateId, period: input.period, week: input.week, entityType: input.entityType },
+  });
 
   return mapCashFlowRow(inserted);
 }
@@ -748,7 +820,7 @@ export async function getCashFlows(
 }
 
 /** Deletes a cash flow record by ID with corporate context check. */
-export async function deleteCashFlow(id: string, corporateId: string): Promise<void> {
+export async function deleteCashFlow(id: string, corporateId: string, userId?: string): Promise<void> {
   const result = await db.delete(weeklyCashFlows)
     .where(and(
       eq(weeklyCashFlows.id, id),
@@ -758,5 +830,13 @@ export async function deleteCashFlow(id: string, corporateId: string): Promise<v
   if (result.rowCount === 0) {
     throw new NotFoundError('Data arus kas tidak ditemukan atau Anda tidak memiliki akses');
   }
+
+  await createFRSAuditLog({
+    userId: userId ?? '',
+    action: 'delete',
+    entityType: 'weekly_cash_flow',
+    entityId: id,
+    oldValues: { corporateId },
+  });
 }
 

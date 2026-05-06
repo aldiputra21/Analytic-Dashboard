@@ -36,6 +36,9 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 import { CorporateSelector } from '../shared/CorporateSelector';
 import { DepartmentSelector } from '../shared/DepartmentSelector';
 import { useRealizationConfigs } from '../../../hooks/financial/useRealizationConfigs';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 // Fallback defaults if config fails to load
 const DEFAULT_ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
@@ -140,7 +143,11 @@ export const RealizationManager: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+  const approvalCreate = useApproval('cfd', 'realization', 'create');
+  const approvalEdit = useApproval('cfd', 'realization', 'edit');
+  const approvalDelete = useApproval('cfd', 'realization', 'delete');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -328,6 +335,13 @@ export const RealizationManager: React.FC = () => {
 
   const openModal = (mode: 'create' | 'edit' | 'view', item?: Realization) => {
     setModalMode(mode);
+
+    // Re-fetch workflow status every time modal opens to get latest state
+    if (mode !== 'view') {
+      if (mode === 'create') approvalCreate.recheck();
+      else if (mode === 'edit') approvalEdit.recheck();
+    }
+
     if (item) {
       setEditingId(item.id);
       setFormData({
@@ -373,6 +387,34 @@ export const RealizationManager: React.FC = () => {
       result.error.issues.forEach((err) => {
         toast.error(err.message, { id: err.path.join('-') });
       });
+      return;
+    }
+
+    // Check if approval workflow is active for this action
+    const approvalHook = editingId ? approvalEdit : approvalCreate;
+    if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+      setIsSaving(true);
+      try {
+        const payload = {
+          ...formData,
+          amount: Number(formData.amount),
+          projectId: formData.entityType === 'project' ? (formData.projectId || undefined) : undefined,
+          departmentId: formData.departmentId || undefined
+        };
+        const draft = await approvalHook.createDraft({
+          payload: payload as Record<string, unknown>,
+          entityId: editingId ?? undefined,
+          originalData: editingId ? data.find(d => d.id === editingId) as unknown as Record<string, unknown> | undefined : undefined,
+          files: pendingFiles.length > 0 ? pendingFiles : undefined,
+        });
+        setIsModalOpen(false);
+        setActiveDraftApprovalId(draft.id);
+        toast.success(approvalI18n[language].toast.draftCreated);
+      } catch (err: any) {
+        toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
 
@@ -433,6 +475,26 @@ export const RealizationManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = data.find(d => d.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item } as unknown as Record<string, unknown>,
+            entityId: id,
+            originalData: { ...item } as unknown as Record<string, unknown>,
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(err.message ?? common.errorSave);
+        }
+        return;
+      }
+    }
+
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/cash-realizations/${id}`, { method: 'DELETE' });
@@ -1241,7 +1303,7 @@ export const RealizationManager: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      disabled={isSaving}
+                      disabled={isSaving || (editingId ? approvalEdit.isChecking : approvalCreate.isChecking)}
                       className="px-8 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer disabled:opacity-70 min-w-[120px] justify-center"
                     >
                       {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
@@ -1282,6 +1344,17 @@ export const RealizationManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={fetchData}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -15,6 +15,10 @@ const configSchema = z.object({
     (v) => v.startsWith('postgresql://') || v.startsWith('postgres://'),
     { message: 'DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://)' }
   ),
+  DATABASE_READONLY_URL: z.string().url().refine(
+    (v) => v.startsWith('postgresql://') || v.startsWith('postgres://'),
+    { message: 'DATABASE_READONLY_URL must be a PostgreSQL connection string (postgresql:// or postgres://)' }
+  ).optional(),
   DB_POOL_MAX: z.coerce.number().int().min(1).default(10),
 
   // JWT
@@ -40,8 +44,11 @@ const configSchema = z.object({
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(900000), // 15 minutes default
-  RATE_LIMIT_MAX: z.coerce.number().int().min(0).default(100),
-  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(20),
+  RATE_LIMIT_MAX: z.coerce.number().int().min(0).default(500),             // per-user (authenticated) or per-IP (public); 0 = unlimited
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(0).default(10),         // per-username login attempts per 15 min; 0 = unlimited
+  RATE_LIMIT_AUTH_IP_MAX: z.coerce.number().int().min(0).default(200),     // per-IP login attempts per 15 min; 0 = unlimited
+  RATE_LIMIT_QUERY_MAX: z.coerce.number().int().min(0).default(20),        // test-query & schema endpoints
+  RATE_LIMIT_QUERY_WINDOW_MS: z.coerce.number().int().min(1000).default(60000), // 1 minute default for query endpoints
 });
 
 export type FRSConfig = z.infer<typeof configSchema>;

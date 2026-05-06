@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Archive, Bell, CheckCheck, Radio, RefreshCw } from 'lucide-react';
+import { Archive, Bell, CheckCheck, Download, Radio, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { id, enUS } from 'date-fns/locale';
 import { useNotifications, type NotificationStatus } from '../../../hooks/financial/useNotifications';
@@ -9,12 +9,16 @@ import { cn } from '../../../utils/cn';
 import { alertsI18n } from '../../../i18n/alerts';
 import { ratiosI18n } from '../../../i18n/ratios';
 import { renderNotificationMessage } from '../../../utils/notification';
+import { reportConfigI18n } from '../../../i18n/report-config';
+import { downloadAuthenticatedFile } from '../../../utils/downloadHelper';
+import { toast } from 'sonner';
 
 export const AlertsInbox: React.FC = () => {
   const { token, user, language } = useAuth();
   const { corporates: subsidiaries } = useCorporates();
   const [status, setStatus] = useState<NotificationStatus>('unread');
   const t = alertsI18n[language];
+  const tReport = reportConfigI18n[language];
   const dateLocale = language === 'id' ? id : enUS;
 
   const STATUS_OPTIONS: Array<{ key: NotificationStatus; label: string }> = [
@@ -160,6 +164,29 @@ export const AlertsInbox: React.FC = () => {
                     )}
                   </div>
                   <p className="text-sm text-slate-700">{message}</p>
+                  
+                  {payload.downloadUrl && (
+                    <div className="pt-2">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const downloadUrl = String(payload.downloadUrl);
+                          const filename = String(payload.filename || 'report.xlsx');
+                          
+                          toast.promise(downloadAuthenticatedFile(downloadUrl, filename), {
+                            loading: language === 'id' ? 'Mengunduh...' : 'Downloading...',
+                            success: language === 'id' ? 'Laporan berhasil diunduh' : 'Report downloaded successfully',
+                            error: language === 'id' ? 'Gagal mengunduh laporan' : 'Failed to download report',
+                          });
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-100 cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{tReport.reportPage.downloadButton}</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-3 mt-3 border-t border-slate-100">
                     {notification.sourceEntityType === 'dashboard-alert' && (
                       <>

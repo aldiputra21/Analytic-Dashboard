@@ -12,6 +12,7 @@ export interface NavigationCopy {
     crm: string;
     userManagement: string;
     systemAdmin: string;
+    reportsDynamic: string;
   };
   menus: {
     dashboard: string;
@@ -50,6 +51,7 @@ export interface NavigationCopy {
     broadcast: string;
     approvalMonitor: string;
     approvalConfigs: string;
+    reportConfigManager: string;
   };
   user: {
     logout: string;
@@ -71,6 +73,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       crm: 'CRM',
       userManagement: 'Pengelolaan Pengguna',
       systemAdmin: 'Pengelolaan & Monitoring Sistem',
+      reportsDynamic: 'Laporan',
     },
     menus: {
       dashboard: 'Dashboard',
@@ -109,6 +112,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       broadcast: 'Broadcast Notifikasi',
       approvalMonitor: 'Daftar Persetujuan',
       approvalConfigs: 'Konfigurasi Persetujuan',
+      reportConfigManager: 'Konfigurasi Laporan',
     },
     user: {
       logout: 'Keluar',
@@ -128,6 +132,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       crm: 'CRM',
       userManagement: 'User Management',
       systemAdmin: 'System Management & Monitoring',
+      reportsDynamic: 'Reports',
     },
     menus: {
       dashboard: 'Dashboard',
@@ -166,6 +171,7 @@ export const navigationI18n: Record<Locale, NavigationCopy> = {
       broadcast: 'Notification Broadcast',
       approvalMonitor: 'Approvals',
       approvalConfigs: 'Approval Config',
+      reportConfigManager: 'Report Config',
     },
     user: {
       logout: 'Logout',

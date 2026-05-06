@@ -78,7 +78,7 @@ export function createFinancialStatementRouter(): Router {
       throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
-    await deleteBalanceSheet(req.params.id, corporateId);
+    await deleteBalanceSheet(req.params.id, corporateId, req.user!.userId);
     res.json({ success: true });
   }));
 
@@ -136,7 +136,7 @@ export function createFinancialStatementRouter(): Router {
       throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
-    await deleteIncomeStatement(req.params.id, corporateId);
+    await deleteIncomeStatement(req.params.id, corporateId, req.user!.userId);
     res.json({ success: true });
   }));
 
@@ -197,7 +197,7 @@ export function createFinancialStatementRouter(): Router {
       throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
-    await deleteCashFlow(req.params.id, corporateId);
+    await deleteCashFlow(req.params.id, corporateId, req.user!.userId);
     res.json({ success: true });
   }));
 

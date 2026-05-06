@@ -10,6 +10,26 @@
 import React from 'react';
 import { BalanceSheetForm } from '../shared/forms/BalanceSheetForm';
 import type { BalanceSheetPayload } from '../shared/forms/BalanceSheetForm';
+import { IncomeStatementForm } from '../shared/forms/IncomeStatementForm';
+import type { IncomeStatementPayload } from '../shared/forms/IncomeStatementForm';
+import { IncomeStatementProjectionForm } from '../shared/forms/IncomeStatementProjectionForm';
+import type { IncomeStatementProjectionPayload } from '../shared/forms/IncomeStatementProjectionForm';
+import { WeeklyCashFlowForm } from '../shared/forms/WeeklyCashFlowForm';
+import type { WeeklyCashFlowPayload } from '../shared/forms/WeeklyCashFlowForm';
+import { RealizationForm } from '../shared/forms/RealizationForm';
+import type { RealizationPayload } from '../shared/forms/RealizationForm';
+import { CashFlowProjectionForm } from '../shared/forms/CashFlowProjectionForm';
+import type { CashFlowProjectionPayload } from '../shared/forms/CashFlowProjectionForm';
+import { BankLoanForm } from '../shared/forms/BankLoanForm';
+import type { BankLoanPayload } from '../shared/forms/BankLoanForm';
+import { CorporateForm } from '../shared/forms/CorporateForm';
+import type { CorporatePayload } from '../shared/forms/CorporateForm';
+import { DepartmentForm } from '../shared/forms/DepartmentForm';
+import type { DepartmentPayload } from '../shared/forms/DepartmentForm';
+import { CostCenterForm } from '../shared/forms/CostCenterForm';
+import type { CostCenterPayload } from '../shared/forms/CostCenterForm';
+import { ProjectForm } from '../shared/forms/ProjectForm';
+import type { ProjectPayload } from '../shared/forms/ProjectForm';
 
 // ── ApprovalFormProps — kontrak yang diterima ApprovalDetailModal ─────────────
 
@@ -114,7 +134,99 @@ export const FORM_REGISTRY: Record<string, React.ComponentType<ApprovalFormProps
     },
   ),
 
-  // Tambahkan modul baru di sini:
-  // IncomeStatementApprovalForm: createApprovalFormAdapter(IncomeStatementForm, { ... }),
-  // WeeklyCashFlowApprovalForm: createApprovalFormAdapter(WeeklyCashFlowForm, { ... }),
+  // ── Modul Finansial ──────────────────────────────────────────────────────────
+
+  // Laba Rugi — corporate selector tampil tapi disabled di approval context
+  IncomeStatementApprovalForm: createApprovalFormAdapter<IncomeStatementPayload>(
+    IncomeStatementForm as React.ComponentType<SharedFormProps<IncomeStatementPayload>>,
+    {
+      extraProps: {
+        showCorporateSelector: true,
+        corporateSelectorDisabled: true,
+      },
+    },
+  ),
+
+  // Proyeksi Laba Rugi — tidak ada corporate selector (berbasis departemen)
+  IncomeStatementProjectionApprovalForm: createApprovalFormAdapter<IncomeStatementProjectionPayload>(
+    IncomeStatementProjectionForm as React.ComponentType<SharedFormProps<IncomeStatementProjectionPayload>>,
+  ),
+
+  // Arus Kas Mingguan — corporate selector tampil tapi disabled di approval context
+  WeeklyCashFlowApprovalForm: createApprovalFormAdapter<WeeklyCashFlowPayload>(
+    WeeklyCashFlowForm as React.ComponentType<SharedFormProps<WeeklyCashFlowPayload>>,
+    {
+      extraProps: {
+        showCorporateSelector: true,
+        corporateSelectorDisabled: true,
+      },
+    },
+  ),
+
+  // Realisasi — tidak ada corporate selector (read-only entity fields)
+  RealizationApprovalForm: createApprovalFormAdapter<RealizationPayload>(
+    RealizationForm as React.ComponentType<SharedFormProps<RealizationPayload>>,
+  ),
+
+  // Proyeksi Arus Kas — corporate selector tampil tapi disabled di approval context
+  CashFlowProjectionApprovalForm: createApprovalFormAdapter<CashFlowProjectionPayload>(
+    CashFlowProjectionForm as React.ComponentType<SharedFormProps<CashFlowProjectionPayload>>,
+    {
+      extraProps: {
+        showCorporateSelector: true,
+        corporateSelectorDisabled: true,
+      },
+    },
+  ),
+
+  // Pinjaman Bank — corporate selector tampil tapi disabled di approval context
+  BankLoanApprovalForm: createApprovalFormAdapter<BankLoanPayload>(
+    BankLoanForm as React.ComponentType<SharedFormProps<BankLoanPayload>>,
+    {
+      extraProps: {
+        showCorporateSelector: true,
+        corporateSelectorDisabled: true,
+      },
+    },
+  ),
+
+  // ── Modul Master Data ────────────────────────────────────────────────────────
+
+  // Perusahaan — tidak ada corporate selector (form IS the corporate entity)
+  CorporateApprovalForm: createApprovalFormAdapter<CorporatePayload>(
+    CorporateForm as React.ComponentType<SharedFormProps<CorporatePayload>>,
+  ),
+
+  // Departemen — corporate selector tampil tapi disabled di approval context
+  DepartmentApprovalForm: createApprovalFormAdapter<DepartmentPayload>(
+    DepartmentForm as React.ComponentType<SharedFormProps<DepartmentPayload>>,
+    {
+      extraProps: {
+        showCorporateSelector: true,
+        corporateSelectorDisabled: true,
+      },
+    },
+  ),
+
+  // Cost Center — corporate selector tampil tapi disabled di approval context
+  CostCenterApprovalForm: createApprovalFormAdapter<CostCenterPayload>(
+    CostCenterForm as React.ComponentType<SharedFormProps<CostCenterPayload>>,
+    {
+      extraProps: {
+        showCorporateSelector: true,
+        corporateSelectorDisabled: true,
+      },
+    },
+  ),
+
+  // Proyek — corporate selector tampil tapi disabled di approval context
+  ProjectApprovalForm: createApprovalFormAdapter<ProjectPayload>(
+    ProjectForm as React.ComponentType<SharedFormProps<ProjectPayload>>,
+    {
+      extraProps: {
+        showCorporateSelector: true,
+        corporateSelectorDisabled: true,
+      },
+    },
+  ),
 };

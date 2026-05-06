@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Bell, CheckCheck, ExternalLink, X } from 'lucide-react';
+import { Bell, CheckCheck, ExternalLink, X, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { useNotifications } from '../../../hooks/financial/useNotifications';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCorporates } from '../../../hooks/financial/useCorporates';
@@ -10,7 +11,9 @@ import { ratiosI18n } from '../../../i18n/ratios';
 import { bankLoanI18n } from '../../../i18n/bank-loan';
 import { thresholdI18n } from '../../../i18n/thresholds';
 import { renderNotificationMessage } from '../../../utils/notification';
+import { reportConfigI18n } from '../../../i18n/report-config';
 import { cn } from '../../../utils/cn';
+import { downloadAuthenticatedFile } from '../../../utils/downloadHelper';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 
 interface NotificationPopoverProps {
@@ -28,6 +31,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
   const { corporates } = useCorporates();
   const t = alertsI18n[language];
   const tLoan = bankLoanI18n[language];
+  const tReport = reportConfigI18n[language];
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -185,6 +189,28 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({
                             <p className="text-[10px] text-indigo-500 font-medium mt-1">
                               {categoryLabel}
                             </p>
+
+                            {payload.downloadUrl && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const downloadUrl = String(payload.downloadUrl);
+                                    const filename = String(payload.filename || 'report.xlsx');
+                                    
+                                    toast.promise(downloadAuthenticatedFile(downloadUrl, filename), {
+                                      loading: language === 'id' ? 'Mengunduh...' : 'Downloading...',
+                                      success: language === 'id' ? 'Laporan berhasil diunduh' : 'Report downloaded successfully',
+                                      error: language === 'id' ? 'Gagal mengunduh laporan' : 'Failed to download report',
+                                    });
+                                  }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-colors border border-indigo-100 cursor-pointer"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  <span>{tReport.reportPage.downloadButton}</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

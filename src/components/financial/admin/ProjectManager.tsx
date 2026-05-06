@@ -27,6 +27,9 @@ import { commonsI18n } from '../../../i18n/commons';
 import { CorporateSelector } from '../shared/CorporateSelector';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { z } from 'zod';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 interface Project {
   id: string;
@@ -142,6 +145,13 @@ export const ProjectManager: React.FC = () => {
 
   const canWrite = hasPermission('public.projects.write');
   const canDelete = hasPermission('public.projects.delete');
+
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+
+  const approvalCreate = useApproval('cfd', 'project', 'create');
+  const approvalEdit   = useApproval('cfd', 'project', 'edit');
+  const approvalDelete = useApproval('cfd', 'project', 'delete');
 
   // State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -262,6 +272,11 @@ export const ProjectManager: React.FC = () => {
         isActive: true
       });
     }
+    // Re-fetch workflow status setiap kali modal dibuka agar selalu pakai state terkini.
+    if (!viewOnly) {
+      if (p) approvalEdit.recheck();
+      else approvalCreate.recheck();
+    }
     setIsModalOpen(true);
   };
 
@@ -282,13 +297,34 @@ export const ProjectManager: React.FC = () => {
     setIsSaving(true);
 
     try {
-      const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects';
-      const method = editingProject ? 'PUT' : 'POST';
-
-      const submissionData = {
+      const payload = {
         ...formData,
         status: formData.isActive ? 'active' : 'inactive'
       };
+
+      // Check if approval workflow is active for this action
+      const approvalHook = editingProject ? approvalEdit : approvalCreate;
+      if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+        try {
+          const draft = await approvalHook.createDraft({
+            payload: payload as Record<string, unknown>,
+            entityId: editingProject ? editingProject.id : undefined,
+            originalData: editingProject ? { ...editingProject } : undefined,
+          });
+          setIsModalOpen(false);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
+        } finally {
+          setIsSaving(false);
+        }
+        return;
+      }
+
+      // Normal save flow (no approval workflow)
+      const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects';
+      const method = editingProject ? 'PUT' : 'POST';
 
       const res = await apiFetch(url, {
         method,
@@ -315,6 +351,27 @@ export const ProjectManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = projects.find(p => p.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item } as Record<string, unknown>,
+            entityId: id,
+            originalData: { ...item } as Record<string, unknown>,
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(err.message ?? getErrorMessage('NETWORK_ERROR', language));
+        }
+        return;
+      }
+    }
+
+    // Normal delete flow
     setIsDeleting(true);
 
     try {
@@ -837,7 +894,7 @@ export const ProjectManager: React.FC = () => {
                 {!isViewOnly && (
                   <button
                     type="submit"
-                    disabled={isSaving}
+                    disabled={isSaving || (editingProject ? approvalEdit.isChecking : approvalCreate.isChecking)}
                     className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
                   >
                     {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
@@ -879,6 +936,17 @@ export const ProjectManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Approval Detail Modal */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={fetchProjects}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

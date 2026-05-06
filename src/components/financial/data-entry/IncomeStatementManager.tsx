@@ -32,6 +32,9 @@ import {
 import { incomeStatementI18n } from '../../../i18n/income-statement';
 import { commonsI18n } from '../../../i18n/commons';
 import { z } from 'zod';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 // --- Types ---
 interface IncomeStatement {
@@ -202,6 +205,12 @@ export const IncomeStatementManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+  const approvalCreate = useApproval('cfd', 'income_statement', 'create');
+  const approvalEdit = useApproval('cfd', 'income_statement', 'edit');
+  const approvalDelete = useApproval('cfd', 'income_statement', 'delete');
+
   const { options: corporateOptions, isLoading: isCorpsLoading, corporates, showSelector } = useCorporates();
 
   // Filters
@@ -284,6 +293,27 @@ export const IncomeStatementManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = data.find(d => d.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item },
+            entityId: id,
+            originalData: { ...item },
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(err.message ?? common.errorSave);
+        }
+        return;
+      }
+    }
+
+    // Normal delete flow
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/financial-statements/income-statement/${id}`, {
@@ -309,6 +339,13 @@ export const IncomeStatementManager: React.FC = () => {
 
   const openModal = (mode: 'create' | 'edit' | 'view', item?: IncomeStatement) => {
     setModalMode(mode);
+
+    // Re-fetch workflow status every time modal opens to get latest state
+    if (mode !== 'view') {
+      if (mode === 'create') approvalCreate.recheck();
+      else if (mode === 'edit') approvalEdit.recheck();
+    }
+
     if (item) {
       setFormData({
         ...item,
@@ -344,6 +381,28 @@ export const IncomeStatementManager: React.FC = () => {
       return;
     }
 
+    // Check if approval workflow is active for this action
+    const approvalHook = modalMode === 'create' ? approvalCreate : approvalEdit;
+    if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+      setIsSaving(true);
+      try {
+        const draft = await approvalHook.createDraft({
+          payload: validation.data as Record<string, unknown>,
+          entityId: modalMode === 'edit' ? formData.id : undefined,
+          originalData: modalMode === 'edit' ? { ...formData } : undefined,
+        });
+        setIsModalOpen(false);
+        setActiveDraftApprovalId(draft.id);
+        toast.success(approvalI18n[language].toast.draftCreated);
+      } catch (err: any) {
+        toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
+    // Normal save flow (no approval workflow)
     setIsSaving(true);
     try {
       const url = modalMode === 'edit' ? `/api/financial-statements/income-statement/${formData.id}` : '/api/financial-statements/income-statement';
@@ -800,7 +859,7 @@ export const IncomeStatementManager: React.FC = () => {
                 {modalMode !== 'view' && (
                   <button
                     type="submit"
-                    disabled={isSaving}
+                    disabled={isSaving || (modalMode === 'create' ? approvalCreate.isChecking : approvalEdit.isChecking)}
                     className="px-10 py-3.5 text-xs font-black text-white uppercase tracking-widest bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[200px] cursor-pointer disabled:cursor-not-allowed"
                   >
                     {isSaving ? <RefreshCw className="animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -842,6 +901,17 @@ export const IncomeStatementManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={fetchData}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

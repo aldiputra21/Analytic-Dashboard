@@ -360,6 +360,16 @@ const handleDelete = async (id: string) => {
 | Modul | Entity Type | Actions | Callback Keys | Shared Form | View Component Key |
 |---|---|---|---|---|---|
 | Balance Sheet | `balance_sheet` | create, edit, delete | `handleBalanceSheetCreate`, `handleBalanceSheetEdit`, `handleBalanceSheetDelete` | `BalanceSheetForm.tsx` | `BalanceSheetApprovalForm` |
+| Laba Rugi (Income Statement) | `income_statement` | create, edit, delete | `handleIncomeStatementCreate`, `handleIncomeStatementEdit`, `handleIncomeStatementDelete` | `IncomeStatementForm.tsx` | `IncomeStatementApprovalForm` |
+| Proyeksi Laba Rugi (Income Statement Projection) | `income_statement_projection` | create, edit, delete | `handleIncomeStatementProjectionCreate`, `handleIncomeStatementProjectionEdit`, `handleIncomeStatementProjectionDelete` | `IncomeStatementProjectionForm.tsx` | `IncomeStatementProjectionApprovalForm` |
+| Arus Kas Mingguan (Weekly Cash Flow) | `weekly_cash_flow` | create, edit, delete | `handleWeeklyCashFlowCreate`, `handleWeeklyCashFlowEdit`, `handleWeeklyCashFlowDelete` | `WeeklyCashFlowForm.tsx` | `WeeklyCashFlowApprovalForm` |
+| Realisasi (Realization) | `realization` | create, edit, delete | `handleRealizationCreate`, `handleRealizationEdit`, `handleRealizationDelete` | `RealizationForm.tsx` | `RealizationApprovalForm` |
+| Proyeksi Arus Kas (Cash Flow Projection) | `cash_flow_projection` | create, edit, delete | `handleCashFlowProjectionCreate`, `handleCashFlowProjectionEdit`, `handleCashFlowProjectionDelete` | `CashFlowProjectionForm.tsx` | `CashFlowProjectionApprovalForm` |
+| Pinjaman Bank (Bank Loan) | `bank_loan` | create, edit, delete | `handleBankLoanCreate`, `handleBankLoanEdit`, `handleBankLoanDelete` | `BankLoanForm.tsx` | `BankLoanApprovalForm` |
+| Perusahaan (Corporate) | `corporate` | create, edit, delete | `handleCorporateCreate`, `handleCorporateEdit`, `handleCorporateDelete` | `CorporateForm.tsx` | `CorporateApprovalForm` |
+| Departemen (Department) | `department` | create, edit, delete | `handleDepartmentCreate`, `handleDepartmentEdit`, `handleDepartmentDelete` | `DepartmentForm.tsx` | `DepartmentApprovalForm` |
+| Cost Center | `cost_center` | create, edit, delete | `handleCostCenterCreate`, `handleCostCenterEdit`, `handleCostCenterDelete` | `CostCenterForm.tsx` | `CostCenterApprovalForm` |
+| Proyek (Project) | `project` | create, edit, delete | `handleProjectCreate`, `handleProjectEdit`, `handleProjectDelete` | `ProjectForm.tsx` | `ProjectApprovalForm` |
 
 ---
 

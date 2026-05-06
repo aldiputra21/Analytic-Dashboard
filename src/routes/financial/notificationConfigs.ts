@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { notificationConfigs, roles } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
@@ -111,6 +112,16 @@ export function createNotificationConfigsRouter(): Router {
       })
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'create',
+      entityType: 'notification_config',
+      entityId: config.id,
+      newValues: { module, eventType, targetRoles, isActive },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.status(201).json(config);
   }));
 
@@ -163,6 +174,17 @@ export function createNotificationConfigsRouter(): Router {
       .where(eq(notificationConfigs.id, req.params.id))
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'update',
+      entityType: 'notification_config',
+      entityId: req.params.id,
+      oldValues: { module: existing.module, eventType: existing.eventType, targetRoles: existing.targetRoles, isActive: existing.isActive },
+      newValues: data,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.json(updated);
   }));
 
@@ -186,6 +208,16 @@ export function createNotificationConfigsRouter(): Router {
     }
 
     await db.delete(notificationConfigs).where(eq(notificationConfigs.id, req.params.id));
+
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'delete',
+      entityType: 'notification_config',
+      entityId: req.params.id,
+      oldValues: { module: existing.module, eventType: existing.eventType },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.json({ success: true });
   }));

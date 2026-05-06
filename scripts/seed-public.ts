@@ -121,6 +121,11 @@ async function main() {
     { key: 'public.approval_configs.write', module: 'public', description: 'Manage approval workflow configs' },
     { key: 'public.approval_configs.delete', module: 'public', description: 'Delete approval workflow configs' },
 
+    // Dynamic Report Configs
+    { key: 'public.report_configs.read', module: 'public', description: 'Read dynamic report configurations' },
+    { key: 'public.report_configs.write', module: 'public', description: 'Manage dynamic report configurations' },
+    { key: 'public.report_configs.delete', module: 'public', description: 'Delete dynamic report configurations' },
+
     // CRM Module
     { key: 'crm.dashboard.read', module: 'crm', description: 'Read CRM dashboard' },
     { key: 'crm.customers.read', module: 'crm', description: 'Read customers' },
@@ -539,6 +544,8 @@ async function main() {
       description: 'Industry-specific threshold overrides',
       createdBy: SYSTEM_ACTOR_ID
     },
+    { key: 'report_template_path', value: './storage/report-templates', description: 'Folder penyimpanan template Excel untuk laporan dinamis', createdBy: SYSTEM_ACTOR_ID },
+    { key: 'report_output_path', value: './storage/report-outputs', description: 'Folder penyimpanan file output laporan dinamis', createdBy: SYSTEM_ACTOR_ID },
   ]).onConflictDoNothing();
 
   // ── Notification Configs ─────────────────────────────────
@@ -604,6 +611,7 @@ async function main() {
   const financeLeaderRoleId = roleMap.get('finance_leader')!;
   const financeManagerRoleId = roleMap.get('finance_manager')!;
   const financeStaffRoleId = roleMap.get('finance_staff')!;
+  const corporateAdminRoleId = roleMap.get('corporate_admin')!;
 
   const balanceSheetSubjectFields: Array<{ field: string; label: string; type: 'string' | 'currency' | 'date' | 'number' }> = [
     { field: 'corporateName', label: 'Perusahaan', type: 'string' },
@@ -703,6 +711,430 @@ async function main() {
         }
         // Jika sudah ada, biarkan — perubahan step dilakukan via ApprovalConfigManager
       }
+    }
+
+    console.log(`   ✅ Workflow: ${workflow.name}`);
+  }
+
+  // ── Approval Workflows — 10 New Modules (30 entries) ─────
+  console.log('✅ Seeding approval workflows for 10 new modules...');
+
+  type SubjectField = { field: string; label: string; type: 'string' | 'currency' | 'date' | 'number' };
+
+  // Subject fields per module
+  const incomeStatementSubjectFields: SubjectField[] = [
+    { field: 'corporateName', label: 'Perusahaan', type: 'string' },
+    { field: 'period', label: 'Periode', type: 'date' },
+  ];
+  const incomeStatementProjectionSubjectFields: SubjectField[] = [
+    { field: 'departmentName', label: 'Departemen', type: 'string' },
+    { field: 'fiscalYear', label: 'Tahun Fiskal', type: 'number' },
+  ];
+  const weeklyCashFlowSubjectFields: SubjectField[] = [
+    { field: 'corporateName', label: 'Perusahaan', type: 'string' },
+    { field: 'weekStart', label: 'Minggu Mulai', type: 'date' },
+  ];
+  const realizationSubjectFields: SubjectField[] = [
+    { field: 'departmentName', label: 'Departemen', type: 'string' },
+    { field: 'transactionDate', label: 'Tanggal Transaksi', type: 'date' },
+  ];
+  const cashFlowProjectionSubjectFields: SubjectField[] = [
+    { field: 'corporateName', label: 'Perusahaan', type: 'string' },
+    { field: 'fiscalYear', label: 'Tahun Fiskal', type: 'number' },
+  ];
+  const bankLoanSubjectFields: SubjectField[] = [
+    { field: 'bankName', label: 'Bank', type: 'string' },
+    { field: 'loanAmount', label: 'Jumlah Pinjaman', type: 'currency' },
+  ];
+  const corporateSubjectFields: SubjectField[] = [
+    { field: 'name', label: 'Nama', type: 'string' },
+    { field: 'code', label: 'Kode', type: 'string' },
+  ];
+  const departmentSubjectFields: SubjectField[] = [
+    { field: 'name', label: 'Nama', type: 'string' },
+    { field: 'corporateName', label: 'Perusahaan', type: 'string' },
+  ];
+  const costCenterSubjectFields: SubjectField[] = [
+    { field: 'name', label: 'Nama', type: 'string' },
+    { field: 'code', label: 'Kode', type: 'string' },
+  ];
+  const projectSubjectFields: SubjectField[] = [
+    { field: 'name', label: 'Nama', type: 'string' },
+    { field: 'corporateName', label: 'Perusahaan', type: 'string' },
+  ];
+
+  const newModuleWorkflowDefs = [
+    // ── 1. Income Statement (Laba Rugi) ──────────────────────
+    {
+      module: 'cfd', entityType: 'income_statement', action: 'create',
+      name: 'Persetujuan Input Laba Rugi', nameEn: 'Income Statement Input Approval',
+      description: 'Workflow persetujuan untuk input data laba rugi baru',
+      callbackHandler: 'handleIncomeStatementCreate', viewComponent: 'IncomeStatementApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: incomeStatementSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'income_statement', action: 'edit',
+      name: 'Persetujuan Ubah Laba Rugi', nameEn: 'Income Statement Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data laba rugi',
+      callbackHandler: 'handleIncomeStatementEdit', viewComponent: 'IncomeStatementApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: incomeStatementSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'income_statement', action: 'delete',
+      name: 'Persetujuan Hapus Laba Rugi', nameEn: 'Income Statement Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data laba rugi',
+      callbackHandler: 'handleIncomeStatementDelete', viewComponent: 'IncomeStatementApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: incomeStatementSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 2. Income Statement Projection (Proyeksi Laba Rugi) ──
+    {
+      module: 'cfd', entityType: 'income_statement_projection', action: 'create',
+      name: 'Persetujuan Input Proyeksi Laba Rugi', nameEn: 'Income Statement Projection Input Approval',
+      description: 'Workflow persetujuan untuk input data proyeksi laba rugi baru',
+      callbackHandler: 'handleIncomeStatementProjectionCreate', viewComponent: 'IncomeStatementProjectionApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: incomeStatementProjectionSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'income_statement_projection', action: 'edit',
+      name: 'Persetujuan Ubah Proyeksi Laba Rugi', nameEn: 'Income Statement Projection Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data proyeksi laba rugi',
+      callbackHandler: 'handleIncomeStatementProjectionEdit', viewComponent: 'IncomeStatementProjectionApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: incomeStatementProjectionSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'income_statement_projection', action: 'delete',
+      name: 'Persetujuan Hapus Proyeksi Laba Rugi', nameEn: 'Income Statement Projection Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data proyeksi laba rugi',
+      callbackHandler: 'handleIncomeStatementProjectionDelete', viewComponent: 'IncomeStatementProjectionApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: incomeStatementProjectionSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 3. Weekly Cash Flow (Arus Kas Mingguan) ───────────────
+    {
+      module: 'cfd', entityType: 'weekly_cash_flow', action: 'create',
+      name: 'Persetujuan Input Arus Kas Mingguan', nameEn: 'Weekly Cash Flow Input Approval',
+      description: 'Workflow persetujuan untuk input data arus kas mingguan baru',
+      callbackHandler: 'handleWeeklyCashFlowCreate', viewComponent: 'WeeklyCashFlowApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: weeklyCashFlowSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'weekly_cash_flow', action: 'edit',
+      name: 'Persetujuan Ubah Arus Kas Mingguan', nameEn: 'Weekly Cash Flow Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data arus kas mingguan',
+      callbackHandler: 'handleWeeklyCashFlowEdit', viewComponent: 'WeeklyCashFlowApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: weeklyCashFlowSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'weekly_cash_flow', action: 'delete',
+      name: 'Persetujuan Hapus Arus Kas Mingguan', nameEn: 'Weekly Cash Flow Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data arus kas mingguan',
+      callbackHandler: 'handleWeeklyCashFlowDelete', viewComponent: 'WeeklyCashFlowApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: weeklyCashFlowSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 4. Realization (Realisasi) ────────────────────────────
+    {
+      module: 'cfd', entityType: 'realization', action: 'create',
+      name: 'Persetujuan Input Realisasi', nameEn: 'Realization Input Approval',
+      description: 'Workflow persetujuan untuk input data realisasi baru',
+      callbackHandler: 'handleRealizationCreate', viewComponent: 'RealizationApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: realizationSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'realization', action: 'edit',
+      name: 'Persetujuan Ubah Realisasi', nameEn: 'Realization Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data realisasi',
+      callbackHandler: 'handleRealizationEdit', viewComponent: 'RealizationApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: realizationSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'realization', action: 'delete',
+      name: 'Persetujuan Hapus Realisasi', nameEn: 'Realization Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data realisasi',
+      callbackHandler: 'handleRealizationDelete', viewComponent: 'RealizationApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: realizationSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 5. Cash Flow Projection (Proyeksi Arus Kas) ───────────
+    {
+      module: 'cfd', entityType: 'cash_flow_projection', action: 'create',
+      name: 'Persetujuan Input Proyeksi Arus Kas', nameEn: 'Cash Flow Projection Input Approval',
+      description: 'Workflow persetujuan untuk input data proyeksi arus kas baru',
+      callbackHandler: 'handleCashFlowProjectionCreate', viewComponent: 'CashFlowProjectionApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: cashFlowProjectionSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'cash_flow_projection', action: 'edit',
+      name: 'Persetujuan Ubah Proyeksi Arus Kas', nameEn: 'Cash Flow Projection Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data proyeksi arus kas',
+      callbackHandler: 'handleCashFlowProjectionEdit', viewComponent: 'CashFlowProjectionApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: cashFlowProjectionSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'cash_flow_projection', action: 'delete',
+      name: 'Persetujuan Hapus Proyeksi Arus Kas', nameEn: 'Cash Flow Projection Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data proyeksi arus kas',
+      callbackHandler: 'handleCashFlowProjectionDelete', viewComponent: 'CashFlowProjectionApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: cashFlowProjectionSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 6. Bank Loan (Pinjaman Bank) ──────────────────────────
+    {
+      module: 'cfd', entityType: 'bank_loan', action: 'create',
+      name: 'Persetujuan Input Pinjaman Bank', nameEn: 'Bank Loan Input Approval',
+      description: 'Workflow persetujuan untuk input data pinjaman bank baru',
+      callbackHandler: 'handleBankLoanCreate', viewComponent: 'BankLoanApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: bankLoanSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'bank_loan', action: 'edit',
+      name: 'Persetujuan Ubah Pinjaman Bank', nameEn: 'Bank Loan Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data pinjaman bank',
+      callbackHandler: 'handleBankLoanEdit', viewComponent: 'BankLoanApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: bankLoanSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'bank_loan', action: 'delete',
+      name: 'Persetujuan Hapus Pinjaman Bank', nameEn: 'Bank Loan Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data pinjaman bank',
+      callbackHandler: 'handleBankLoanDelete', viewComponent: 'BankLoanApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: bankLoanSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 7. Corporate (Perusahaan) — Master Data ───────────────
+    {
+      module: 'cfd', entityType: 'corporate', action: 'create',
+      name: 'Persetujuan Input Perusahaan', nameEn: 'Corporate Input Approval',
+      description: 'Workflow persetujuan untuk input data perusahaan baru',
+      callbackHandler: 'handleCorporateCreate', viewComponent: 'CorporateApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: corporateSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'corporate', action: 'edit',
+      name: 'Persetujuan Ubah Perusahaan', nameEn: 'Corporate Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data perusahaan',
+      callbackHandler: 'handleCorporateEdit', viewComponent: 'CorporateApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: corporateSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'corporate', action: 'delete',
+      name: 'Persetujuan Hapus Perusahaan', nameEn: 'Corporate Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data perusahaan',
+      callbackHandler: 'handleCorporateDelete', viewComponent: 'CorporateApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: corporateSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 8. Department (Departemen) — Master Data ──────────────
+    {
+      module: 'cfd', entityType: 'department', action: 'create',
+      name: 'Persetujuan Input Departemen', nameEn: 'Department Input Approval',
+      description: 'Workflow persetujuan untuk input data departemen baru',
+      callbackHandler: 'handleDepartmentCreate', viewComponent: 'DepartmentApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: departmentSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'department', action: 'edit',
+      name: 'Persetujuan Ubah Departemen', nameEn: 'Department Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data departemen',
+      callbackHandler: 'handleDepartmentEdit', viewComponent: 'DepartmentApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: departmentSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'department', action: 'delete',
+      name: 'Persetujuan Hapus Departemen', nameEn: 'Department Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data departemen',
+      callbackHandler: 'handleDepartmentDelete', viewComponent: 'DepartmentApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: departmentSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 9. Cost Center — Master Data ──────────────────────────
+    {
+      module: 'cfd', entityType: 'cost_center', action: 'create',
+      name: 'Persetujuan Input Cost Center', nameEn: 'Cost Center Input Approval',
+      description: 'Workflow persetujuan untuk input data cost center baru',
+      callbackHandler: 'handleCostCenterCreate', viewComponent: 'CostCenterApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: costCenterSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'cost_center', action: 'edit',
+      name: 'Persetujuan Ubah Cost Center', nameEn: 'Cost Center Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data cost center',
+      callbackHandler: 'handleCostCenterEdit', viewComponent: 'CostCenterApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: costCenterSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'cost_center', action: 'delete',
+      name: 'Persetujuan Hapus Cost Center', nameEn: 'Cost Center Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data cost center',
+      callbackHandler: 'handleCostCenterDelete', viewComponent: 'CostCenterApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: costCenterSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── 10. Project (Proyek) — Master Data ────────────────────
+    {
+      module: 'cfd', entityType: 'project', action: 'create',
+      name: 'Persetujuan Input Proyek', nameEn: 'Project Input Approval',
+      description: 'Workflow persetujuan untuk input data proyek baru',
+      callbackHandler: 'handleProjectCreate', viewComponent: 'ProjectApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: projectSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'project', action: 'edit',
+      name: 'Persetujuan Ubah Proyek', nameEn: 'Project Edit Approval',
+      description: 'Workflow persetujuan untuk perubahan data proyek',
+      callbackHandler: 'handleProjectEdit', viewComponent: 'ProjectApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: projectSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'project', action: 'delete',
+      name: 'Persetujuan Hapus Proyek', nameEn: 'Project Delete Approval',
+      description: 'Workflow persetujuan untuk penghapusan data proyek',
+      callbackHandler: 'handleProjectDelete', viewComponent: 'ProjectApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: projectSubjectFields,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+  ];
+
+  for (const wf of newModuleWorkflowDefs) {
+    const { steps, ...workflowData } = wf;
+
+    const [workflow] = await db
+      .insert(approvalWorkflows)
+      .values({ ...workflowData, createdBy: SYSTEM_ACTOR_ID })
+      .onConflictDoUpdate({
+        target: [approvalWorkflows.module, approvalWorkflows.entityType, approvalWorkflows.action],
+        set: {
+          name: workflowData.name,
+          nameEn: workflowData.nameEn,
+          description: workflowData.description,
+          callbackHandler: workflowData.callbackHandler,
+          viewComponent: workflowData.viewComponent,
+          makerRole: workflowData.makerRole,
+          subjectFields: workflowData.subjectFields,
+          updatedBy: SYSTEM_ACTOR_ID,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    const existingSteps = await db.select({ id: approvalWorkflowSteps.id })
+      .from(approvalWorkflowSteps)
+      .where(eq(approvalWorkflowSteps.workflowId, workflow.id));
+
+    if (existingSteps.length === 0) {
+      await db.insert(approvalWorkflowSteps).values(
+        steps.map(s => ({ ...s, workflowId: workflow.id }))
+      );
     }
 
     console.log(`   ✅ Workflow: ${workflow.name}`);

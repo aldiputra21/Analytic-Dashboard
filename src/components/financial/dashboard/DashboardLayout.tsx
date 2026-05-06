@@ -1,13 +1,14 @@
 // DashboardLayout.tsx - Main layout with sidebar navigation and header
 // Requirements: 4.2, 9.1
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, BarChart3, TrendingUp, FileText, Settings,
   Users, Upload, Bell, LogOut, Building2, ChevronLeft, ChevronRight,
   Shield, Menu, Target, Database, UserSquare2, FolderKanban,
   CheckCircle, Receipt, ChevronDown, Scale, FileBarChart, ArrowLeftRight,
   ClipboardList, Landmark, DollarSign, Layers, Languages, Megaphone,
+  FileSpreadsheet,
 } from 'lucide-react';import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { UserRole } from '../../../types/financial/user';
@@ -18,6 +19,7 @@ import { weeklyCashFlowI18n } from '../../../i18n/weekly-cash-flow';
 import { navigationI18n } from '../../../i18n/navigation';
 import { useNetworkResilience } from '../../../hooks/financial/useNetworkResilience';
 import { NotificationPopover } from './NotificationPopover';
+import { apiFetch } from '../../../services/financial/apiFetch';
 
 export type FRSPage =
   | 'dashboard' | 'benchmarking' | 'trends' | 'reports' | 'alerts'
@@ -35,7 +37,10 @@ export type FRSPage =
   | 'crm-proposals' | 'crm-contracts' | 'crm-approvals' | 'crm-reimburse'
   | 'notification-broadcast'
   // Approval module
-  | 'approval-monitor' | 'approval-configs';
+  | 'approval-monitor' | 'approval-configs'
+  // Dynamic Excel Report module
+  | 'report-config-manager'
+  | `report-${string}`;
 
 interface NavChild {
   id: FRSPage;
@@ -50,11 +55,18 @@ interface NavItem {
   icon: React.ElementType;
   requiredPermissions: string[];
   badge?: number;
-  group: 'main' | 'approval' | 'financial-statements' | 'cash-flow' | 'corporate-management' | 'business-management' | 'crm' | 'user-management' | 'system-admin';
+  group: 'main' | 'approval' | 'financial-statements' | 'cash-flow' | 'corporate-management' | 'business-management' | 'crm' | 'user-management' | 'system-admin' | 'reports-dynamic';
   children?: NavChild[];
 }
 
 const CRM_PAGES: FRSPage[] = ['crm-dashboard', 'crm-opportunities', 'crm-customers', 'crm-proposals', 'crm-contracts', 'crm-approvals', 'crm-reimburse'];
+
+// Shape returned by GET /api/frs/report-configs/menu
+interface ReportMenuConfig {
+  id: string;
+  titleId: string;
+  titleEn: string;
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -70,13 +82,39 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   useNetworkResilience();
   const t = navigationI18n[language];
 
+  // ── Dynamic report menu items ──────────────────────────────────────────────
+  const [reportMenuConfigs, setReportMenuConfigs] = useState<ReportMenuConfig[]>([]);
+  const [reportMenuLoading, setReportMenuLoading] = useState(true);
+
+  const fetchReportMenu = useCallback(async () => {
+    if (!user) {
+      setReportMenuLoading(false);
+      return;
+    }
+    setReportMenuLoading(true);
+    try {
+      const res = await apiFetch('/api/frs/report-configs/menu');
+      if (res.ok) {
+        const data: ReportMenuConfig[] = await res.json();
+        setReportMenuConfigs(data);
+      } else {
+        setReportMenuConfigs([]);
+      }
+    } catch {
+      setReportMenuConfigs([]);
+    } finally {
+      setReportMenuLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchReportMenu();
+  }, [fetchReportMenu]);
+
   const navItems = useMemo(() => {
     const items: NavItem[] = [
       // Main
       { id: 'dashboard', label: t.menus.dashboard, icon: LayoutDashboard, group: 'main', requiredPermissions: ['cfd.dashboard.read'] },
-      { id: 'benchmarking', label: t.menus.benchmarking, icon: BarChart3, group: 'main', requiredPermissions: ['cfd.benchmarking.read'] },
-      { id: 'trends', label: t.menus.trends, icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
-      { id: 'reports', label: t.menus.reports, icon: FileText, group: 'main', requiredPermissions: ['cfd.reports.read'] },
 
       // Approval — grup baru, posisi di bawah Analitik
       { id: 'approval-monitor', label: t.menus.approvalMonitor, icon: ClipboardList, requiredPermissions: ['approvals.read'], group: 'approval' },
@@ -133,6 +171,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { id: 'system-configs', label: t.menus.systemConfigs, icon: Settings, requiredPermissions: ['public.system_configs.read'], group: 'system-admin' },
       { id: 'notification-broadcast', label: t.menus.broadcast, icon: Megaphone, requiredPermissions: ['public.notification.broadcast'], group: 'system-admin' },
       { id: 'approval-configs', label: t.menus.approvalConfigs, icon: CheckCircle, requiredPermissions: ['public.approval_configs.read'], group: 'system-admin' },
+      { id: 'report-config-manager', label: t.menus.reportConfigManager, icon: FileSpreadsheet, requiredPermissions: ['public.report_configs.read'], group: 'system-admin' },
       { id: 'audit-logs', label: t.menus.auditLog, icon: Shield, requiredPermissions: ['cfd.audit_log.read'], group: 'system-admin' },
     ];
     return items;
@@ -163,6 +202,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       { key: 'cash-flow', label: t.groups.cashFlow },
       { key: 'corporate-management', label: t.groups.corporateManagement },
       { key: 'crm', label: t.groups.crm },
+      { key: 'reports-dynamic', label: t.groups.reportsDynamic },
       { key: 'business-management', label: t.groups.businessManagement },
       { key: 'user-management', label: t.groups.userManagement },
       { key: 'system-admin', label: t.groups.systemAdmin },
@@ -180,6 +220,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       const crmItem = navItems.find(n => n.id === 'crm-dashboard');
       const child = crmItem?.children?.find(c => c.id === currentPage);
       return child ? t.user.breadcrumbCrm.replace('{page}', child.label) : 'CRM';
+    }
+    // Dynamic report pages
+    if (currentPage.startsWith('report-')) {
+      const configId = currentPage.slice('report-'.length);
+      const config = reportMenuConfigs.find(c => c.id === configId);
+      if (config) {
+        return language === 'id' ? config.titleId : config.titleEn;
+      }
     }
     return navItems.find(n => n.id === currentPage)?.label ?? 'Dashboard';
   };
@@ -202,6 +250,67 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       {/* Nav */}
       <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
         {groups.map(({ key, label }) => {
+          // ── Dynamic report menu group ──────────────────────────────────────
+          if (key === 'reports-dynamic') {
+            // Hide group entirely if loading or no accessible configs
+            if (reportMenuLoading) {
+              return (
+                <div key={key} className="mb-1">
+                  {!collapsed && (
+                    <p className="px-3 pt-3 pb-1 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                      {label}
+                    </p>
+                  )}
+                  {collapsed && <div className="border-t border-slate-700 mx-2 my-2" />}
+                  {/* Skeleton items */}
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        'mx-1 my-0.5 h-9 rounded-lg bg-slate-800 animate-pulse',
+                        collapsed ? 'w-8' : 'w-full'
+                      )}
+                    />
+                  ))}
+                </div>
+              );
+            }
+            if (reportMenuConfigs.length === 0) return null;
+            return (
+              <div key={key} className="mb-1">
+                {!collapsed && (
+                  <p className="px-3 pt-3 pb-1 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                    {label}
+                  </p>
+                )}
+                {collapsed && <div className="border-t border-slate-700 mx-2 my-2" />}
+                {reportMenuConfigs.map((config) => {
+                  const pageId = `report-${config.id}` as FRSPage;
+                  const isActive = currentPage === pageId;
+                  const menuLabel = language === 'id' ? config.titleId : config.titleEn;
+                  return (
+                    <button
+                      key={config.id}
+                      onClick={() => { onNavigate(pageId); setMobileOpen(false); }}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative cursor-pointer',
+                        isActive ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white',
+                        collapsed && 'justify-center px-2'
+                      )}
+                      title={collapsed ? menuLabel : undefined}
+                    >
+                      <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                      {!collapsed && (
+                        <span className="flex-1 text-left truncate">{menuLabel}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          }
+
+          // ── Standard static menu groups ────────────────────────────────────
           const items = visibleItems.filter(i => i.group === key);
           if (items.length === 0) return null;
           return (

@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { id, enUS } from 'date-fns/locale';
 import { Locale } from '../i18n/commons';
+import { reportConfigI18n } from '../i18n/report-config';
 import { thresholdI18n } from '../i18n/thresholds';
 import { ratiosI18n } from '../i18n/ratios';
 import { bankLoanI18n } from '../i18n/bank-loan';
@@ -126,6 +127,23 @@ export const renderNotificationMessage = (notification: any, language: Locale) =
     }
   }
 
-  // 3. Fallback to message or templateKey
+  // 3. Handle Dynamic Reports
+  if (templateKey?.startsWith('report_')) {
+    const reportI18n = reportConfigI18n[language].notifications;
+    const template = (reportI18n as any)[templateKey];
+    if (template) {
+      const reportTitle = language === 'id' 
+        ? (templateVars?.reportTitleId || templateVars?.reportTitleEn || 'Laporan')
+        : (templateVars?.reportTitleEn || templateVars?.reportTitleId || 'Report');
+      return template.replace('{reportTitle}', reportTitle);
+    }
+  }
+
+  // 4. Handle generic broadcast messages
+  if (templateKey === 'broadcast' && payload?.message) {
+    return payload.message;
+  }
+
+  // 5. Fallback to message or templateKey
   return String(payload?.message || payload?.messageKey || templateKey || 'Notification');
 };

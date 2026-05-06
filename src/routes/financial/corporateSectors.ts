@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { corporateSectors, corporates } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,16 @@ export function createCorporateSectorsRouter(): Router {
       })
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'create',
+      entityType: 'corporate_sector',
+      entityId: sector.id,
+      newValues: { code, labelId, labelEn, status },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.status(201).json(sector);
   }));
 
@@ -172,6 +183,17 @@ export function createCorporateSectorsRouter(): Router {
       .where(eq(corporateSectors.id, req.params.id))
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'update',
+      entityType: 'corporate_sector',
+      entityId: req.params.id,
+      oldValues: { code: existing.code, labelId: existing.labelId, labelEn: existing.labelEn, status: existing.status },
+      newValues: data,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.json(updated);
   }));
 
@@ -204,6 +226,16 @@ export function createCorporateSectorsRouter(): Router {
     }
 
     await db.delete(corporateSectors).where(eq(corporateSectors.id, req.params.id));
+
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'delete',
+      entityType: 'corporate_sector',
+      entityId: req.params.id,
+      oldValues: { code: existing.code, labelId: existing.labelId, labelEn: existing.labelEn },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.json({ success: true });
   }));

@@ -78,7 +78,8 @@ export function createSystemConfigRouter(): Router {
    */
   router.delete('/:key', requirePermission('public.system_configs.write'), asyncHandler(async (req: Request, res: Response) => {
     const { key } = req.params;
-    await configService.delete(key);
+    const userId = req.user!.userId;
+    await configService.delete(key, userId);
     res.json({ success: true });
   }));
 

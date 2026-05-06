@@ -117,6 +117,47 @@ export async function createNotification(input: CreateNotificationInput) {
   return created;
 }
 
+export async function upsertNotification(input: CreateNotificationInput & { conflictEntityId?: string; conflictEntityType?: string }) {
+  const sourceEntityType = input.conflictEntityType ?? input.sourceEntityType;
+  const sourceEntityId = input.conflictEntityId ?? input.sourceEntityId;
+
+  const [existing] = await db.select().from(notifications)
+    .where(and(
+      eq(notifications.sourceModule, input.sourceModule),
+      eq(notifications.sourceEntityType, sourceEntityType),
+      eq(notifications.sourceEntityId, sourceEntityId),
+      eq(notifications.recipientUserId, input.recipientUserId)
+    ))
+    .limit(1);
+
+  if (existing) {
+    const [updated] = await db.update(notifications)
+      .set({
+        templateKey: input.templateKey,
+        templateVars: input.templateVars ?? {},
+        payload: input.payload ?? {},
+        severity: input.severity ?? 'medium',
+        status: 'unread',
+        updatedBy: input.createdBy,
+        updatedAt: new Date(),
+      })
+      .where(eq(notifications.id, existing.id))
+      .returning();
+
+    if (updated) {
+      emitNotificationEvent({
+        type: 'created', // Treat update to unread as a new notification for the user
+        userId: updated.recipientUserId,
+        notificationId: updated.id,
+        occurredAt: new Date().toISOString(),
+      });
+    }
+    return updated;
+  }
+
+  return createNotification(input);
+}
+
 export async function markNotificationAsRead(notificationId: string, userId: string) {
   const [updated] = await db.update(notifications)
     .set({

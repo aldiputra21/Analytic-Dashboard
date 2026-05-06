@@ -2,6 +2,7 @@ import { eq, and, desc, sql, ilike, count, inArray } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { cashFlowProjectionHeaders, cashFlowProjectionDetails } from '../../db/schema/cfd';
 import { corporates as corporatesTable } from '../../db/schema/public';
+import { createFRSAuditLog } from './auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors.js';
 
 export interface CashFlowProjectionDetailInput {
@@ -166,6 +167,14 @@ export class CashFlowProjectionService {
         );
       }
 
+      await createFRSAuditLog({
+        userId,
+        action: 'create',
+        entityType: 'cash_flow_projection',
+        entityId: header.id,
+        newValues: { corporateId: input.corporateId, fiscalYear: input.fiscalYear, initialBalance: input.initialBalance },
+      });
+
       return header;
     });
   }
@@ -219,6 +228,15 @@ export class CashFlowProjectionService {
         }
       }
 
+      await createFRSAuditLog({
+        userId,
+        action: 'update',
+        entityType: 'cash_flow_projection',
+        entityId: id,
+        oldValues: { initialBalance: existing.initialBalance, notes: existing.notes },
+        newValues: { initialBalance: input.initialBalance, notes: input.notes },
+      });
+
       return { id, success: true };
     });
   }
@@ -226,9 +244,19 @@ export class CashFlowProjectionService {
   /**
    * Delete projection
    */
-  static async deleteProjection(id: string) {
+  static async deleteProjection(id: string, userId?: string) {
     // Details will be deleted automatically due to CASCADE
     const result = await db.delete(cashFlowProjectionHeaders).where(eq(cashFlowProjectionHeaders.id, id));
+
+    if (result.rowCount > 0) {
+      await createFRSAuditLog({
+        userId: userId ?? '',
+        action: 'delete',
+        entityType: 'cash_flow_projection',
+        entityId: id,
+      });
+    }
+
     return { success: result.rowCount > 0 };
   }
 }

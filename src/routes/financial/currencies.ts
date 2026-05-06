@@ -9,6 +9,7 @@ import { db } from '../../db/connection';
 import { currencies, corporates } from '../../db/schema/public';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
@@ -102,6 +103,16 @@ export function createCurrenciesRouter(): Router {
       })
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'create',
+      entityType: 'currency',
+      entityId: currency.id,
+      newValues: { code, label, status },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.status(201).json(currency);
   }));
 
@@ -168,6 +179,17 @@ export function createCurrenciesRouter(): Router {
       .where(eq(currencies.id, req.params.id))
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'update',
+      entityType: 'currency',
+      entityId: req.params.id,
+      oldValues: { code: existing.code, label: existing.label, status: existing.status },
+      newValues: data,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.json(updated);
   }));
 
@@ -200,6 +222,16 @@ export function createCurrenciesRouter(): Router {
     }
 
     await db.delete(currencies).where(eq(currencies.id, req.params.id));
+
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'delete',
+      entityType: 'currency',
+      entityId: req.params.id,
+      oldValues: { code: existing.code, label: existing.label },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.json({ success: true });
   }));

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/connection';
 import { systemConfigs } from '../../db/schema/public';
+import { createFRSAuditLog } from '../financial/auditLogService';
 
 export class ConfigService {
   private static instance: ConfigService;
@@ -67,6 +68,15 @@ export class ConfigService {
           updatedAt: new Date()
         })
         .where(eq(systemConfigs.key, key));
+
+      await createFRSAuditLog({
+        userId: userId ?? '',
+        action: 'update',
+        entityType: 'system_config',
+        entityId: key,
+        oldValues: { value: existing[0].value },
+        newValues: { value },
+      });
     } else {
       if (!userId) throw new Error('userId is required for new configurations');
       await db.insert(systemConfigs)
@@ -76,6 +86,14 @@ export class ConfigService {
           description, 
           createdBy: userId 
         });
+
+      await createFRSAuditLog({
+        userId,
+        action: 'create',
+        entityType: 'system_config',
+        entityId: key,
+        newValues: { key, value },
+      });
     }
 
     // Update local cache
@@ -85,9 +103,17 @@ export class ConfigService {
   /**
    * Deletes a config from the database and removes from cache.
    */
-  public async delete(key: string): Promise<void> {
+  public async delete(key: string, userId?: string): Promise<void> {
     await db.delete(systemConfigs).where(eq(systemConfigs.key, key));
     this.cache.delete(key);
+
+    await createFRSAuditLog({
+      userId: userId ?? '',
+      action: 'delete',
+      entityType: 'system_config',
+      entityId: key,
+      oldValues: { key },
+    });
   }
 
   /**

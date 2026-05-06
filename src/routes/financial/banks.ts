@@ -10,6 +10,7 @@ import { banks } from '../../db/schema/public';
 import { bankLoans } from '../../db/schema/cfd';
 import { requirePermission, injectAccessContext, requireScope } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors';
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,16 @@ export function createBanksRouter(): Router {
       })
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'create',
+      entityType: 'bank',
+      entityId: bank.id,
+      newValues: { code, name, swiftCode, status },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.status(201).json(bank);
   }));
 
@@ -173,6 +184,17 @@ export function createBanksRouter(): Router {
       .where(eq(banks.id, req.params.id))
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'update',
+      entityType: 'bank',
+      entityId: req.params.id,
+      oldValues: { code: existing.code, name: existing.name, swiftCode: existing.swiftCode, status: existing.status },
+      newValues: data,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.json(updated);
   }));
 
@@ -205,6 +227,16 @@ export function createBanksRouter(): Router {
     }
 
     await db.delete(banks).where(eq(banks.id, req.params.id));
+
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'delete',
+      entityType: 'bank',
+      entityId: req.params.id,
+      oldValues: { code: existing.code, name: existing.name },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.json({ success: true });
   }));

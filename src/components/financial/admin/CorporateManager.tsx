@@ -26,6 +26,9 @@ import { corporateI18n } from '../../../i18n/corporate';
 import { commonsI18n } from '../../../i18n/commons';
 import { Corporate } from '../../../types/financial/corporate';
 import { z } from 'zod';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 const getMonths = (lang: 'id' | 'en') => {
   if (lang === 'id') {
@@ -107,6 +110,13 @@ export const CorporateManager: React.FC = () => {
 
   const canWrite = hasPermission('cfd.corporates.write');
   const canDelete = hasPermission('cfd.corporates.delete');
+
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+
+  const approvalCreate = useApproval('cfd', 'corporate', 'create');
+  const approvalEdit   = useApproval('cfd', 'corporate', 'edit');
+  const approvalDelete = useApproval('cfd', 'corporate', 'delete');
 
   const [data, setData] = useState<Corporate[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -297,6 +307,11 @@ export const CorporateManager: React.FC = () => {
   const openModal = (mode: 'create' | 'edit' | 'view', item?: Corporate) => {
     setModalMode(mode);
     setLogoFile(null);
+
+    // Re-fetch workflow status setiap kali modal dibuka agar selalu pakai state terkini.
+    if (mode === 'create') approvalCreate.recheck();
+    else if (mode === 'edit') approvalEdit.recheck();
+
     if (item) {
       setEditingId(item.id);
       setFormData({
@@ -331,7 +346,14 @@ export const CorporateManager: React.FC = () => {
 
     setIsSaving(true);
     try {
-      // 1. Create/Update Corporate Profile
+      // 1. Zod validation first
+      const validation = corporateSchema.safeParse(formData);
+      if (!validation.success) {
+        validation.error.issues.forEach(err => toast.error(err.message));
+        setIsSaving(false);
+        return;
+      }
+
       const payload = {
         name: formData.name,
         code: formData.code || formData.name.substring(0, 3).toUpperCase(),
@@ -342,15 +364,30 @@ export const CorporateManager: React.FC = () => {
         isActive: formData.isActive
       };
 
-      const url = editingId ? `/api/corporates/${editingId}` : '/api/corporates';
-      const method = editingId ? 'PUT' : 'POST';
-
-      const validation = corporateSchema.safeParse(formData);
-      if (!validation.success) {
-        validation.error.issues.forEach(err => toast.error(err.message));
-        setIsSaving(false);
+      // 2. Check if approval workflow is active for this action
+      const approvalHook = modalMode === 'create' ? approvalCreate : approvalEdit;
+      if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+        try {
+          const draft = await approvalHook.createDraft({
+            payload: payload as Record<string, unknown>,
+            entityId: modalMode === 'edit' ? (editingId ?? undefined) : undefined,
+            originalData: modalMode === 'edit' ? { ...formData } : undefined,
+            files: logoFile ? [logoFile] : undefined,
+          });
+          setIsModalOpen(false);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(getErrorMessage(err.error?.code || 'NETWORK_ERROR', language));
+        } finally {
+          setIsSaving(false);
+        }
         return;
       }
+
+      // 3. Normal save flow (no approval workflow)
+      const url = editingId ? `/api/corporates/${editingId}` : '/api/corporates';
+      const method = editingId ? 'PUT' : 'POST';
 
       const res = await apiFetch(url, {
         method,
@@ -362,7 +399,7 @@ export const CorporateManager: React.FC = () => {
         const corp = await res.json();
         const corpId = editingId || corp.id;
 
-        // 2. Upload Logo if needed
+        // Upload Logo if needed
         if (logoFile) {
           const form = new FormData();
           form.append('logo', logoFile);
@@ -411,6 +448,27 @@ export const CorporateManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = data.find(d => d.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item } as Record<string, unknown>,
+            entityId: id,
+            originalData: { ...item } as Record<string, unknown>,
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(err.message ?? getErrorMessage('NETWORK_ERROR', language));
+        }
+        return;
+      }
+    }
+
+    // Normal delete flow
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/corporates/${id}`, { method: 'DELETE' });
@@ -896,8 +954,8 @@ export const CorporateManager: React.FC = () => {
                 {!isReadOnly && (
                   <button
                     type="submit"
-                    disabled={isSaving}
-                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
+                    disabled={isSaving || (modalMode === 'create' ? approvalCreate.isChecking : approvalEdit.isChecking)}
+                    className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
                     {isSaving ? common.saving : common.save}
@@ -938,6 +996,17 @@ export const CorporateManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={fetchData}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

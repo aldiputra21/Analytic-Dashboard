@@ -31,6 +31,9 @@ import { formatRupiah } from '../../../utils/format';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { CorporateSelector } from '../shared/CorporateSelector';
 import { z } from 'zod';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 interface TargetSummary {
   department_id: string;
@@ -178,6 +181,12 @@ export const TargetManager: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+  const approvalCreate = useApproval('cfd', 'income_statement_projection', 'create');
+  const approvalEdit = useApproval('cfd', 'income_statement_projection', 'edit');
+  const approvalDelete = useApproval('cfd', 'income_statement_projection', 'delete');
+
   // Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewOnly, setIsViewOnly] = useState(false);
@@ -292,6 +301,13 @@ export const TargetManager: React.FC = () => {
 
   const handleOpenModal = (s?: TargetSummary, viewOnly = false) => {
     setIsViewOnly(viewOnly);
+
+    // Re-fetch workflow status every time modal opens to get latest state
+    if (!viewOnly) {
+      if (!s) approvalCreate.recheck();
+      else approvalEdit.recheck();
+    }
+
     if (s) {
       setEditingSummary(s);
       const dept = allDepartments.find(d => d.id === s.department_id);
@@ -386,6 +402,31 @@ export const TargetManager: React.FC = () => {
 
     setIsSaving(true);
 
+    // Check if approval workflow is active for this action
+    const approvalHook = editingSummary ? approvalEdit : approvalCreate;
+    if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+      try {
+        const payload = {
+          ...validation.data,
+          projectId: formData.relatedToProject ? validation.data.projectId : null
+        };
+        const draft = await approvalHook.createDraft({
+          payload: payload as Record<string, unknown>,
+          entityId: editingSummary ? `${editingSummary.department_id}:${editingSummary.fiscal_year}` : undefined,
+          originalData: editingSummary ? { ...editingSummary } : undefined,
+        });
+        setIsModalOpen(false);
+        setActiveDraftApprovalId(draft.id);
+        toast.success(approvalI18n[language].toast.draftCreated);
+      } catch (err: any) {
+        const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+        toast.error(getErrorMessage(errCode, language));
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     try {
       const res = await apiFetch('/api/targets/batch', {
         method: 'POST',
@@ -413,6 +454,25 @@ export const TargetManager: React.FC = () => {
   };
 
   const handleDelete = async (target: TargetSummary) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      try {
+        const draft = await approvalDelete.createDraft({
+          payload: { ...target },
+          entityId: `${target.department_id}:${target.fiscal_year}`,
+          originalData: { ...target },
+        });
+        setTargetToDelete(null);
+        setActiveDraftApprovalId(draft.id);
+        toast.success(approvalI18n[language].toast.draftCreated);
+      } catch (err: any) {
+        const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
+        toast.error(getErrorMessage(errCode, language));
+      }
+      return;
+    }
+
+    // Normal delete flow
     setIsDeleting(true);
 
     try {
@@ -1178,7 +1238,7 @@ export const TargetManager: React.FC = () => {
                   {!isViewOnly && (
                     <button
                       type="submit"
-                      disabled={isSaving}
+                      disabled={isSaving || (editingSummary ? approvalEdit.isChecking : approvalCreate.isChecking)}
                       className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
                     >
                       {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
@@ -1221,6 +1281,17 @@ export const TargetManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={() => fetchSummaries(true)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

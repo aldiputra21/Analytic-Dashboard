@@ -26,6 +26,9 @@ import { cashFlowProjectionI18n } from '../../../i18n/cashFlowProjections';
 import { commonsI18n } from '../../../i18n/commons';
 import { formatRupiah, parseFormattedNumber, formatNumber } from '../../../utils/format';
 import { z } from 'zod';
+import { useApproval } from '../../../hooks/financial/useApproval';
+import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
+import { approvalI18n } from '../../../i18n/approval';
 
 // --- Helper Components ---
 const Modal: React.FC<{
@@ -149,6 +152,12 @@ export const CashFlowProjectionManager: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Approval integration
+  const [activeDraftApprovalId, setActiveDraftApprovalId] = useState<string | null>(null);
+  const approvalCreate = useApproval('cfd', 'cash_flow_projection', 'create');
+  const approvalEdit = useApproval('cfd', 'cash_flow_projection', 'edit');
+  const approvalDelete = useApproval('cfd', 'cash_flow_projection', 'delete');
+
   // Form State
   const [headerForm, setHeaderForm] = useState({
     corporateId: initialCorporateId,
@@ -186,6 +195,7 @@ export const CashFlowProjectionManager: React.FC = () => {
       notes: ''
     });
     initDetails();
+    approvalCreate.recheck();
     setIsModalOpen(true);
   };
 
@@ -193,6 +203,7 @@ export const CashFlowProjectionManager: React.FC = () => {
     setModalMode(mode);
     setEditingId(item.id);
     setFormErrors({});
+    if (mode === 'edit') approvalEdit.recheck();
     try {
       const fullData = await getProjection(item.id);
       setHeaderForm({
@@ -242,6 +253,33 @@ export const CashFlowProjectionManager: React.FC = () => {
     if (isSaving || !validateForm()) return;
 
     setIsSaving(true);
+
+    // Check if approval workflow is active for this action
+    const approvalHook = modalMode === 'create' ? approvalCreate : approvalEdit;
+    if (!approvalHook.isChecking && approvalHook.hasWorkflow) {
+      try {
+        const payload = {
+          ...headerForm,
+          details: detailsForm
+        };
+        const draft = await approvalHook.createDraft({
+          payload: payload as Record<string, unknown>,
+          entityId: modalMode === 'edit' && editingId ? editingId : undefined,
+          originalData: modalMode === 'edit' && editingId
+            ? projections.find(p => p.id === editingId) as unknown as Record<string, unknown> | undefined
+            : undefined,
+        });
+        setIsModalOpen(false);
+        setActiveDraftApprovalId(draft.id);
+        toast.success(approvalI18n[language].toast.draftCreated);
+      } catch (err: any) {
+        toast.error(getErrorMessage(err.code || err.message, language));
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     try {
       const payload = {
         ...headerForm,
@@ -268,6 +306,26 @@ export const CashFlowProjectionManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if delete workflow is active
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = projections.find(p => p.id === id);
+      if (item) {
+        try {
+          const draft = await approvalDelete.createDraft({
+            payload: { ...item } as unknown as Record<string, unknown>,
+            entityId: id,
+            originalData: { ...item } as unknown as Record<string, unknown>,
+          });
+          setDeleteConfirmId(null);
+          setActiveDraftApprovalId(draft.id);
+          toast.success(approvalI18n[language].toast.draftCreated);
+        } catch (err: any) {
+          toast.error(getErrorMessage(err.code || err.message, language));
+        }
+        return;
+      }
+    }
+
     setIsDeleting(true);
     try {
       await deleteProjection(id);
@@ -745,7 +803,7 @@ export const CashFlowProjectionManager: React.FC = () => {
                   {!isReadOnly && (
                     <button
                       type="submit"
-                      disabled={isSaving}
+                      disabled={isSaving || (modalMode === 'create' ? approvalCreate.isChecking : approvalEdit.isChecking)}
                       className="px-10 py-3 bg-indigo-600 text-sm font-bold text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[180px] cursor-pointer"
                     >
                       {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
@@ -788,6 +846,17 @@ export const CashFlowProjectionManager: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Approval Detail Modal (opened after draft creation) --- */}
+      <AnimatePresence>
+        {activeDraftApprovalId && (
+          <ApprovalDetailModal
+            approvalId={activeDraftApprovalId}
+            onClose={() => setActiveDraftApprovalId(null)}
+            onRefresh={refetch}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

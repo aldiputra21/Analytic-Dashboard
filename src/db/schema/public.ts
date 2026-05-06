@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   index,
@@ -453,3 +454,67 @@ export const notificationBroadcasts = pgTable('notification_broadcasts', {
 }, (table) => [
   check('chk_notification_broadcasts_severity', sql`${table.severity} IN ('low', 'medium', 'high')`),
 ]);
+
+// ============================================================================
+// public schema — Dynamic Excel Report additions
+// ============================================================================
+
+// --- 21. report_configs -----------------------------------------------------
+
+export const reportConfigs = pgTable('report_configs', {
+  id: uuid().primaryKey().defaultRandom(),
+  titleId: varchar('title_id', { length: 200 }).notNull(),
+  titleEn: varchar('title_en', { length: 200 }).notNull(),
+  filters: jsonb('filters').notNull().$type<Array<{
+    paramName: string;
+    labelId: string;
+    labelEn: string;
+    type: 'text' | 'date' | 'date_range' | 'numeric' | 'numeric_range' | 'dropdown' | 'month' | 'month_range';
+    order: number;
+    required?: boolean;
+    dropdownSource?: 'json' | 'query';
+    dropdownItems?: Array<{ value: string; labelId: string; labelEn: string }>;
+    dropdownQuery?: string;
+  }>>().default([]),
+  columns: jsonb('columns').notNull().$type<Array<{
+    fieldName: string;
+    order: number;
+    dataType: 'string' | 'number' | 'date' | 'currency';
+    format?: string;
+    headerLabelId?: string;
+    headerLabelEn?: string;
+  }>>().default([]),
+  query: text().notNull(),
+  templateFilename: varchar('template_filename', { length: 255 }),
+  cellInfoFilter: varchar('cell_info_filter', { length: 10 }),
+  startRow: integer('start_row').notNull().default(1),
+  writeHeader: boolean('write_header').notNull().default(false),
+  allowedRoles: jsonb('allowed_roles').notNull().$type<string[]>().default([]),
+  retentionType: varchar('retention_type', { length: 20 }).notNull().default('days'),
+  retentionDays: integer('retention_days'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).$onUpdate(() => new Date()),
+});
+
+// --- 22. report_outputs -----------------------------------------------------
+
+export const reportOutputs = pgTable('report_outputs', {
+  id: uuid().primaryKey().defaultRandom(),
+  reportConfigId: uuid('report_config_id').notNull().references(() => reportConfigs.id),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  filterValues: jsonb('filter_values').notNull().$type<Record<string, unknown>>().default({}),
+  status: varchar({ length: 30 }).notNull().default('pending'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  errorMessage: text('error_message'),
+  outputPath: varchar('output_path', { length: 500 }),
+  outputFilename: varchar('output_filename', { length: 255 }),
+  fileSize: bigint('file_size', { mode: 'number' }),
+  downloadedAt: timestamp('downloaded_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: varchar('created_by', { length: 100 }).notNull(),
+});

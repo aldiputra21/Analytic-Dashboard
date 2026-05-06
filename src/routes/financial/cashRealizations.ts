@@ -10,6 +10,7 @@ import { cashRealizations } from '../../db/schema/cfd';
 import { attachments, departments } from '../../db/schema/public';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { createFRSAuditLog } from '../../services/financial/auditLogService';
 import { AppError, ErrorCode } from '../../utils/errors.js';
 import {
   getAttachmentConfig,
@@ -225,6 +226,16 @@ export function createCashRealizationsRouter(): Router {
       })
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'create',
+      entityType: 'cash_realization',
+      entityId: record.id,
+      newValues: { entityType, departmentId, projectId, category, amount, transactionDate },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.status(201).json(record);
   }));
 
@@ -327,6 +338,17 @@ export function createCashRealizationsRouter(): Router {
       .where(eq(cashRealizations.id, req.params.id))
       .returning();
 
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'update',
+      entityType: 'cash_realization',
+      entityId: req.params.id,
+      oldValues: { category: existing.category, amount: existing.amount, transactionDate: existing.transactionDate },
+      newValues: data,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
     return res.json(updated);
   }));
 
@@ -364,6 +386,16 @@ export function createCashRealizationsRouter(): Router {
     }
 
     await db.delete(cashRealizations).where(eq(cashRealizations.id, req.params.id));
+
+    await createFRSAuditLog({
+      userId: req.user!.userId,
+      action: 'delete',
+      entityType: 'cash_realization',
+      entityId: req.params.id,
+      oldValues: { category: existing.category, amount: existing.amount, transactionDate: existing.transactionDate, departmentId: existing.departmentId },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.json({ success: true });
   }));

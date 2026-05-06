@@ -29,6 +29,20 @@
       "when": 1746576000000,
       "tag": "0003_approval_name_en",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1746662400000,
+      "tag": "0004_dynamic_excel_report",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1746748800000,
+      "tag": "0005_report_config_write_header",
+      "breakpoints": true
     }
   ]
 }

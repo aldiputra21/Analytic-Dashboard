@@ -60,6 +60,10 @@ const BroadcastManager = lazy(() => import('./admin/BroadcastManager').then((m) 
 const ApprovalMonitor = lazy(() => import('./approval/ApprovalMonitor').then((m) => ({ default: m.ApprovalMonitor })));
 const ApprovalConfigManager = lazy(() => import('./approval/ApprovalConfigManager').then((m) => ({ default: m.ApprovalConfigManager })));
 
+// Dynamic Excel Report Module
+const ReportConfigManager = lazy(() => import('./admin/ReportConfigManager').then((m) => ({ default: m.ReportConfigManager })));
+const ReportPage = lazy(() => import('./reports/ReportPage').then((m) => ({ default: m.ReportPage })));
+
 // Skeleton screen for loading states (Req 12.1)
 const PageSkeleton: React.FC = () => (
   <div className="p-6 space-y-4 animate-pulse">
@@ -242,6 +246,12 @@ const AppContent: React.FC = () => {
             <ApprovalConfigManager />
           </div>
         );
+      case 'report-config-manager':
+        return (
+          <div className="p-6">
+            <ReportConfigManager />
+          </div>
+        );
       case 'crm-dashboard': return <CRMPage activeTab="dashboard" />;
       case 'crm-opportunities': return <CRMPage activeTab="opportunities" />;
       case 'crm-customers': return <CRMPage activeTab="customers" />;
@@ -250,7 +260,14 @@ const AppContent: React.FC = () => {
       case 'crm-approvals': return <CRMPage activeTab="approvals" />;
       case 'crm-reimburse': return <CRMPage activeTab="reimburse" />;
       case 'profile': return <UserProfilePage />;
-      default: return <ComingSoon page={currentPage} />;
+      default: {
+        // Handle dynamic report pages: pattern 'report-{configId}'
+        if (currentPage.startsWith('report-')) {
+          const configId = currentPage.slice('report-'.length);
+          return <ReportPage configId={configId} />;
+        }
+        return <ComingSoon page={currentPage} />;
+      }
     }
   }, [currentPage, thresholdSubsidiaryId, thresholdSubsidiaryName, subsidiaries]);
 
