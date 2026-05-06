@@ -64,7 +64,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ configId }) => {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const res = await apiFetch(`/api/frs/report-configs/${configId}`);
+      const res = await apiFetch(`/api/frs/report-configs/${configId}/retrieve`);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw errData;

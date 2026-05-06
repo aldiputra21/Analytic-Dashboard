@@ -23,6 +23,7 @@ import {
   filterConfigSchema,
   validateReportQuery,
   parseStartRowFromTemplate,
+  sanitizeReportConfig,
 } from '../../services/financial/reportConfigService';
 import { configService } from '../../services/management/configService';
 import { getFRSConfig } from '../../config/frsConfig';
@@ -341,6 +342,44 @@ export function createReportConfigsRouter(): Router {
           error: msg,
         });
       }
+    }),
+  );
+
+  /**
+   * GET /api/frs/report-configs/:id/retrieve
+   * Returns a sanitized report config for generation (omits raw SQL).
+   * Authorized if user has public.report_configs.read OR their role is in allowed_roles.
+   * MUST be registered before /:id to avoid route conflict.
+   */
+  router.get(
+    '/:id/retrieve',
+    asyncHandler(async (req: Request, res: Response) => {
+      const user = req.user!;
+      const config = await getReportConfigById(req.params.id);
+      if (!config) {
+        throw AppError.notFound(ErrorCode.NOT_FOUND, 'Report config not found');
+      }
+
+      // Authorization check
+      const userRoles: string[] = [];
+      if (user.roleName) userRoles.push(user.roleName);
+      if (user.role && !userRoles.includes(user.role)) userRoles.push(user.role);
+
+      const hasAdminPermission = user.permissions?.includes('public.report_configs.read');
+      const isAllowedRole = config.allowedRoles.some((role) => userRoles.includes(role));
+
+      // If not admin and not allowed role, deny
+      if (!hasAdminPermission && !isAllowedRole) {
+        throw AppError.forbidden(ErrorCode.FORBIDDEN, 'Anda tidak memiliki akses ke laporan ini');
+      }
+
+      // If not admin, the report must be active
+      if (!hasAdminPermission && !config.isActive) {
+        throw AppError.forbidden(ErrorCode.FORBIDDEN, 'Laporan ini sedang tidak aktif');
+      }
+
+      // Sanitize: omit sensitive SQL queries
+      res.json(sanitizeReportConfig(config));
     }),
   );
 

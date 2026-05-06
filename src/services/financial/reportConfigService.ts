@@ -178,6 +178,28 @@ function mapRowToReportConfig(row: typeof reportConfigs.$inferSelect): ReportCon
   };
 }
 
+/**
+ * Sanitizes a ReportConfig by removing sensitive SQL query fields.
+ * Used for user-facing endpoints to prevent SQL exposure.
+ */
+export function sanitizeReportConfig(config: ReportConfig): Omit<ReportConfig, 'query'> {
+  const { query, ...sanitized } = config;
+
+  // Also sanitize dropdownQuery from filters if present
+  const sanitizedFilters = sanitized.filters.map((f) => {
+    if (f.dropdownQuery) {
+      const { dropdownQuery, ...rest } = f;
+      return rest;
+    }
+    return f;
+  });
+
+  return {
+    ...sanitized,
+    filters: sanitizedFilters as any,
+  };
+}
+
 // ============================================================================
 // CRUD Operations
 // ============================================================================
