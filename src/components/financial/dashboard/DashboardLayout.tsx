@@ -9,7 +9,8 @@ import {
   CheckCircle, Receipt, ChevronDown, Scale, FileBarChart, ArrowLeftRight,
   ClipboardList, Landmark, DollarSign, Layers, Languages, Megaphone,
   FileSpreadsheet,
-} from 'lucide-react';import { cn } from '../../../utils/cn';
+} from 'lucide-react';
+import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { UserRole } from '../../../types/financial/user';
 import { UserMenu } from '../UserMenu';
@@ -115,6 +116,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     const items: NavItem[] = [
       // Main
       { id: 'dashboard', label: t.menus.dashboard, icon: LayoutDashboard, group: 'main', requiredPermissions: ['cfd.dashboard.read'] },
+      { id: 'benchmarking', label: t.menus.benchmarking, icon: BarChart3, group: 'main', requiredPermissions: ['cfd.benchmarking.read'] },
+      { id: 'trends', label: t.menus.trends, icon: TrendingUp, group: 'main', requiredPermissions: ['cfd.trends.read'] },
 
       // Approval — grup baru, posisi di bawah Analitik
       { id: 'approval-monitor', label: t.menus.approvalMonitor, icon: ClipboardList, requiredPermissions: ['approvals.read'], group: 'approval' },
