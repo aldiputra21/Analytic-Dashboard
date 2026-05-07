@@ -1681,18 +1681,127 @@ async function main() {
         { fieldName: 'total_balance', order: 5, dataType: 'currency' as const, headerLabelId: 'BALANCE', headerLabelEn: 'BALANCE' },
         ...monthlyColumns(6)
       ],
-      query: `-- Query for Laba Rugi Proyek
--- Grouped by: PROJECT REVENUE, PROJECT COST, PROJECT GROSS PROFIT, GROSS PROFIT PERCENTAGE (%)
-SELECT * FROM (
-  SELECT 1 as no, 'PROJECT REVENUE' as description, 0 as total_estimated, 0 as total_actual, 0 as total_balance,
-  0 as januari_estimated, 0 as januari_actual, 0 as februari_estimated, 0 as februari_actual, 0 as maret_estimated, 0 as maret_actual, 0 as april_estimated, 0 as april_actual, 0 as mei_estimated, 0 as mei_actual, 0 as juni_estimated, 0 as juni_actual, 0 as juli_estimated, 0 as juli_actual, 0 as agustus_estimated, 0 as agustus_actual, 0 as september_estimated, 0 as september_actual, 0 as oktober_estimated, 0 as oktober_actual, 0 as november_estimated, 0 as november_actual, 0 as desember_estimated, 0 as desember_actual
+      query: `WITH params AS (
+  SELECT
+    EXTRACT(YEAR FROM (\${periode_from} || '-01')::date)::integer AS yr,
+    (\${periode_from} || '-01')::date AS dt_from,
+    ((\${periode_to} || '-01')::date + INTERVAL '1 month' - INTERVAL '1 day') AS dt_to
+),
+estimated AS (
+  SELECT
+    td.month,
+    SUM(CASE WHEN td.target_type = 'revenue'   THEN td.amount::numeric ELSE 0 END) AS revenue,
+    SUM(CASE WHEN td.target_type = 'cash_out'  THEN td.amount::numeric ELSE 0 END) AS cost
+  FROM cfd.target_details td
+  JOIN cfd.target_headers th ON th.id = td.target_header_id
+  WHERE th.project_id IS NOT NULL
+    AND th.fiscal_year = (SELECT yr FROM params)
+  GROUP BY td.month
+),
+actual AS (
+  SELECT
+    EXTRACT(MONTH FROM cr.transaction_date)::integer AS month,
+    SUM(CASE WHEN cr.category = 'cash-in'  THEN cr.amount::numeric ELSE 0 END) AS revenue,
+    SUM(CASE WHEN cr.category = 'cash-out' THEN cr.amount::numeric ELSE 0 END) AS cost
+  FROM cfd.cash_realizations cr
+  WHERE cr.entity_type = 'project'
+    AND cr.transaction_date BETWEEN (SELECT dt_from FROM params) AND (SELECT dt_to FROM params)
+  GROUP BY EXTRACT(MONTH FROM cr.transaction_date)
+),
+monthly AS (
+  SELECT g.m AS month,
+    COALESCE(e.revenue, 0) AS est_rev, COALESCE(e.cost, 0) AS est_cost,
+    COALESCE(a.revenue, 0) AS act_rev, COALESCE(a.cost, 0) AS act_cost
+  FROM generate_series(1, 12) g(m)
+  LEFT JOIN estimated e ON e.month = g.m
+  LEFT JOIN actual    a ON a.month = g.m
+),
+totals AS (
+  SELECT SUM(est_rev) AS tot_est_rev, SUM(act_rev) AS tot_act_rev,
+         SUM(est_cost) AS tot_est_cost, SUM(act_cost) AS tot_act_cost
+  FROM monthly
+),
+gpm AS (
+  SELECT month,
+    CASE WHEN est_rev = 0 THEN 0::numeric ELSE ROUND((est_rev - est_cost) / est_rev * 100, 2) END AS est_gpm,
+    CASE WHEN act_rev = 0 THEN 0::numeric ELSE ROUND((act_rev - act_cost) / act_rev * 100, 2) END AS act_gpm
+  FROM monthly
+)
+SELECT no, description, total_estimated, total_actual, total_balance,
+  januari_estimated, januari_actual, februari_estimated, februari_actual,
+  maret_estimated, maret_actual, april_estimated, april_actual,
+  mei_estimated, mei_actual, juni_estimated, juni_actual,
+  juli_estimated, juli_actual, agustus_estimated, agustus_actual,
+  september_estimated, september_actual, oktober_estimated, oktober_actual,
+  november_estimated, november_actual, desember_estimated, desember_actual
+FROM (
+  SELECT 1 AS no, 'PROJECT REVENUE' AS description,
+    t.tot_est_rev AS total_estimated, t.tot_act_rev AS total_actual, t.tot_est_rev - t.tot_act_rev AS total_balance,
+    MAX(CASE WHEN m.month=1  THEN m.est_rev ELSE 0 END) AS januari_estimated,  MAX(CASE WHEN m.month=1  THEN m.act_rev ELSE 0 END) AS januari_actual,
+    MAX(CASE WHEN m.month=2  THEN m.est_rev ELSE 0 END) AS februari_estimated, MAX(CASE WHEN m.month=2  THEN m.act_rev ELSE 0 END) AS februari_actual,
+    MAX(CASE WHEN m.month=3  THEN m.est_rev ELSE 0 END) AS maret_estimated,    MAX(CASE WHEN m.month=3  THEN m.act_rev ELSE 0 END) AS maret_actual,
+    MAX(CASE WHEN m.month=4  THEN m.est_rev ELSE 0 END) AS april_estimated,    MAX(CASE WHEN m.month=4  THEN m.act_rev ELSE 0 END) AS april_actual,
+    MAX(CASE WHEN m.month=5  THEN m.est_rev ELSE 0 END) AS mei_estimated,      MAX(CASE WHEN m.month=5  THEN m.act_rev ELSE 0 END) AS mei_actual,
+    MAX(CASE WHEN m.month=6  THEN m.est_rev ELSE 0 END) AS juni_estimated,     MAX(CASE WHEN m.month=6  THEN m.act_rev ELSE 0 END) AS juni_actual,
+    MAX(CASE WHEN m.month=7  THEN m.est_rev ELSE 0 END) AS juli_estimated,     MAX(CASE WHEN m.month=7  THEN m.act_rev ELSE 0 END) AS juli_actual,
+    MAX(CASE WHEN m.month=8  THEN m.est_rev ELSE 0 END) AS agustus_estimated,  MAX(CASE WHEN m.month=8  THEN m.act_rev ELSE 0 END) AS agustus_actual,
+    MAX(CASE WHEN m.month=9  THEN m.est_rev ELSE 0 END) AS september_estimated,MAX(CASE WHEN m.month=9  THEN m.act_rev ELSE 0 END) AS september_actual,
+    MAX(CASE WHEN m.month=10 THEN m.est_rev ELSE 0 END) AS oktober_estimated,  MAX(CASE WHEN m.month=10 THEN m.act_rev ELSE 0 END) AS oktober_actual,
+    MAX(CASE WHEN m.month=11 THEN m.est_rev ELSE 0 END) AS november_estimated, MAX(CASE WHEN m.month=11 THEN m.act_rev ELSE 0 END) AS november_actual,
+    MAX(CASE WHEN m.month=12 THEN m.est_rev ELSE 0 END) AS desember_estimated, MAX(CASE WHEN m.month=12 THEN m.act_rev ELSE 0 END) AS desember_actual
+  FROM monthly m, totals t GROUP BY t.tot_est_rev, t.tot_act_rev, t.tot_est_cost, t.tot_act_cost
   UNION ALL
-  SELECT 2, 'PROJECT COST', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  SELECT 2, 'PROJECT COST',
+    t.tot_est_cost, t.tot_act_cost, t.tot_est_cost - t.tot_act_cost,
+    MAX(CASE WHEN m.month=1  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=1  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=2  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=2  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=3  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=3  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=4  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=4  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=5  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=5  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=6  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=6  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=7  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=7  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=8  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=8  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=9  THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=9  THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=10 THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=10 THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=11 THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=11 THEN m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=12 THEN m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=12 THEN m.act_cost ELSE 0 END)
+  FROM monthly m, totals t GROUP BY t.tot_est_rev, t.tot_act_rev, t.tot_est_cost, t.tot_act_cost
   UNION ALL
-  SELECT 3, 'PROJECT GROSS PROFIT', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  SELECT 3, 'PROJECT GROSS PROFIT',
+    t.tot_est_rev - t.tot_est_cost, t.tot_act_rev - t.tot_act_cost,
+    (t.tot_est_rev - t.tot_est_cost) - (t.tot_act_rev - t.tot_act_cost),
+    MAX(CASE WHEN m.month=1  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=1  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=2  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=2  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=3  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=3  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=4  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=4  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=5  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=5  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=6  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=6  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=7  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=7  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=8  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=8  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=9  THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=9  THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=10 THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=10 THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=11 THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=11 THEN m.act_rev-m.act_cost ELSE 0 END),
+    MAX(CASE WHEN m.month=12 THEN m.est_rev-m.est_cost ELSE 0 END), MAX(CASE WHEN m.month=12 THEN m.act_rev-m.act_cost ELSE 0 END)
+  FROM monthly m, totals t GROUP BY t.tot_est_rev, t.tot_act_rev, t.tot_est_cost, t.tot_act_cost
   UNION ALL
-  SELECT 4, 'GROSS PROFIT PERCENTAGE (%)', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-) dummy_data`
+  SELECT 4, 'GROSS PROFIT PERCENTAGE (%)',
+    CASE WHEN t.tot_est_rev=0 THEN 0::numeric ELSE ROUND((t.tot_est_rev-t.tot_est_cost)/t.tot_est_rev*100,2) END,
+    CASE WHEN t.tot_act_rev=0 THEN 0::numeric ELSE ROUND((t.tot_act_rev-t.tot_act_cost)/t.tot_act_rev*100,2) END,
+    0::numeric,
+    MAX(CASE WHEN g.month=1  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=1  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=2  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=2  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=3  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=3  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=4  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=4  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=5  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=5  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=6  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=6  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=7  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=7  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=8  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=8  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=9  THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=9  THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=10 THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=10 THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=11 THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=11 THEN g.act_gpm ELSE 0 END),
+    MAX(CASE WHEN g.month=12 THEN g.est_gpm ELSE 0 END), MAX(CASE WHEN g.month=12 THEN g.act_gpm ELSE 0 END)
+  FROM gpm g, totals t GROUP BY t.tot_est_rev, t.tot_act_rev, t.tot_est_cost, t.tot_act_cost
+) result ORDER BY no`
     },
     {
       id: 'b3c4d5e6-f7a8-4b9c-0d1e-f2a3b4c5d6e7',
@@ -1722,10 +1831,68 @@ SELECT * FROM (
         { fieldName: 'total_balance', order: 5, dataType: 'currency' as const, headerLabelId: 'BALANCE', headerLabelEn: 'BALANCE' },
         ...monthlyColumns(6)
       ],
-      query: `-- Query for Laba Rugi Proyek per Cost Center
--- Grouped by Cost Center
-SELECT 1 as no, 'Dummy Cost Center' as cost_center, 0 as total_estimated, 0 as total_actual, 0 as total_balance,
-0 as januari_estimated, 0 as januari_actual, 0 as februari_estimated, 0 as februari_actual, 0 as maret_estimated, 0 as maret_actual, 0 as april_estimated, 0 as april_actual, 0 as mei_estimated, 0 as mei_actual, 0 as juni_estimated, 0 as juni_actual, 0 as juli_estimated, 0 as juli_actual, 0 as agustus_estimated, 0 as agustus_actual, 0 as september_estimated, 0 as september_actual, 0 as oktober_estimated, 0 as oktober_actual, 0 as november_estimated, 0 as november_actual, 0 as desember_estimated, 0 as desember_actual`
+      query: `WITH params AS (
+  SELECT
+    EXTRACT(YEAR FROM (\${periode_from} || '-01')::date)::integer AS yr,
+    (\${periode_from} || '-01')::date AS dt_from,
+    ((\${periode_to} || '-01')::date + INTERVAL '1 month' - INTERVAL '1 day') AS dt_to
+),
+all_cc AS (SELECT id, name FROM cfd.cost_centers WHERE is_active = true),
+estimated_by_cc AS (
+  SELECT cc.id AS cost_center_id, td.month,
+    SUM(CASE WHEN td.target_type='revenue'  THEN td.amount::numeric ELSE 0 END) AS revenue,
+    SUM(CASE WHEN td.target_type='cash_out' THEN td.amount::numeric ELSE 0 END) AS cost
+  FROM cfd.target_details td
+  JOIN cfd.target_headers th ON th.id = td.target_header_id
+  JOIN cfd.cost_centers cc ON cc.code = td.cost_center
+  WHERE th.project_id IS NOT NULL AND td.cost_center IS NOT NULL
+    AND th.fiscal_year = (SELECT yr FROM params)
+  GROUP BY cc.id, td.month
+),
+actual_by_cc AS (
+  SELECT cr.cost_center_id, EXTRACT(MONTH FROM cr.transaction_date)::integer AS month,
+    SUM(CASE WHEN cr.category='cash-in'  THEN cr.amount::numeric ELSE 0 END) AS revenue,
+    SUM(CASE WHEN cr.category='cash-out' THEN cr.amount::numeric ELSE 0 END) AS cost
+  FROM cfd.cash_realizations cr
+  WHERE cr.entity_type='project' AND cr.cost_center_id IS NOT NULL
+    AND cr.transaction_date BETWEEN (SELECT dt_from FROM params) AND (SELECT dt_to FROM params)
+  GROUP BY cr.cost_center_id, EXTRACT(MONTH FROM cr.transaction_date)
+),
+monthly_by_cc AS (
+  SELECT cc.id AS cost_center_id, cc.name AS cost_center_name, g.m AS month,
+    COALESCE(e.revenue,0) AS est_rev, COALESCE(e.cost,0) AS est_cost,
+    COALESCE(a.revenue,0) AS act_rev, COALESCE(a.cost,0) AS act_cost
+  FROM all_cc cc CROSS JOIN generate_series(1,12) g(m)
+  LEFT JOIN estimated_by_cc e ON e.cost_center_id=cc.id AND e.month=g.m
+  LEFT JOIN actual_by_cc    a ON a.cost_center_id=cc.id AND a.month=g.m
+),
+cc_totals AS (
+  SELECT cost_center_id, cost_center_name,
+    SUM(est_rev) AS tot_est_rev, SUM(act_rev) AS tot_act_rev,
+    SUM(est_cost) AS tot_est_cost, SUM(act_cost) AS tot_act_cost
+  FROM monthly_by_cc GROUP BY cost_center_id, cost_center_name
+)
+SELECT
+  ROW_NUMBER() OVER (ORDER BY t.cost_center_name) AS no,
+  t.cost_center_name AS cost_center,
+  t.tot_est_rev AS total_estimated, t.tot_act_rev AS total_actual,
+  t.tot_est_rev - t.tot_act_rev AS total_balance,
+  MAX(CASE WHEN m.month=1  THEN m.est_rev ELSE 0 END) AS januari_estimated,  MAX(CASE WHEN m.month=1  THEN m.act_rev ELSE 0 END) AS januari_actual,
+  MAX(CASE WHEN m.month=2  THEN m.est_rev ELSE 0 END) AS februari_estimated, MAX(CASE WHEN m.month=2  THEN m.act_rev ELSE 0 END) AS februari_actual,
+  MAX(CASE WHEN m.month=3  THEN m.est_rev ELSE 0 END) AS maret_estimated,    MAX(CASE WHEN m.month=3  THEN m.act_rev ELSE 0 END) AS maret_actual,
+  MAX(CASE WHEN m.month=4  THEN m.est_rev ELSE 0 END) AS april_estimated,    MAX(CASE WHEN m.month=4  THEN m.act_rev ELSE 0 END) AS april_actual,
+  MAX(CASE WHEN m.month=5  THEN m.est_rev ELSE 0 END) AS mei_estimated,      MAX(CASE WHEN m.month=5  THEN m.act_rev ELSE 0 END) AS mei_actual,
+  MAX(CASE WHEN m.month=6  THEN m.est_rev ELSE 0 END) AS juni_estimated,     MAX(CASE WHEN m.month=6  THEN m.act_rev ELSE 0 END) AS juni_actual,
+  MAX(CASE WHEN m.month=7  THEN m.est_rev ELSE 0 END) AS juli_estimated,     MAX(CASE WHEN m.month=7  THEN m.act_rev ELSE 0 END) AS juli_actual,
+  MAX(CASE WHEN m.month=8  THEN m.est_rev ELSE 0 END) AS agustus_estimated,  MAX(CASE WHEN m.month=8  THEN m.act_rev ELSE 0 END) AS agustus_actual,
+  MAX(CASE WHEN m.month=9  THEN m.est_rev ELSE 0 END) AS september_estimated,MAX(CASE WHEN m.month=9  THEN m.act_rev ELSE 0 END) AS september_actual,
+  MAX(CASE WHEN m.month=10 THEN m.est_rev ELSE 0 END) AS oktober_estimated,  MAX(CASE WHEN m.month=10 THEN m.act_rev ELSE 0 END) AS oktober_actual,
+  MAX(CASE WHEN m.month=11 THEN m.est_rev ELSE 0 END) AS november_estimated, MAX(CASE WHEN m.month=11 THEN m.act_rev ELSE 0 END) AS november_actual,
+  MAX(CASE WHEN m.month=12 THEN m.est_rev ELSE 0 END) AS desember_estimated, MAX(CASE WHEN m.month=12 THEN m.act_rev ELSE 0 END) AS desember_actual
+FROM monthly_by_cc m
+JOIN cc_totals t ON t.cost_center_id = m.cost_center_id
+GROUP BY t.cost_center_id, t.cost_center_name, t.tot_est_rev, t.tot_act_rev, t.tot_est_cost, t.tot_act_cost
+ORDER BY t.cost_center_name`
     }
   ];
 
