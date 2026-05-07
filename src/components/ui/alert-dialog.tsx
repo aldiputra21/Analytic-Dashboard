@@ -11,6 +11,8 @@ interface AlertDialogProps {
   children: React.ReactNode;
 }
 
+const AlertDialogContext = React.createContext<{ close: () => void } | null>(null);
+
 const AlertDialog = ({ isOpen, onClose, open, onOpenChange, children }: AlertDialogProps) => {
   const active = open ?? isOpen;
   const close = () => {
@@ -19,27 +21,29 @@ const AlertDialog = ({ isOpen, onClose, open, onOpenChange, children }: AlertDia
   };
 
   return (
-    <AnimatePresence>
-      {active && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={close}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-8 border border-slate-200"
-          >
-            {children}
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+    <AlertDialogContext.Provider value={{ close }}>
+      <AnimatePresence>
+        {active && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={close}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-8 border border-slate-200"
+            >
+              {children}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </AlertDialogContext.Provider>
   );
 };
 
@@ -65,17 +69,46 @@ const AlertDialogFooter = ({ children, className }: { children: React.ReactNode,
   </div>
 );
 
-const AlertDialogAction = ({ children, className, variant = "destructive", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" }) => (
-  <Button variant={variant} className={cn("w-full sm:w-auto px-6 py-3 rounded-2xl", className)} {...props}>
-    {children}
-  </Button>
-);
+const AlertDialogAction = ({ children, className, variant = "destructive", onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" }) => {
+  const context = React.useContext(AlertDialogContext);
+  
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (onClick) onClick(e);
+    // Note: We don't auto-close on Action because it usually involves an async operation
+    // that should close the dialog only upon success.
+  };
 
-const AlertDialogCancel = ({ children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-  <Button variant="outline" className={cn("w-full sm:w-auto px-6 py-3 rounded-2xl border-2 border-slate-100 font-bold text-slate-100 font-bold text-slate-600 hover:bg-slate-50", className)} {...props}>
-    {children}
-  </Button>
-);
+  return (
+    <Button 
+      variant={variant} 
+      className={cn("w-full sm:w-auto px-6 py-3 rounded-2xl cursor-pointer", className)} 
+      onClick={handleClick}
+      {...props}
+    >
+      {children}
+    </Button>
+  );
+};
+
+const AlertDialogCancel = ({ children, className, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
+  const context = React.useContext(AlertDialogContext);
+  
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (onClick) onClick(e);
+    context?.close();
+  };
+
+  return (
+    <Button 
+      variant="outline" 
+      className={cn("w-full sm:w-auto px-6 py-3 rounded-2xl border-2 border-slate-100 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer", className)} 
+      onClick={handleClick}
+      {...props}
+    >
+      {children}
+    </Button>
+  );
+};
 
 export {
   AlertDialog,

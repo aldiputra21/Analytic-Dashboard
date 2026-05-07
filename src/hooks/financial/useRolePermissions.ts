@@ -38,7 +38,7 @@ export function useRolePermissions(
         }
 
         const result = await res.json();
-        setAssigned(result.permissions || []);
+        setAssigned(result.permissionIds || []);
       } catch (err: any) {
         const errCode = err.error?.code || err.code || 'NETWORK_ERROR';
         setError(errCode);

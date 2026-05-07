@@ -9,4 +9,9 @@ coverage/
 
 # Uploaded assets (not publicly accessible)
 assets/
-storage/
+storage/*
+!storage/report-templates/
+
+# MCP config (contains database credentials)
+.mcp.json
+.kiro/settings/mcp.json

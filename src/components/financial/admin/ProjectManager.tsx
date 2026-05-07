@@ -30,6 +30,8 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
 
 interface Project {
   id: string;
@@ -161,7 +163,7 @@ export const ProjectManager: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filterCorporate, setFilterCorporate] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({ search: '', corporateId: '', departmentId: '' });
+  const [appliedFilters, setAppliedFilters] = useState({ search: '', corporateId: '', corporateLabel: '', departmentId: '', departmentLabel: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -230,7 +232,9 @@ export const ProjectManager: React.FC = () => {
   }, [fetchProjects]);
 
   const handleApplyFilter = () => {
-    setAppliedFilters({ search: search, corporateId: filterCorporate, departmentId: filterDepartment });
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporate)?.label || '';
+    const departmentLabel = departmentOptions.find(o => o.value === filterDepartment)?.label || '';
+    setAppliedFilters({ search: search, corporateId: filterCorporate, corporateLabel, departmentId: filterDepartment, departmentLabel });
     setPage(1);
   };
 
@@ -238,7 +242,7 @@ export const ProjectManager: React.FC = () => {
     setSearch('');
     setFilterCorporate('');
     setFilterDepartment('');
-    setAppliedFilters({ search: '', corporateId: '', departmentId: '' });
+    setAppliedFilters({ search: '', corporateId: '', corporateLabel: '', departmentId: '', departmentLabel: '' });
     setPage(1);
   };
 
@@ -418,15 +422,21 @@ export const ProjectManager: React.FC = () => {
           </p>
         </div>
 
-        {canWrite && (
-          <button
-            onClick={() => handleOpenModal()}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.addNew}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <UploadButton
+            entityType="project"
+            onUploadComplete={() => fetchProjects(true)}
+          />
+          {canWrite && (
+            <button
+              onClick={() => handleOpenModal()}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.addNew}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters Bar */}
@@ -482,6 +492,11 @@ export const ProjectManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="project"
+            filters={appliedFilters}
+            disabled={loading}
+          />
         </div>
       </div>
 
@@ -735,6 +750,8 @@ export const ProjectManager: React.FC = () => {
           </div>
         )}
       </div>
+
+
 
       {/* CRUD Modal */}
       <AnimatePresence>

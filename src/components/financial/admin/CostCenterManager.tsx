@@ -11,6 +11,7 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useCostCenterCategories } from '../../../hooks/financial/useCostCenterCategories';
 import { useCostCenters } from '../../../hooks/financial/useCostCenters';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import {
@@ -31,6 +32,8 @@ import { CorporateSelector } from '../shared/CorporateSelector';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
 
 interface CostCenter {
   id: string;
@@ -122,6 +125,7 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: str
 
 export const CostCenterManager: React.FC = () => {
   const { options: categoryOptions, isLoading: isCatsLoading } = useCostCenterCategories();
+  const { options: corporateOptions } = useCorporates();
 
   // formData is declared below — we use a ref-like pattern by passing corporateId
   // directly into the hook via state lifted here
@@ -166,7 +170,7 @@ export const CostCenterManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterCorporateId, setFilterCorporateId] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({ search: '', corporateId: '' });
+  const [appliedFilters, setAppliedFilters] = useState({ search: '', corporateId: '', corporateLabel: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -231,14 +235,15 @@ export const CostCenterManager: React.FC = () => {
   }, [fetchCostCenters]);
 
   const handleApplyFilter = () => {
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporateId)?.label || '';
     setPage(1);
-    setAppliedFilters({ search, corporateId: filterCorporateId });
+    setAppliedFilters({ search, corporateId: filterCorporateId, corporateLabel });
   };
 
   const handleClearFilter = () => {
     setSearch('');
     setFilterCorporateId('');
-    setAppliedFilters({ search: '', corporateId: '' });
+    setAppliedFilters({ search: '', corporateId: '', corporateLabel: '' });
     setPage(1);
   };
 
@@ -422,15 +427,21 @@ export const CostCenterManager: React.FC = () => {
           </p>
         </div>
 
-        {canWrite && (
-          <button
-            onClick={() => handleOpenModal()}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.addNew}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <UploadButton
+            entityType="cost_center"
+            onUploadComplete={() => fetchCostCenters(true)}
+          />
+          {canWrite && (
+            <button
+              onClick={() => handleOpenModal()}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.addNew}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters Bar */}
@@ -469,6 +480,11 @@ export const CostCenterManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="cost_center"
+            filters={appliedFilters}
+            disabled={loading}
+          />
         </div>
       </div>
 
@@ -720,6 +736,8 @@ export const CostCenterManager: React.FC = () => {
           </div>
         )}
       </div>
+
+
 
       {/* CRUD Modal */}
       <AnimatePresence>

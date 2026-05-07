@@ -35,6 +35,9 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
+import { NumericInput } from '../shared/NumericInput';
 
 // --- Types ---
 interface IncomeStatement {
@@ -101,45 +104,6 @@ const Modal: React.FC<{
   );
 };
 
-const FormField: React.FC<{
-  label: string;
-  value: number | string;
-  onChange: (val: string) => void;
-  type?: string;
-  placeholder?: string;
-  readOnly?: boolean;
-}> = ({ label, value, onChange, placeholder = "0", readOnly = false }) => {
-  const displayValue = useMemo(() => {
-    if (value === undefined || value === null || value === "" || value === 0) {
-      return value === 0 ? "0" : "";
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? "" : num.toLocaleString('id-ID');
-  }, [value]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/[^0-9-]/g, "");
-    onChange(rawValue);
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{label}</label>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={displayValue}
-        onChange={handleChange}
-        placeholder={placeholder}
-        readOnly={readOnly}
-        className={cn(
-          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm bg-slate-50/30",
-          readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
-        )}
-      />
-    </div>
-  );
-};
 
 const SummaryCard: React.FC<{ label: string; value: number; color: 'emerald' | 'blue' | 'amber' | 'indigo' }> = ({ label, value, color }) => {
   const variants = {
@@ -221,7 +185,8 @@ export const IncomeStatementManager: React.FC = () => {
   const [appliedFilters, setAppliedFilters] = useState({
     periodStart: '',
     periodEnd: '',
-    corporate: ''
+    corporate: '',
+    corporateLabel: '',
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -272,10 +237,12 @@ export const IncomeStatementManager: React.FC = () => {
   }, [currentPage, pageSize, appliedFilters]);
 
   const handleApplyFilter = () => {
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporate)?.label || '';
     setAppliedFilters({
       periodStart: filterPeriodStart,
       periodEnd: filterPeriodEnd,
-      corporate: filterCorporate
+      corporate: filterCorporate,
+      corporateLabel,
     });
     setCurrentPage(1);
   };
@@ -287,7 +254,8 @@ export const IncomeStatementManager: React.FC = () => {
     setAppliedFilters({
       periodStart: '',
       periodEnd: '',
-      corporate: ''
+      corporate: '',
+      corporateLabel: '',
     });
     setCurrentPage(1);
   };
@@ -463,6 +431,11 @@ export const IncomeStatementManager: React.FC = () => {
         </div>
         {canWrite && (
           <div className="flex items-center gap-2">
+            <UploadButton
+              entityType="income_statement"
+              onUploadComplete={fetchData}
+              disabled={isLoading}
+            />
             <button
               onClick={() => openModal('create')}
               className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
@@ -513,6 +486,11 @@ export const IncomeStatementManager: React.FC = () => {
               <FilterX size={14} />
               {common.clear}
             </button>
+            <ExportButton
+              entityType="income_statement"
+              filters={appliedFilters}
+              disabled={isLoading}
+            />
           </div>
         </div>
       </div>
@@ -749,6 +727,8 @@ export const IncomeStatementManager: React.FC = () => {
         )}
       </div>
 
+
+
       {/* --- CRUD MODAL --- */}
       <AnimatePresence>
         {isModalOpen && (
@@ -794,8 +774,8 @@ export const IncomeStatementManager: React.FC = () => {
                       <ArrowUpCircle size={18} className="text-emerald-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.revenueAndCogs}</h4>
                     </div>
-                    <FormField label={t.fields.revenue} value={formData.revenue || 0} onChange={(v) => setFormData(p => ({ ...p, revenue: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                    <FormField label={t.fields.cogs} value={formData.cogs || 0} onChange={(v) => setFormData(p => ({ ...p, cogs: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <NumericInput label={t.fields.revenue} value={formData.revenue || 0} onValueChange={(values) => setFormData(p => ({ ...p, revenue: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
+                    <NumericInput label={t.fields.cogs} value={formData.cogs || 0} onValueChange={(values) => setFormData(p => ({ ...p, cogs: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
                     <SummaryCard label={t.modal.grossProfit} value={grossProfit} color="blue" />
                   </div>
 
@@ -808,19 +788,19 @@ export const IncomeStatementManager: React.FC = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
                       {/* Row 1: Ops Expense & EBIT */}
-                      <FormField label={t.fields.operatingExpenses} value={formData.operatingExpenses || 0} onChange={(v) => setFormData(p => ({ ...p, operatingExpenses: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                      <NumericInput label={t.fields.operatingExpenses} value={formData.operatingExpenses || 0} onValueChange={(values) => setFormData(p => ({ ...p, operatingExpenses: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
                       <SummaryCard label={t.modal.ebit} value={ebit} color="amber" />
 
                       {/* Row 2: Interest & Other Income */}
-                      <FormField label={t.fields.interest} value={formData.interestExpense || 0} onChange={(v) => setFormData(p => ({ ...p, interestExpense: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                      <FormField label={t.fields.otherIncome} value={formData.otherIncome || 0} onChange={(v) => setFormData(p => ({ ...p, otherIncome: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                      <NumericInput label={t.fields.interest} value={formData.interestExpense || 0} onValueChange={(values) => setFormData(p => ({ ...p, interestExpense: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
+                      <NumericInput label={t.fields.otherIncome} value={formData.otherIncome || 0} onValueChange={(values) => setFormData(p => ({ ...p, otherIncome: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
 
                       {/* Row 3: Other Expense & EBT */}
-                      <FormField label={t.fields.otherExpense} value={formData.otherExpense || 0} onChange={(v) => setFormData(p => ({ ...p, otherExpense: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                      <NumericInput label={t.fields.otherExpense} value={formData.otherExpense || 0} onValueChange={(values) => setFormData(p => ({ ...p, otherExpense: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
                       <SummaryCard label={t.modal.ebt} value={ebt} color="amber" />
 
                       {/* Row 4: Tax & Net Profit */}
-                      <FormField label={t.fields.tax} value={formData.taxExpense || 0} onChange={(v) => setFormData(p => ({ ...p, taxExpense: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                      <NumericInput label={t.fields.tax} value={formData.taxExpense || 0} onValueChange={(values) => setFormData(p => ({ ...p, taxExpense: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
                       <SummaryCard label={t.modal.netProfit} value={netProfit} color="emerald" />
                     </div>
                   </div>

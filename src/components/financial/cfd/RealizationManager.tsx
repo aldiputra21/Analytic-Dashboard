@@ -39,6 +39,8 @@ import { useRealizationConfigs } from '../../../hooks/financial/useRealizationCo
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
 
 // Fallback defaults if config fails to load
 const DEFAULT_ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf'];
@@ -132,7 +134,7 @@ export const RealizationManager: React.FC = () => {
     departmentId: formData.departmentId
   });
   const { options: costCenterOptions, isLoading: isCCLoading } = useCostCenters();
-  const { showSelector: showCorpSelector } = useCorporates();
+  const { options: corporateOptions, showSelector: showCorpSelector } = useCorporates();
   const t = realizationI18n[language];
   const common = commonsI18n[language];
 
@@ -159,8 +161,11 @@ export const RealizationManager: React.FC = () => {
   const [appliedFilters, setAppliedFilters] = useState({
     search: '',
     entityType: '',
+    entityTypeLabel: '',
     corporateId: '',
+    corporateLabel: '',
     category: '',
+    categoryLabel: '',
     dateFrom: '',
     dateTo: ''
   });
@@ -304,11 +309,28 @@ export const RealizationManager: React.FC = () => {
   }, [formData.category]);
 
   const handleApplyFilter = () => {
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporate)?.label || '';
+
+    const entityTypeLabelMap: Record<string, string> = {
+      department: t.modal.department,
+      project: t.modal.project,
+    };
+    const entityTypeLabel = filterEntityType ? (entityTypeLabelMap[filterEntityType] || filterEntityType) : '';
+
+    const categoryLabelMap: Record<string, string> = {
+      'cash-in': t.modal.cashIn,
+      'cash-out': t.modal.cashOut,
+    };
+    const categoryLabel = filterCategory ? (categoryLabelMap[filterCategory] || filterCategory) : '';
+
     setAppliedFilters({
       search,
       entityType: filterEntityType,
+      entityTypeLabel,
       corporateId: filterCorporate,
+      corporateLabel,
       category: filterCategory,
+      categoryLabel,
       dateFrom,
       dateTo
     });
@@ -325,8 +347,11 @@ export const RealizationManager: React.FC = () => {
     setAppliedFilters({
       search: '',
       entityType: '',
+      entityTypeLabel: '',
       corporateId: '',
+      corporateLabel: '',
       category: '',
+      categoryLabel: '',
       dateFrom: '',
       dateTo: ''
     });
@@ -649,13 +674,20 @@ export const RealizationManager: React.FC = () => {
           </p>
         </div>
         {canWrite && (
-          <button
-            onClick={() => openModal('create')}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.inputNew}
-          </button>
+          <div className="flex items-center gap-2">
+            <UploadButton
+              entityType="realization"
+              onUploadComplete={fetchData}
+              disabled={loading}
+            />
+            <button
+              onClick={() => openModal('create')}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.inputNew}
+            </button>
+          </div>
         )}
       </div>
 
@@ -737,6 +769,11 @@ export const RealizationManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="realization"
+            filters={appliedFilters}
+            disabled={loading}
+          />
         </div>
       </div>
 
@@ -958,6 +995,8 @@ export const RealizationManager: React.FC = () => {
           </div>
         )}
       </div>
+
+
 
       {/* CRUD Modal */}
       <AnimatePresence>

@@ -29,6 +29,8 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
 
 const getMonths = (lang: 'id' | 'en') => {
   if (lang === 'id') {
@@ -508,15 +510,21 @@ export const CorporateManager: React.FC = () => {
           </p>
         </div>
 
-        {canWrite && (
-          <button
-            onClick={() => openModal('create')}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.addNew}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <UploadButton
+            entityType="corporate"
+            onUploadComplete={() => fetchData()}
+          />
+          {canWrite && (
+            <button
+              onClick={() => openModal('create')}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.addNew}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters Bar */}
@@ -548,6 +556,11 @@ export const CorporateManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="corporate"
+            filters={appliedFilters}
+            disabled={isLoading}
+          />
         </div>
       </div>
 
@@ -784,6 +797,8 @@ export const CorporateManager: React.FC = () => {
           </div>
         )}
       </div>
+
+
 
       {/* --- CRUD MODAL --- */}
       <AnimatePresence>

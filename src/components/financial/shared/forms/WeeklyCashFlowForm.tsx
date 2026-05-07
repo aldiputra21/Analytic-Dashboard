@@ -13,6 +13,7 @@ import { formatRupiah } from '../../../../utils/format';
 import { weeklyCashFlowI18n } from '../../../../i18n/weekly-cash-flow';
 import { MonthPicker } from '../MonthPicker';
 import { CorporateSelector } from '../CorporateSelector';
+import { NumericInput } from '../NumericInput';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,37 +44,6 @@ export interface WeeklyCashFlowFormProps {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-const FormField: React.FC<{
-  label: string;
-  value: number | string;
-  onChange: (val: string) => void;
-  readOnly?: boolean;
-}> = ({ label, value, onChange, readOnly = false }) => {
-  const displayValue = useMemo(() => {
-    if (value === undefined || value === null || value === '' || value === 0) {
-      return value === 0 ? '0' : '';
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? '' : num.toLocaleString('id-ID');
-  }, [value]);
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{label}</label>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={displayValue}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9-]/g, ''))}
-        readOnly={readOnly}
-        className={cn(
-          'w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-          readOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-        )}
-      />
-    </div>
-  );
-};
 
 const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: string }> = ({ title, icon, color }) => (
   <div className={cn('flex items-center gap-2 mb-4 pb-2 border-b-2', color)}>
@@ -190,17 +160,17 @@ export const WeeklyCashFlowForm: React.FC<WeeklyCashFlowFormProps> = ({
             color="border-indigo-500"
           />
           <div className="grid grid-cols-2 gap-4">
-            <FormField
+            <NumericInput
               label={`${t.modal.operatingActivity} (${t.fields.in})`}
               value={n('operatingCashIn')}
-              onChange={field('operatingCashIn')}
-              readOnly={isReadOnly}
+              onValueChange={(v) => onChange?.('operatingCashIn', v.floatValue ?? 0)}
+              disabled={isReadOnly}
             />
-            <FormField
+            <NumericInput
               label={`${t.modal.operatingActivity} (${t.fields.out})`}
               value={n('operatingCashOut')}
-              onChange={field('operatingCashOut')}
-              readOnly={isReadOnly}
+              onValueChange={(v) => onChange?.('operatingCashOut', v.floatValue ?? 0)}
+              disabled={isReadOnly}
             />
           </div>
         </div>
@@ -213,17 +183,17 @@ export const WeeklyCashFlowForm: React.FC<WeeklyCashFlowFormProps> = ({
             color="border-emerald-500"
           />
           <div className="grid grid-cols-2 gap-4">
-            <FormField
+            <NumericInput
               label={`${t.modal.investing} (${t.fields.in})`}
               value={n('investingCashIn')}
-              onChange={field('investingCashIn')}
-              readOnly={isReadOnly}
+              onValueChange={(v) => onChange?.('investingCashIn', v.floatValue ?? 0)}
+              disabled={isReadOnly}
             />
-            <FormField
+            <NumericInput
               label={`${t.modal.investing} (${t.fields.out})`}
               value={n('investingCashOut')}
-              onChange={field('investingCashOut')}
-              readOnly={isReadOnly}
+              onValueChange={(v) => onChange?.('investingCashOut', v.floatValue ?? 0)}
+              disabled={isReadOnly}
             />
           </div>
         </div>
@@ -236,17 +206,17 @@ export const WeeklyCashFlowForm: React.FC<WeeklyCashFlowFormProps> = ({
             color="border-amber-500"
           />
           <div className="grid grid-cols-2 gap-4">
-            <FormField
+            <NumericInput
               label={`${t.modal.financing} (${t.fields.in})`}
               value={n('financingCashIn')}
-              onChange={field('financingCashIn')}
-              readOnly={isReadOnly}
+              onValueChange={(v) => onChange?.('financingCashIn', v.floatValue ?? 0)}
+              disabled={isReadOnly}
             />
-            <FormField
+            <NumericInput
               label={`${t.modal.financing} (${t.fields.out})`}
               value={n('financingCashOut')}
-              onChange={field('financingCashOut')}
-              readOnly={isReadOnly}
+              onValueChange={(v) => onChange?.('financingCashOut', v.floatValue ?? 0)}
+              disabled={isReadOnly}
             />
           </div>
         </div>

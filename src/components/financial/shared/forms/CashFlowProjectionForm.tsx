@@ -12,6 +12,7 @@ import { cn } from '../../../../utils/cn';
 import { formatRupiah } from '../../../../utils/format';
 import { cashFlowProjectionI18n } from '../../../../i18n/cash-flow-projection';
 import { commonsI18n } from '../../../../i18n/commons';
+import { NumericInput } from '../NumericInput';
 import { CorporateSelector } from '../CorporateSelector';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -104,13 +105,6 @@ export const CashFlowProjectionForm: React.FC<CashFlowProjectionFormProps> = ({
     onChange?.('details', details.filter((_, i) => i !== index));
   };
 
-  const formatAmount = (value: number | string) => {
-    if (value === undefined || value === null || value === '' || value === 0) {
-      return value === 0 ? '0' : '';
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? '' : num.toLocaleString('id-ID');
-  };
 
   const groupLabel = (group: string) => {
     const map: Record<string, string> = {
@@ -189,17 +183,11 @@ export const CashFlowProjectionForm: React.FC<CashFlowProjectionFormProps> = ({
 
         {/* ── Initial Balance ── */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{t.initialBalance}</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={formatAmount(payload.initialBalance ?? 0)}
-            onChange={(e) => onChange?.('initialBalance', parseFloat(e.target.value.replace(/[^0-9-]/g, '')) || 0)}
-            readOnly={isReadOnly}
-            className={cn(
-              'w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-              isReadOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-            )}
+          <NumericInput
+            label={t.initialBalance}
+            value={payload.initialBalance}
+            onValueChange={(v) => onChange?.('initialBalance', v.floatValue ?? 0)}
+            disabled={isReadOnly}
           />
         </div>
 
@@ -298,17 +286,13 @@ export const CashFlowProjectionForm: React.FC<CashFlowProjectionFormProps> = ({
 
                 {/* Amount */}
                 <div className="col-span-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatAmount(row.amount)}
-                    onChange={(e) => handleDetailChange(index, 'amount', parseFloat(e.target.value.replace(/[^0-9-]/g, '')) || 0)}
-                    readOnly={isReadOnly}
+                  <NumericInput
+                    value={row.amount}
+                    onValueChange={(v) => handleDetailChange(index, 'amount', v.floatValue ?? 0)}
+                    disabled={isReadOnly}
                     placeholder="0"
-                    className={cn(
-                      'w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-slate-50/30',
-                      isReadOnly && 'bg-slate-100 cursor-not-allowed text-slate-600 border-none',
-                    )}
+                    className="py-2 px-3 text-xs"
+                    containerClassName="!space-y-0"
                   />
                 </div>
 

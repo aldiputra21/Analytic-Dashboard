@@ -30,6 +30,8 @@ import { createApprovalsRouter } from './approvals';
 import { createApprovalConfigsRouter } from './approvalConfigs';
 import { createReportConfigsRouter } from './reportConfigs';
 import { createReportOutputsRouter } from './reportOutputs';
+import { createExportRouter } from './export';
+import { createUploadRouter } from './upload';
 import { authenticate } from '../../middleware/auth';
 import { checkMaintenance } from '../../middleware/maintenance';
 
@@ -185,6 +187,12 @@ export function createFRSRouter(): Router {
 
   // Dynamic Excel Report outputs (generate + download)
   router.use('/report-outputs', createReportOutputsRouter());
+
+  // Export module (bulk data export to Excel/CSV)
+  router.use('/export', createExportRouter());
+
+  // Upload module (bulk data import via Excel template)
+  router.use('/upload', createUploadRouter());
 
   return router;
 }

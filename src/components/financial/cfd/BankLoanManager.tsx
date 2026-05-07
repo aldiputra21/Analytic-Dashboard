@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { NumericFormat } from 'react-number-format';
 import {
   Plus, Search, Edit2, Trash2, Eye,
   ChevronLeft, ChevronRight, Landmark, X,
@@ -32,6 +33,9 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
+import { NumericInput } from '../shared/NumericInput';
 
 interface Installment {
   id?: string;
@@ -105,19 +109,6 @@ const Modal: React.FC<{
   );
 };
 
-// Helper function to format currency with thousand separator
-const formatCurrencyDisplay = (value: string | number): string => {
-  if (value === undefined || value === null || value === "" || value === 0) {
-    return value === 0 ? "0" : "";
-  }
-  const num = Math.floor(Number(value));
-  return isNaN(num) ? "" : num.toLocaleString('id-ID');
-};
-
-// Helper function to parse currency input (remove thousand separator)
-const parseCurrencyInput = (value: string): string => {
-  return value.replace(/[^0-9-]/g, "");
-};
 
 export const BankLoanManager: React.FC = () => {
   const { hasPermission, language, subsidiaryIds, hasFullCorporateAccess } = useAuth();
@@ -154,7 +145,9 @@ export const BankLoanManager: React.FC = () => {
   const [appliedFilters, setAppliedFilters] = useState({
     search: '',
     status: '',
-    corporateId: ''
+    statusLabel: '',
+    corporateId: '',
+    corporateLabel: '',
   });
 
   const [page, setPage] = useState(1);
@@ -228,7 +221,13 @@ export const BankLoanManager: React.FC = () => {
   }, [fetchData]);
 
   const handleApplyFilter = () => {
-    setAppliedFilters({ search, status: filterStatus, corporateId: filterCorporate });
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporate)?.label || '';
+    const statusLabelMap: Record<string, string> = {
+      ongoing: t.loanStatus.ongoing,
+      paid: t.loanStatus.paid,
+    };
+    const statusLabel = filterStatus ? (statusLabelMap[filterStatus] || filterStatus) : '';
+    setAppliedFilters({ search, status: filterStatus, statusLabel, corporateId: filterCorporate, corporateLabel });
     setPage(1);
   };
 
@@ -236,7 +235,7 @@ export const BankLoanManager: React.FC = () => {
     setSearch('');
     setFilterStatus('');
     setFilterCorporate('');
-    setAppliedFilters({ search: '', status: '', corporateId: '' });
+    setAppliedFilters({ search: '', status: '', statusLabel: '', corporateId: '', corporateLabel: '' });
     setPage(1);
   };
 
@@ -411,8 +410,8 @@ export const BankLoanManager: React.FC = () => {
 
   const handleMarkAsPaid = async (installmentId: string) => {
     try {
-      const res = await apiFetch(`/api/bank-loans/installments/${installmentId}/mark-paid`, {
-        method: 'POST'
+      const res = await apiFetch(`/api/bank-loans/${editingId}/installments/${installmentId}/mark-paid`, {
+        method: 'PATCH'
       });
       if (res.ok) {
         const updated = await res.json();
@@ -499,13 +498,20 @@ export const BankLoanManager: React.FC = () => {
           </p>
         </div>
         {canWrite && (
-          <button
-            onClick={() => openModal('create')}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.inputNew}
-          </button>
+          <div className="flex items-center gap-2">
+            <UploadButton
+              entityType="bank_loan"
+              onUploadComplete={fetchData}
+              disabled={loading}
+            />
+            <button
+              onClick={() => openModal('create')}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.inputNew}
+            </button>
+          </div>
         )}
       </div>
 
@@ -555,6 +561,11 @@ export const BankLoanManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="bank_loan"
+            filters={appliedFilters}
+            disabled={loading}
+          />
         </div>
       </div>
 
@@ -780,6 +791,8 @@ export const BankLoanManager: React.FC = () => {
         )}
       </div>
 
+
+
       {/* CRUD Modal */}
       <AnimatePresence>
         {isModalOpen && (
@@ -892,17 +905,13 @@ export const BankLoanManager: React.FC = () => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        {t.modal.amount} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formatCurrencyDisplay(formData.amount)}
-                        onChange={(e) => setFormData(p => ({ ...p, amount: parseCurrencyInput(e.target.value) }))}
+                      <NumericInput
+                        label={t.modal.amount}
+                        value={formData.amount}
+                        onValueChange={(values) => setFormData(p => ({ ...p, amount: values.value }))}
                         required
                         disabled={isReadOnly}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-black tabular-nums"
+                        placeholder="0"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -1076,15 +1085,16 @@ export const BankLoanManager: React.FC = () => {
                                   </span>
                                 ) : (
                                   <div className="flex items-center justify-end">
-                                    <input
-                                      type="text"
-                                      inputMode="numeric"
-                                      value={formatCurrencyDisplay(inst.amount)}
-                                      onChange={(e) => {
+                                    <NumericFormat
+                                      thousandSeparator="."
+                                      decimalSeparator=","
+                                      value={inst.amount}
+                                      onValueChange={(values) => {
                                         const newInsts = [...installments];
-                                        newInsts[idx].amount = parseCurrencyInput(e.target.value);
+                                        newInsts[idx].amount = values.value;
                                         setInstallments(newInsts);
                                       }}
+                                      disabled={isReadOnly || (editingId && inst.status === 'paid')}
                                       className="w-28 px-2 py-1 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-xs font-black text-right tabular-nums"
                                     />
                                   </div>

@@ -518,3 +518,47 @@ export const reportOutputs = pgTable('report_outputs', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   createdBy: varchar('created_by', { length: 100 }).notNull(),
 });
+
+// ============================================================================
+// public schema — Export & Upload Module additions
+// ============================================================================
+
+// --- 23. upload_sessions ----------------------------------------------------
+
+export const uploadSessions = pgTable('upload_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  module: varchar('module', { length: 50 }).notNull(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  filePath: varchar('file_path', { length: 500 }), // Path to uploaded file for download
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+  totalRows: integer('total_rows').notNull(),
+  validRows: integer('valid_rows').notNull(),
+  invalidRows: integer('invalid_rows').notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('pending_review'), // pending_review | confirmed | approved | failed | cancelled
+  approvalId: uuid('approval_id').references(() => approvals.id),
+  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: varchar('updated_by', { length: 100 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).$onUpdate(() => new Date()),
+}, (table) => [
+  index('idx_upload_sessions_user_id').on(table.userId),
+  index('idx_upload_sessions_status').on(table.status),
+  index('idx_upload_sessions_entity_type').on(table.entityType),
+]);
+
+// --- 24. upload_staging_rows ------------------------------------------------
+
+export const uploadStagingRows = pgTable('upload_staging_rows', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').notNull().references(() => uploadSessions.id, { onDelete: 'cascade' }),
+  rowNumber: integer('row_number').notNull(),
+  rowData: jsonb('row_data').notNull(), // Parsed row data as JSON object
+  isValid: boolean('is_valid').notNull().default(false),
+  errorMessages: jsonb('error_messages'), // Array of validation error messages
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('idx_upload_staging_rows_session_id').on(table.sessionId),
+  index('idx_upload_staging_rows_session_row').on(table.sessionId, table.rowNumber),
+]);

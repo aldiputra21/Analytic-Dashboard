@@ -31,6 +31,21 @@ import type { CostCenterPayload } from '../shared/forms/CostCenterForm';
 import { ProjectForm } from '../shared/forms/ProjectForm';
 import type { ProjectPayload } from '../shared/forms/ProjectForm';
 
+// ── Upload Approval Forms ──────────────────────────────────────────────────────
+import {
+  BalanceSheetUploadApprovalForm,
+  IncomeStatementUploadApprovalForm,
+  IncomeStatementProjectionUploadApprovalForm,
+  WeeklyCashFlowUploadApprovalForm,
+  RealizationUploadApprovalForm,
+  CashFlowProjectionUploadApprovalForm,
+  BankLoanUploadApprovalForm,
+  CorporateUploadApprovalForm,
+  DepartmentUploadApprovalForm,
+  CostCenterUploadApprovalForm,
+  ProjectUploadApprovalForm,
+} from './UploadApprovalForms';
+
 // ── ApprovalFormProps — kontrak yang diterima ApprovalDetailModal ─────────────
 
 export interface StagedAttachment {
@@ -229,4 +244,39 @@ export const FORM_REGISTRY: Record<string, React.ComponentType<ApprovalFormProps
       },
     },
   ),
+
+  // ── Upload Approval Forms ────────────────────────────────────────────────────
+
+  // Balance Sheet Upload
+  BalanceSheetUploadApprovalForm,
+
+  // Income Statement Upload
+  IncomeStatementUploadApprovalForm,
+
+  // Income Statement Projection Upload
+  IncomeStatementProjectionUploadApprovalForm,
+
+  // Weekly Cash Flow Upload
+  WeeklyCashFlowUploadApprovalForm,
+
+  // Realization Upload
+  RealizationUploadApprovalForm,
+
+  // Cash Flow Projection Upload
+  CashFlowProjectionUploadApprovalForm,
+
+  // Bank Loan Upload
+  BankLoanUploadApprovalForm,
+
+  // Corporate Upload
+  CorporateUploadApprovalForm,
+
+  // Department Upload
+  DepartmentUploadApprovalForm,
+
+  // Cost Center Upload
+  CostCenterUploadApprovalForm,
+
+  // Project Upload
+  ProjectUploadApprovalForm,
 };

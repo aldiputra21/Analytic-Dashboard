@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   RefreshCw, History, Info, Calendar, 
   Tag, Search, ChevronDown, ChevronUp,
-  AlertCircle, User, ShieldCheck
+  AlertCircle, User, ShieldCheck, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../../services/financial/apiFetch';
@@ -10,9 +10,11 @@ import { useAuth } from '../../../hooks/financial/useAuth';
 import { cn } from '../../../utils/cn';
 import { auditLogI18n } from '../../../i18n/audit-log';
 import { commonsI18n } from '../../../i18n/commons';
+import { exportUploadI18n } from '../../../i18n/exportUpload';
 import { getErrorMessage } from '../../../utils/errorUtils';
 import { toast } from 'sonner';
 import { SearchableSelect } from '../shared/SearchableSelect';
+import { UploadDetailModal } from './UploadDetailModal';
 
 interface AuditLogEntry {
   id: string;
@@ -27,6 +29,7 @@ interface AuditLogEntry {
   newValues?: Record<string, any>;
   justification?: string;
   ipAddress?: string;
+  metadata?: Record<string, any>;
   createdAt: string;
 }
 
@@ -43,6 +46,7 @@ const ACTION_COLORS: Record<string, string> = {
   login: 'bg-slate-50 text-slate-600 border-slate-100',
   logout: 'bg-slate-50 text-slate-600 border-slate-100',
   export: 'bg-purple-50 text-purple-700 border-purple-100',
+  upload: 'bg-indigo-50 text-indigo-700 border-indigo-100',
   backup: 'bg-amber-50 text-amber-700 border-amber-100',
   restore: 'bg-amber-50 text-amber-700 border-amber-100',
 };
@@ -64,6 +68,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({
   const { language } = useAuth();
   const t = auditLogI18n[language];
   const common = commonsI18n[language];
+  const uploadT = exportUploadI18n[language];
 
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +80,10 @@ export const AuditLog: React.FC<AuditLogProps> = ({
   const [actionFilter, setActionFilter] = useState('');
   const [entityTypeFilter, setEntityTypeFilter] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Upload Detail Modal
+  const [uploadDetailModalOpen, setUploadDetailModalOpen] = useState(false);
+  const [selectedUploadMetadata, setSelectedUploadMetadata] = useState<any>(null);
 
   const fetchAuditLog = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -117,6 +126,16 @@ export const AuditLog: React.FC<AuditLogProps> = ({
       dateStyle: 'medium',
       timeStyle: 'short'
     });
+  };
+
+  const handleViewUploadDetail = (entry: AuditLogEntry) => {
+    if (entry.action === 'upload' && entry.metadata) {
+      setSelectedUploadMetadata({
+        ...entry.metadata,
+        sessionId: entry.entityId,
+      });
+      setUploadDetailModalOpen(true);
+    }
   };
 
   return (
@@ -210,6 +229,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({
               <option value="login">{t.filters.login}</option>
               <option value="logout">{t.filters.logout}</option>
               <option value="export">{t.filters.export}</option>
+              <option value="upload">{uploadT.upload.title}</option>
               <option value="backup">{t.filters.backup}</option>
               <option value="restore">{t.filters.restore}</option>
             </select>
@@ -362,22 +382,35 @@ export const AuditLog: React.FC<AuditLogProps> = ({
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <div className={cn(
-                              "inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-colors",
-                              isExpanded ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
-                            )}>
-                              {isExpanded ? (
-                                <>
-                                  {t.details.hide}
-                                  <ChevronUp size={14} />
-                                </>
-                              ) : (
-                                <>
-                                  {t.details.show}
-                                  <ChevronDown size={14} />
-                                </>
-                              )}
-                            </div>
+                            {entry.action === 'upload' ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewUploadDetail(entry);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                              >
+                                <Eye size={14} />
+                                {uploadT.history.viewDetail}
+                              </button>
+                            ) : (
+                              <div className={cn(
+                                "inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-colors",
+                                isExpanded ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                              )}>
+                                {isExpanded ? (
+                                  <>
+                                    {t.details.hide}
+                                    <ChevronUp size={14} />
+                                  </>
+                                ) : (
+                                  <>
+                                    {t.details.show}
+                                    <ChevronDown size={14} />
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </td>
                         </motion.tr>
                         
@@ -449,6 +482,19 @@ export const AuditLog: React.FC<AuditLogProps> = ({
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center pt-4">
         {t.entriesHint}
       </p>
+
+      {/* Upload Detail Modal */}
+      {uploadDetailModalOpen && selectedUploadMetadata && (
+        <UploadDetailModal
+          isOpen={uploadDetailModalOpen}
+          onClose={() => {
+            setUploadDetailModalOpen(false);
+            setSelectedUploadMetadata(null);
+          }}
+          metadata={selectedUploadMetadata}
+          language={language}
+        />
+      )}
     </div>
   );
 };

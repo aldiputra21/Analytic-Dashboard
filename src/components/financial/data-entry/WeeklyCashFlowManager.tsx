@@ -40,6 +40,9 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
+import { NumericInput } from '../shared/NumericInput';
 
 // --- Types ---
 interface CashFlow {
@@ -159,45 +162,6 @@ const Modal: React.FC<{
   );
 };
 
-const FormField: React.FC<{
-  label: string;
-  value: number | string;
-  onChange: (val: string) => void;
-  type?: string;
-  placeholder?: string;
-  readOnly?: boolean;
-}> = ({ label, value, onChange, placeholder = "0", readOnly = false }) => {
-  const displayValue = useMemo(() => {
-    if (value === undefined || value === null || value === "" || value === 0) {
-      return value === 0 ? "0" : "";
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? "" : num.toLocaleString('id-ID');
-  }, [value]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/[^0-9-]/g, "");
-    onChange(rawValue);
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{label}</label>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={displayValue}
-        onChange={handleChange}
-        placeholder={placeholder}
-        readOnly={readOnly}
-        className={cn(
-          "w-full px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm bg-slate-50/30 font-bold",
-          readOnly && "bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none"
-        )}
-      />
-    </div>
-  );
-};
 
 // --- Main Component ---
 
@@ -237,6 +201,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
     periodStart: '',
     periodEnd: '',
     corporate: '',
+    corporateLabel: '',
     entityType: '',
     entity: '',
     search: ''
@@ -295,10 +260,12 @@ export const WeeklyCashFlowManager: React.FC = () => {
   }, [currentPage, pageSize, appliedFilters]);
 
   const handleApplyFilter = () => {
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporate)?.label || '';
     setAppliedFilters({
       periodStart: filterPeriodStart,
       periodEnd: filterPeriodEnd,
       corporate: filterCorporate,
+      corporateLabel,
       entityType: filterEntityType,
       entity: filterEntity,
       search: filterSearch
@@ -317,6 +284,7 @@ export const WeeklyCashFlowManager: React.FC = () => {
       periodStart: '',
       periodEnd: '',
       corporate: '',
+      corporateLabel: '',
       entityType: '',
       entity: '',
       search: ''
@@ -504,6 +472,11 @@ export const WeeklyCashFlowManager: React.FC = () => {
 
         {canWrite && (
           <div className="flex items-center gap-2">
+            <UploadButton
+              entityType="weekly_cash_flow"
+              onUploadComplete={fetchData}
+              disabled={isLoading}
+            />
             <button
               onClick={() => handleOpenModal('create')}
               className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
@@ -566,6 +539,11 @@ export const WeeklyCashFlowManager: React.FC = () => {
               <FilterX size={14} />
               {common.clear}
             </button>
+            <ExportButton
+              entityType="weekly_cash_flow"
+              filters={appliedFilters}
+              disabled={isLoading}
+            />
           </div>
         </div>
       </div>
@@ -805,6 +783,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
         )}
       </div>
 
+
+
       {/* --- CRUD MODAL --- */}
       <AnimatePresence>
         {isModalOpen && (
@@ -927,8 +907,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       <TrendingUp size={18} className="text-blue-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.operatingActivity}</h4>
                     </div>
-                    <FormField label={t.fields.cashIn} value={formData.operatingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                    <FormField label={t.fields.cashOut} value={formData.operatingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, operatingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <NumericInput label={t.fields.cashIn} value={formData.operatingCashIn || 0} onValueChange={(values) => setFormData(p => ({ ...p, operatingCashIn: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
+                    <NumericInput label={t.fields.cashOut} value={formData.operatingCashOut || 0} onValueChange={(values) => setFormData(p => ({ ...p, operatingCashOut: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
                     <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netOperating >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
                       <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Operating</span>
                       <span className="text-sm font-black">{formatRupiah(netOperating, false)}</span>
@@ -941,8 +921,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       <ArrowUpCircle size={18} className="text-amber-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.investing}</h4>
                     </div>
-                    <FormField label={t.fields.cashIn} value={formData.investingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                    <FormField label={t.fields.cashOut} value={formData.investingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, investingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <NumericInput label={t.fields.cashIn} value={formData.investingCashIn || 0} onValueChange={(values) => setFormData(p => ({ ...p, investingCashIn: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
+                    <NumericInput label={t.fields.cashOut} value={formData.investingCashOut || 0} onValueChange={(values) => setFormData(p => ({ ...p, investingCashOut: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
                     <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netInvesting >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
                       <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Investing</span>
                       <span className="text-sm font-black">{formatRupiah(netInvesting, false)}</span>
@@ -955,8 +935,8 @@ export const WeeklyCashFlowManager: React.FC = () => {
                       <Landmark size={18} className="text-indigo-500" />
                       <h4 className="font-bold text-sm text-slate-700 uppercase tracking-tight">{t.modal.financing}</h4>
                     </div>
-                    <FormField label={t.fields.cashIn} value={formData.financingCashIn || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashIn: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
-                    <FormField label={t.fields.cashOut} value={formData.financingCashOut || 0} onChange={(v) => setFormData(p => ({ ...p, financingCashOut: v === "" ? 0 : parseFloat(v) }))} readOnly={modalMode === 'view'} />
+                    <NumericInput label={t.fields.cashIn} value={formData.financingCashIn || 0} onValueChange={(values) => setFormData(p => ({ ...p, financingCashIn: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
+                    <NumericInput label={t.fields.cashOut} value={formData.financingCashOut || 0} onValueChange={(values) => setFormData(p => ({ ...p, financingCashOut: values.floatValue ?? 0 }))} disabled={modalMode === 'view'} />
                     <div className={cn("px-4 py-2.5 rounded-xl flex flex-col shadow-sm", netFinancing >= 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-rose-50 text-rose-700 border border-rose-100")}>
                       <span className="text-[10px] font-black uppercase opacity-70 tracking-wider">Net Financing</span>
                       <span className="text-sm font-black">{formatRupiah(netFinancing, false)}</span>
@@ -1017,25 +997,30 @@ export const WeeklyCashFlowManager: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
-        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+      >
+        <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black text-slate-800">{t.alerts.deleteTitle}</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-500 font-medium">
+            <AlertDialogDescription className="text-slate-500 font-medium pt-2">
               {t.alerts.deleteDesc}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-xl border-slate-200 font-bold hover:bg-slate-50">
+          <AlertDialogFooter className="mt-6 gap-3">
+            <AlertDialogCancel
+              onClick={() => setDeleteConfirmId(null)}
+              className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
               {common.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
-              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100"
-              disabled={isDeleting}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
             >
-              {isDeleting ? <RefreshCw size={16} className="animate-spin mr-2" /> : <Trash2 size={16} className="mr-2" />}
+              {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               {isDeleting ? common.deleting : t.alerts.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>

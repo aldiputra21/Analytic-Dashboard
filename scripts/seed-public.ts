@@ -21,6 +21,7 @@ import {
   notificationConfigs,
   approvalWorkflows,
   approvalWorkflowSteps,
+  reportConfigs,
 } from '../src/db/schema/public';
 import bcrypt from 'bcryptjs';
 
@@ -126,6 +127,19 @@ async function main() {
     { key: 'public.report_configs.write', module: 'public', description: 'Manage dynamic report configurations' },
     { key: 'public.report_configs.delete', module: 'public', description: 'Delete dynamic report configurations' },
 
+    // Upload Permissions — 11 modules (Export & Upload Module)
+    { key: 'cfd.balance_sheets.upload', module: 'cfd', description: 'Upload balance sheets via Excel template' },
+    { key: 'cfd.income_statements.upload', module: 'cfd', description: 'Upload income statements via Excel template' },
+    { key: 'cfd.weekly_cash_flows.upload', module: 'cfd', description: 'Upload weekly cash flows via Excel template' },
+    { key: 'cfd.realizations.upload', module: 'cfd', description: 'Upload cash realizations via Excel template' },
+    { key: 'cfd.cash_flow_projections.upload', module: 'cfd', description: 'Upload cash flow projections via Excel template' },
+    { key: 'cfd.bank_loans.upload', module: 'cfd', description: 'Upload bank loans via Excel template' },
+    { key: 'cfd.corporates.upload', module: 'cfd', description: 'Upload corporates via Excel template' },
+    { key: 'cfd.cost_centers.upload', module: 'cfd', description: 'Upload cost centers via Excel template' },
+    { key: 'public.targets.upload', module: 'public', description: 'Upload income statement projections (targets) via Excel template' },
+    { key: 'public.departments.upload', module: 'public', description: 'Upload departments via Excel template' },
+    { key: 'public.projects.upload', module: 'public', description: 'Upload projects via Excel template' },
+
     // CRM Module
     { key: 'crm.dashboard.read', module: 'crm', description: 'Read CRM dashboard' },
     { key: 'crm.customers.read', module: 'crm', description: 'Read customers' },
@@ -195,6 +209,10 @@ async function main() {
       'cfd.cost_centers.delete',
       'cfd.audit_log.read',
       'cfd.cash_flow_projections.read',
+      'cfd.corporates.upload',
+      'public.departments.upload',
+      'cfd.cost_centers.upload',
+      'public.projects.upload',
     ],
     corporate_executive: permissionCatalog
       .filter(p => p.key.endsWith('.read'))
@@ -234,16 +252,23 @@ async function main() {
       'cfd.statements.write',
       'cfd.balance_sheets.read',
       'cfd.balance_sheets.write',
+      'cfd.balance_sheets.upload',
       'cfd.income_statements.read',
       'cfd.income_statements.write',
+      'cfd.income_statements.upload',
+      'public.targets.upload',
       'cfd.weekly_cash_flows.read',
       'cfd.weekly_cash_flows.write',
+      'cfd.weekly_cash_flows.upload',
       'cfd.realizations.read',
       'cfd.realizations.write',
+      'cfd.realizations.upload',
       'cfd.cost_centers.read',
       'cfd.cost_centers.write',
       'cfd.cash_flow_projections.read',
       'cfd.cash_flow_projections.write',
+      'cfd.cash_flow_projections.upload',
+      'cfd.bank_loans.upload',
     ],
     dept_leader: [
       'cfd.dashboard.read',
@@ -547,6 +572,291 @@ async function main() {
     { key: 'report_template_path', value: './storage/report-templates', description: 'Folder penyimpanan template Excel untuk laporan dinamis', createdBy: SYSTEM_ACTOR_ID },
     { key: 'report_output_path', value: './storage/report-outputs', description: 'Folder penyimpanan file output laporan dinamis', createdBy: SYSTEM_ACTOR_ID },
   ]).onConflictDoNothing();
+
+  const cronScheduleConfig = {
+    key: 'cron_schedule',
+    value: { notificationHour: 0, notificationMinute: 0, cleanupHour: 0, cleanupMinute: 5 },
+    description: 'Jadwal cron harian (0-23 untuk jam, 0-59 untuk menit). notificationHour/notificationMinute: cron notifikasi cicilan pinjaman. cleanupHour/cleanupMinute: cron pembersihan file laporan.',
+    createdBy: SYSTEM_ACTOR_ID,
+  };
+  await db.insert(systemConfigs).values(cronScheduleConfig).onConflictDoUpdate({
+    target: systemConfigs.key,
+    set: { value: cronScheduleConfig.value, description: cronScheduleConfig.description },
+  });
+
+  // ── Upload Template Configs ───────────────────────────────
+  console.log('📁 Seeding upload template configs...');
+
+  // 2.1 — Base path for storing user-uploaded files
+  await db.insert(systemConfigs).values({
+    key: 'upload_base_path',
+    value: './storage/uploads',
+    description: 'Base directory path for storing user-uploaded files',
+    createdBy: SYSTEM_ACTOR_ID,
+  }).onConflictDoNothing();
+
+  // 2.2 — Per-module template configs for all 11 modules
+  // startRecord: row number in Excel where data starts (1-indexed)
+  //   Row 1 = instructions, Row 2 = empty, Row 3 = column headers, Row 4 = data start
+  const uploadTemplateConfigs = [
+    // ── Financial Modules (7) ──────────────────────────────
+
+    // 1. Balance Sheet (Neraca)
+    {
+      key: 'upload_template_balance_sheet',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'corporate_id',
+          'period',
+          'cash_and_bank',
+          'accounts_receivable',
+          'work_in_progress',
+          'inventory',
+          'prepaid_expenses',
+          'land',
+          'building',
+          'equipment',
+          'other_fixed_assets',
+          'accounts_payable',
+          'bank_loan_current',
+          'other_current_liabilities',
+          'bank_loan_long_term',
+          'other_long_term_liabilities',
+          'shareholder_loan',
+          'capital',
+          'earnings_after_tax',
+          'retained_earnings',
+          'dividends',
+          'notes',
+        ],
+      },
+      description: 'Upload template config for Balance Sheet (Neraca) module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 2. Income Statement (Laba Rugi)
+    {
+      key: 'upload_template_income_statement',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'corporate_id',
+          'period',
+          'revenue',
+          'cogs',
+          'operating_expenses',
+          'interest_expense',
+          'tax_expense',
+          'other_income',
+          'other_expense',
+          'notes',
+        ],
+      },
+      description: 'Upload template config for Income Statement (Laba Rugi) module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 3. Income Statement Projection (Proyeksi Laba Rugi)
+    // Uses flat format: each row contains header_ref + detail columns
+    {
+      key: 'upload_template_income_statement_projection',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'header_ref',       // identifier linking detail rows to header (e.g., "DEPT-2026")
+          'department_id',
+          'project_id',       // optional project FK
+          'fiscal_year',
+          'month',
+          'account_code',
+          'account_name',
+          'amount',
+          'notes',
+        ],
+      },
+      description: 'Upload template config for Income Statement Projection (Proyeksi Laba Rugi) module — flat format with header_ref identifier',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 4. Weekly Cash Flow (Arus Kas Mingguan)
+    {
+      key: 'upload_template_weekly_cash_flow',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'corporate_id',
+          'entity_type',
+          'entity_id',
+          'period',
+          'week',
+          'operating_cash_in',
+          'operating_cash_out',
+          'investing_cash_in',
+          'investing_cash_out',
+          'financing_cash_in',
+          'financing_cash_out',
+          'notes',
+        ],
+      },
+      description: 'Upload template config for Weekly Cash Flow (Arus Kas Mingguan) module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 5. Realization (Realisasi)
+    {
+      key: 'upload_template_realization',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'entity_type',
+          'department_id',
+          'project_id',
+          'transaction_date',
+          'category',
+          'cost_center_id',
+          'amount',
+          'notes',
+        ],
+      },
+      description: 'Upload template config for Realization (Realisasi) module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 6. Cash Flow Projection (Proyeksi Arus Kas)
+    // Wide format: 1 row = 1 header with 12 months × cash_in & cash_out columns
+    // Row 3 = month names (merged 2 cols each), Row 4 = cash in/cash out sub-headers, Row 5+ = data
+    {
+      key: 'upload_template_cash_flow_projection',
+      value: {
+        startRecord: 5,
+        columnOrder: [
+          'corporate',        // display label resolved to corporate_id UUID during upload
+          'fiscal_year',
+          'initial_balance',
+          'notes',
+          'jan_cash_in', 'jan_cash_out',
+          'feb_cash_in', 'feb_cash_out',
+          'mar_cash_in', 'mar_cash_out',
+          'apr_cash_in', 'apr_cash_out',
+          'may_cash_in', 'may_cash_out',
+          'jun_cash_in', 'jun_cash_out',
+          'jul_cash_in', 'jul_cash_out',
+          'aug_cash_in', 'aug_cash_out',
+          'sep_cash_in', 'sep_cash_out',
+          'oct_cash_in', 'oct_cash_out',
+          'nov_cash_in', 'nov_cash_out',
+          'dec_cash_in', 'dec_cash_out',
+        ],
+      },
+      description: 'Upload template config for Cash Flow Projection (Proyeksi Arus Kas) module — wide format per fiscal year',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 7. Bank Loan (Pinjaman Bank)
+    {
+      key: 'upload_template_bank_loan',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'corporate_id',
+          'bank_id',
+          'credit_type',
+          'amount',
+          'start_date',
+          'tenor',
+          'interest_type',
+          'interest_rate',
+          'alert_min_days',
+        ],
+      },
+      description: 'Upload template config for Bank Loan (Pinjaman Bank) module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // ── Master Data Modules (4) ────────────────────────────
+
+    // 8. Corporate (Perusahaan)
+    {
+      key: 'upload_template_corporate',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'name',
+          'code',
+          'industry',
+          'currency',
+          'fiscal_year_start_month',
+          'tax_rate',
+        ],
+      },
+      description: 'Upload template config for Corporate (Perusahaan) master data module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 9. Department (Departemen)
+    {
+      key: 'upload_template_department',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'corporate_id',
+          'name',
+          'code',
+          'description',
+          'head_name',
+        ],
+      },
+      description: 'Upload template config for Department (Departemen) master data module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 10. Cost Center
+    {
+      key: 'upload_template_cost_center',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'corporate_id',
+          'name',
+          'code',
+          'category',
+          'description',
+        ],
+      },
+      description: 'Upload template config for Cost Center master data module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+
+    // 11. Project (Proyek)
+    {
+      key: 'upload_template_project',
+      value: {
+        startRecord: 4,
+        columnOrder: [
+          'department_id',
+          'name',
+          'code',
+          'description',
+          'start_date',
+          'end_date',
+          'status',
+        ],
+      },
+      description: 'Upload template config for Project (Proyek) master data module',
+      createdBy: SYSTEM_ACTOR_ID,
+    },
+  ];
+
+  for (const config of uploadTemplateConfigs) {
+    await db.insert(systemConfigs).values(config).onConflictDoUpdate({
+      target: systemConfigs.key,
+      set: { value: config.value, description: config.description },
+    });
+  }
+
+  console.log(`   ✅ Upload template base path config seeded`);
+  console.log(`   ✅ ${uploadTemplateConfigs.length} per-module upload template configs seeded`);
 
   // ── Notification Configs ─────────────────────────────────
   console.log('🔔 Seeding notification configs...');
@@ -1140,7 +1450,297 @@ async function main() {
     console.log(`   ✅ Workflow: ${workflow.name}`);
   }
 
+  // ── Approval Workflows — Upload Workflows (11 modules) ───
+  console.log('✅ Seeding upload approval workflows for 11 modules...');
+
+  // Subject fields for upload workflows
+  const uploadSubjectFields: SubjectField[] = [
+    { field: 'fileName', label: 'Nama File', type: 'string' },
+    { field: 'totalRows', label: 'Total Baris', type: 'number' },
+  ];
+
+  const uploadWorkflowDefs = [
+    // ── Financial Modules (7) ────────────────────────────────
+    {
+      module: 'cfd', entityType: 'balance_sheet_upload', action: 'upload',
+      name: 'Persetujuan Upload Neraca', nameEn: 'Balance Sheet Upload Approval',
+      description: 'Workflow persetujuan untuk upload data neraca',
+      callbackHandler: 'handleBalanceSheetUpload', viewComponent: 'BalanceSheetUploadApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'income_statement_upload', action: 'upload',
+      name: 'Persetujuan Upload Laba Rugi', nameEn: 'Income Statement Upload Approval',
+      description: 'Workflow persetujuan untuk upload data laba rugi',
+      callbackHandler: 'handleIncomeStatementUpload', viewComponent: 'IncomeStatementUploadApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'income_statement_projection_upload', action: 'upload',
+      name: 'Persetujuan Upload Proyeksi Laba Rugi', nameEn: 'Income Statement Projection Upload Approval',
+      description: 'Workflow persetujuan untuk upload data proyeksi laba rugi',
+      callbackHandler: 'handleIncomeStatementProjectionUpload', viewComponent: 'IncomeStatementProjectionUploadApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'weekly_cash_flow_upload', action: 'upload',
+      name: 'Persetujuan Upload Arus Kas Mingguan', nameEn: 'Weekly Cash Flow Upload Approval',
+      description: 'Workflow persetujuan untuk upload data arus kas mingguan',
+      callbackHandler: 'handleWeeklyCashFlowUpload', viewComponent: 'WeeklyCashFlowUploadApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'realization_upload', action: 'upload',
+      name: 'Persetujuan Upload Realisasi', nameEn: 'Realization Upload Approval',
+      description: 'Workflow persetujuan untuk upload data realisasi',
+      callbackHandler: 'handleRealizationUpload', viewComponent: 'RealizationUploadApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'cash_flow_projection_upload', action: 'upload',
+      name: 'Persetujuan Upload Proyeksi Arus Kas', nameEn: 'Cash Flow Projection Upload Approval',
+      description: 'Workflow persetujuan untuk upload data proyeksi arus kas',
+      callbackHandler: 'handleCashFlowProjectionUpload', viewComponent: 'CashFlowProjectionUploadApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'bank_loan_upload', action: 'upload',
+      name: 'Persetujuan Upload Pinjaman Bank', nameEn: 'Bank Loan Upload Approval',
+      description: 'Workflow persetujuan untuk upload data pinjaman bank',
+      callbackHandler: 'handleBankLoanUpload', viewComponent: 'BankLoanUploadApprovalForm',
+      makerRole: financeStaffRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+
+    // ── Master Data Modules (4) ──────────────────────────────
+    {
+      module: 'cfd', entityType: 'corporate_upload', action: 'upload',
+      name: 'Persetujuan Upload Perusahaan', nameEn: 'Corporate Upload Approval',
+      description: 'Workflow persetujuan untuk upload data perusahaan',
+      callbackHandler: 'handleCorporateUpload', viewComponent: 'CorporateUploadApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: uploadSubjectFields, isActive: false, // Inactive per requirement
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'department_upload', action: 'upload',
+      name: 'Persetujuan Upload Departemen', nameEn: 'Department Upload Approval',
+      description: 'Workflow persetujuan untuk upload data departemen',
+      callbackHandler: 'handleDepartmentUpload', viewComponent: 'DepartmentUploadApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'cost_center_upload', action: 'upload',
+      name: 'Persetujuan Upload Cost Center', nameEn: 'Cost Center Upload Approval',
+      description: 'Workflow persetujuan untuk upload data cost center',
+      callbackHandler: 'handleCostCenterUpload', viewComponent: 'CostCenterUploadApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+    {
+      module: 'cfd', entityType: 'project_upload', action: 'upload',
+      name: 'Persetujuan Upload Proyek', nameEn: 'Project Upload Approval',
+      description: 'Workflow persetujuan untuk upload data proyek',
+      callbackHandler: 'handleProjectUpload', viewComponent: 'ProjectUploadApprovalForm',
+      makerRole: corporateAdminRoleId, subjectFields: uploadSubjectFields, isActive: true,
+      steps: [
+        { stepOrder: 1, stepType: 'approval', requiredRole: financeManagerRoleId, isActive: true },
+        { stepOrder: 2, stepType: 'approval', requiredRole: financeLeaderRoleId, isActive: true },
+      ],
+    },
+  ];
+
+  for (const wf of uploadWorkflowDefs) {
+    const { steps, ...workflowData } = wf;
+
+    const [workflow] = await db
+      .insert(approvalWorkflows)
+      .values({ ...workflowData, createdBy: SYSTEM_ACTOR_ID })
+      .onConflictDoUpdate({
+        target: [approvalWorkflows.module, approvalWorkflows.entityType, approvalWorkflows.action],
+        set: {
+          name: workflowData.name,
+          nameEn: workflowData.nameEn,
+          description: workflowData.description,
+          callbackHandler: workflowData.callbackHandler,
+          viewComponent: workflowData.viewComponent,
+          makerRole: workflowData.makerRole,
+          subjectFields: workflowData.subjectFields,
+          isActive: workflowData.isActive,
+          updatedBy: SYSTEM_ACTOR_ID,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    // Use if (existingSteps.length === 0) pattern to avoid FK conflicts
+    const existingSteps = await db.select({ id: approvalWorkflowSteps.id })
+      .from(approvalWorkflowSteps)
+      .where(eq(approvalWorkflowSteps.workflowId, workflow.id));
+
+    if (existingSteps.length === 0) {
+      await db.insert(approvalWorkflowSteps).values(
+        steps.map(s => ({ ...s, workflowId: workflow.id }))
+      );
+    }
+
+    console.log(`   ✅ Upload Workflow: ${workflow.name}`);
+  }
+
+  // ── Report Configs ───────────────────────────────────────
+  console.log('📊 Seeding report configs...');
+
+  const monthlyColumns = (startOrder: number) => {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const cols: any[] = [];
+    let currentOrder = startOrder;
+    months.forEach((month) => {
+      cols.push({
+        fieldName: `${month.toLowerCase()}_estimated`,
+        order: currentOrder++,
+        dataType: 'currency' as const,
+        headerLabelId: 'Estimasi',
+        headerLabelEn: 'Estimated'
+      });
+      cols.push({
+        fieldName: `${month.toLowerCase()}_actual`,
+        order: currentOrder++,
+        dataType: 'currency' as const,
+        headerLabelId: 'Aktual',
+        headerLabelEn: 'Actual'
+      });
+    });
+    return cols;
+  };
+
+  const reportConfigDefs = [
+    {
+      id: 'a2b3c4d5-e6f7-4a8b-9c0d-e1f2a3b4c5d6',
+      titleId: 'Laba Rugi Proyek',
+      titleEn: 'Project Profit & Loss',
+      templateFilename: 'Laba Rugi Proyek.xlsx',
+      cellInfoFilter: 'A2',
+      startRow: 6,
+      writeHeader: false,
+      retentionType: 'immediate',
+      allowedRoles: ['system_admin', 'finance_staff', 'finance_manager', 'finance_leader'],
+      filters: [
+        {
+          paramName: 'periode',
+          labelId: 'Periode',
+          labelEn: 'Period',
+          type: 'month_range' as const,
+          order: 1,
+          required: true
+        }
+      ],
+      columns: [
+        { fieldName: 'no', order: 1, dataType: 'string' as const, headerLabelId: 'NO', headerLabelEn: 'NO' },
+        { fieldName: 'description', order: 2, dataType: 'string' as const, headerLabelId: 'DESCRIPTION', headerLabelEn: 'DESCRIPTION' },
+        { fieldName: 'total_estimated', order: 3, dataType: 'currency' as const, headerLabelId: 'ESTIMATED', headerLabelEn: 'ESTIMATED' },
+        { fieldName: 'total_actual', order: 4, dataType: 'currency' as const, headerLabelId: 'ACTUAL', headerLabelEn: 'ACTUAL' },
+        { fieldName: 'total_balance', order: 5, dataType: 'currency' as const, headerLabelId: 'BALANCE', headerLabelEn: 'BALANCE' },
+        ...monthlyColumns(6)
+      ],
+      query: `-- Query for Laba Rugi Proyek
+-- Grouped by: PROJECT REVENUE, PROJECT COST, PROJECT GROSS PROFIT, GROSS PROFIT PERCENTAGE (%)
+SELECT * FROM (
+  SELECT 1 as no, 'PROJECT REVENUE' as description, 0 as total_estimated, 0 as total_actual, 0 as total_balance,
+  0 as januari_estimated, 0 as januari_actual, 0 as februari_estimated, 0 as februari_actual, 0 as maret_estimated, 0 as maret_actual, 0 as april_estimated, 0 as april_actual, 0 as mei_estimated, 0 as mei_actual, 0 as juni_estimated, 0 as juni_actual, 0 as juli_estimated, 0 as juli_actual, 0 as agustus_estimated, 0 as agustus_actual, 0 as september_estimated, 0 as september_actual, 0 as oktober_estimated, 0 as oktober_actual, 0 as november_estimated, 0 as november_actual, 0 as desember_estimated, 0 as desember_actual
+  UNION ALL
+  SELECT 2, 'PROJECT COST', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  UNION ALL
+  SELECT 3, 'PROJECT GROSS PROFIT', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  UNION ALL
+  SELECT 4, 'GROSS PROFIT PERCENTAGE (%)', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+) dummy_data`
+    },
+    {
+      id: 'b3c4d5e6-f7a8-4b9c-0d1e-f2a3b4c5d6e7',
+      titleId: 'Laba Rugi Proyek per Cost Center',
+      titleEn: 'Project Profit & Loss per Cost Center',
+      templateFilename: 'Laba Rugi Proyek per Cost Center.xlsx',
+      cellInfoFilter: 'A2',
+      startRow: 6,
+      writeHeader: false,
+      retentionType: 'immediate',
+      allowedRoles: ['system_admin', 'finance_staff', 'finance_manager', 'finance_leader'],
+      filters: [
+        {
+          paramName: 'periode',
+          labelId: 'Periode',
+          labelEn: 'Period',
+          type: 'month_range' as const,
+          order: 1,
+          required: true
+        }
+      ],
+      columns: [
+        { fieldName: 'no', order: 1, dataType: 'string' as const, headerLabelId: 'NO', headerLabelEn: 'NO' },
+        { fieldName: 'cost_center', order: 2, dataType: 'string' as const, headerLabelId: 'COST CENTER', headerLabelEn: 'COST CENTER' },
+        { fieldName: 'total_estimated', order: 3, dataType: 'currency' as const, headerLabelId: 'ESTIMATED', headerLabelEn: 'ESTIMATED' },
+        { fieldName: 'total_actual', order: 4, dataType: 'currency' as const, headerLabelId: 'ACTUAL', headerLabelEn: 'ACTUAL' },
+        { fieldName: 'total_balance', order: 5, dataType: 'currency' as const, headerLabelId: 'BALANCE', headerLabelEn: 'BALANCE' },
+        ...monthlyColumns(6)
+      ],
+      query: `-- Query for Laba Rugi Proyek per Cost Center
+-- Grouped by Cost Center
+SELECT 1 as no, 'Dummy Cost Center' as cost_center, 0 as total_estimated, 0 as total_actual, 0 as total_balance,
+0 as januari_estimated, 0 as januari_actual, 0 as februari_estimated, 0 as februari_actual, 0 as maret_estimated, 0 as maret_actual, 0 as april_estimated, 0 as april_actual, 0 as mei_estimated, 0 as mei_actual, 0 as juni_estimated, 0 as juni_actual, 0 as juli_estimated, 0 as juli_actual, 0 as agustus_estimated, 0 as agustus_actual, 0 as september_estimated, 0 as september_actual, 0 as oktober_estimated, 0 as oktober_actual, 0 as november_estimated, 0 as november_actual, 0 as desember_estimated, 0 as desember_actual`
+    }
+  ];
+
+  for (const { id, ...rest } of reportConfigDefs) {
+    await db.insert(reportConfigs)
+      .values({ id, ...rest, createdBy: SYSTEM_ACTOR_ID })
+      .onConflictDoUpdate({
+        target: reportConfigs.id,
+        set: { ...rest, updatedBy: SYSTEM_ACTOR_ID, updatedAt: new Date() },
+      });
+  }
+  console.log('   ✅ Report configs ready');
+
   console.log('\n🎉 New RBAC Public schema seeding complete!');
+
   process.exit(0);
 }
 

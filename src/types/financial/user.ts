@@ -69,7 +69,7 @@ export interface AuditLogEntry {
   userId: string;
   userName?: string;
   userEmail?: string;
-  action: 'create' | 'update' | 'delete' | 'login' | 'logout' | 'export' | 'backup' | 'restore' | 'toggle_status' | 'set_permissions' | 'password_reset_request' | 'password_reset_complete' | 'resend_activation_email' | 'force_reset_password' | 'account_activated' | 'profile_updated' | 'password_changed' | 'avatar_uploaded' | 'report_expired';
+  action: 'create' | 'update' | 'delete' | 'login' | 'logout' | 'export' | 'backup' | 'restore' | 'toggle_status' | 'set_permissions' | 'password_reset_request' | 'password_reset_complete' | 'resend_activation_email' | 'force_reset_password' | 'account_activated' | 'profile_updated' | 'password_changed' | 'avatar_uploaded' | 'report_expired' | 'upload';
   entityType: string;
   entityId?: string;
   subsidiaryId?: string;

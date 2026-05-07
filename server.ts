@@ -1,6 +1,9 @@
 import 'dotenv/config';
+import { eq } from 'drizzle-orm';
 import { getFRSConfig } from "./src/config/frsConfig.js";
 import { createApp } from './src/server/createApp.js';
+import { db } from './src/db/connection.js';
+import { systemConfigs } from './src/db/schema/public.js';
 import { runInstallmentNotificationCron } from './src/services/financial/notificationCron.js';
 import { runCleanup } from './src/services/financial/reportCleanupService.js';
 
@@ -20,53 +23,90 @@ try {
 console.log('[DB] Using PostgreSQL via Drizzle ORM');
 
 // ---------------------------------------------------------------------------
-// Notification cron — runs daily at 00:00
-// Uses setInterval to schedule the job every 24 hours, with an initial
-// alignment to the next midnight.
-// Returns timer IDs for cleanup during shutdown.
+// Cron scheduling — configurable via system_configs key 'cron_schedule'
+// Two independent daily jobs:
+//   1. runInstallmentNotificationCron  → notificationHour : notificationMinute
+//   2. runCleanup                      → cleanupHour      : cleanupMinute
+// Defaults: notification 00:00, cleanup 00:05
 // ---------------------------------------------------------------------------
-function scheduleDailyCron(): { timeoutId: NodeJS.Timeout; intervalId?: NodeJS.Timeout } {
-  function msUntilNextMidnight(): number {
-    const now = new Date();
-    const nextMidnight = new Date(now);
-    nextMidnight.setHours(24, 0, 0, 0); // next 00:00:00.000
-    return nextMidnight.getTime() - now.getTime();
-  }
+interface CronSchedule {
+  notificationHour: number;
+  notificationMinute: number;
+  cleanupHour: number;
+  cleanupMinute: number;
+}
 
+interface CronTimers {
+  notificationTimeoutId: NodeJS.Timeout;
+  notificationIntervalId?: NodeJS.Timeout;
+  cleanupTimeoutId: NodeJS.Timeout;
+  cleanupIntervalId?: NodeJS.Timeout;
+}
+
+async function getCronSchedule(): Promise<CronSchedule> {
+  const defaults: CronSchedule = {
+    notificationHour: 0,
+    notificationMinute: 0,
+    cleanupHour: 0,
+    cleanupMinute: 5,
+  };
+  try {
+    const rows = await db.select().from(systemConfigs).where(eq(systemConfigs.key, 'cron_schedule'));
+    if (rows.length === 0) return defaults;
+    const val = rows[0].value as Partial<CronSchedule>;
+    return {
+      notificationHour:   typeof val.notificationHour   === 'number' ? val.notificationHour   : defaults.notificationHour,
+      notificationMinute: typeof val.notificationMinute === 'number' ? val.notificationMinute : defaults.notificationMinute,
+      cleanupHour:        typeof val.cleanupHour        === 'number' ? val.cleanupHour        : defaults.cleanupHour,
+      cleanupMinute:      typeof val.cleanupMinute      === 'number' ? val.cleanupMinute      : defaults.cleanupMinute,
+    };
+  } catch (err) {
+    console.error('[CronSchedule] Failed to read schedule from DB, using defaults:', err);
+    return defaults;
+  }
+}
+
+function msUntilNext(hour: number, minute: number): number {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(hour, minute, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next.getTime() - now.getTime();
+}
+
+function scheduleDaily(
+  label: string,
+  hour: number,
+  minute: number,
+  job: () => Promise<unknown>,
+): { timeoutId: NodeJS.Timeout; intervalId?: NodeJS.Timeout } {
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  const MS_5_MINUTES = 5 * 60 * 1000;
   let intervalId: NodeJS.Timeout | undefined;
 
-  // Fire once at the next midnight, then repeat every 24 h
   const timeoutId = setTimeout(() => {
-    runInstallmentNotificationCron().catch((err) =>
-      console.error('[NotificationCron] Unhandled error:', err),
-    );
-
-    // Run report cleanup at 00:05 (5-minute offset after midnight)
-    setTimeout(() => {
-      runCleanup().catch((err) =>
-        console.error('[ReportCleanup] Unhandled error:', err),
-      );
-    }, MS_5_MINUTES);
-
+    job().catch((err) => console.error(`[${label}] Unhandled error:`, err));
     intervalId = setInterval(() => {
-      runInstallmentNotificationCron().catch((err) =>
-        console.error('[NotificationCron] Unhandled error:', err),
-      );
-
-      // Run report cleanup at 00:05 each day
-      setTimeout(() => {
-        runCleanup().catch((err) =>
-          console.error('[ReportCleanup] Unhandled error:', err),
-        );
-      }, MS_5_MINUTES);
+      job().catch((err) => console.error(`[${label}] Unhandled error:`, err));
     }, MS_PER_DAY);
-  }, msUntilNextMidnight());
+  }, msUntilNext(hour, minute));
 
-  console.log('[NotificationCron] Scheduled — next run at midnight');
-  console.log('[ReportCleanup] Scheduled — next run at 00:05');
+  const pad = (n: number) => String(n).padStart(2, '0');
+  console.log(`[${label}] Scheduled — next run at ${pad(hour)}:${pad(minute)}`);
   return { timeoutId, intervalId };
+}
+
+async function scheduleDailyCrons(): Promise<CronTimers> {
+  const s = await getCronSchedule();
+
+  const notif   = scheduleDaily('NotificationCron', s.notificationHour, s.notificationMinute, runInstallmentNotificationCron);
+  const cleanup = scheduleDaily('ReportCleanup',    s.cleanupHour,      s.cleanupMinute,      runCleanup);
+
+  return {
+    notificationTimeoutId:  notif.timeoutId,
+    notificationIntervalId: notif.intervalId,
+    cleanupTimeoutId:       cleanup.timeoutId,
+    cleanupIntervalId:      cleanup.intervalId,
+  };
 }
 
 async function startServer() {
@@ -78,7 +118,7 @@ async function startServer() {
   });
 
   // Store cron timers for cleanup
-  const cronTimers = scheduleDailyCron();
+  const cronTimers = await scheduleDailyCrons();
 
   // Handle unhandled promise rejections
   process.on('unhandledRejection', (reason, promise) => {
@@ -102,10 +142,10 @@ async function startServer() {
     console.log(`[Process] ${signal} received. Starting graceful shutdown...`);
 
     // Clear cron timers immediately
-    clearTimeout(cronTimers.timeoutId);
-    if (cronTimers.intervalId) {
-      clearInterval(cronTimers.intervalId);
-    }
+    clearTimeout(cronTimers.notificationTimeoutId);
+    if (cronTimers.notificationIntervalId) clearInterval(cronTimers.notificationIntervalId);
+    clearTimeout(cronTimers.cleanupTimeoutId);
+    if (cronTimers.cleanupIntervalId) clearInterval(cronTimers.cleanupIntervalId);
     console.log('[Process] Cron jobs cleared');
 
     // Close Vite server if it exists (HMR WebSocket)

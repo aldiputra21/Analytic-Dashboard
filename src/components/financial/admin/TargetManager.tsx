@@ -11,6 +11,7 @@ import { apiFetch } from '../../../services/financial/apiFetch';
 import { cn } from '../../../utils/cn';
 import { useAuth } from '../../../hooks/financial/useAuth';
 import { useDepartments } from '../../../hooks/financial/useDepartments';
+import { useCorporates } from '../../../hooks/financial/useCorporates';
 import { useProjects } from '../../../hooks/financial/useProjects';
 import { useCostCenters } from '../../../hooks/financial/useCostCenters';
 import { toast } from 'sonner';
@@ -34,6 +35,9 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
+import { NumericInput } from '../shared/NumericInput';
 
 interface TargetSummary {
   department_id: string;
@@ -140,6 +144,7 @@ export const TargetManager: React.FC = () => {
   const { user, hasPermission, language, scope, subsidiaryIds } = useAuth();
   const queryClient = useQueryClient();
   const { options: departmentOptions, isLoading: isDeptsLoading, departments: allDepartments } = useDepartments();
+  const { options: corporateOptions } = useCorporates();
   const { options: projectOptions, isLoading: isProjsLoading, projects } = useProjects();
   const { options: costCenterOptions, isLoading: isCCLoading } = useCostCenters();
   const t = targetI18n[language];
@@ -176,7 +181,7 @@ export const TargetManager: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filterDepartmentId, setFilterDepartmentId] = useState('');
   const [filterCorporateId, setFilterCorporateId] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({ search: '', departmentId: '', corporateId: '' });
+  const [appliedFilters, setAppliedFilters] = useState({ search: '', departmentId: '', departmentLabel: '', corporateId: '', corporateLabel: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -248,7 +253,9 @@ export const TargetManager: React.FC = () => {
   }, [fetchSummaries]);
 
   const handleApplyFilter = () => {
-    setAppliedFilters({ search: search, departmentId: filterDepartmentId, corporateId: filterCorporateId });
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporateId)?.label || '';
+    const departmentLabel = departmentOptions.find(o => o.value === filterDepartmentId)?.label || '';
+    setAppliedFilters({ search: search, departmentId: filterDepartmentId, departmentLabel, corporateId: filterCorporateId, corporateLabel });
     setPage(1);
   };
 
@@ -256,7 +263,7 @@ export const TargetManager: React.FC = () => {
     setSearch('');
     setFilterDepartmentId('');
     setFilterCorporateId('');
-    setAppliedFilters({ search: '', departmentId: '', corporateId: '' });
+    setAppliedFilters({ search: '', departmentId: '', departmentLabel: '', corporateId: '', corporateLabel: '' });
     setPage(1);
   };
 
@@ -522,13 +529,20 @@ export const TargetManager: React.FC = () => {
         </div>
 
         {canWrite && (
-          <button
-            onClick={() => handleOpenModal()}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.addNew}
-          </button>
+          <div className="flex items-center gap-2">
+            <UploadButton
+              entityType="income_statement_projection"
+              onUploadComplete={fetchSummaries}
+              disabled={loading}
+            />
+            <button
+              onClick={() => handleOpenModal()}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.addNew}
+            </button>
+          </div>
         )}
       </div>
 
@@ -581,6 +595,11 @@ export const TargetManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="target"
+            filters={appliedFilters}
+            disabled={loading}
+          />
         </div>
       </div>
 
@@ -991,49 +1010,17 @@ export const TargetManager: React.FC = () => {
                                   </div>
                                 </td>
                                 <td className="px-1.5 py-1">
-                                  <div className="relative group/input flex items-center">
-                                    <input
-                                      type="text"
-                                      value={r.amount === '0' ? '' : (parseInt(r.amount) || 0).toLocaleString('id-ID')}
-                                      disabled={isViewOnly}
-                                      onChange={(e) => {
-                                        const rawValue = e.target.value.replace(/\D/g, '');
-                                        const newRevs = [...formData.revenueDetails];
-                                        newRevs[idx].amount = rawValue || '0';
-                                        setFormData({ ...formData, revenueDetails: newRevs });
-                                      }}
-                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
-                                      placeholder="0"
-                                    />
-                                    {!isViewOnly && (
-                                      <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const val = (parseInt(r.amount) || 0) + 1000000;
-                                            const newRevs = [...formData.revenueDetails];
-                                            newRevs[idx].amount = val.toString();
-                                            setFormData({ ...formData, revenueDetails: newRevs });
-                                          }}
-                                          className="p-0.5 hover:text-indigo-600 transition-colors"
-                                        >
-                                          <ChevronUp size={10} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const val = Math.max(0, (parseInt(r.amount) || 0) - 1000000);
-                                            const newRevs = [...formData.revenueDetails];
-                                            newRevs[idx].amount = val.toString();
-                                            setFormData({ ...formData, revenueDetails: newRevs });
-                                          }}
-                                          className="p-0.5 hover:text-indigo-600 transition-colors"
-                                        >
-                                          <ChevronDown size={10} />
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
+                                  <NumericInput
+                                    value={r.amount}
+                                    disabled={isViewOnly}
+                                    onValueChange={(values) => {
+                                      const newRevs = [...formData.revenueDetails];
+                                      newRevs[idx].amount = values.value || '0';
+                                      setFormData({ ...formData, revenueDetails: newRevs });
+                                    }}
+                                    className="text-[11px] text-right py-1 px-2 pr-2"
+                                    placeholder="0"
+                                  />
                                 </td>
                                 {!isViewOnly && (
                                   <td className="px-1 py-1 text-center">
@@ -1126,50 +1113,18 @@ export const TargetManager: React.FC = () => {
                                 </div>
                               </td>
                               <td className="px-1.5 py-1">
-                                <div className="relative group/input flex items-center">
-                                  <input
-                                    type="text"
-                                    value={c.amount === '0' ? '' : (parseInt(c.amount) || 0).toLocaleString('id-ID')}
+                                  <NumericInput
+                                    value={c.amount}
                                     disabled={isViewOnly}
-                                    onChange={(e) => {
-                                      const rawValue = e.target.value.replace(/\D/g, '');
+                                    onValueChange={(values) => {
                                       const newCosts = [...formData.costDetails];
-                                      newCosts[idx].amount = rawValue || '0';
+                                      newCosts[idx].amount = values.value || '0';
                                       setFormData({ ...formData, costDetails: newCosts });
                                     }}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-right text-slate-700 focus:ring-0 pl-2 pr-5 py-1 font-mono"
+                                    className="text-[11px] text-right py-1 px-2 pr-2"
                                     placeholder="0"
                                   />
-                                  {!isViewOnly && (
-                                    <div className="absolute right-1 flex flex-col -gap-1 opacity-0 group-hover/input:opacity-100 transition-opacity">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const val = (parseInt(c.amount) || 0) + 1000000;
-                                          const newCosts = [...formData.costDetails];
-                                          newCosts[idx].amount = val.toString();
-                                          setFormData({ ...formData, costDetails: newCosts });
-                                        }}
-                                        className="p-0.5 hover:text-indigo-600 transition-colors"
-                                      >
-                                        <ChevronUp size={10} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const val = Math.max(0, (parseInt(c.amount) || 0) - 1000000);
-                                          const newCosts = [...formData.costDetails];
-                                          newCosts[idx].amount = val.toString();
-                                          setFormData({ ...formData, costDetails: newCosts });
-                                        }}
-                                        className="p-0.5 hover:text-indigo-600 transition-colors"
-                                      >
-                                        <ChevronDown size={10} />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
+                                </td>
                               {!isViewOnly && (
                                 <td className="px-1 py-1 text-center">
                                   <button

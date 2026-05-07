@@ -1,0 +1,10 @@
+{
+  "disabledMcpjsonServers": [
+    "postgres-cfd-dev"
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)"
+    ]
+  }
+}

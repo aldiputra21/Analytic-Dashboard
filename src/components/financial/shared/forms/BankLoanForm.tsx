@@ -11,6 +11,7 @@ import { Landmark, Calculator, FileSpreadsheet } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import { formatRupiah } from '../../../../utils/format';
 import { bankLoanI18n } from '../../../../i18n/bank-loan';
+import { NumericInput } from '../NumericInput';
 import { CorporateSelector } from '../CorporateSelector';
 import { SearchableSelect } from '../SearchableSelect';
 
@@ -72,39 +73,6 @@ const FormField: React.FC<{
   </div>
 );
 
-const AmountField: React.FC<{
-  label: string;
-  value: number;
-  onChange?: (val: string) => void;
-  readOnly?: boolean;
-  required?: boolean;
-}> = ({ label, value, onChange, readOnly = false, required = false }) => {
-  const displayValue = useMemo(() => {
-    if (value === undefined || value === null || value === 0) return value === 0 ? '0' : '';
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? '' : num.toLocaleString('id-ID');
-  }, [value]);
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">
-        {label}
-        {required && !readOnly && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={displayValue}
-        onChange={(e) => onChange?.(e.target.value.replace(/[^0-9-]/g, ''))}
-        readOnly={readOnly}
-        className={cn(
-          'w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-          readOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-        )}
-      />
-    </div>
-  );
-};
 
 const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: string }> = ({ title, icon, color }) => (
   <div className={cn('flex items-center gap-2 mb-4 pb-2 border-b-2', color)}>
@@ -216,11 +184,11 @@ export const BankLoanForm: React.FC<BankLoanFormProps> = ({
             color="border-indigo-500"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <AmountField
+            <NumericInput
               label={t.modal.amount}
               value={loanAmount}
-              onChange={(val) => onChange?.('loanAmount', val === '' ? 0 : parseFloat(val))}
-              readOnly={isReadOnly}
+              onValueChange={(v) => onChange?.('loanAmount', v.floatValue ?? 0)}
+              disabled={isReadOnly}
               required
             />
 

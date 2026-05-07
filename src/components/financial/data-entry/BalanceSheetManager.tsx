@@ -32,6 +32,8 @@ import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
 import { BalanceSheetForm, type BalanceSheetPayload } from '../shared/forms/BalanceSheetForm';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
 
 // --- Types ---
 interface BalanceSheet {
@@ -194,7 +196,8 @@ export const BalanceSheetManager: React.FC = () => {
   const [appliedFilters, setAppliedFilters] = useState({
     periodStart: '',
     periodEnd: '',
-    corporate: ''
+    corporate: '',
+    corporateLabel: '',
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -246,10 +249,12 @@ export const BalanceSheetManager: React.FC = () => {
   }, [currentPage, pageSize, appliedFilters]);
 
   const handleApplyFilter = () => {
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporate)?.label || '';
     setAppliedFilters({
       periodStart: filterPeriodStart,
       periodEnd: filterPeriodEnd,
-      corporate: filterCorporate
+      corporate: filterCorporate,
+      corporateLabel,
     });
     setCurrentPage(1);
   };
@@ -261,14 +266,16 @@ export const BalanceSheetManager: React.FC = () => {
     setAppliedFilters({
       periodStart: '',
       periodEnd: '',
-      corporate: ''
+      corporate: '',
+      corporateLabel: '',
     });
     setCurrentPage(1);
   };
 
   const handleDelete = async (id: string) => {
     // Check if delete workflow is active
-    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {      const item = data.find(d => d.id === id);
+    if (!approvalDelete.isChecking && approvalDelete.hasWorkflow) {
+      const item = data.find(d => d.id === id);
       if (item) {
         try {
           const draft = await approvalDelete.createDraft({
@@ -465,6 +472,11 @@ export const BalanceSheetManager: React.FC = () => {
 
         {canWrite && (
           <div className="flex items-center gap-2">
+            <UploadButton
+              entityType="balance_sheet"
+              onUploadComplete={fetchData}
+              disabled={isLoading}
+            />
             <button
               onClick={() => openModal('create')}
               className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
@@ -515,6 +527,11 @@ export const BalanceSheetManager: React.FC = () => {
               <FilterX size={14} />
               {common.clear}
             </button>
+            <ExportButton
+              entityType="balance_sheet"
+              filters={appliedFilters}
+              disabled={isLoading}
+            />
           </div>
         </div>
       </div>
@@ -756,6 +773,8 @@ export const BalanceSheetManager: React.FC = () => {
         )}
       </div>
 
+
+
       {/* --- CRUD MODAL --- */}
       <AnimatePresence>
         {isModalOpen && (
@@ -806,26 +825,31 @@ export const BalanceSheetManager: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* --- Delete Confirmation --- */}
-      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
-        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+      >
+        <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black text-slate-800">{t.alerts.deleteTitle}</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-500 font-medium">
+            <AlertDialogDescription className="text-slate-500 font-medium pt-2">
               {t.alerts.deleteDesc}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-xl border-slate-200 font-bold hover:bg-slate-50">
+          <AlertDialogFooter className="mt-6 gap-3">
+            <AlertDialogCancel
+              onClick={() => setDeleteConfirmId(null)}
+              className="rounded-xl border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
               {common.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
-              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100"
-              disabled={isDeleting}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-bold shadow-lg shadow-rose-100 transition-all active:scale-95 cursor-pointer"
             >
-              {isDeleting ? <RefreshCw size={16} className="animate-spin mr-2" /> : <Trash2 size={16} className="mr-2" />}
-              {isDeleting ? t.alerts.deleteDeleting : t.alerts.deleteConfirm}
+              {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {isDeleting ? common.deleting : t.alerts.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

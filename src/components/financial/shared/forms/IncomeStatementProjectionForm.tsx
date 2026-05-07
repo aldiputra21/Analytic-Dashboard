@@ -12,6 +12,7 @@ import { cn } from '../../../../utils/cn';
 import { formatRupiah } from '../../../../utils/format';
 import { targetI18n } from '../../../../i18n/target';
 import { commonsI18n } from '../../../../i18n/commons';
+import { NumericInput } from '../NumericInput';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -106,13 +107,6 @@ export const IncomeStatementProjectionForm: React.FC<IncomeStatementProjectionFo
     onChange?.('costDetails', costDetails.filter((_, i) => i !== index));
   };
 
-  const formatAmount = (value: number | string) => {
-    if (value === undefined || value === null || value === '' || value === 0) {
-      return value === 0 ? '0' : '';
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? '' : num.toLocaleString('id-ID');
-  };
 
   return (
     <div>
@@ -193,17 +187,12 @@ export const IncomeStatementProjectionForm: React.FC<IncomeStatementProjectionFo
                   </select>
                 </div>
                 <div className="col-span-7">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatAmount(row.amount)}
-                    onChange={(e) => handleRevenueRowChange(index, 'amount', parseFloat(e.target.value.replace(/[^0-9-]/g, '')) || 0)}
-                    readOnly={isReadOnly}
+                  <NumericInput
+                    value={row.amount}
+                    onValueChange={(v) => handleRevenueRowChange(index, 'amount', v.floatValue ?? 0)}
+                    disabled={isReadOnly}
                     placeholder="0"
-                    className={cn(
-                      'w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-                      isReadOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-                    )}
+                    className="py-2.5 px-4"
                   />
                 </div>
                 {!isReadOnly && (
@@ -267,17 +256,12 @@ export const IncomeStatementProjectionForm: React.FC<IncomeStatementProjectionFo
                   </select>
                 </div>
                 <div className="col-span-7">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatAmount(row.amount)}
-                    onChange={(e) => handleCostRowChange(index, 'amount', parseFloat(e.target.value.replace(/[^0-9-]/g, '')) || 0)}
-                    readOnly={isReadOnly}
+                  <NumericInput
+                    value={row.amount}
+                    onValueChange={(v) => handleCostRowChange(index, 'amount', v.floatValue ?? 0)}
+                    disabled={isReadOnly}
                     placeholder="0"
-                    className={cn(
-                      'w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-                      isReadOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-                    )}
+                    className="py-2.5 px-4"
                   />
                 </div>
                 {!isReadOnly && (

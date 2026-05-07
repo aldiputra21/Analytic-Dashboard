@@ -43,6 +43,13 @@
       "when": 1746748800000,
       "tag": "0005_report_config_write_header",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1746835200000,
+      "tag": "0006_upload_module",
+      "breakpoints": true
     }
   ]
 }

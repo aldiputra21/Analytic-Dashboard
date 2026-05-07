@@ -10,6 +10,7 @@ import React from 'react';
 import { Paperclip, FileText, Download } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import { realizationI18n } from '../../../../i18n/realization';
+import { NumericInput } from '../NumericInput';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,39 +76,6 @@ const FormField: React.FC<{
   </div>
 );
 
-const AmountField: React.FC<{
-  label: string;
-  value: number;
-  onChange?: (val: string) => void;
-  readOnly?: boolean;
-  required?: boolean;
-}> = ({ label, value, onChange, readOnly = false, required = false }) => {
-  const displayValue = React.useMemo(() => {
-    if (value === undefined || value === null || value === 0) return value === 0 ? '0' : '';
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? '' : num.toLocaleString('id-ID');
-  }, [value]);
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">
-        {label}
-        {required && !readOnly && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={displayValue}
-        onChange={(e) => onChange?.(e.target.value.replace(/[^0-9-]/g, ''))}
-        readOnly={readOnly}
-        className={cn(
-          'w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-          readOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-        )}
-      />
-    </div>
-  );
-};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -212,12 +180,11 @@ export const RealizationForm: React.FC<RealizationFormProps> = ({
         </div>
 
         {/* Amount */}
-        <AmountField
+        <NumericInput
           label={t.modal.amount}
           value={parseFloat(String(payload.amount ?? 0)) || 0}
-          onChange={(val) => onChange?.('amount', val === '' ? 0 : parseFloat(val))}
-          readOnly={isReadOnly}
-          required
+          onValueChange={(v) => onChange?.('amount', v.floatValue ?? 0)}
+          disabled={isReadOnly}
         />
 
         {/* Description */}

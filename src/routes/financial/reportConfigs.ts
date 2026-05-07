@@ -370,12 +370,12 @@ export function createReportConfigsRouter(): Router {
 
       // If not admin and not allowed role, deny
       if (!hasAdminPermission && !isAllowedRole) {
-        throw AppError.forbidden(ErrorCode.FORBIDDEN, 'Anda tidak memiliki akses ke laporan ini');
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Anda tidak memiliki akses ke laporan ini');
       }
 
       // If not admin, the report must be active
       if (!hasAdminPermission && !config.isActive) {
-        throw AppError.forbidden(ErrorCode.FORBIDDEN, 'Laporan ini sedang tidak aktif');
+        throw AppError.forbidden(ErrorCode.ACCESS_DENIED, 'Laporan ini sedang tidak aktif');
       }
 
       // Sanitize: omit sensitive SQL queries

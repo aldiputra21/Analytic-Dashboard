@@ -140,17 +140,17 @@ export const RoleManager: React.FC = () => {
 
   // Update selected permissions when assigned permissions change (for the standalone modal)
   useEffect(() => {
-    if (assignedPermissions && isPermissionsModalOpen) {
+    if (assignedPermissions && isPermissionsModalOpen && !isLoadingRolePermissions) {
       setSelectedPermissions(assignedPermissions);
     }
-  }, [assignedPermissions, isPermissionsModalOpen]);
+  }, [assignedPermissions, isPermissionsModalOpen, isLoadingRolePermissions]);
 
   // Update form permissions when editing a role
   useEffect(() => {
-    if (assignedPermissions && isModalOpen && modalMode === 'edit' && editingId === permissionsRoleId) {
+    if (assignedPermissions && isModalOpen && modalMode === 'edit' && editingId === permissionsRoleId && !isLoadingRolePermissions) {
       setFormData(prev => ({ ...prev, permissions: assignedPermissions }));
     }
-  }, [assignedPermissions, isModalOpen, modalMode, editingId, permissionsRoleId]);
+  }, [assignedPermissions, isModalOpen, modalMode, editingId, permissionsRoleId, isLoadingRolePermissions]);
 
   // Group permissions by module
   const permissionsByModule = useMemo(() => {
@@ -514,7 +514,7 @@ export const RoleManager: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-slate-600 text-sm">{role.description || '-'}</td>
-                      <td className="px-6 py-4 text-slate-600 text-sm font-bold">{(role as any).permissions?.length || 0}</td>
+                      <td className="px-6 py-4 text-slate-600 text-sm font-bold">{role.permissionCount ?? 0}</td>
                       <td className="px-6 py-4">
                         <div
                           className={cn(
@@ -824,9 +824,9 @@ export const RoleManager: React.FC = () => {
                                     className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
                                   />
                                   <div className="flex flex-col">
-                                    <span className="text-[11px] font-bold text-slate-700 truncate">{perm.key}</span>
+                                    <span className="text-[11px] font-bold text-slate-700 truncate">{perm.description || perm.key}</span>
                                     {perm.description && (
-                                      <span className="text-[9px] text-slate-400 truncate leading-none">{perm.description}</span>
+                                      <span className="text-[9px] text-slate-400 truncate leading-none">{perm.key}</span>
                                     )}
                                   </div>
                                 </label>
@@ -925,7 +925,12 @@ export const RoleManager: React.FC = () => {
                                     onChange={() => handleTogglePermission(perm.id)}
                                     className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
                                   />
-                                  <span className="text-xs font-medium text-slate-700 truncate">{perm.key}</span>
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="text-xs font-bold text-slate-700 truncate">{perm.description || perm.key}</span>
+                                    {perm.description && (
+                                      <span className="text-[9px] text-slate-400 truncate leading-none">{perm.key}</span>
+                                    )}
+                                  </div>
                                 </label>
                               ))}
                             </div>

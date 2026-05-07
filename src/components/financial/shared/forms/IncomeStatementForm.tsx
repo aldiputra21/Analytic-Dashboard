@@ -13,6 +13,7 @@ import { formatRupiah } from '../../../../utils/format';
 import { incomeStatementI18n } from '../../../../i18n/income-statement';
 import { MonthPicker } from '../MonthPicker';
 import { CorporateSelector } from '../CorporateSelector';
+import { NumericInput } from '../NumericInput';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,37 +42,6 @@ export interface IncomeStatementFormProps {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-const FormField: React.FC<{
-  label: string;
-  value: number | string;
-  onChange: (val: string) => void;
-  readOnly?: boolean;
-}> = ({ label, value, onChange, readOnly = false }) => {
-  const displayValue = useMemo(() => {
-    if (value === undefined || value === null || value === '' || value === 0) {
-      return value === 0 ? '0' : '';
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? '' : num.toLocaleString('id-ID');
-  }, [value]);
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{label}</label>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={displayValue}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9-]/g, ''))}
-        readOnly={readOnly}
-        className={cn(
-          'w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-          readOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-        )}
-      />
-    </div>
-  );
-};
 
 const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: string }> = ({ title, icon, color }) => (
   <div className={cn('flex items-center gap-2 mb-4 pb-2 border-b-2', color)}>
@@ -167,8 +137,8 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({
             color="border-emerald-500"
           />
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t.fields.revenue} value={n('revenue')} onChange={field('revenue')} readOnly={isReadOnly} />
-            <FormField label={t.fields.cogs} value={n('cogs')} onChange={field('cogs')} readOnly={isReadOnly} />
+            <NumericInput label={t.fields.revenue} value={n('revenue')} onValueChange={(v) => onChange?.('revenue', v.floatValue ?? 0)} disabled={isReadOnly} />
+            <NumericInput label={t.fields.cogs} value={n('cogs')} onValueChange={(v) => onChange?.('cogs', v.floatValue ?? 0)} disabled={isReadOnly} />
             <div className="col-span-2">
               <SummaryCard label={t.modal.grossProfit} value={grossProfit} color={grossProfit >= 0 ? 'emerald' : 'rose'} fullWidth />
             </div>
@@ -183,7 +153,7 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({
             color="border-amber-500"
           />
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t.fields.operatingExpenses} value={n('operatingExpenses')} onChange={field('operatingExpenses')} readOnly={isReadOnly} />
+            <NumericInput label={t.fields.operatingExpenses} value={n('operatingExpenses')} onValueChange={(v) => onChange?.('operatingExpenses', v.floatValue ?? 0)} disabled={isReadOnly} />
             <div className="col-span-2">
               <SummaryCard label={t.modal.ebit} value={ebit} color={ebit >= 0 ? 'indigo' : 'rose'} fullWidth />
             </div>
@@ -198,9 +168,9 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({
             color="border-indigo-500"
           />
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t.fields.otherIncome} value={n('otherIncome')} onChange={field('otherIncome')} readOnly={isReadOnly} />
-            <FormField label={t.fields.interest} value={n('interestExpense')} onChange={field('interestExpense')} readOnly={isReadOnly} />
-            <FormField label={t.fields.otherExpense} value={n('otherExpense')} onChange={field('otherExpense')} readOnly={isReadOnly} />
+            <NumericInput label={t.fields.otherIncome} value={n('otherIncome')} onValueChange={(v) => onChange?.('otherIncome', v.floatValue ?? 0)} disabled={isReadOnly} />
+            <NumericInput label={t.fields.interest} value={n('interestExpense')} onValueChange={(v) => onChange?.('interestExpense', v.floatValue ?? 0)} disabled={isReadOnly} />
+            <NumericInput label={t.fields.otherExpense} value={n('otherExpense')} onValueChange={(v) => onChange?.('otherExpense', v.floatValue ?? 0)} disabled={isReadOnly} />
             <div className="col-span-2">
               <SummaryCard label={t.modal.ebt} value={ebt} color={ebt >= 0 ? 'indigo' : 'rose'} fullWidth />
             </div>
@@ -209,7 +179,7 @@ export const IncomeStatementForm: React.FC<IncomeStatementFormProps> = ({
 
         {/* ── Tax ── */}
         <div className="grid grid-cols-2 gap-4">
-          <FormField label={t.fields.tax} value={n('taxExpense')} onChange={field('taxExpense')} readOnly={isReadOnly} />
+          <NumericInput label={t.fields.tax} value={n('taxExpense')} onValueChange={(v) => onChange?.('taxExpense', v.floatValue ?? 0)} disabled={isReadOnly} />
         </div>
 
         {/* ── Footer: Net Income & Margin ── */}

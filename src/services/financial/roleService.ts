@@ -18,6 +18,7 @@ export interface Role {
   createdAt: Date;
   updatedBy?: string;
   updatedAt?: Date;
+  permissionCount?: number; // Only included in list queries
 }
 
 export interface RoleWithPermissions extends Role {
@@ -106,17 +107,33 @@ export async function listRoles(filters: ListRolesFilters = {}): Promise<{
 
   const totalCount = parseInt(countResult[0]?.count ?? '0', 10);
 
-  // Get paginated data
+  // Get paginated data with permission count
   const rows = await db
-    .select()
+    .select({
+      id: roles.id,
+      name: roles.name,
+      scope: roles.scope,
+      description: roles.description,
+      isActive: roles.isActive,
+      createdBy: roles.createdBy,
+      createdAt: roles.createdAt,
+      updatedBy: roles.updatedBy,
+      updatedAt: roles.updatedAt,
+      permissionCount: sql<number>`cast(count(distinct ${rolePermissions.permissionId}) as integer)`,
+    })
     .from(roles)
+    .leftJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(roles.id, roles.name, roles.scope, roles.description, roles.isActive, roles.createdBy, roles.createdAt, roles.updatedBy, roles.updatedAt)
     .orderBy(asc(roles.createdAt))
     .limit(pageSize)
     .offset(offset);
 
   return {
-    data: rows.map(mapRowToRole),
+    data: rows.map(row => ({
+      ...mapRowToRole(row),
+      permissionCount: row.permissionCount || 0,
+    })) as any,
     totalCount,
   };
 }

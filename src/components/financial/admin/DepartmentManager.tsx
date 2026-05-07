@@ -29,6 +29,8 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
 
 interface Department {
   id: string;
@@ -149,7 +151,8 @@ export const DepartmentManager: React.FC = () => {
   const [search, setSearch] = useState('');
   const [appliedFilters, setAppliedFilters] = useState({
     search: '',
-    corporateId: ''
+    corporateId: '',
+    corporateLabel: '',
   });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -217,10 +220,12 @@ export const DepartmentManager: React.FC = () => {
   }, [appliedFilters, page, pageSize]);
 
   const handleApplyFilter = () => {
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporate)?.label || '';
     setPage(1);
     setAppliedFilters({
       search: search,
-      corporateId: filterCorporate
+      corporateId: filterCorporate,
+      corporateLabel,
     });
   };
 
@@ -229,7 +234,8 @@ export const DepartmentManager: React.FC = () => {
     setFilterCorporate('');
     setAppliedFilters({
       search: '',
-      corporateId: ''
+      corporateId: '',
+      corporateLabel: '',
     });
     setPage(1);
   };
@@ -400,15 +406,21 @@ export const DepartmentManager: React.FC = () => {
           </p>
         </div>
 
-        {canWrite && (
-          <button
-            onClick={() => handleOpenModal()}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.inputNew}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <UploadButton
+            entityType="department"
+            onUploadComplete={() => fetchDepartments(true)}
+          />
+          {canWrite && (
+            <button
+              onClick={() => handleOpenModal()}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.inputNew}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters Bar */}
@@ -448,6 +460,11 @@ export const DepartmentManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="department"
+            filters={appliedFilters}
+            disabled={loading}
+          />
         </div>
       </div>
 
@@ -690,6 +707,8 @@ export const DepartmentManager: React.FC = () => {
           </div>
         )}
       </div>
+
+
 
       {/* CRUD Modal */}
       <AnimatePresence>

@@ -1,6 +1,9 @@
 // Financial Statement Routes — MAFINDA Dashboard Enhancement
 // Requirements: 8.7, 8.8, 8.9, 8.10
 import { Router, Request, Response } from 'express';
+import { eq } from 'drizzle-orm';
+import { db } from '../../db/connection';
+import { balanceSheets, incomeStatements, weeklyCashFlows } from '../../db/schema/cfd';
 import { requirePermission, injectAccessContext } from '../../middleware/rbac';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { AppError, ErrorCode } from '../../utils/errors.js';
@@ -67,18 +70,25 @@ export function createFinancialStatementRouter(): Router {
   }));
 
   router.delete('/balance-sheet/:id', requirePermission('cfd.balance_sheets.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId } = req.query as { corporateId: string };
     const access = req.accessContext!;
 
-    if (!corporateId) {
-      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
+    // Fetch existing record to get corporateId
+    const [existing] = await db
+      .select()
+      .from(balanceSheets)
+      .where(eq(balanceSheets.id, req.params.id))
+      .limit(1);
+
+    if (!existing) {
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Balance sheet not found');
     }
 
-    if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+    // Validate access to this corporate
+    if (access.scope !== 'system' && !access.corporateIds.includes(existing.corporateId)) {
       throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
-    await deleteBalanceSheet(req.params.id, corporateId, req.user!.userId);
+    await deleteBalanceSheet(req.params.id, existing.corporateId, req.user!.userId);
     res.json({ success: true });
   }));
 
@@ -125,18 +135,25 @@ export function createFinancialStatementRouter(): Router {
   }));
 
   router.delete('/income-statement/:id', requirePermission('cfd.income_statements.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId } = req.query as { corporateId: string };
     const access = req.accessContext!;
 
-    if (!corporateId) {
-      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
+    // Fetch existing record to get corporateId
+    const [existing] = await db
+      .select()
+      .from(incomeStatements)
+      .where(eq(incomeStatements.id, req.params.id))
+      .limit(1);
+
+    if (!existing) {
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Income statement not found');
     }
 
-    if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+    // Validate access to this corporate
+    if (access.scope !== 'system' && !access.corporateIds.includes(existing.corporateId)) {
       throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
-    await deleteIncomeStatement(req.params.id, corporateId, req.user!.userId);
+    await deleteIncomeStatement(req.params.id, existing.corporateId, req.user!.userId);
     res.json({ success: true });
   }));
 
@@ -186,18 +203,25 @@ export function createFinancialStatementRouter(): Router {
   }));
 
   router.delete('/cash-flow/:id', requirePermission('cfd.weekly_cash_flows.delete'), injectAccessContext, asyncHandler(async (req: Request, res: Response) => {
-    const { corporateId } = req.query as { corporateId: string };
     const access = req.accessContext!;
 
-    if (!corporateId) {
-      throw AppError.badRequest(ErrorCode.CORPORATE_ID_REQUIRED, 'Corporate ID is required');
+    // Fetch existing record to get corporateId
+    const [existing] = await db
+      .select()
+      .from(weeklyCashFlows)
+      .where(eq(weeklyCashFlows.id, req.params.id))
+      .limit(1);
+
+    if (!existing) {
+      throw AppError.notFound(ErrorCode.NOT_FOUND, 'Cash flow not found');
     }
 
-    if (access.scope !== 'system' && !access.corporateIds.includes(corporateId)) {
+    // Validate access to this corporate
+    if (access.scope !== 'system' && !access.corporateIds.includes(existing.corporateId)) {
       throw AppError.forbidden(ErrorCode.CORPORATE_ACCESS_DENIED, 'Access denied to this corporate');
     }
 
-    await deleteCashFlow(req.params.id, corporateId, req.user!.userId);
+    await deleteCashFlow(req.params.id, existing.corporateId, req.user!.userId);
     res.json({ success: true });
   }));
 

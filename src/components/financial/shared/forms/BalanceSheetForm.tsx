@@ -18,6 +18,7 @@ import { formatRupiah } from '../../../../utils/format';
 import { balanceSheetI18n } from '../../../../i18n/balance-sheet';
 import { MonthPicker } from '../../shared/MonthPicker';
 import { CorporateSelector } from '../../shared/CorporateSelector';
+import { NumericInput } from '../../shared/NumericInput';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,37 +59,6 @@ export interface BalanceSheetFormProps {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-const FormField: React.FC<{
-  label: string;
-  value: number | string;
-  onChange: (val: string) => void;
-  readOnly?: boolean;
-}> = ({ label, value, onChange, readOnly = false }) => {
-  const displayValue = useMemo(() => {
-    if (value === undefined || value === null || value === '' || value === 0) {
-      return value === 0 ? '0' : '';
-    }
-    const num = Math.floor(Number(value));
-    return isNaN(num) ? '' : num.toLocaleString('id-ID');
-  }, [value]);
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">{label}</label>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={displayValue}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9-]/g, ''))}
-        readOnly={readOnly}
-        className={cn(
-          'w-full px-4 py-3 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-slate-50/30',
-          readOnly && 'bg-slate-100 cursor-not-allowed font-medium text-slate-600 border-none shadow-none',
-        )}
-      />
-    </div>
-  );
-};
 
 const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; color: string }> = ({ title, icon, color }) => (
   <div className={cn('flex items-center gap-2 mb-4 pb-2 border-b-2', color)}>
@@ -220,11 +190,11 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({
             <div>
               <SectionHeader title={t.modal.activa} icon={<ArrowLeftRight size={16} className="text-blue-500" />} color="border-blue-500" />
               <div className="grid grid-cols-2 gap-4">
-                <FormField label={t.fields.cashAndBank} value={n('cashAndBank')} onChange={field('cashAndBank')} readOnly={isReadOnly} />
-                <FormField label={t.fields.accountsReceivable} value={n('accountsReceivable')} onChange={field('accountsReceivable')} readOnly={isReadOnly} />
-                <FormField label={t.fields.workInProgress} value={n('workInProgress')} onChange={field('workInProgress')} readOnly={isReadOnly} />
-                <FormField label={t.fields.inventory} value={n('inventory')} onChange={field('inventory')} readOnly={isReadOnly} />
-                <FormField label={t.fields.prepaidExpenses} value={n('prepaidExpenses')} onChange={field('prepaidExpenses')} readOnly={isReadOnly} />
+                <NumericInput label={t.fields.cashAndBank} value={n('cashAndBank')} onValueChange={(v) => onChange?.('cashAndBank', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.accountsReceivable} value={n('accountsReceivable')} onValueChange={(v) => onChange?.('accountsReceivable', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.workInProgress} value={n('workInProgress')} onValueChange={(v) => onChange?.('workInProgress', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.inventory} value={n('inventory')} onValueChange={(v) => onChange?.('inventory', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.prepaidExpenses} value={n('prepaidExpenses')} onValueChange={(v) => onChange?.('prepaidExpenses', v.floatValue ?? 0)} disabled={isReadOnly} />
                 <div className="col-span-2"><SummaryCard label={t.modal.totalActiva} value={totalActiva} color="indigo" fullWidth /></div>
               </div>
             </div>
@@ -232,10 +202,10 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({
             <div>
               <SectionHeader title={t.modal.fixedAsset} icon={<Landmark size={16} className="text-indigo-500" />} color="border-indigo-500" />
               <div className="grid grid-cols-2 gap-4">
-                <FormField label={t.fields.land} value={n('land')} onChange={field('land')} readOnly={isReadOnly} />
-                <FormField label={t.fields.building} value={n('building')} onChange={field('building')} readOnly={isReadOnly} />
-                <FormField label={t.fields.equipment} value={n('equipment')} onChange={field('equipment')} readOnly={isReadOnly} />
-                <FormField label={t.fields.otherFixedAssets} value={n('otherFixedAssets')} onChange={field('otherFixedAssets')} readOnly={isReadOnly} />
+                 <NumericInput label={t.fields.land} value={n('land')} onValueChange={(v) => onChange?.('land', v.floatValue ?? 0)} disabled={isReadOnly} />
+                 <NumericInput label={t.fields.building} value={n('building')} onValueChange={(v) => onChange?.('building', v.floatValue ?? 0)} disabled={isReadOnly} />
+                 <NumericInput label={t.fields.equipment} value={n('equipment')} onValueChange={(v) => onChange?.('equipment', v.floatValue ?? 0)} disabled={isReadOnly} />
+                 <NumericInput label={t.fields.otherFixedAssets} value={n('otherFixedAssets')} onValueChange={(v) => onChange?.('otherFixedAssets', v.floatValue ?? 0)} disabled={isReadOnly} />
                 <div className="col-span-2"><SummaryCard label={t.modal.totalFixedAsset} value={totalFixedAssets} color="indigo" fullWidth /></div>
               </div>
             </div>
@@ -246,9 +216,9 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({
             <div>
               <SectionHeader title={t.modal.shortTermLiabilities} icon={<TrendingUp size={16} className="text-amber-500" />} color="border-amber-500" />
               <div className="grid grid-cols-2 gap-4">
-                <FormField label={t.fields.accountsPayable} value={n('accountsPayable')} onChange={field('accountsPayable')} readOnly={isReadOnly} />
-                <FormField label={t.fields.bankLoanCurrent} value={n('bankLoanCurrent')} onChange={field('bankLoanCurrent')} readOnly={isReadOnly} />
-                <FormField label={t.fields.otherCurrentLiabilities} value={n('otherCurrentLiabilities')} onChange={field('otherCurrentLiabilities')} readOnly={isReadOnly} />
+                <NumericInput label={t.fields.accountsPayable} value={n('accountsPayable')} onValueChange={(v) => onChange?.('accountsPayable', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.bankLoanCurrent} value={n('bankLoanCurrent')} onValueChange={(v) => onChange?.('bankLoanCurrent', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.otherCurrentLiabilities} value={n('otherCurrentLiabilities')} onValueChange={(v) => onChange?.('otherCurrentLiabilities', v.floatValue ?? 0)} disabled={isReadOnly} />
                 <div className="col-span-2"><SummaryCard label={t.modal.totalShortTermLiabilities} value={totalCurrentLiabilities} color="amber" fullWidth /></div>
               </div>
             </div>
@@ -256,9 +226,9 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({
             <div>
               <SectionHeader title={t.modal.longTermLiabilities} icon={<Landmark size={16} className="text-orange-500" />} color="border-orange-500" />
               <div className="grid grid-cols-2 gap-4">
-                <FormField label={t.fields.bankLoanLongTerm} value={n('bankLoanLongTerm')} onChange={field('bankLoanLongTerm')} readOnly={isReadOnly} />
-                <FormField label={t.fields.otherLongTermLiabilities} value={n('otherLongTermLiabilities')} onChange={field('otherLongTermLiabilities')} readOnly={isReadOnly} />
-                <FormField label={t.fields.shareholderLoan} value={n('shareholderLoan')} onChange={field('shareholderLoan')} readOnly={isReadOnly} />
+                <NumericInput label={t.fields.bankLoanLongTerm} value={n('bankLoanLongTerm')} onValueChange={(v) => onChange?.('bankLoanLongTerm', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.otherLongTermLiabilities} value={n('otherLongTermLiabilities')} onValueChange={(v) => onChange?.('otherLongTermLiabilities', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.shareholderLoan} value={n('shareholderLoan')} onValueChange={(v) => onChange?.('shareholderLoan', v.floatValue ?? 0)} disabled={isReadOnly} />
                 <div className="col-span-2"><SummaryCard label={t.modal.totalLongTermLiabilities} value={totalNonCurrentLiabilities} color="amber" fullWidth /></div>
               </div>
             </div>
@@ -266,10 +236,10 @@ export const BalanceSheetForm: React.FC<BalanceSheetFormProps> = ({
             <div>
               <SectionHeader title={t.modal.equity} icon={<Calculator size={16} className="text-emerald-500" />} color="border-emerald-500" />
               <div className="grid grid-cols-2 gap-4">
-                <FormField label={t.fields.capital} value={n('capital')} onChange={field('capital')} readOnly={isReadOnly} />
-                <FormField label={t.fields.earningsAfterTax} value={n('earningsAfterTax')} onChange={field('earningsAfterTax')} readOnly={isReadOnly} />
-                <FormField label={t.fields.retainedEarnings} value={n('retainedEarnings')} onChange={field('retainedEarnings')} readOnly={isReadOnly} />
-                <FormField label={t.fields.dividends} value={n('dividends')} onChange={field('dividends')} readOnly={isReadOnly} />
+                <NumericInput label={t.fields.capital} value={n('capital')} onValueChange={(v) => onChange?.('capital', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.earningsAfterTax} value={n('earningsAfterTax')} onValueChange={(v) => onChange?.('earningsAfterTax', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.retainedEarnings} value={n('retainedEarnings')} onValueChange={(v) => onChange?.('retainedEarnings', v.floatValue ?? 0)} disabled={isReadOnly} />
+                <NumericInput label={t.fields.dividends} value={n('dividends')} onValueChange={(v) => onChange?.('dividends', v.floatValue ?? 0)} disabled={isReadOnly} />
                 <div className="col-span-2"><SummaryCard label={t.modal.totalEquity} value={totalEquity} color="emerald" fullWidth /></div>
               </div>
             </div>

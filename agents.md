@@ -254,3 +254,277 @@ Dokumentasi lengkap:
 
 - Setiap modul baru yang terintegrasi **wajib** update `docs/guides/integrating-approval.md` tabel "Modul yang Sudah Terintegrasi".
 - Update `docs/database/schema.md` jika ada perubahan schema.
+
+---
+
+## 8. Aturan Export & Upload Module
+
+Sistem Export & Upload sudah diimplementasikan untuk 11 modul (7 finansial + 4 master data). Setiap modul baru yang memerlukan fitur export/upload **wajib** mengikuti aturan berikut.
+
+Dokumentasi lengkap:
+- Arsitektur & API: [`docs/modules/export-upload-module.md`](docs/modules/export-upload-module.md)
+- Panduan integrasi: [`docs/guides/integrating-export-upload.md`](docs/guides/integrating-export-upload.md)
+
+### 8.1 Component Reuse
+
+- **ExportButton**: Gunakan komponen `src/components/financial/shared/ExportButton.tsx` untuk semua modul.
+- **UploadButton**: Gunakan komponen `src/components/financial/shared/UploadButton.tsx` untuk semua modul.
+- **UploadModal**: Komponen `src/components/financial/shared/UploadModal.tsx` sudah handle 3 step (File Selection, Review, Approval).
+- **UploadHistoryView**: Gunakan komponen `src/components/financial/upload/UploadHistoryView.tsx` untuk menampilkan riwayat upload.
+
+**DILARANG** membuat komponen export/upload baru — gunakan yang sudah ada dengan props yang sesuai.
+
+### 8.2 Template Configuration
+
+Setiap modul yang mendukung upload **wajib** memiliki konfigurasi template di `system_configs`:
+
+```typescript
+// Per-module template config
+{
+  key: 'upload_template_{entity_type}',
+  value: {
+    fileName: '{entity_type}_template.xlsx',
+    startRecord: 4,  // Baris mulai data (biasanya 4)
+    columnOrder: ['field1', 'field2', 'field3']  // Urutan kolom di template
+  }
+}
+```
+
+**PENTING:**
+- `columnOrder` harus sesuai dengan field names di Zod schema
+- `columnOrder` harus sesuai dengan urutan kolom di template Excel
+- `startRecord` biasanya 4 (Row 1: Instruksi, Row 2: Kosong, Row 3: Header, Row 4+: Data)
+
+### 8.3 Template File Structure
+
+Template Excel **wajib** mengikuti struktur standar:
+
+| Row | Content | Format |
+|-----|---------|--------|
+| 1 | Instruksi pengisian | Bold, background color |
+| 2 | (kosong) | - |
+| 3 | Header kolom (sesuai `columnOrder`) | Bold |
+| 4+ | Sample data | Normal atau grayed out |
+
+**DILARANG:**
+- Merged cells
+- Multiple sheets
+- Formula kompleks
+- Protected cells
+
+### 8.4 Upload Permission
+
+Setiap modul yang mendukung upload **wajib** memiliki permission baru:
+
+```sql
+INSERT INTO permissions (key, name, name_en, module)
+VALUES (
+  '{module}.{entity}.upload',
+  'Upload Data {Module}',
+  'Upload {Module} Data',
+  '{module}'
+);
+```
+
+Pattern: `{module}.{entity}.upload` (contoh: `cfd.balance_sheets.upload`)
+
+### 8.5 Approval Workflow Integration
+
+Upload **wajib** terintegrasi dengan approval system:
+
+**8.5.1 Workflow Configuration:**
+```typescript
+{
+  module: 'cfd',
+  entityType: '{entity_type}_upload',  // Pattern: {entity_type}_upload
+  action: 'upload',
+  callbackHandler: 'handle{ModuleName}Upload',
+  viewComponent: '{ModuleName}UploadApprovalForm',
+  isActive: true  // false untuk direct insert
+}
+```
+
+**8.5.2 Callback Handler:**
+- **Wajib** dibuat di `src/services/approval/approvalCallbacks.ts`
+- **Wajib** handle bulk insert dari staging table ke main table
+- **Wajib** cleanup staging rows setelah insert
+- **Wajib** delete uploaded file setelah insert
+- **Wajib** create audit log dengan metadata lengkap
+
+**8.5.3 Upload Approval Form:**
+- **Wajib** dibuat di `src/components/financial/approval/UploadApprovalForms/`
+- **Wajib** support props: `payload`, `readOnly`, `language`
+- **Wajib** tampilkan: file name + download button, summary, table rows dengan search & paging
+- **Wajib** register di `formRegistry.tsx`
+
+### 8.6 Validation Rules
+
+Upload validation **wajib** menggunakan Zod schema yang sama dengan form input:
+
+```typescript
+// Reuse existing Zod schema
+import { balanceSheetSchema } from './schemas/balanceSheet';
+
+// Validate each row
+const result = balanceSheetSchema.safeParse(rowData);
+if (!result.success) {
+  // Mark row as invalid with error messages
+}
+```
+
+**DILARANG:**
+- Membuat validation rules baru untuk upload
+- Skip validation untuk "trusted" users
+- Validasi di frontend saja
+
+### 8.7 Export Format Standards
+
+Export file **wajib** mengikuti format standar:
+
+**Excel Structure:**
+- **Row 1:** Judul modul (sesuai bahasa user)
+- **Row 2:** Ringkasan filter atau "Semua Data"/"All Data"
+- **Row 3:** Header kolom (translated)
+- **Row 4+:** Data records
+
+**Column Formatting:**
+- Currency: Format `#,##0.00` (Excel number format)
+- Date: Format `DD/MM/YYYY`
+- Text: Default
+
+**File Naming:**
+- Pattern: `{module_name}_{export_date}.xlsx`
+- Example: `neraca_2026-05-01.xlsx`
+
+### 8.8 Audit Log Requirements
+
+Setiap upload **wajib** mencatat audit log dengan struktur:
+
+```json
+{
+  "userId": "uuid",
+  "action": "upload",
+  "entityType": "{module_name}",
+  "entityId": "{session_id}",
+  "metadata": {
+    "fileName": "file.xlsx",
+    "totalRows": 10,
+    "validRows": 10,
+    "invalidRows": 0,
+    "status": "completed",
+    "rows": [
+      {
+        "rowNumber": 4,
+        "status": "inserted",
+        "data": {...}
+      }
+    ]
+  }
+}
+```
+
+### 8.9 UI Integration
+
+**Toolbar Button Placement:**
+- **ExportButton:** Di sebelah kanan tombol "Clear Filter"
+- **UploadButton:** Di sebelah kiri tombol "Add"
+
+**Example:**
+```tsx
+<div className="toolbar">
+  <button>Filter</button>
+  <button>Clear Filter</button>
+  <ExportButton entityType="balance_sheet" filters={activeFilters} />
+  <UploadButton entityType="balance_sheet" onUploadComplete={refetch} />
+  <button>Add</button>
+</div>
+```
+
+### 8.10 i18n Compliance
+
+Export & Upload **wajib** menggunakan i18n:
+
+```typescript
+import { exportUploadI18n } from '../../../i18n/exportUpload';
+import { commonsI18n } from '../../../i18n/commons';
+
+const { language } = useAuth();
+const t = exportUploadI18n[language];
+const common = commonsI18n[language];
+```
+
+**DILARANG** hardcode string apapun di komponen export/upload.
+
+### 8.11 Performance Guidelines
+
+**Large File Handling:**
+- Gunakan streaming untuk file >10MB
+- Server-side pagination untuk >100 rows
+- Limit concurrent uploads per user
+
+**Database Optimization:**
+- Index pada `upload_staging_rows(sessionId)`
+- Cleanup staging rows setelah approval/cancel
+- Archive old upload sessions (>90 days)
+
+### 8.12 Security Requirements
+
+**File Upload Security:**
+- Validasi extension (.xlsx only)
+- Size limit: Max 10MB per file
+- Store file outside web root
+- Delete file setelah approval/cancel
+
+**Permission Checks:**
+- Upload: `{module}.{entity}.upload`
+- Download (review): `{module}.{entity}.upload` OR role in workflow
+- Download (history): `{module}.{entity}.read`
+
+### 8.13 Testing Requirements
+
+Setiap modul baru dengan export/upload **wajib** ditest:
+
+**Manual Tests:**
+- Export dengan dan tanpa filter
+- Upload dengan data valid
+- Upload dengan data invalid
+- Approval workflow (jika aktif)
+- Upload history view
+- Audit log detail view
+
+**Automated Tests:**
+- TypeScript compilation (`npx tsc --noEmit`)
+- Component existence verification
+- Template config verification
+- Approval workflow verification
+
+### 8.14 Documentation Requirements
+
+Setiap modul baru dengan export/upload **wajib**:
+- Update `docs/modules/export-upload-module.md` jika ada perubahan arsitektur
+- Update `docs/guides/integrating-export-upload.md` dengan contoh integrasi
+- Update `docs/database/schema.md` jika ada perubahan schema
+
+---
+
+## 9. Modul yang Sudah Terintegrasi Export & Upload
+
+Berikut daftar modul yang sudah memiliki fitur export & upload:
+
+### Financial Modules (7)
+1. ✅ Balance Sheet (`balance_sheet`)
+2. ✅ Income Statement (`income_statement`)
+3. ✅ Income Statement Projection (`income_statement_projection`)
+4. ✅ Weekly Cash Flow (`weekly_cash_flow`)
+5. ✅ Realization (`realization`)
+6. ✅ Cash Flow Projection (`cash_flow_projection`)
+7. ✅ Bank Loan (`bank_loan`)
+
+### Master Data Modules (4)
+8. ✅ Corporate (`corporate`) - Approval inactive (direct insert)
+9. ✅ Department (`department`)
+10. ✅ Cost Center (`cost_center`)
+11. ✅ Project (`project`)
+
+**Status:** Production Ready  
+**Last Updated:** 2026-05-07

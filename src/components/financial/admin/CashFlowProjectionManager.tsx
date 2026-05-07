@@ -29,6 +29,8 @@ import { z } from 'zod';
 import { useApproval } from '../../../hooks/financial/useApproval';
 import { ApprovalDetailModal } from '../approval/ApprovalDetailModal';
 import { approvalI18n } from '../../../i18n/approval';
+import { ExportButton } from '../shared/ExportButton';
+import { UploadButton } from '../shared/UploadButton';
 
 // --- Helper Components ---
 const Modal: React.FC<{
@@ -96,7 +98,7 @@ const FormField: React.FC<{
 // --- Main Component ---
 export const CashFlowProjectionManager: React.FC = () => {
   const { hasPermission, language, user } = useAuth();
-  const { corporates, showSelector } = useCorporates();
+  const { corporates, options: corporateOptions, showSelector } = useCorporates();
   const t = cashFlowProjectionI18n[language];
   const common = commonsI18n[language];
   const months = common.months;
@@ -108,6 +110,7 @@ export const CashFlowProjectionManager: React.FC = () => {
 
   const [appliedFilters, setAppliedFilters] = useState({
     corporateId: initialCorporateId,
+    corporateLabel: '',
     year: ''
   });
 
@@ -340,8 +343,10 @@ export const CashFlowProjectionManager: React.FC = () => {
   };
 
   const handleApplyFilter = () => {
+    const corporateLabel = corporateOptions.find(o => o.value === filterCorporateId)?.label || '';
     setAppliedFilters({
       corporateId: filterCorporateId,
+      corporateLabel,
       year: filterYear
     });
     setCurrentPage(1);
@@ -353,6 +358,7 @@ export const CashFlowProjectionManager: React.FC = () => {
     setFilterCorporateId(defaultCorpId);
     setAppliedFilters({
       corporateId: defaultCorpId,
+      corporateLabel: '',
       year: ''
     });
     setCurrentPage(1);
@@ -398,13 +404,20 @@ export const CashFlowProjectionManager: React.FC = () => {
         </div>
 
         {canWrite && (
-          <button
-            onClick={openCreate}
-            className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            {t.addNew}
-          </button>
+          <div className="flex items-center gap-2">
+            <UploadButton
+              entityType="cash_flow_projection"
+              onUploadComplete={refetch}
+              disabled={isLoading}
+            />
+            <button
+              onClick={openCreate}
+              className="group px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 cursor-pointer"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              {t.addNew}
+            </button>
+          </div>
         )}
       </div>
 
@@ -448,6 +461,11 @@ export const CashFlowProjectionManager: React.FC = () => {
             <FilterX size={14} />
             {common.clear}
           </button>
+          <ExportButton
+            entityType="cash_flow_projection"
+            filters={appliedFilters}
+            disabled={isLoading}
+          />
         </div>
       </div>
 
@@ -642,6 +660,8 @@ export const CashFlowProjectionManager: React.FC = () => {
           </div>
         )}
       </div>
+
+
 
       {/* CRUD Modal */}
       <AnimatePresence>
