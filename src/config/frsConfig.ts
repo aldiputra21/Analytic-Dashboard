@@ -49,6 +49,12 @@ const configSchema = z.object({
   RATE_LIMIT_AUTH_IP_MAX: z.coerce.number().int().min(0).default(200),     // per-IP login attempts per 15 min; 0 = unlimited
   RATE_LIMIT_QUERY_MAX: z.coerce.number().int().min(0).default(20),        // test-query & schema endpoints
   RATE_LIMIT_QUERY_WINDOW_MS: z.coerce.number().int().min(1000).default(60000), // 1 minute default for query endpoints
+
+  // Public auth endpoints (forgot-password, activate-account, reset-password flows)
+  // Dual-key: per email/identifier (stops account flooding) + per-IP backstop (stops volumetric).
+  RATE_LIMIT_PUBLIC_WINDOW_MS: z.coerce.number().int().min(1000).default(3600000), // 1 hour
+  RATE_LIMIT_PUBLIC_EMAIL_MAX: z.coerce.number().int().min(0).default(5),           // per email/identifier; 0 = unlimited
+  RATE_LIMIT_PUBLIC_IP_MAX: z.coerce.number().int().min(0).default(30),             // per-IP backstop; 0 = unlimited
 });
 
 export type FRSConfig = z.infer<typeof configSchema>;

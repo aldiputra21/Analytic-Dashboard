@@ -12,6 +12,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
+import rateLimit from 'express-rate-limit';
 import { authenticateUser, invalidateToken, getUserById, requestPasswordReset, resetPasswordWithToken } from '../../services/financial/authService';
 import { authenticate } from '../../middleware/auth';
 import { createFRSAuditLog } from '../../services/financial/auditLogService';
@@ -21,28 +22,42 @@ import { db } from '../../db/connection';
 import { users } from '../../db/schema/index';
 import { calculatePasswordStrength } from '../../services/financial/passwordStrength';
 import { configService } from '../../services/management/configService';
+import { getFRSConfig } from '../../config/frsConfig';
 
 const BCRYPT_ROUNDS = 10;
 
-// Rate limiting: 5 attempts per hour per IP
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+// Public auth endpoints — dual rate limit: per email/identifier + per-IP backstop.
+// Key fields: 'identifier' (forgot-password) or 'email' (token endpoints).
+// Dual-key prevents: (1) account flooding from many IPs, (2) volumetric from one NAT IP.
+// Set max to 0 to disable that limiter entirely (useful for dev/testing).
+const _pubCfg = getFRSConfig();
+const _pubMsg = { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many attempts, please try again later' } };
 
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+// Per email/identifier — stops flooding one account's inbox or reset flow.
+const publicAuthEmailLimiter = rateLimit({
+  windowMs: _pubCfg.RATE_LIMIT_PUBLIC_WINDOW_MS,
+  max: _pubCfg.RATE_LIMIT_PUBLIC_EMAIL_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => _pubCfg.RATE_LIMIT_PUBLIC_EMAIL_MAX === 0,
+  keyGenerator: (req) => {
+    const body = req.body as Record<string, unknown>;
+    const key = ((body?.identifier ?? body?.email ?? '') as string).toLowerCase().trim();
+    return `pub:email:${key || 'unknown'}`;
+  },
+  message: _pubMsg,
+});
 
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + 60 * 60 * 1000 });
-    return true;
-  }
-
-  if (entry.count >= 5) {
-    return false;
-  }
-
-  entry.count++;
-  return true;
-}
+// Per-IP backstop — stops one source from cycling across many accounts.
+const publicAuthIpLimiter = rateLimit({
+  windowMs: _pubCfg.RATE_LIMIT_PUBLIC_WINDOW_MS,
+  max: _pubCfg.RATE_LIMIT_PUBLIC_IP_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => _pubCfg.RATE_LIMIT_PUBLIC_IP_MAX === 0,
+  keyGenerator: (req) => `pub:ip:${req.socket.remoteAddress ?? 'unknown'}`,
+  message: _pubMsg,
+});
 
 const forgotPasswordSchema = z.object({
   identifier: z.string().trim().min(1),
@@ -174,7 +189,7 @@ export function createFRSAuthRouter(): Router {
     }
   }));
 
-  router.post('/forgot-password', asyncHandler(async (req: Request, res: Response) => {
+  router.post('/forgot-password', publicAuthEmailLimiter, publicAuthIpLimiter, asyncHandler(async (req: Request, res: Response) => {
     const { identifier } = forgotPasswordSchema.parse(req.body);
 
     const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:5000'}`;
@@ -204,7 +219,7 @@ export function createFRSAuthRouter(): Router {
     }
   }));
 
-  router.post('/reset-password', asyncHandler(async (req: Request, res: Response) => {
+  router.post('/reset-password', publicAuthIpLimiter, asyncHandler(async (req: Request, res: Response) => {
     const { token, password } = resetPasswordSchema.parse(req.body);
 
     try {
@@ -287,13 +302,7 @@ export function createFRSAuthRouter(): Router {
    * Public endpoint to validate an activation token
    * Returns: { valid: boolean, username?: string, email?: string }
    */
-  router.post('/validate-activation-token', asyncHandler(async (req: Request, res: Response) => {
-    const ip = req.ip || 'unknown';
-
-    if (!checkRateLimit(ip)) {
-      throw AppError.tooManyRequests(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
-    }
-
+  router.post('/validate-activation-token', publicAuthEmailLimiter, publicAuthIpLimiter, asyncHandler(async (req: Request, res: Response) => {
     const { token, email } = validateActivationTokenSchema.parse(req.body);
 
     try {
@@ -344,13 +353,7 @@ export function createFRSAuthRouter(): Router {
    * Public endpoint to complete account activation
    * Body: { token: string, newPassword: string }
    */
-  router.post('/activate-account', asyncHandler(async (req: Request, res: Response) => {
-    const ip = req.ip || 'unknown';
-
-    if (!checkRateLimit(ip)) {
-      throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
-    }
-
+  router.post('/activate-account', publicAuthEmailLimiter, publicAuthIpLimiter, asyncHandler(async (req: Request, res: Response) => {
     const { token, email, newPassword } = activateAccountSchema.parse(req.body);
 
     try {
@@ -408,7 +411,7 @@ export function createFRSAuthRouter(): Router {
         action: 'account_activated',
         entityType: 'user',
         newValues: { isActive: true, emailVerified: true },
-        ipAddress: ip,
+        ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
       });
 
@@ -428,13 +431,7 @@ export function createFRSAuthRouter(): Router {
    * Public endpoint to validate a password reset token
    * Returns: { valid: boolean }
    */
-  router.post('/validate-reset-token', asyncHandler(async (req: Request, res: Response) => {
-    const ip = req.ip || 'unknown';
-
-    if (!checkRateLimit(ip)) {
-      throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
-    }
-
+  router.post('/validate-reset-token', publicAuthEmailLimiter, publicAuthIpLimiter, asyncHandler(async (req: Request, res: Response) => {
     const { token, email } = validateResetTokenSchema.parse(req.body);
 
     try {
@@ -480,13 +477,7 @@ export function createFRSAuthRouter(): Router {
    * Public endpoint to complete password reset (new implementation)
    * Body: { token: string, newPassword: string }
    */
-  router.post('/reset-password-new', asyncHandler(async (req: Request, res: Response) => {
-    const ip = req.ip || 'unknown';
-
-    if (!checkRateLimit(ip)) {
-      throw AppError.badRequest(ErrorCode.RATE_LIMIT_EXCEEDED, 'Too many attempts. Please try again later.');
-    }
-
+  router.post('/reset-password-new', publicAuthEmailLimiter, publicAuthIpLimiter, asyncHandler(async (req: Request, res: Response) => {
     const { token, email, newPassword } = resetPasswordNewSchema.parse(req.body);
 
     try {
@@ -542,7 +533,7 @@ export function createFRSAuthRouter(): Router {
         action: 'password_reset_complete',
         entityType: 'user',
         newValues: { passwordChanged: true },
-        ipAddress: ip,
+        ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
       });
 

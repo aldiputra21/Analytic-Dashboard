@@ -3,37 +3,18 @@
 
 import { Router, Request, Response } from 'express';
 import { requirePermission } from '../../middleware/rbac';
-import { asyncHandler } from '../../utils/asyncHandler';
-import {
-  backupDatabase,
-  restoreDatabase,
-  listBackups,
-  logBackupOperation,
-} from '../../services/financial/backupService';
-import { AppError, ErrorCode } from '../../utils/errors.js';
+import { listBackups } from '../../services/financial/backupService';
 
 export function createBackupRouter(): Router {
   const router = Router();
 
   /**
-   * POST /api/frs/backup
-   * Trigger a manual database backup (Owner only).
-   * Requirements: 14.1, 14.3, 14.6
+   * POST /api/frs/backup — INACTIVE
+   * Backup was previously SQLite-based and has been decommissioned.
    */
-  router.post('/', requirePermission('cfd.config.write'), asyncHandler(async (req: Request, res: Response) => {
-    const result = await backupDatabase();
-    await logBackupOperation('backup', req.user!.userId, result);
-
-    if (!result.success) {
-      throw AppError.internal(result.error ?? 'Backup failed');
-    }
-
-    res.json({
-      success: true,
-      backupPath: result.backupPath,
-      timestamp: result.timestamp,
-    });
-  }));
+  router.post('/', requirePermission('cfd.config.write'), (_req: Request, res: Response) => {
+    res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Backup endpoint is currently inactive' } });
+  });
 
   /**
    * GET /api/frs/backup
@@ -46,26 +27,12 @@ export function createBackupRouter(): Router {
   });
 
   /**
-   * POST /api/frs/backup/restore
-   * Restore database from a backup file (Owner only).
-   * Requirements: 14.6, 14.8
+   * POST /api/frs/backup/restore — INACTIVE
+   * Restore was previously SQLite-based and has been decommissioned.
    */
-  router.post('/restore', requirePermission('cfd.config.write'), asyncHandler(async (req: Request, res: Response) => {
-    const { filename } = req.body;
-
-    if (!filename) {
-      throw AppError.badRequest(ErrorCode.VALIDATION_ERROR, 'filename is required');
-    }
-
-    const result = await restoreDatabase(filename);
-    await logBackupOperation('restore', req.user!.userId, result);
-
-    if (!result.success) {
-      throw AppError.internal(result.error ?? 'Restore failed');
-    }
-
-    res.json({ success: true, timestamp: result.timestamp });
-  }));
+  router.post('/restore', requirePermission('cfd.config.write'), (_req: Request, res: Response) => {
+    res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Restore endpoint is currently inactive' } });
+  });
 
   return router;
 }
